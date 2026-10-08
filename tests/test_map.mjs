@@ -1,0 +1,22 @@
+import fs from 'node:fs';
+const html = fs.readFileSync('led_layout_editor.html','utf8');
+const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
+const {projectFromPreset, PRESET_SP3122D, exportC} = CORE;
+const st = projectFromPreset(PRESET_SP3122D);
+let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fails++;};
+const map = exportC(st,{variant:'map'});
+console.log(map.split('\n').slice(0,14).map(l=>'  '+l).join('\n'));
+console.log('  ...');
+const nums = (map.match(/^\s+[\d,\s]+,\s*$/gm)||[]).join(' ').match(/\d+/g)||[];
+ok(map.includes('static const uint8_t led_map[LED_MAP_LEN] = {'), '有数组声明行');
+ok((map.match(/\{/g)||[]).length === (map.match(/\}/g)||[]).length, '花括号配平');
+ok(nums.length === 104, `映射表项数 = ${nums.length}（期望 104）`);
+ok(new Set(nums).size === 104, '映射表元素 0..103 无重复');
+// 表内顺序：前 8 项应等于 0..7，接下来 8 项等于 15..8（右旋钮反向？不，旋钮是 cw -> 8..15）
+const a = nums.map(Number);
+ok(a.slice(0,8).join()==='0,1,2,3,4,5,6,7', '旋钮2 (cw) 顺序原样');
+ok(a.slice(8,16).join()==='8,9,10,11,12,13,14,15', '旋钮1 (cw) 顺序原样');
+ok(a.slice(16,56).join()===Array.from({length:40},(_,i)=>16+i).join(), '顶环 (cw) 顺序原样');
+ok(a.slice(56,80).join()===Array.from({length:24},(_,i)=>79-i).join(), '环A (ccw) 表内倒序');
+console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
+process.exit(fails?1:0);

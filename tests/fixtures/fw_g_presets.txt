@@ -1,0 +1,11 @@
+# 从 BT_Audio_APP/bt_audio_app_src/services/spimled_service.c 抽出的 g_presets[] 真身（工具的回归锚点）
+# 重新生成: python tools/extract_fw_tables.py --fixture
+{ANIM_CHASE_SINGLE, COLOR_SPECTRUM, 10, 0, 8, 1, 2, {255,0,0}, {0,0,0}},
+{ANIM_CHASE_SINGLE, COLOR_SOLID,     10, 0, 8, 1, 0, {255,0,0}, {0,0,0}},
+{ANIM_CHASE_SINGLE, COLOR_SOLID,     10, 0, 8, 1, 0, {0,255,0}, {0,0,0}},
+{ANIM_CHASE_SINGLE, COLOR_SOLID,     10, 0, 8, 1, 0, {0,0,255}, {0,0,0}},
+{ANIM_CHASE_SINGLE, COLOR_GRADIENT,  10, 0, 8, 1, 2, {255,0,0}, {0,0,255}},
+{ANIM_CHASE_SINGLE, COLOR_SPECTRUM,  10, 0, 12, 1, 3, {255,0,0}, {0,0,0}},
+{ANIM_CHASE_SINGLE, COLOR_SOLID,     10, 0, 6, 1, 0, {255,255,255}, {0,0,0}},
+{ANIM_CHASE_SINGLE, COLOR_SPECTRUM,  10, 0, 4, 1, 1, {255,0,0}, {0,0,0}},
+{ANIM_CHASE_SINGLE, COLOR_SOLID,     16, 0, 8, 1, 0, {255,60,0}, {0,0,0}},

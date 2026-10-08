@@ -1,0 +1,6 @@
+# 测试编译产物（test_effects_c_exec 会把生成的头文件编到这里）
+tests/.build/
+# 编辑器 / 系统杂物
+.vscode/
+Thumbs.db
+desktop.ini
