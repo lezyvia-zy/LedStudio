@@ -24,13 +24,13 @@
 ```
 led_layout_editor.html       工具本体（唯一交付物）
 README.md                    面向用户的说明
-CLAUDE.md                    给 Claude 会话的项目说明（含 15 条踩坑）
+CLAUDE.md                    给 Claude 会话的项目说明（含 16 条踩坑）
 HANDOFF.md                   本文件（交接文档）
 docs/firmware-contract.md    目标固件必须提供什么 / 一次性补丁
 tools/extract_fw_tables.py   从固件源码重抽查表与 fixture
 tests/                       测试（node 直接跑，无需 npm）
   run_all.mjs                一键跑全部
-  test_*.mjs                 19 个套件，每个独立可执行
+  test_*.mjs                 20 个套件，每个独立可执行
   fixtures/fw_g_presets.txt  固件 g_presets[] 的回归锚点
   .build/                    真编译套件产物（.gitignore 已忽略）
 examples/
@@ -44,8 +44,8 @@ examples/
 
 | 脚本 | 行号（约） | 内容 | 是否碰 DOM |
 |---|---|---|---|
-| `<script id="core">` | 685–2642 | 纯逻辑：查表、图层原语、渲染、模式解析、C 导出 | **否** |
-| `<script id="ui">` | 2643–4753 | 画布、交互、面板、本地存储、多项目 | 是 |
+| `<script id="core">` | 784–2847 | 纯逻辑：查表、图层原语、渲染、模式解析、C 导出 | **否** |
+| `<script id="ui">` | 2849–5295 | 画布、交互、面板、本地存储、多项目、导出窗口 | 是 |
 
 **core 不碰 DOM，所以测试能把 core 单独抽出来在 node 里跑：**
 
@@ -53,7 +53,7 @@ examples/
 const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
 ```
 
-core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, resolveEffect, renderZoneMaskTo, … }`（在约 2626 行）。**测试只能看到这份清单里的符号**。往里加函数/常量时**必须**同步这份清单，否则测试抽不到（`CORE.xxx` 是 `undefined`，报错还很绕）——这就是 CLAUDE.md 坑 13。
+core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, resolveEffect, renderZoneMaskTo, … }`（在约 2831 行）。**测试只能看到这份清单里的符号**。往里加函数/常量时**必须**同步这份清单，否则测试抽不到（`CORE.xxx` 是 `undefined`，报错还很绕）——这就是 CLAUDE.md 坑 13。
 
 ### 1.3 core 脚本内部的模块（按出现顺序）
 
@@ -69,7 +69,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ### 1.4 ui 脚本内部的模块（按出现顺序）
 
-悬浮说明（`data-tip`）→ 主题（深浅色）→ 项目库（多项目 + localStorage 自动保存）→ 撤销 → 坐标 → 右侧栏宽度 → 绘制 → 效果编辑台（`stageView`）→ 命中 → 画布交互 → 键盘 → 左侧栏（项目区 + 模式区）→ 面板（`.pane`）→ 效果页 → 预置效果模板 → 模式页 → 动效 C 导出 → 文件 → 状态栏 → 项目切换/新建/删除 → 装配 → 分区增删 → 项目设置。
+悬浮说明（`data-tip`）→ 主题（深浅色）→ 项目库（多项目 + localStorage 自动保存）→ 撤销 → 坐标 → 右侧栏宽度 → 绘制 → 效果编辑台（`stageView`）→ 命中 → 画布交互 → 键盘 → 左侧栏（项目区 + 模式区）→ 面板（`.pane`）→ 效果页 → 预置效果模板 → 模式页 → 动效 C 导出 → 文件 → 状态栏 → 导出窗口（`#exportDlg` 弹窗 + 标题栏拖动 + `saveAsFile`/`openExport`/`closeExport`/`showExportKind`）→ 项目切换/新建/删除 → 装配 → 分区增删 → 项目设置。
 
 ### 1.5 运行时状态模型
 
@@ -147,6 +147,8 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 动画页真实灯板预览 | ui 动画页；core `sim*` / `renderAllSim` |
 | 速度档跟着音乐变（预览可模拟） | ui `#aSpeed` 的「自动」+ `#aAudio`「音乐来了」；core `ringIsFast/instSpeedFromRing/simSyncSpeed`；生成的 C 用同一条判据（`led_gen_tick`）—— 见 docs/firmware-contract.md 第三节 |
 | C 代码导出（效果表+模式表+渲染器+补丁横幅） | core `exportC/exportEffectsC/modesPlan/buildPatchText`；ui 导出页 |
+| 导出窗口（独立弹窗，可拖动 / 拉伸，Esc 或点遮罩关闭） | ui `openExport/closeExport/showExportKind/exportIsOpen`；`#exportDlg` + `.dlgMask`；内容按页签惰性生成 |
+| 保存时自选路径（系统「另存为」） | ui `saveAsFile`（`showSaveFilePicker`，不支持时退回 `download`）；PNG 先拿选择器再编码，避免回调里丢用户手势 |
 | 生成 C 注释双语（中/ASCII） | core `GEN_COMMENTS` + `mangleComment`（模板内中文用 `@key@` 占位） |
 | 多项目 + 自动保存（localStorage） | ui 项目库 `store` |
 | 保存/打开工程（JSON） | ui 文件模块 |
@@ -155,13 +157,13 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 悬浮说明 + 完整帮助页 | ui 悬浮说明 + 帮助页；被 `test_help` 断言 |
 | 从固件源码重抽查表 | `tools/extract_fw_tables.py` |
 
-### 测试覆盖（19 套件、528 项断言）
+### 测试覆盖（20 套件、593 项断言）
 
 | 类型 | 套件 | 验什么 |
 |---|---|---|
 | 纯逻辑 | `test_effects_core`(56) `test_core`(22) `test_map`(8) `test_wrap`(4) `test_anim`(10) `test_effects_c`(43) | 图层原语、排布生成、校验、C 文本、回绕修正、速度档信号链 |
 | 真编译 | `test_effects_c_exec`(10) | 用 AndeSight cygwin gcc 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的音量档场景（验「音乐来了会变快」这条链路） |
-| 假 DOM | `test_effects_ui`(38) `test_ui`(52) `test_anim2`(30) `test_modes`(21) `test_override`(29) `test_fx_presets`(32) `test_stage`(22) `test_split`(25) `test_help`(51) | 界面层真跑一遍（`boot()` 走通）、交互、接线（含速度档「自动」接线）；`test_help` 断言帮助页章节与 `data-tip` |
+| 假 DOM | `test_effects_ui`(38) `test_ui`(52) `test_anim2`(30) `test_modes`(21) `test_override`(29) `test_fx_presets`(32) `test_stage`(22) `test_split`(25) `test_help`(51) `test_export`(65) | 界面层真跑一遍（`boot()` 走通）、交互、接线（含速度档「自动」接线）；`test_help` 断言帮助页章节与 `data-tip`；`test_export` 断言导出窗口开关/三页签/「另存为」与回退下载/取消/拖动/Esc、以及右栏宽度上限自适应 |
 | 持久化 | `test_persist`(31) `test_solo`(31) | 关掉再打开还在、迁移、状态隔离 |
 | 结构 | `test_struct`(13) | 脚本分块结构 |
 
@@ -171,9 +173,9 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 5. 进行中 / 未完成的功能（及当前思路）
 
-工具本体**功能完整、437 项断言全绿**。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
+工具本体**功能完整、593 项断言全绿**。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
 
-1. **抽公共测试驾具**：19 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 19 处。应该抽成 `tests/_harness.mjs`。
+1. **抽公共测试驾具**：20 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 20 处。应该抽成 `tests/_harness.mjs`。
    - **注意**：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
 2. **`_fxui_body*.js` 的构建脚本**（原来在临时目录）没搬过来 —— 有两个套件（`test_effects_ui`/`test_fx_presets`/`test_solo`/`test_stage`/`test_override`/`test_split`）是从 `test_split.mjs` 的前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改其中一个的公共部分时要留意重复。
 3. **目标固件契约还偏窄**：生成代码现在假定目标有 `led_ring.c`/`spimled_service.c` 那套结构（`ring_t`、`anim_ctx_t`、`ANIM_TYPE_COUNT`、静态的 `anim_render_*`）。要真正通用，得把这层抽成可配置的「后端」。
@@ -219,7 +221,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 按优先级 / 依赖排序：
 
 0. **逐模块优化（当前主线）**：见 `docs/module-audit.md` —— 8 个页签的体检结果（每条 = 现象 + 证据行号 + 严重度 + 改动面 + 验收清单），按「批 0 → 批 3」推进，每个模块一次提交（commit message 带条目号）。
-1. **抽公共测试驾具 `tests/_harness.mjs`**（坑 12 相关，`ctxDraw` 用 getter/setter 包装）—— 消除 19 个套件各抄一份假 DOM 的重复，之后改测试公共部分只改一处。
+1. **抽公共测试驾具 `tests/_harness.mjs`**（坑 12 相关，`ctxDraw` 用 getter/setter 包装）—— 消除 20 个套件各抄一份假 DOM 的重复，之后改测试公共部分只改一处。
 2. **补 `_fxui_body*.js` 的构建脚本**（原来在临时目录）—— 或者用抽出的 `_harness.mjs` 统一掉那 6 个「`test_split.mjs` 前缀 + body」拼出来的套件。
 3. **把目标固件契约抽成可配置的「后端」** —— 把 `ring_t`/`anim_ctx_t`/`ANIM_TYPE_COUNT`/静态 `anim_render_*` 这层对目标固件的硬假设抽象成可配置项（见 firmware-contract.md 第六节「移植到别的固件」的已知注意点）。
 4. **新增渲染后端**：目前只有「生成 C 头文件」，可加 Arduino/FastLED 后端、或直接输出二进制。

@@ -23,6 +23,7 @@ let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fa
     .forEach(id => ok(ids.has(id), `有元素 #${id}`));
   ok(!ids.has('xCopy') && !ids.has('eCopy'), '窄面板时代的两个「复制」按钮已并成窗口里的一个');
   ok(/id="xForm"[\s\S]{0,400}?data-tip=/.test(html), '搬进窗口的「形式」下拉仍带说明');
+  ok(!/第 4 节/.test(html), '提示文案不再引用过期的「第 4 节」（E2：补丁清单现在在 docs/firmware-contract.md 第二节）');
 }
 
 /* ---- 2) 假 DOM ---- */

@@ -4645,7 +4645,7 @@ function doFxExport() {
   const warn = [];
   const custom = fxList().filter(e => e.kind === 'custom' && e.enabled);
   if (custom.length)
-    warn.push('有 ' + custom.length + ' 个自定义动效：固件必须先打第 4 节列的 6 处一次性补丁，否则 led_ring.c 不认识这些 anim_type。');
+    warn.push('有 ' + custom.length + ' 个自定义动效：固件必须先打一次性补丁 [1]–[6]（见 docs/firmware-contract.md 第二节），否则 led_ring.c 不认识这些 anim_type。');
   const empty = [];
   for (let s = 0; s < EFFECT_SLOTS; s++) if (!effectAtSlot(st, s)) empty.push(s);
   if (empty.length) warn.push('槽位 ' + empty.join(',') + ' 没有启用中的效果，导出时这几行回退成内建默认。');

@@ -46,7 +46,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 原本是给山景 BP1048B2 蓝牙音箱（SP-3122D，104 颗灯）做的，现已独立成通用工具；目标固件的接口约定见 [docs/firmware-contract.md](docs/firmware-contract.md)。
 
-顶栏 8 个页签 = 主要工作面：`分区 效果 模式 动画 校验 生成 导出 帮助`。「校验」页查排布/编号问题，「帮助」页是完整教程（**它的文案被 `test_help` 断言，见坑 14**）。
+顶栏 8 个页签 = 主要工作面：`分区 效果 模式 动画 校验 生成 导出 帮助`。「校验」页查排布/编号问题，「帮助」页是完整教程（**它的文案被 `test_help` 断言，见坑 14**）。「导出」页只是**入口**：生成的内容都在独立窗口 `#exportDlg` 里（标题栏拖动 / 右下角拉伸 / Esc 关闭、保存可自选路径，见坑 16）。
 
 ## 三层模型（最要紧的概念，别搞混）
 
@@ -126,13 +126,13 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 测试怎么组织的
 
-19 个套件、437 项断言。四类：
+20 个套件、593 项断言。四类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
 | **纯逻辑** | `test_effects_core` `test_core` `test_map` | 图层原语、排布生成、校验、C 文本 |
 | **真编译** | `test_effects_c_exec` | 用 **AndeSight 自带的 cygwin gcc** 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的场景，验「音乐来了会变快」 |
-| **假 DOM** | `test_ui` `test_modes` `test_stage` `test_override` `test_help` … | 把界面层真跑一遍（`boot()` 走通）、交互、接线；`test_help` 还断言帮助页章节与 `data-tip` |
+| **假 DOM** | `test_ui` `test_modes` `test_stage` `test_override` `test_help` `test_export` … | 把界面层真跑一遍（`boot()` 走通）、交互、接线；`test_help` 还断言帮助页章节与 `data-tip`；`test_export` 断言导出窗口（开关 / 三页签 / 「另存为」与回退下载 / 拖动 / Esc）与右栏宽度上限 |
 | **持久化** | `test_persist` `test_solo` | 关掉再打开还在、迁移、状态隔离 |
 
 `test_effects_c_exec` 需要能跑 cygwin gcc（见 README 的「真编译测试」一节）；**改图层原语或 C 模板后必须跑它** —— 它验的是「预览和生成的代码是不是一回事」，这条不成立整个工具就没意义。
@@ -154,13 +154,14 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 13. **core 里新增的函数/常量必须加进末尾的 `CORE = { … }` 导出清单**，否则测试抽不到它（`CORE.xxx` 为 `undefined`，报错还很绕）。
 14. **帮助页文案与 `data-tip` 是测试断言对象**（`test_help`）：章节标题、关键短语（如「本层空间色相」）、特定控件的 `data-tip` 都在断言里。改教程文字或删说明前先看 `test_help.mjs`。**每个 `<h3>` 必须带唯一的 `id`**（`#helpToc` 的目录按 h3 顺序生成、按 id 联动显隐），「常见做法」表里的「去做」按钮用 `data-go="<页签>"`，目标必须是已存在的页签（`test_help` 会校验）。
 15. **速度档是 ring 级信号，不是实例级的**：`ring->speed_cur` 由固件 `ring_set_audio_level()` 按音量切，生成代码在 `led_gen_tick()` 开头把它同步进每个实例（`I->speed_cur = fast ? I->speed_fast : I->speed_slow`，各效果仍用自己配的 fast/slow）。改这条判据必须同时改 JS 侧的 `ringIsFast()` —— 否则真编译套件立刻红。判据是保守的：只有 `speed_fast < speed_slow` 且 `speed_cur` 落在快档才算「有声音」。
+16. **导出的「另存为」必须先弹系统选择器、再异步生成内容**：`showSaveFilePicker()` 吃用户手势，塞进 `toBlob()` 的回调里就变成「非用户触发」而抛 `SecurityError` —— 所以 `saveAsFile(name, data, mime)` 的 `data` 允许传**函数**（先弹选择器 → `await make()` → 再写文件）。另外 `#tipBox` 的 `z-index` 必须**高于**弹窗遮罩（`.dlgMask`），否则导出窗口里的 `data-tip` 会被挡住弹不出来。
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、437 项断言全绿（`node tests/run_all.mjs` 实测 19 套件 / 437 项 / 0 FAIL）。
+工具本体功能完整、593 项断言全绿（`node tests/run_all.mjs` 实测 20 套件 / 593 项 / 0 FAIL）。
 **逐模块优化的体检报告在 `docs/module-audit.md`**（8 个页签：可优化点 + 优先级批次 + 改动面 + 每模块验收清单）—— 当前主线。已知的待办：
 
-1. **抽公共测试驾具**：19 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 19 处。应该抽成 `tests/_harness.mjs`。注意：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
+1. **抽公共测试驾具**：20 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 20 处。应该抽成 `tests/_harness.mjs`。注意：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
 2. **`_fxui_body*.js` 的构建脚本**（原来在临时目录）没搬过来 —— 有两个套件（`test_effects_ui`/`test_fx_presets`/`test_solo`/`test_stage`/`test_override`/`test_split`）是从 `test_split.mjs` 的前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改其中一个的公共部分时要留意重复。
 3. **目标固件契约还偏窄**：生成代码现在假定目标有 `led_ring.c`/`spimled_service.c` 那套结构（`ring_t`、`anim_ctx_t`、`ANIM_TYPE_COUNT`、静态的 `anim_render_*`）。要真正通用，得把这层抽成可配置的「后端」。
 4. 渲染后端目前只有「生成 C 头文件」一种；以后可以加别的（比如 Arduino/FastLED、或直接出二进制）。
