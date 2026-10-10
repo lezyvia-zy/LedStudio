@@ -9,7 +9,8 @@ let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fa
 const listeners = {};
 const byId = new Map();
 let ctxDraw = 0;
-const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=()=>{ctxDraw++;})), set:(t,k,v)=>{t[k]=v;return true;} });
+const texts = [];                       /* 记下 fillText 的文字，用来断言编辑台的状态行 */
+const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=(...a)=>{ctxDraw++; if(k==='fillText') texts.push(String(a[0]));})), set:(t,k,v)=>{t[k]=v;return true;} });
 const store = new Map();
 
 function mkEl(tag='div', id=''){ return {
@@ -102,6 +103,16 @@ byId.get('stCompare').checked = true; byId.get('stCompare').onchange({ target: b
 ok(ctxDraw > 0, `切到效果页并开对比后重绘了画布（ctx ${ctxDraw} 次）`);
 await new Promise(r => setTimeout(r, 700));   /* 等自动保存的防抖 */
 ok(projState(0).stage.compare === true, '对比开关写进了工程');
+
+/* ---- 2b) 编辑台第二行给出运行状态（暂停/位置/节奏），调 speed 参数时看得见 ---- */
+texts.length = 0;
+byId.get('stCompare').onchange({ target: byId.get('stCompare') });
+{
+  const line = texts.find(t => /拍走 1 格/.test(t)) || '';
+  ok(/播放中|已暂停/.test(line), `状态行带播放状态: "${line}"`);
+  ok(/位置 \d+\/24 颗/.test(line), '状态行带当前位置（按编辑台圆环颗数换算）');
+  ok(/快档 \d+ \/ 慢档 \d+/.test(line), '状态行带快慢档拍数');
+}
 
 /* ---- 3) 颗数可以自定义 ---- */
 byId.get('stRing').value = '60'; byId.get('stRing').oninput({ target: byId.get('stRing') });

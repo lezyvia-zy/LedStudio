@@ -3079,13 +3079,16 @@ function renderStage() {
     ctx.fillText(label, cx, cy - Rr - 20);
   };
 
-  /* 标题：说明这是基础排布，不是真实灯板 */
+  /* 标题：说明这是基础排布，不是真实灯板；第二行给运行状态（调 speed 参数时得看得见现在跑到哪） */
   ctx.textAlign = 'left'; ctx.fillStyle = TC.label;
   ctx.font = '13px "Microsoft YaHei",sans-serif';
   ctx.fillText('效果编辑台 · ' + e.name, 24, 24);
   ctx.font = '12px "Microsoft YaHei",sans-serif';
+  ctx.fillText((stagePlaying ? '播放中' : '已暂停') +
+    ` · 位置 ${stageZpos(pos, st.ringN)}/${st.ringN} 颗` +
+    ` · ${inst.speed_cur} 拍走 1 格（快档 ${inst.speed_fast} / 慢档 ${inst.speed_slow}）`, 24, 44);
   ctx.fillStyle = TC.dim || TC.label;
-  ctx.fillText('基础排布，与真实灯板无关；调完参数去「模式」页分配分区', 24, 44);
+  ctx.fillText('基础排布，与真实灯板无关；调完参数去「模式」页分配分区', 24, 64);
 
   const top = 76;
   if (st.compare) {
