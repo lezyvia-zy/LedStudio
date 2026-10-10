@@ -58,7 +58,7 @@ globalThis.performance = globalThis.performance || { now:()=>Date.now() };
 globalThis.requestAnimationFrame = () => 0;
 globalThis.devicePixelRatio = 1;
 globalThis.Image = class { set src(v){ this._s=v; if(this.onload) setTimeout(()=>this.onload(),0); } get src(){return this._s;} };
-globalThis.FileReader = class { readAsText(){} readAsDataURL(){} };
+globalThis.FileReader = class { readAsText(){} readAsDataURL(){ this.result = 'data:image/png;base64,x'; if (this.onload) this.onload(); } };
 globalThis.Blob = class {}; globalThis.URL = { createObjectURL:()=>'blob:x', revokeObjectURL(){} };
 try { Object.defineProperty(globalThis,'navigator',{value:{clipboard:{writeText:()=>Promise.resolve()}},configurable:true}); } catch(e){}
 globalThis.alert = m => { console.log('   [alert] '+m); };
@@ -124,6 +124,40 @@ if (store.has('led_layout_editor.v1')) {
   await new Promise(r => setTimeout(r, 700));
   ok(zc() !== before, `点色块改色并存盘: ${before} → ${zc()}`);
   ok(byId.get('zColor').value === zc(), `取色器显示同步: ${byId.get('zColor').value}`);
+}
+
+/* ---- 4c) G2) 底图：「对齐到格」把 X/Y 收到半格栅格上，并进自动保存 ---- */
+{
+  const bgOf = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state.canvas.background;
+  /* 还没底图时点一下：给提示，不能静默 */
+  byId.get('bgAlign').onclick();
+  ok(/还没有底图/.test(byId.get('status').textContent),
+     `没有底图时「对齐到格」给出提示: "${byId.get('status').textContent}"`);
+
+  const f = byId.get('bgFile');
+  f.files = [{ name: 'photo.png' }];
+  f.onchange({ target: f });
+  await new Promise(r => setTimeout(r, 700));
+  ok(!!bgOf() && bgOf().href === 'data:image/png;base64,x', '选图后底图已建立并存盘');
+
+  /* 手动挪到「不在格上」的位置 */
+  const bx = byId.get('bgX'), by = byId.get('bgY');
+  bx.value = '13'; bx.oninput({ target: bx });
+  by.value = '-27'; by.oninput({ target: by });
+  await new Promise(r => setTimeout(r, 700));
+  ok(bgOf().x === 13 && bgOf().y === -27, `底图已挪到 X ${bgOf().x} / Y ${bgOf().y}（不在格上）`);
+
+  const half = (+byId.get('cellSize').value || 40) / 2;
+  byId.get('bgAlign').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  const g = bgOf();
+  ok(g.x % half === 0 && g.y % half === 0,
+     `「对齐到格」后 X ${g.x} / Y ${g.y} 都是 ${half}px 的整数倍（对齐前 13 / -27）`);
+  ok(byId.get('bgX').value === String(g.x) && byId.get('bgY').value === String(g.y),
+     `输入框同步到对齐后坐标: ${byId.get('bgX').value} / ${byId.get('bgY').value}`);
+  ok(/底图已对到格|本来就/.test(byId.get('status').textContent),
+     `对齐状态栏反馈: "${byId.get('status').textContent}"`);
+  ok(!!bgOf(), '对齐后底图参数仍在自动保存里（没有把底图弄丢）');
 }
 
 /* ---- 5) 交互：切换方向修正，诊断行必须变化 ---- */

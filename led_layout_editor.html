@@ -436,6 +436,7 @@
         <label class="row"><span>透明度</span><input type="range" id="bgOp" min="0" max="100" value="45"></label>
         <label class="row"><span>缩放</span><input type="number" id="bgScale" value="1" step="0.05"></label>
         <label class="row"><span>X/Y</span><input type="number" id="bgX" value="0"><input type="number" id="bgY" value="0"></label>
+        <button id="bgAlign" data-tip="把底图的 X/Y 对齐到半个格（格边长的一半）—— 描照片时让底图和画布网格对整齐，灯位更好点。">对齐到格</button>
         <button id="bgClear">移除底图</button>
       </fieldset>
     </div>
@@ -4913,6 +4914,18 @@ $('#bgOp').oninput    = e => { if (state.canvas.background) { state.canvas.backg
 $('#bgScale').oninput = e => { if (state.canvas.background) { state.canvas.background.scale = +e.target.value || 1; render(); saveStore(); } };
 $('#bgX').oninput     = e => { if (state.canvas.background) { state.canvas.background.x = +e.target.value || 0; render(); saveStore(); } };
 $('#bgY').oninput     = e => { if (state.canvas.background) { state.canvas.background.y = +e.target.value || 0; render(); saveStore(); } };
+/* 「对齐到格」：把底图 X/Y 收到半个格的整数倍上（G2）—— 网格线/灯位都在这个栅格上 */
+$('#bgAlign').onclick = () => {
+  const bg = state.canvas.background;
+  if (!bg) { status('还没有底图 —— 先在上面「图片」里选一张，再来对齐。', 'warn'); return; }
+  const half = GEN.CELL / 2;
+  const nx = Math.round(bg.x / half) * half, ny = Math.round(bg.y / half) * half;
+  const dx = nx - bg.x, dy = ny - bg.y;
+  bg.x = nx; bg.y = ny;
+  $('#bgX').value = nx; $('#bgY').value = ny;
+  render(); saveStore();
+  status(dx || dy ? `底图已对到格（挪了 ${dx}px / ${dy}px）` : '底图本来就在格上，没有变化', 'ok');
+};
 $('#bgClear').onclick = () => { state.canvas.background = null; render(); saveStore(); };
 
 /* 导出 */
