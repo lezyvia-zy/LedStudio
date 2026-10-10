@@ -170,6 +170,35 @@
   .projBtns button{flex:1 1 auto; padding:3px 2px; font-size:11.5px}
   #left .sep{height:1px; background:var(--line); margin:4px 0}
   .modeBtn{width:100%; text-align:left}
+  /* ---- 导出窗口：独立的模态弹窗（不占右侧栏、可拖动、可拉伸、保存时能自选路径） ---- */
+  .dlgMask{position:fixed; left:0; top:0; right:0; bottom:0; background:#0007; z-index:88; display:none}
+  .dlgMask.on{display:block}
+  .dlg{
+    position:fixed; z-index:89; display:none; flex-direction:column; overflow:hidden;
+    width:900px; height:600px; left:40px; top:40px; min-width:420px; min-height:260px;
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    box-shadow:0 14px 44px #0009; resize:both;
+  }
+  .dlg.on{display:flex}
+  .dlgHead{
+    display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:6px 8px;
+    background:var(--panel2); border-bottom:1px solid var(--line);
+    cursor:move; touch-action:none; user-select:none;
+  }
+  .dlgHead b{font-size:13px; white-space:nowrap}
+  .dlgHead .grow{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:0}
+  .dlgTabs{display:flex; flex-wrap:wrap; gap:4px; flex:0 0 auto; padding:6px 8px 0}
+  .dlgTabs button.on{border-color:var(--accent); background:var(--sel-bg)}
+  .dlgOpts{
+    display:flex; flex-wrap:wrap; gap:2px 10px; align-items:center; flex:0 0 auto;
+    padding:6px 8px; border-bottom:1px solid var(--line);
+  }
+  .dlgOpts label.row{margin:1px 0; flex:1 1 190px; min-width:170px}
+  .dlgBody{flex:1 1 auto; min-height:0; display:flex; padding:8px}
+  .dlgBody textarea{flex:1 1 auto; height:auto; min-height:0; resize:none}
+  .dlgFoot{display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:6px 8px; border-top:1px solid var(--line)}
+  .dlgFoot .grow{flex:1 1 auto; min-width:0; overflow:auto; max-height:58px; margin:0}
+  .hide{display:none !important}
 </style>
 </head>
 <body>
@@ -452,51 +481,17 @@
 
     <div class="pane" data-pane="exp">
       <fieldset>
-        <legend>导出 C 代码</legend>
-        <label class="row"><span>形式</span><select id="eVar">
-          <option value="table">仅 g_default_zones[] 表</option>
-          <option value="full">表 + 固件补丁说明</option>
-          <option value="map">显式映射表 (不改固件)</option>
-        </select></label>
-        <label class="row"><span>注释</span><select id="eCmt">
-          <option value="ascii">ASCII (推荐)</option>
-          <option value="zh">中文 (注意 GBK 编码)</option>
-        </select></label>
-        <label class="row"><span>名义方向</span><select id="eNom">
-          <option value="cw">顺时针为正向</option>
-          <option value="ccw">逆时针为正向</option>
-        </select></label>
-        <button id="eBuild" class="pri">生成</button>
-        <button id="eCopy">复制</button>
-        <div class="hint" id="eWarn"></div>
-        <textarea id="eOut" spellcheck="false"></textarea>
-      </fieldset>
-      <fieldset>
-        <legend>导出动效 C</legend>
-        <label class="row"><span>形式</span><select id="xForm" data-tip="独立头文件 = 直接下载 led_effects_gen.h。&#10;粘贴块 = 6 处补丁的前后对照。&#10;两者 = 都要。">
-          <option value="header">独立头文件 led_effects_gen.h</option>
-          <option value="paste">粘贴块（6 处补丁指引）</option>
-          <option value="both">两者</option>
-        </select></label>
-        <label class="row"><span>注释</span><select id="xCmt" data-tip="ASCII 注释最安全。选中文注释时，贴进 SDK 后必须在编辑器里存成 ANSI/GBK，否则乱码。">
-          <option value="ascii">ASCII (推荐)</option>
-          <option value="zh">中文 (注意 GBK 编码)</option>
-        </select></label>
-        <label class="row"><span>换行</span><select id="xEol" data-tip="目标源文件是 CRLF（Windows），默认就对。">
-          <option value="crlf">CRLF (Windows 目标)</option>
-          <option value="lf">LF</option>
-        </select></label>
-        <button id="xBuild" class="pri">生成</button>
-        <button id="xCopy">复制</button>
-        <button id="xDownload" data-tip="下载成 led_effects_gen.h，放到 SDK 的 bt_audio_app_src/inc/ 下。">下载 .h</button>
-        <div class="hint" id="xWarn"></div>
-        <textarea id="xOut" spellcheck="false"></textarea>
+        <legend>导出</legend>
+        <div class="hint">导出都在<b>独立窗口</b>里做：能边看边改、能拖动 / 拉伸，还能自己选保存路径
+          （Chrome / Edge 会弹系统「另存为」，其它浏览器退回下载目录）。</div>
+        <button id="expOpenFx" class="pri" data-tip="打开导出窗口，先看动效头文件 led_effects_gen.h。">动效头文件…</button>
+        <button id="expOpenTable" data-tip="打开导出窗口，先看分区表 C 代码（g_default_zones[]）。">排布表 C…</button>
       </fieldset>
 
       <fieldset>
-        <legend>其他</legend>
-        <button id="btnPng">导出 PNG 排布图</button>
-        <button id="btnJson">导出 JSON</button>
+        <legend>文件</legend>
+        <button id="btnPng" data-tip="把所有灯位、编号、分区颜色画成一张 PNG（白底，贴文档用）。">导出 PNG 排布图</button>
+        <button id="btnJson" data-tip="打开导出窗口，看整个工程的 JSON（备份 / 换机器用）。">导出 JSON…</button>
       </fieldset>
     </div>
     <div class="pane" data-pane="help">
@@ -670,7 +665,12 @@
           预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），在这里看到的快慢就是样机上的快慢。</div>
 
         <h3 id="hs-export">导出与固件</h3>
-        <p>「导出」页分两块：上面是<b>分区表</b>（<code>g_default_zones[]</code>），下面是<b>动效</b>（<code>led_effects_gen.h</code>）。</p>
+        <p>导出都在一个<b>独立窗口</b>里做：在「导出」页签点「动效头文件…」「排布表 C…」「导出 JSON…」把它打开。
+          窗口可以按住标题栏<b>拖动</b>、从右下角<b>拉伸</b>，<span class="kbd">Esc</span> 或点窗口外面就关掉 —— 它不占右侧栏，也不挡画布。</p>
+        <p>窗口里有三个页签：<b>动效头文件</b>（<code>led_effects_gen.h</code>）、<b>排布表 C</b>（<code>g_default_zones[]</code>）、
+          <b>工程 JSON</b>（整份工程，备份 / 换机器用）。左上角选好形式与注释，下面就是结果，改选项会自动重算。</p>
+        <p>存文件点<b>「保存到文件…」</b>：Chrome / Edge 会弹系统「另存为」，<b>目录和文件名都能自己选</b>；
+          其它浏览器退回「下载到默认目录」，状态栏会说明。想直接贴进编辑器就用「复制」。</p>
         <ul>
           <li><b>形式</b>：独立头文件 / 粘贴块（补丁指引）/ 两者。</li>
           <li><b>注释</b>：默认 ASCII，最安全。<b>选中文注释时</b>，贴进 SDK 后必须在编辑器里存成 ANSI/GBK，否则乱码。</li>
@@ -703,7 +703,8 @@
           <tr><td><span class="kbd">滚轮</span></td><td>缩放；<span class="kbd">0</span> 适配窗口，<span class="kbd">1</span> 100%</td></tr>
           <tr><td><span class="kbd">Ctrl+Z/Y</span></td><td>撤销 / 重做</td></tr>
           <tr><td><span class="kbd">Ctrl+S/O</span></td><td>保存 / 打开工程 JSON</td></tr>
-          <tr><td><span class="kbd">Ctrl+E</span><span class="kbd">Ctrl+P</span></td><td>导出 C / 导出 PNG</td></tr>
+          <tr><td><span class="kbd">Ctrl+E</span><span class="kbd">Ctrl+P</span></td><td>导出 C（打开导出窗口）/ 导出 PNG</td></tr>
+          <tr><td><span class="kbd">Esc</span></td><td>关闭导出窗口</td></tr>
         </table>
 
         <div class="hint">所有可调项上悬停一小会儿都会弹出小窗说明。鼠标停在开关和按钮上也算。</div>
@@ -712,6 +713,71 @@
 
   </aside>
 </main>
+
+<!-- 导出窗口：独立的模态弹窗（不占右侧栏；可拖动 / 拉伸；保存时可自己选路径） -->
+<div id="exportMask" class="dlgMask"></div>
+<div id="exportDlg" class="dlg" role="dialog" aria-modal="true" aria-labelledby="expTitle">
+  <div class="dlgHead" id="expDrag" data-tip="按住这里可以拖动整个窗口；右下角可以拉伸；Esc 关闭。">
+    <b id="expTitle">导出</b>
+    <span class="grow hint" id="expSub"></span>
+    <button id="expClose" data-tip="关闭导出窗口（Esc）。">关闭</button>
+  </div>
+  <div class="dlgTabs">
+    <button id="expTabFx" data-x="fx" class="on" data-tip="动效头文件：整个 led_effects_gen.h。">动效头文件</button>
+    <button id="expTabTable" data-x="table" data-tip="分区表：g_default_zones[] 那段 C。">排布表 C</button>
+    <button id="expTabJson" data-x="json" data-tip="整个工程的 JSON（底图引用、动效库、模式绑定都在里面）。">工程 JSON</button>
+  </div>
+  <div class="dlgOpts">
+    <div id="optFx" style="display:contents">
+      <label class="row"><span>形式</span><select id="xForm" data-tip="独立头文件 = 直接另存 led_effects_gen.h。&#10;粘贴块 = 6 处补丁的前后对照。&#10;两者 = 都要。">
+        <option value="header">独立头文件 led_effects_gen.h</option>
+        <option value="paste">粘贴块（6 处补丁指引）</option>
+        <option value="both">两者</option>
+      </select></label>
+      <label class="row"><span>注释</span><select id="xCmt" data-tip="ASCII 注释最安全。选中文注释时，贴进 SDK 后必须在编辑器里存成 ANSI/GBK，否则乱码。">
+        <option value="ascii">ASCII (推荐)</option>
+        <option value="zh">中文 (注意 GBK 编码)</option>
+      </select></label>
+      <label class="row"><span>换行</span><select id="xEol" data-tip="目标源文件是 CRLF（Windows），默认就对。">
+        <option value="crlf">CRLF (Windows 目标)</option>
+        <option value="lf">LF</option>
+      </select></label>
+      <button id="xBuild" class="pri" data-tip="按上面的选项重新生成一遍。">重新生成</button>
+      <button id="xDownload" data-tip="另存成 led_effects_gen.h（能自己选目录），放到 SDK 的 bt_audio_app_src/inc/ 下。">保存 .h…</button>
+    </div>
+    <div id="optTable" class="hide" style="display:contents">
+      <label class="row"><span>形式</span><select id="eVar">
+        <option value="table">仅 g_default_zones[] 表</option>
+        <option value="full">表 + 固件补丁说明</option>
+        <option value="map">显式映射表 (不改固件)</option>
+      </select></label>
+      <label class="row"><span>注释</span><select id="eCmt">
+        <option value="ascii">ASCII (推荐)</option>
+        <option value="zh">中文 (注意 GBK 编码)</option>
+      </select></label>
+      <label class="row"><span>名义方向</span><select id="eNom">
+        <option value="cw">顺时针为正向</option>
+        <option value="ccw">逆时针为正向</option>
+      </select></label>
+      <button id="eBuild" class="pri" data-tip="按上面的选项重新生成一遍。">重新生成</button>
+    </div>
+    <div id="optJson" class="hide" style="display:contents">
+      <div class="hint">工程 JSON = 完整工程（底图引用、动效库、模式绑定都在里面），用于备份或换机器。</div>
+    </div>
+  </div>
+  <div class="dlgBody">
+    <textarea id="xOut" spellcheck="false" placeholder="这里显示 led_effects_gen.h 的内容（改上面的选项会自动重算）"></textarea>
+    <textarea id="eOut" class="hide" spellcheck="false" placeholder="这里显示 g_default_zones[] 那段 C"></textarea>
+    <textarea id="jOut" class="hide" spellcheck="false" readonly placeholder="这里显示工程 JSON"></textarea>
+  </div>
+  <div class="dlgFoot">
+    <div class="grow hint" id="xWarn"></div>
+    <div class="grow hint hide" id="eWarn"></div>
+    <div class="grow hint hide" id="expJsonHint">保存后可以用顶栏的「打开」把它载入回来。</div>
+    <button id="expCopy" data-tip="把当前这一页的内容复制到剪贴板。">复制</button>
+    <button id="expSave" class="pri" data-tip="选择保存路径并保存：Chrome / Edge 弹系统「另存为」（可自选目录和文件名），其它浏览器退回下载目录。">保存到文件…</button>
+  </div>
+</div>
 
 <input type="file" id="fileJson" accept=".json,application/json" hidden>
 
@@ -3026,9 +3092,16 @@ function fitView() {
 /* ---------- 右侧栏宽度 ---------- */
 const RIGHT_W_KEY = 'led_layout_editor.rightWidth';
 const RIGHT_W_DEFAULT = 300;
+const RIGHT_W_MIN = 220, RIGHT_W_MAX = 820;
 let rightW = RIGHT_W_DEFAULT;
+/* 上限跟着窗口走：窗口窄时右栏不能把画布整个吃掉（老版本固定 820，小窗口就等于铺满） */
+function rightWMax() {
+  const vw = (typeof window !== 'undefined' && window.innerWidth)
+    || (document.documentElement && document.documentElement.clientWidth) || 1280;
+  return Math.max(RIGHT_W_MIN + 40, Math.min(RIGHT_W_MAX, Math.round(vw - 460)));
+}
 function setRightWidth(px, save) {
-  rightW = Math.max(220, Math.min(820, Math.round(px)));
+  rightW = Math.max(RIGHT_W_MIN, Math.min(rightWMax(), Math.round(px)));
   const el = $('#right');
   if (el) el.style.flexBasis = rightW + 'px';
   if (save) { try { localStorage.setItem(RIGHT_W_KEY, String(rightW)); } catch (e) { } }
@@ -3037,7 +3110,8 @@ function setRightWidth(px, save) {
 function initSplitter() {
   const sp = $('#rightSplit');
   if (!sp) return;
-  try { const v = localStorage.getItem(RIGHT_W_KEY); if (v) rightW = +v || RIGHT_W_DEFAULT; } catch (e) { }
+  /* 存档里的宽度也要夹紧：以前存过超大值的，这次打开不会再「铺满整个工具」 */
+  try { const v = localStorage.getItem(RIGHT_W_KEY); if (v) setRightWidth(+v || RIGHT_W_DEFAULT, false); } catch (e) { }
   const el = $('#right');
   if (el) el.style.flexBasis = rightW + 'px';
 
@@ -3426,13 +3500,14 @@ cv.addEventListener('wheel', e => {
 
 /* ---------- 键盘 ---------- */
 window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && exportIsOpen()) { closeExport(); e.preventDefault(); return; }   /* Esc 关导出窗口 */
   if (/input|textarea|select/i.test(e.target.tagName)) return;
   if (e.code === 'Space') { spaceDown = true; cv.style.cursor = 'grab'; e.preventDefault(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'a') { e.preventDefault(); sel = new Set(state.leds.map(l => l.n)); render(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); saveJson(); return; }
-  if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); $('#eBuild').click(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); openExport('table'); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); exportPng(); return; }
   if (e.key === 'v' || e.key === 'V') { setMode('select'); return; }
   if (e.key === 'p' || e.key === 'P') { setMode('place');  return; }
@@ -3536,7 +3611,7 @@ function tab(name) {
   curPane = name;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
-  if (name === 'exp') { buildExport(); doFxExport(); }
+  if (name === 'exp' && exportIsOpen()) showExportKind(expKind);   /* 窗口开着就顺手刷新一遍 */
   if (name === 'check') renderIssues();
   if (name === 'fx') {
     renderFxList(); syncFxEdit(); syncStageControls(); syncFxTargetBar(); syncStagePlayBtn();
@@ -4594,30 +4669,146 @@ function doExport() {
     nominal: $('#eNom').value,
   });
 }
-function copyOut() {
-  const ta = $('#eOut');
+/* ---------- 导出窗口（独立弹窗） ----------
+ * 导出内容不再挤在右侧栏那张窄面板里（两个 textarea 一撑就把界面占满）。
+ * 现在是屏幕中央的一个窗口：标题栏可拖动、右下角可拉伸、Esc 关闭；
+ * 「保存到文件…」优先用系统的「另存为」自己选路径（Chrome / Edge），
+ * 拿不到选择器就退回浏览器下载（默认目录），并在状态栏说清楚。 */
+const EXPORT_KINDS = {
+  fx: {
+    tab: '#expTabFx', opt: '#optFx', out: '#xOut', warn: '#xWarn',
+    title: '导出动效 C', sub: 'led_effects_gen.h → 放到 SDK 的 bt_audio_app_src/inc/ 下',
+    file: () => 'led_effects_gen.h', mime: 'text/plain;charset=utf-8',
+    build: () => doFxExport(),
+  },
+  table: {
+    tab: '#expTabTable', opt: '#optTable', out: '#eOut', warn: '#eWarn',
+    title: '导出排布表 C', sub: 'g_default_zones[] 那段分区表',
+    file: () => (state.meta.name || 'ledboard') + '_g_default_zones.c', mime: 'text/plain;charset=utf-8',
+    build: () => buildExport(),
+  },
+  json: {
+    tab: '#expTabJson', opt: '#optJson', out: '#jOut', warn: '#expJsonHint',
+    title: '导出工程 JSON', sub: '整个工程（备份 / 换机器用）',
+    file: () => (state.meta.name || 'ledboard') + '.json', mime: 'application/json',
+    build: () => { $('#jOut').value = buildJsonText(); },
+  },
+};
+const EXPORT_ORDER = ['fx', 'table', 'json'];
+let expKind = 'fx';                     /* 窗口里当前看的是哪一种 */
+function exportIsOpen() {
+  const d = $('#exportDlg');
+  return !!(d && d.classList && d.classList.contains('on'));
+}
+function showExportKind(kind) {
+  if (!EXPORT_KINDS[kind]) kind = 'fx';
+  expKind = kind;
+  for (const k of EXPORT_ORDER) {
+    const it = EXPORT_KINDS[k], on = (k === expKind);
+    $(it.tab).classList.toggle('on', on);
+    $(it.opt).classList.toggle('hide', !on);
+    $(it.out).classList.toggle('hide', !on);
+    const w = $(it.warn); if (w) w.classList.toggle('hide', !on);
+  }
+  $('#expTitle').textContent = EXPORT_KINDS[expKind].title;
+  $('#expSub').textContent = EXPORT_KINDS[expKind].sub;
+  EXPORT_KINDS[expKind].build();      /* 每次切过来都重算：刚改过效果的人立刻看到最新的 */
+  return expKind;
+}
+function centerExportDlg() {
+  const d = $('#exportDlg');
+  const vw = window.innerWidth || 1280, vh = window.innerHeight || 800;
+  const w = Math.max(420, Math.min(1000, vw - 60)), h = Math.max(260, Math.min(680, vh - 60));
+  d.style.width = w + 'px'; d.style.height = h + 'px';
+  d.style.left = Math.max(0, Math.round((vw - w) / 2)) + 'px';
+  d.style.top = Math.max(0, Math.round((vh - h) / 2)) + 'px';
+}
+function openExport(kind) {
+  if (!state) return;
+  if (!exportIsOpen()) centerExportDlg();
+  showExportKind(kind || expKind);
+  $('#exportMask').classList.add('on');
+  $('#exportDlg').classList.add('on');
+  const ta = $(EXPORT_KINDS[expKind].out);
+  if (ta && ta.focus) ta.focus();
+  status('导出窗口已打开：切页签看不同内容，「保存到文件…」可以自己选路径', '');
+}
+function closeExport() {
+  $('#exportDlg').classList.remove('on');
+  $('#exportMask').classList.remove('on');
+}
+function copyExport() {
+  const ta = $(EXPORT_KINDS[expKind].out);
   const done = () => status('已复制到剪贴板', 'ok');
-  if (navigator.clipboard && navigator.clipboard.writeText) {
+  if (navigator.clipboard && navigator.clipboard.writeText)
     navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
-  } else { ta.select(); document.execCommand('copy'); done(); }
+  else { ta.select(); document.execCommand('copy'); done(); }
+}
+/* 按文件名给系统「另存为」配一个好用的类型过滤器 */
+function pickerTypes(name) {
+  if (/\.json$/i.test(name)) return [{ description: '工程 JSON', accept: { 'application/json': ['.json'] } }];
+  if (/\.png$/i.test(name)) return [{ description: 'PNG 图片', accept: { 'image/png': ['.png'] } }];
+  return [{ description: 'C 源文件 / 头文件', accept: { 'text/plain': ['.h', '.c', '.txt'] } }];
+}
+/* 统一的「保存」：能选路径就选路径，不能就退回下载。
+ * data 允许传函数：先弹系统选择器、再生成内容 —— 否则 toBlob 的回调里已经没有用户手势了。 */
+async function saveAsFile(name, data, mime, quiet) {
+  const make = (typeof data === 'function') ? data : () => data;
+  let handle = null;
+  const hasPicker = (typeof window !== 'undefined') && (typeof window.showSaveFilePicker === 'function');
+  if (hasPicker) {
+    try {
+      handle = await window.showSaveFilePicker({ suggestedName: name, types: pickerTypes(name) });
+    } catch (err) {
+      if (err && err.name === 'AbortError') { status('已取消保存', 'warn'); return false; }
+      status('系统的「另存为」打不开（' + ((err && err.message) || err) + '），改为下载到默认目录', 'warn');
+    }
+  } else if (!quiet) {
+    status('这个浏览器不能选保存路径，已下载到默认目录（Chrome / Edge 支持「另存为」）', 'warn');
+  }
+  if (handle) {
+    try {
+      const v = await make();
+      const blob = (typeof Blob !== 'undefined' && v instanceof Blob)
+        ? v : new Blob([v], { type: mime || 'text/plain;charset=utf-8' });
+      const w = await handle.createWritable();
+      await w.write(blob); await w.close();
+      status('已保存：' + (handle.name || name), 'ok');
+      return true;
+    } catch (err) {
+      status('写文件失败：' + ((err && err.message) || err), 'err');
+      return false;
+    }
+  }
+  download(name, await make(), mime);
+  return true;
+}
+function saveExport() {
+  const cur = EXPORT_KINDS[expKind];
+  return saveAsFile(cur.file(), () => $(cur.out).value, cur.mime);
 }
 
 /* ---------- 文件 ---------- */
-function download(name, text, mime) {
-  const b = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+function download(name, data, mime) {
+  const b = (typeof Blob !== 'undefined' && data instanceof Blob)
+    ? data : new Blob([data], { type: mime || 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(b); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
-function saveJson() {
+/* 工程 JSON 的文本：保存、导出窗口预览、Ctrl+S 共用同一份，避免三处不一致 */
+function buildJsonText() {
   const out = clone(state);
   out.canvas.background = state.canvas.background
     ? { href: state.canvas.background.href, x: state.canvas.background.x, y: state.canvas.background.y,
         scale: state.canvas.background.scale, opacity: state.canvas.background.opacity }
     : null;
   out.meta.savedAt = new Date().toISOString();
-  download((state.meta.name || 'ledboard') + '.json', JSON.stringify(out, null, 2), 'application/json');
+  return JSON.stringify(out, null, 2);
+}
+function saveJson() {
+  return saveAsFile((state.meta.name || 'ledboard') + '.json', () => buildJsonText(), 'application/json');
 }
 function loadJson(text) {
   const o = JSON.parse(text);
@@ -4675,24 +4866,16 @@ function exportPng() {
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(String(L.n), L.x, L.y);
   }
-  c2.toBlob(b => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = (state.meta.name || 'ledboard') + '_layout.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  });
+  /* 先要「另存为」再编码（此刻用户手势还在），拿不到选择器就退回下载 */
+  saveAsFile((state.meta.name || 'ledboard') + '_layout.png',
+             () => new Promise(res => c2.toBlob(b => res(b), 'image/png')), 'image/png');
 }
 /* 把画布上「此刻这一帧」存成 PNG：动画页看到什么就存什么，不改任何参数（A3） */
 function exportFramePng() {
-  cv.toBlob(b => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = (state.meta.name || 'ledboard') + '_frame.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    status('已导出当前帧 PNG', 'ok');
-  });
+  /* 先把反馈写掉（同步），再去弹「另存为」/ 下载：两个提示不会互相顶掉 */
+  status('已导出当前帧 PNG', 'ok');
+  saveAsFile((state.meta.name || 'ledboard') + '_frame.png',
+             () => new Promise(res => cv.toBlob(b => res(b), 'image/png')), 'image/png', true);
 }
 
 /* ---------- 状态栏 ---------- */
@@ -5060,24 +5243,51 @@ $('#bgAlign').onclick = () => {
 };
 $('#bgClear').onclick = () => { state.canvas.background = null; render(); saveStore(); };
 
-/* 导出 */
-$('#eBuild').onclick = doExport;
+/* 导出：入口在「导出」页签，内容都在独立窗口里做（EXPORT_KINDS） */
+$('#expOpenFx').onclick = () => openExport('fx');
+$('#expOpenTable').onclick = () => openExport('table');
+$('#btnJson').onclick = () => openExport('json');
+$('#expTabFx').onclick = () => showExportKind('fx');
+$('#expTabTable').onclick = () => showExportKind('table');
+$('#expTabJson').onclick = () => showExportKind('json');
+$('#expSave').onclick = saveExport;
+$('#expCopy').onclick = copyExport;
+$('#expClose').onclick = closeExport;
+$('#exportMask').onclick = closeExport;
+$('#eBuild').onclick = () => showExportKind('table');      /* 「重新生成」= 重算当前这一页 */
 ['#eVar','#eCmt','#eNom'].forEach(s => $(s).onchange = doExport);
-$('#eCopy').onclick = copyOut;
 $('#xBuild').onclick = doFxExport;
 ['#xForm','#xCmt','#xEol'].forEach(s => $(s).onchange = doFxExport);
-$('#xCopy').onclick = () => {
-  const ta = $('#xOut'); ta.select();
-  if (navigator.clipboard && navigator.clipboard.writeText)
-    navigator.clipboard.writeText(ta.value).then(() => status('已复制动效 C', 'ok'), () => { document.execCommand('copy'); status('已复制动效 C', 'ok'); });
-  else { document.execCommand('copy'); status('已复制动效 C', 'ok'); }
-};
-$('#xDownload').onclick = () => download('led_effects_gen.h', $('#xOut').value, 'text/plain;charset=utf-8');
+$('#xDownload').onclick = () => saveAsFile('led_effects_gen.h', () => $('#xOut').value, 'text/plain;charset=utf-8');
 $('#btnPng').onclick = exportPng;
 $('#btnFramePng').onclick = exportFramePng;
-$('#btnJson').onclick = saveJson;
 
-window.addEventListener('resize', () => { resizeCanvas(); render(); });
+/* 导出窗口：按住标题栏拖动（位置直接写在 inline style 上，不另存状态） */
+(function initExportDrag() {
+  const dlg = $('#exportDlg'), head = $('#expDrag');
+  if (!dlg || !head || !head.addEventListener) return;
+  let ox = 0, oy = 0, moving = false;
+  head.addEventListener('pointerdown', e => {
+    const t = e.target || {};
+    if (t.tagName === 'BUTTON') return;              /* 标题栏上的按钮不参与拖动 */
+    const r = dlg.getBoundingClientRect ? dlg.getBoundingClientRect() : { left: 0, top: 0 };
+    ox = (e.clientX || 0) - r.left; oy = (e.clientY || 0) - r.top;
+    moving = true;
+    if (head.setPointerCapture) head.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  head.addEventListener('pointermove', e => {
+    if (!moving) return;
+    const vw = window.innerWidth || 1280, vh = window.innerHeight || 800;
+    dlg.style.left = Math.max(0, Math.min(vw - 80, (e.clientX || 0) - ox)) + 'px';
+    dlg.style.top = Math.max(0, Math.min(vh - 32, (e.clientY || 0) - oy)) + 'px';
+  });
+  const stop = () => { moving = false; };
+  head.addEventListener('pointerup', stop);
+  head.addEventListener('pointercancel', stop);
+})();
+
+window.addEventListener('resize', () => { setRightWidth(rightW, false); resizeCanvas(); render(); });
 
 boot();
 status('');
