@@ -212,6 +212,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 按优先级 / 依赖排序：
 
+0. **逐模块优化（当前主线）**：见 `docs/module-audit.md` —— 8 个页签的体检结果（每条 = 现象 + 证据行号 + 严重度 + 改动面 + 验收清单），按「批 0 → 批 3」推进，每个模块一次提交（commit message 带条目号）。
 1. **抽公共测试驾具 `tests/_harness.mjs`**（坑 12 相关，`ctxDraw` 用 getter/setter 包装）—— 消除 19 个套件各抄一份假 DOM 的重复，之后改测试公共部分只改一处。
 2. **补 `_fxui_body*.js` 的构建脚本**（原来在临时目录）—— 或者用抽出的 `_harness.mjs` 统一掉那 6 个「`test_split.mjs` 前缀 + body」拼出来的套件。
 3. **把目标固件契约抽成可配置的「后端」** —— 把 `ring_t`/`anim_ctx_t`/`ANIM_TYPE_COUNT`/静态 `anim_render_*` 这层对目标固件的硬假设抽象成可配置项（见 firmware-contract.md 第六节「移植到别的固件」的已知注意点）。

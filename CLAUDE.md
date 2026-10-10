@@ -154,7 +154,8 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、437 项断言全绿。已知的待办：
+工具本体功能完整、437 项断言全绿（`node tests/run_all.mjs` 实测 19 套件 / 437 项 / 0 FAIL）。
+**逐模块优化的体检报告在 `docs/module-audit.md`**（8 个页签：可优化点 + 优先级批次 + 改动面 + 每模块验收清单）—— 当前主线。已知的待办：
 
 1. **抽公共测试驾具**：19 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 19 处。应该抽成 `tests/_harness.mjs`。注意：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
 2. **`_fxui_body*.js` 的构建脚本**（原来在临时目录）没搬过来 —— 有两个套件（`test_effects_ui`/`test_fx_presets`/`test_solo`/`test_stage`/`test_override`/`test_split`）是从 `test_split.mjs` 的前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改其中一个的公共部分时要留意重复。
