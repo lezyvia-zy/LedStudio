@@ -1,6 +1,37 @@
 # CLAUDE.md
 
-本文件给后续的 Claude Code 会话当项目说明。**先读这一份**，细节再看 `docs/`。
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+本文件给后续的 Claude Code 会话当项目说明。**先读这一份**，细节再看 `docs/`；面向用户的说明在 [README.md](README.md)。
+
+> **接手项目 / 转交给别的 AI 助手时，先读 [HANDOFF.md](HANDOFF.md)** —— 它是项目交接文档（架构、已完成功能、进行中任务、待办、公约），内容比本文件更完整。
+
+## 常用命令
+
+**没有构建、没有 `npm install`、没有 lint** —— 工具本体就是一个 HTML 文件，写出即所得。
+
+```bash
+# 跑工具：浏览器直接打开（唯一交付物，改完刷新即可）
+#   双击 led_layout_editor.html
+
+# 全部测试（必须在项目根目录跑，脚本按相对路径读 html）
+node tests/run_all.mjs
+
+# 只跑名字含这些字样的套件（按文件名匹配，可给多个）
+node tests/run_all.mjs 效果 编译
+
+# 单个套件也能直接跑（每个 test_*.mjs 都是独立可执行的）
+node tests/test_map.mjs
+
+# 真编译套件需要 cygwin gcc 进 PATH，否则 cc1.exe 找不到 DLL
+export PATH="/c/Andestech/AndeSight_RDS_v323/cygwin/bin:$PATH"
+node tests/run_all.mjs effects_c_exec
+
+# 从固件源码重抽查表（--fixture 更新回归锚点，--js 输出贴进 html 的片段）
+python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.4 --fixture --js
+```
+
+`run_all.mjs` 靠正则 `/  PASS  /` `/  FAIL  /` 统计断言数，所以**每个套件里的 `ok()` 帮手必须原样输出这两个串**（两个空格、四字母），否则断言不计入总数。
 
 ## 这是什么
 
@@ -13,6 +44,8 @@
 3. 生成能贴进目标固件的 C 代码（效果表 + 模式表 + 渲染器 + 补丁说明）
 
 原本是给山景 BP1048B2 蓝牙音箱（SP-3122D，104 颗灯）做的，现已独立成通用工具；目标固件的接口约定见 [docs/firmware-contract.md](docs/firmware-contract.md)。
+
+顶栏 8 个页签 = 主要工作面：`分区 效果 模式 动画 校验 生成 导出 帮助`。「校验」页查排布/编号问题，「帮助」页是完整教程（**它的文案被 `test_help` 断言，见坑 14**）。
 
 ## 三层模型（最要紧的概念，别搞混）
 
@@ -61,10 +94,14 @@
 
 ```
 led_layout_editor.html       工具本体（唯一交付物）
+README.md                    面向用户的说明（含真编译测试、重抽查表的环境准备）
 tests/                       测试（node 直接跑，无需 npm）
   run_all.mjs                一键跑全部
+  test_*.mjs                 每个套件独立可执行
   fixtures/fw_g_presets.txt  固件 g_presets[] 的 fixture（v1.0 的回归锚点）
+  .build/                    真编译套件的产物（.gitignore 已忽略）
 tools/extract_fw_tables.py   从固件源码重抽查表与 fixture
+examples/                    SP-3122D.json（可直接「打开工程」）+ 排布图 PNG
 docs/firmware-contract.md    目标固件必须提供什么
 ```
 
@@ -79,6 +116,8 @@ HTML 内部**分两个 `<script>`**，这个分块是刻意设计的：
 const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
 ```
 
+core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, resolveEffect, renderZoneMaskTo, … }` —— 测试只能看到清单里的符号，**往里加函数/常量时别忘同步这份清单**（见坑 13）。
+
 改 core 之后务必跑 `node tests/run_all.mjs`。
 
 ## 测试怎么组织的
@@ -89,7 +128,7 @@ const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1
 |---|---|---|
 | **纯逻辑** | `test_effects_core` `test_core` `test_map` | 图层原语、排布生成、校验、C 文本 |
 | **真编译** | `test_effects_c_exec` | 用 **AndeSight 自带的 cygwin gcc** 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对** |
-| **假 DOM** | `test_ui` `test_modes` `test_stage` `test_override` … | 把界面层真跑一遍（`boot()` 走通）、交互、接线 |
+| **假 DOM** | `test_ui` `test_modes` `test_stage` `test_override` `test_help` … | 把界面层真跑一遍（`boot()` 走通）、交互、接线；`test_help` 还断言帮助页章节与 `data-tip` |
 | **持久化** | `test_persist` `test_solo` | 关掉再打开还在、迁移、状态隔离 |
 
 `test_effects_c_exec` 需要能跑 cygwin gcc（见 README 的「真编译测试」一节）；**改图层原语或 C 模板后必须跑它** —— 它验的是「预览和生成的代码是不是一回事」，这条不成立整个工具就没意义。
@@ -108,12 +147,14 @@ const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1
 10. **`node` 读不了被透明加密的目录树**（比如 `MVsB1_BT_Audio_SDK_v0.3.4/` 下任何文件都会是密文乱码）。要读固件源码请用 python 或 Read 工具；测试需要的固件内容先由 python 抽成 fixture。
 11. 面板（`.pane`）必须在 `#right` 里面，`.pane` 要有 `overflow:auto`、`#right` 要有 `min-height:0` —— 缺一条面板就滚不动、也切不回去。
 12. **测试里改完控件要等 700ms 再断言存盘结果**（自动保存有 400ms 防抖）。
+13. **core 里新增的函数/常量必须加进末尾的 `CORE = { … }` 导出清单**，否则测试抽不到它（`CORE.xxx` 为 `undefined`，报错还很绕）。
+14. **帮助页文案与 `data-tip` 是测试断言对象**（`test_help`）：章节标题、关键短语（如「本层空间色相」）、特定控件的 `data-tip` 都在断言里。改教程文字或删说明前先看 `test_help.mjs`。
 
 ## 当前状态与接下来的事
 
 工具本体功能完整、421 项断言全绿。已知的待办：
 
-1. **抽公共测试驾具**：19 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 19 处。应该抽成 `tests/_harness.mjs`。注意：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
+1. **抽公共测试驾具**：19 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 19 处。应该抽成 `tests/_harness.mjs`。注意：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
 2. **`_fxui_body*.js` 的构建脚本**（原来在临时目录）没搬过来 —— 有两个套件（`test_effects_ui`/`test_fx_presets`/`test_solo`/`test_stage`/`test_override`/`test_split`）是从 `test_split.mjs` 的前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改其中一个的公共部分时要留意重复。
 3. **目标固件契约还偏窄**：生成代码现在假定目标有 `led_ring.c`/`spimled_service.c` 那套结构（`ring_t`、`anim_ctx_t`、`ANIM_TYPE_COUNT`、静态的 `anim_render_*`）。要真正通用，得把这层抽成可配置的「后端」。
 4. 渲染后端目前只有「生成 C 头文件」一种；以后可以加别的（比如 Arduino/FastLED、或直接出二进制）。
