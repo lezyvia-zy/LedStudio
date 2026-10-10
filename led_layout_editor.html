@@ -133,6 +133,13 @@
   #helpDoc{padding-right:6px}
   #helpDoc h3{margin:14px 0 6px; font-size:13px; color:var(--accent); border-bottom:1px solid var(--line); padding-bottom:3px}
   #helpDoc h3:first-child{margin-top:0}
+  /* 帮助页导航（P1/P2）：目录 + 搜索，粘在面板顶部 */
+  #helpNav{position:sticky; top:0; z-index:3; background:var(--panel); border-bottom:1px solid var(--line); padding:2px 0 6px}
+  #helpNav input{width:100%; font-size:11px}
+  .help-toc{display:flex; flex-wrap:wrap; gap:2px 10px; margin-top:5px}
+  .help-toc a{font-size:11px; color:var(--accent); cursor:pointer}
+  .help-toc a:hover{text-decoration:underline}
+  .help-go{font-size:10px; padding:0 5px}
   #helpDoc h4{margin:10px 0 4px; font-size:12.5px}
   #helpDoc p{margin:5px 0}
   #helpDoc ul,#helpDoc ol{margin:5px 0 5px 18px; padding:0}
@@ -491,9 +498,14 @@
       </fieldset>
     </div>
     <div class="pane" data-pane="help">
+      <div id="helpNav">
+        <input id="helpSearch" type="search" placeholder="搜帮助…（清空恢复全篇）" data-tip="按关键字筛帮助章节：有命中的整节留下，没命中的先收起来；清空就恢复全篇。只筛显示，不改文档内容。">
+        <div id="helpToc" class="help-toc"></div>
+        <div id="helpCount" class="hint"></div>
+      </div>
       <div id="helpDoc">
 
-        <h3>整体流程</h3>
+        <h3 id="hs-flow">整体流程</h3>
         <p><b>先有效果，再出代码。</b>工具里把排布和灯效都做出来，导出 C 贴进固件。</p>
         <ol>
           <li><b>分区</b> —— 告诉工具「板子分成几块、每块从几号灯到几号灯」。SP-3122D 预设里已经填好。</li>
@@ -505,7 +517,7 @@
         </ol>
         <div class="hint">编辑结果会自动存在浏览器本地，关掉再打开还在。顶栏右侧显示「已自动保存」。</div>
 
-        <h3>三个概念，别搞混</h3>
+        <h3 id="hs-concepts">三个概念，别搞混</h3>
         <table>
           <tr><th>概念</th><th>是什么</th><th>在哪编辑</th></tr>
           <tr><td><b>分区</b></td><td>物理灯号的一段，比如 16–55 是顶环。一个分区一条 SPI 链上的连续编号。</td><td>分区页</td></tr>
@@ -522,7 +534,7 @@
         <div class="hint">要点：<b>多个分区选同一个效果 = 它们共享一份相位，就是真同步</b>。想要「看起来一样但各自错开」，
           就复制一个效果改改参数，让两边用不同的效果。</div>
 
-        <h3>效果编辑台（基础排布）</h3>
+        <h3 id="hs-stage">效果编辑台（基础排布）</h3>
         <p>效果**和你的真实灯板无关**。在「效果」页时中央画布会切到<b>编辑台</b> —— 一个通用的基础排布：</p>
         <ul>
           <li><b>直线</b>：颗数可自定义。看追逐的宽度、拖尾、衰减最清楚。</li>
@@ -537,7 +549,7 @@
           所以在一条 24 颗上把宽度调到"刚好"，到 40 颗上就是一片糊、到 8 颗上只剩一根线。
           这就是「多长度对比」存在的原因 —— 一眼同时看到最短和最长的那段。</div>
 
-        <h3>模式页：给某条绑定单独调参数</h3>
+        <h3 id="hs-bind">模式页：给某条绑定单独调参数</h3>
         <p>如果某个分区需要和别的不一样（最常见：<b>8 颗的旋钮光晕太窄</b>），在模式页那条绑定上勾
           <b>「覆盖参数」</b>：</p>
         <ul>
@@ -550,7 +562,7 @@
         <div class="hint">代价：同一个效果如果在好几条绑定里各自覆盖，它们就互相独立了 —— 以后改原效果不会影响它们。
           校验页会给出提示（V33）。所以能用原效果就别覆盖，确实需要差异化时再开。</div>
 
-        <h3>效果页：图层怎么调</h3>
+        <h3 id="hs-layer">效果页：图层怎么调</h3>
         <p>一个自定义效果由若干「图层」叠加而成，每个灯位取所有图层里<b>最亮</b>的那一个（连带它的颜色）。</p>
 
         <h4>① 光点（spot）—— 沿环跑的光斑</h4>
@@ -616,7 +628,7 @@
           <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动（呼吸、彩虹旋转靠色相自己转）。</td></tr>
         </table>
 
-        <h3>模式页怎么用</h3>
+        <h3 id="hs-mode">模式页怎么用</h3>
         <ol>
           <li>点「新建」加一个模式，或者选中已有的改。</li>
           <li>点「+ 添加绑定」，选一个效果、勾上要跑这个效果的分区。</li>
@@ -626,7 +638,7 @@
         </ol>
         <div class="hint">一个分区不应该出现在两条绑定里（会以先出现的那条为准）。一条绑定不勾任何分区 = 覆盖全部分区。</div>
 
-        <h3>预览页（动画）</h3>
+        <h3 id="hs-anim">预览页（动画）</h3>
         <p>预览有两种对象，用「预览对象」切换：</p>
         <table>
           <tr><th>预览对象</th><th>看什么</th></tr>
@@ -652,7 +664,7 @@
           选「自动」后，点一下「音乐来了」就相当于那一刻有声音：效果立刻变快，再点一下回慢档。
           预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），在这里看到的快慢就是样机上的快慢。</div>
 
-        <h3>导出与固件</h3>
+        <h3 id="hs-export">导出与固件</h3>
         <p>「导出」页分两块：上面是<b>分区表</b>（<code>g_default_zones[]</code>），下面是<b>动效</b>（<code>led_effects_gen.h</code>）。</p>
         <ul>
           <li><b>形式</b>：独立头文件 / 粘贴块（补丁指引）/ 两者。</li>
@@ -664,22 +676,22 @@
         <p>效果数超过 9 个时，导出页会多给一段：模式键的回绕要一起改，否则按不到后面几个模式。
           数码管显示模式号那段工具不管，得你自己改。</p>
 
-        <h3>常见做法</h3>
+        <h3 id="hs-recipes">常见做法</h3>
         <table>
-          <tr><th>想要</th><th>怎么配</th></tr>
-          <tr><td>呼吸灯</td><td>一个<b>填充</b>层，脉动周期 60、深度 255、波形选三角。</td></tr>
-          <tr><td>闪烁</td><td>同上，波形换<b>方波</b>。</td></tr>
-          <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td></tr>
-          <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td></tr>
-          <tr><td>绕环彩虹</td><td>一个填充层，配色选<b>本层空间色相</b>，跨度 255，旋转 2–4。</td></tr>
-          <tr><td>彩虹在跑</td><td>外环用「彩虹环」（填充+空间色相），顶环再加一个光点层让亮点扫过。</td></tr>
-          <tr><td>随机闪</td><td>一个<b>随机闪</b>层；想让它盖在底色上，再垫一个低亮度的填充层。</td></tr>
-          <tr><td>旋钮光晕太窄</td><td>模式页那条绑定勾「覆盖参数」→「微调参数」→ 把光宽调大（或用「多长度对比」先看看 8 颗下到底是什么样）。</td></tr>
-          <tr><td>两个分区要错开相位</td><td>给其中一个分区单独勾「覆盖参数」，把「起始位」改一下。</td></tr>
-          <tr><td>沿环渐变呼吸</td><td>亮度渐变层（三角、绕环 1 轮）+ 一个填充层配脉动。</td></tr>
+          <tr><th>想要</th><th>怎么配</th><th>去做</th></tr>
+          <tr><td>呼吸灯</td><td>一个<b>填充</b>层，脉动周期 60、深度 255、波形选三角。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>闪烁</td><td>同上，波形换<b>方波</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>绕环彩虹</td><td>一个填充层，配色选<b>本层空间色相</b>，跨度 255，旋转 2–4。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>彩虹在跑</td><td>外环用「彩虹环」（填充+空间色相），顶环再加一个光点层让亮点扫过。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>随机闪</td><td>一个<b>随机闪</b>层；想让它盖在底色上，再垫一个低亮度的填充层。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>旋钮光晕太窄</td><td>模式页那条绑定勾「覆盖参数」→「微调参数」→ 把光宽调大（效果页的「多长度对比」用的是你板子上真实的几条长度，先在编辑台看清再改）。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
+          <tr><td>两个分区要错开相位</td><td>给其中一个分区单独勾「覆盖参数」，把「起始位」改一下。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
+          <tr><td>沿环渐变呼吸</td><td>亮度渐变层（三角、绕环 1 轮）+ 一个填充层配脉动。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
         </table>
 
-        <h3>快捷键</h3>
+        <h3 id="hs-keys">快捷键</h3>
         <table>
           <tr><td><span class="kbd">V</span><span class="kbd">P</span><span class="kbd">E</span></td><td>选择 / 放置编号 / 擦除</td></tr>
           <tr><td><span class="kbd">右键拖</span></td><td>平移画布（<span class="kbd">空格+拖</span>也行）</td></tr>
@@ -2910,6 +2922,7 @@ function resetSim() {
 }
 let selZone = 0;
 let flash = null;          /* {leds:[n], t:0} 校验定位闪烁 */
+let helpTouched = false;   /* 帮助页进过没有：只第一次进来时回顶（P1） */
 let drag = null;
 let spaceDown = false;     /* 空格按住 = 平移 */
 
@@ -3489,7 +3502,9 @@ function tab(name) {
     if (stageView && stagePlaying && stageInst) { lastT = performance.now(); acc = 0; requestAnimationFrame(loop); }
   }
   if (name === 'mode') { renderMdList(); syncMdEdit(); }
-  if (name === 'help') { const d = $('#helpDoc'); if (d && d.scrollIntoView) d.scrollIntoView(true); }
+  if (name === 'help') { const d = $('#helpDoc');
+                         if (!helpTouched && d && d.scrollIntoView) d.scrollIntoView(true);
+                         helpTouched = true; }
   if (name === 'anim') fillPresetSelect();
 }
 
@@ -4836,6 +4851,53 @@ $('#cellSize').onchange = e => {
   state.view.grid = GEN.CELL; render(); saveStore();
 };
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => tab(b.dataset.tab));
+
+/* ---------- 帮助页：目录 / 搜索 / 每行的「去做」（P1 P2 P4） ---------- */
+/* 目录按 #helpDoc 里 h3 的顺序生成 —— 以后加章节不用改这里（链接数天然一致） */
+function helpBuildToc() {
+  const doc = $('#helpDoc'), toc = $('#helpToc');
+  if (!doc || !toc || !doc.querySelectorAll) return;
+  const hs = [...doc.querySelectorAll('h3')];
+  toc.innerHTML = '';
+  hs.forEach((h, i) => {
+    if (!h.id) h.id = 'hs-' + i;
+    const a = document.createElement('a');
+    a.textContent = (i + 1) + '. ' + h.textContent;
+    a.dataset.hs = h.id;
+    a.onclick = () => { if (h.scrollIntoView) h.scrollIntoView(true); };
+    toc.appendChild(a);
+  });
+}
+/* 搜索：一节 = 一个 h3 加它后面的兄弟节点，整块显隐；清空即恢复全篇 */
+function helpFilter(q) {
+  const doc = $('#helpDoc'), count = $('#helpCount'), toc = $('#helpToc');
+  if (!doc || !doc.children) return;
+  const key = (q || '').trim().toLowerCase();
+  const blocks = []; let cur = null;
+  for (const n of [...doc.children]) {
+    if (n.tagName === 'H3') { cur = { head: n, nodes: [n] }; blocks.push(cur); }
+    else if (cur) cur.nodes.push(n);
+  }
+  let hit = 0;
+  for (const b of blocks) {
+    const txt = b.nodes.map(n => n.textContent || '').join(' ').toLowerCase();
+    const on = !key || txt.indexOf(key) >= 0;
+    if (on) hit++;
+    for (const n of b.nodes) if (n.style) n.style.display = on ? '' : 'none';
+    if (toc && toc.children) for (const a of toc.children)
+      if (a.dataset && a.dataset.hs === b.head.id && a.style) a.style.display = on ? '' : 'none';
+  }
+  if (count) count.textContent = key ? `命中 ${hit} / ${blocks.length} 节（清空搜索框恢复全篇）` : '';
+}
+helpBuildToc();
+$('#helpSearch').oninput = e => helpFilter((e.target || $('#helpSearch')).value);
+/* 「常见做法」每行末尾的「去做」：跳到对应页签，接着照左边那列配 */
+const HELP_GO_CN = { zones: '分区', fx: '效果', mode: '模式', anim: '动画', gen: '生成', exp: '导出', check: '校验' };
+document.querySelectorAll('#helpDoc [data-go]').forEach(b => b.onclick = () => {
+  const p = b.dataset.go;
+  tab(p);
+  status(`已跳到「${HELP_GO_CN[p] || p}」页 —— 照帮助里「怎么配」那列调。`, 'ok');
+});
 
 /* 分区名/别名/颜色/使能都是工程数据：改完必须存盘（只 render 不存 = 刷新或切项目就丢） */
 $('#zName').oninput  = e => { const z = state.zones[selZone]; if (z) { z.name = e.target.value; renderZoneList(); saveStore(); } };

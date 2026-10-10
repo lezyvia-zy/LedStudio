@@ -149,7 +149,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 11. 面板（`.pane`）必须在 `#right` 里面，`.pane` 要有 `overflow:auto`、`#right` 要有 `min-height:0` —— 缺一条面板就滚不动、也切不回去。
 12. **测试里改完控件要等 700ms 再断言存盘结果**（自动保存有 400ms 防抖）。
 13. **core 里新增的函数/常量必须加进末尾的 `CORE = { … }` 导出清单**，否则测试抽不到它（`CORE.xxx` 为 `undefined`，报错还很绕）。
-14. **帮助页文案与 `data-tip` 是测试断言对象**（`test_help`）：章节标题、关键短语（如「本层空间色相」）、特定控件的 `data-tip` 都在断言里。改教程文字或删说明前先看 `test_help.mjs`。
+14. **帮助页文案与 `data-tip` 是测试断言对象**（`test_help`）：章节标题、关键短语（如「本层空间色相」）、特定控件的 `data-tip` 都在断言里。改教程文字或删说明前先看 `test_help.mjs`。**每个 `<h3>` 必须带唯一的 `id`**（`#helpToc` 的目录按 h3 顺序生成、按 id 联动显隐），「常见做法」表里的「去做」按钮用 `data-go="<页签>"`，目标必须是已存在的页签（`test_help` 会校验）。
 15. **速度档是 ring 级信号，不是实例级的**：`ring->speed_cur` 由固件 `ring_set_audio_level()` 按音量切，生成代码在 `led_gen_tick()` 开头把它同步进每个实例（`I->speed_cur = fast ? I->speed_fast : I->speed_slow`，各效果仍用自己配的 fast/slow）。改这条判据必须同时改 JS 侧的 `ringIsFast()` —— 否则真编译套件立刻红。判据是保守的：只有 `speed_fast < speed_slow` 且 `speed_cur` 落在快档才算「有声音」。
 
 ## 当前状态与接下来的事

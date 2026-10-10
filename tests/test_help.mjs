@@ -8,8 +8,14 @@ ok(/data-pane="help"/.test(html), '有帮助面板');
 ok(/id="helpDoc"/.test(html), '帮助文档容器存在');
 
 const doc = html.slice(html.indexOf('id="helpDoc"'), html.indexOf('<input type="file" id="fileJson"'));
-const heads = [...doc.matchAll(/<h3>(.*?)<\/h3>/g)].map(m=>m[1]);
+/* 章节标题：P1 之后每个 <h3> 都带 id，目录按 id 生成锚点 */
+const heads = [...doc.matchAll(/<h3[^>]*>(.*?)<\/h3>/g)].map(m=>m[1]);
+const h3Tags = [...doc.matchAll(/<h3[^>]*>/g)].map(m=>m[0]);
+const h3Ids  = [...doc.matchAll(/<h3 id="([^"]+)">/g)].map(m=>m[1]);
 ok(heads.length >= 7, `帮助文档有 ${heads.length} 个章节: ${heads.join(' / ')}`);
+ok(h3Ids.length === h3Tags.length && h3Ids.length === heads.length,
+   `${h3Tags.length} 个 <h3> 全部带 id（能当目录锚点）`);
+ok(new Set(h3Ids).size === h3Ids.length, `章节 id 互不重复: ${h3Ids.join(', ')}`);
 ['整体流程','三个概念，别搞混','效果页：图层怎么调','模式页怎么用','导出与固件','常见做法','快捷键']
   .forEach(h => ok(heads.includes(h), `含章节「${h}」`));
 ok(doc.includes('光点') && doc.includes('填充') && doc.includes('随机闪') && doc.includes('亮度渐变'),
@@ -75,6 +81,25 @@ ok(/selInput\([^)]*,\s*$|selInput\([^)]*,\s*'|selInput\([\s\S]{0,120}?'跟随/.t
      : 'JS 里也没有 .title 赋值了');
   ok(/function tip\(node, text\)/.test(html), 'tip() 只写 data-tip');
   ok(!/setAttribute\('title'/.test(html), '没有任何地方再设 title 属性');
+}
+
+/* ---- P1/P2/P4：帮助页目录、搜索、每行的「去做」 ---- */
+{
+  const uiSrc = html.match(/<script id="ui">([\s\S]*?)<\/script>/)[1];
+  ok(/id="helpNav"/.test(html) && /id="helpToc"/.test(html) && /id="helpCount"/.test(html),
+     '帮助页顶部有目录容器与命中计数');
+  ok(/id="helpSearch"[^>]*data-tip=/.test(html), '帮助搜索框存在且带说明');
+  /* 目录按 h3 顺序生成 → 链接数 = 章节数（以后加章节不会漏） */
+  ok(/function helpBuildToc[\s\S]{0,600}?querySelectorAll\('h3'\)[\s\S]{0,600}?a\.dataset\.hs = h\.id/.test(uiSrc),
+     '目录按 h3 顺序生成（链接数天然等于章节数）');
+  ok(/function helpFilter[\s\S]{0,1400}?style\.display/.test(uiSrc), '搜索按章节整块显隐（清空恢复全篇）');
+  ok(/!helpTouched/.test(uiSrc), '帮助页只在第一次进入时回顶（之后切回来停在原处）');
+  /* P4：常见做法每行末尾的「去做」 */
+  const goes = [...doc.matchAll(/data-go="([a-z]+)"/g)].map(m => m[1]);
+  ok(goes.length >= 8, `「常见做法」有 ${goes.length} 行带「去做」按钮`);
+  const known = ['zones', 'fx', 'mode', 'anim', 'gen', 'exp', 'check'];
+  ok(goes.every(p => known.includes(p)), `「去做」目标页都是已存在的页签: ${[...new Set(goes)].join(', ')}`);
+  ok(/querySelectorAll\('#helpDoc \[data-go\]'\)/.test(uiSrc), '「去做」按钮已接线（切页 + 状态栏说明）');
 }
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
