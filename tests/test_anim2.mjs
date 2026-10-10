@@ -120,6 +120,14 @@ console.log('   单步x3: ' + a1.replace(/修正[^：]*：/, ''));
 byId.get('aReset').onclick();
 ok(litNums() === a0, '「归零」把动画复位回起始状态');
 
+/* ---- A3) 导出当前帧：直接存画布（不重绘、不改参数），并给状态栏反馈 ---- */
+ok(!!(byId.get('btnFramePng') || {}).onclick, '动画页有「导出当前帧」按钮且已接线');
+ctxDraw = 0;
+byId.get('btnFramePng').onclick();
+ok(ctxDraw === 0, '「导出当前帧」不重绘画布（存的正是此刻这一帧）');
+ok(/已导出当前帧/.test(byId.get('status').textContent),
+   `「导出当前帧」状态栏反馈: "${byId.get('status').textContent}"`);
+
 /* ---- B) 播放状态必须按项目独立 ---- */
 const rows = () => (byId.get('projList') || {}).children || [];
 const animOf = i => JSON.parse(store.get('led_layout_editor.v1')).projects[i].state.anim;

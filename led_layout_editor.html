@@ -256,7 +256,9 @@
         </select></label>
         <label class="row"><span></span><button id="aPlay" data-tip="开始/暂停预览。" class="pri">播放</button>
           <button id="aStep" data-tip="单步走一格（固件里 speed_cur 个节拍），一帧一帧看。">单步</button>
-          <button id="aReset" data-tip="把动画归零回起始帧。">归零</button></label>
+          <button id="aReset" data-tip="把动画归零回起始帧。">归零</button>
+          <button id="btnFramePng" data-tip="把画布上这一帧存成 PNG（调效果时发给别人看很方便）。存的是你此刻看到的样子，不改任何参数。">导出当前帧</button></label>
+        <div class="hint">「播放倍率」只改这里的预览节奏，不改生成与导出的参数 —— 固件里的快慢由上面的「速度档」加上各效果自己的 <code>fast/slow</code> 决定。</div>
         <label class="row"><span>方向修正</span><input type="checkbox" id="aFix" data-tip="关 = 当前固件的真实表现（各分区可能朝相反方向转）。&#10;开 = 按各分区实际绕行方向反向映射，也就是 reverse 补丁之后的效果。" checked></label>
         <div class="hint">修正关闭 = 当前固件的实际表现（<code>phys = start + i</code>）；<br>
           修正打开 = 按各分区实体方向反向映射（即 <code>reverse</code> 补丁后的表现）。<br>
@@ -4595,6 +4597,17 @@ function exportPng() {
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   });
 }
+/* 把画布上「此刻这一帧」存成 PNG：动画页看到什么就存什么，不改任何参数（A3） */
+function exportFramePng() {
+  cv.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = (state.meta.name || 'ledboard') + '_frame.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    status('已导出当前帧 PNG', 'ok');
+  });
+}
 
 /* ---------- 状态栏 ---------- */
 /* level 省略 = 普通提示（3.2s 后回到统计串）；'warn' = 要用户留意（6s）；
@@ -4916,6 +4929,7 @@ $('#xCopy').onclick = () => {
 };
 $('#xDownload').onclick = () => download('led_effects_gen.h', $('#xOut').value, 'text/plain;charset=utf-8');
 $('#btnPng').onclick = exportPng;
+$('#btnFramePng').onclick = exportFramePng;
 $('#btnJson').onclick = saveJson;
 
 window.addEventListener('resize', () => { resizeCanvas(); render(); });
