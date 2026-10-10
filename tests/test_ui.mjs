@@ -219,5 +219,19 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   statusEl.textContent = ''; statusEl.className = '';
 }
 
+/* ---- 12) 缩小灯总数后可以一键裁掉多出来的编号（板级参数在「生成」页） ---- */
+{
+  const leds = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state.leds.length;
+  const lc = byId.get('mLedCount');
+  ok(leds() === 104, `裁剪前灯数 = ${leds()}`);
+  lc.value = '100'; lc.oninput({ target: lc });
+  await new Promise(r => setTimeout(r, 700));
+  ok(/裁剪超出灯总数的编号/.test(byId.get('status').textContent),
+     `改小灯总数后给出收尾提示: "${byId.get('status').textContent}"`);
+  byId.get('mLedTrim').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  ok(leds() === 100, `裁剪后灯数 = ${leds()}（期望 100）`);
+}
+
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

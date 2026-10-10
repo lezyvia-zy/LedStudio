@@ -224,15 +224,7 @@
         <div class="hint" id="selInfo">未选中</div>
         <button id="btnDelLed">删除选中编号</button>
       </fieldset>
-      <fieldset>
-        <legend>项目设置（每个项目独立）</legend>
-        <label class="row"><span>项目名</span><input type="text" id="mName"></label>
-        <label class="row"><span>灯总数</span><input type="number" id="mLedCount" min="1" max="1000"></label>
-        <label class="row"><span>RING_SIZE</span><input type="number" id="mRingSize" min="1" max="255"></label>
-        <label class="row"><span>ZONE_MAX</span><input type="number" id="mZoneMax" min="1" max="255"></label>
-        <label class="row"><span>ZONE_MAX_LEN</span><input type="number" id="mZoneMaxLen" min="1" max="255"></label>
-        <div class="hint">与固件 <code>led_ring.h</code> 的 <code>#define</code> 对齐；校验用它们判断能不能编译通过。换一块板只改这里，不动代码。</div>
-      </fieldset>
+      <div class="hint">板级参数（项目名 / 灯总数 / RING_SIZE / ZONE_MAX / ZONE_MAX_LEN）已挪到「生成」页 —— 铺灯前先去那里对一遍。</div>
     </div>
 
     <div class="pane" data-pane="check">
@@ -398,6 +390,17 @@
     </div>
 
     <div class="pane" data-pane="gen">
+      <fieldset>
+        <legend>板级参数（每个项目独立）</legend>
+        <label class="row"><span>项目名</span><input type="text" id="mName"></label>
+        <label class="row"><span>灯总数</span><input type="number" id="mLedCount" min="1" max="1000"></label>
+        <label class="row"><span>RING_SIZE</span><input type="number" id="mRingSize" min="1" max="255"></label>
+        <label class="row"><span>ZONE_MAX</span><input type="number" id="mZoneMax" min="1" max="255"></label>
+        <label class="row"><span>ZONE_MAX_LEN</span><input type="number" id="mZoneMaxLen" min="1" max="255"></label>
+        <div class="hint">与固件 <code>led_ring.h</code> 的 <code>#define</code> 对齐；校验用它们判断能不能编译通过。换一块板只改这里，不动代码。<br>
+          把「灯总数」改小之后，多出来的编号要点下面这个按钮清掉（校验页会一直报 V3/V2）。</div>
+        <div class="row"><span></span><button id="mLedTrim" data-tip="删掉编号 ≥ 灯总数的灯。-&#10;改小灯总数后用它收尾；这一步可 Ctrl+Z 撤销。">裁剪超出灯总数的编号</button></div>
+      </fieldset>
       <fieldset>
         <legend>矩形环绕圈</legend>
         <label class="row"><span>分区</span><select id="gZone"></select></label>
@@ -4729,7 +4732,23 @@ function syncBgPanel() {
   $('#bgY').value = bg ? bg.y : 0;
 }
 $('#mName').oninput      = e => { state.meta.name = e.target.value; curProj().name = e.target.value; renderProjList(); $('#headInfo').textContent = `${state.meta.name} · ${state.leds.length}/${state.meta.ledCount} 灯 · RING_SIZE ${state.meta.ringSize}`; saveStore(); };
-$('#mLedCount').oninput  = e => { state.meta.ledCount = Math.max(1, +e.target.value || 1); afterChange(); };
+$('#mLedCount').oninput  = e => {
+  state.meta.ledCount = Math.max(1, +e.target.value || 1);
+  afterChange();
+  const over = state.leds.filter(l => l.n >= state.meta.ledCount).length;
+  if (over) status(`灯总数已改成 ${state.meta.ledCount}，还有 ${over} 颗编号超出 → 点「裁剪超出灯总数的编号」收尾`, 'warn');
+};
+/* 灯总数调小后多出来的编号没有主人：给一个明确的收尾动作（否则校验页会一直报 V3/V2） */
+$('#mLedTrim').onclick = () => {
+  const M = state.meta;
+  const over = state.leds.filter(l => l.n >= M.ledCount);
+  if (!over.length) { status(`没有编号 ≥ ${M.ledCount} 的灯，不用裁`, 'ok'); return; }
+  snapshot();
+  state.leds = state.leds.filter(l => l.n < M.ledCount);
+  sel.clear();
+  afterChange();
+  status(`已裁掉 ${over.length} 颗编号 ≥ ${M.ledCount} 的灯（可 Ctrl+Z 撤销）`, 'ok');
+};
 $('#mRingSize').oninput  = e => { state.meta.ringSize = Math.max(1, +e.target.value || 1); afterChange(); };
 $('#mZoneMax').oninput   = e => { state.meta.zoneMax = Math.max(1, +e.target.value || 1); afterChange(); };
 $('#mZoneMaxLen').oninput= e => { state.meta.zoneMaxLen = Math.max(1, +e.target.value || 1); afterChange(); };
