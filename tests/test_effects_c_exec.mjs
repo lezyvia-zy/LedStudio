@@ -38,7 +38,11 @@ const B = mkFx(1, [{ kind:'fill', level:255, pulse_period:60, pulse_amp:255, wav
 const C = mkFx(2, [{ kind:'twinkle', density:60, rate:3, lo:0, hi:255, cmode:1, hue_base:0, hue_spread:255,
                      hue_speed:6, pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0 },
                    { kind:'spot', count:2, width:8, phase:64, falloff:'tail', pulse_period:0, pulse_amp:0,
-                     wave:0, direction:1, bounce:1, cmode:0, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0 }]);
+                     wave:0, direction:1, bounce:1, cmode:0, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0 },
+                   /* F5: 第 3 层是旁路的（en=0）—— 写进 C 表但合成时跳过。
+                      若哪一侧忘了跳，下面「逐字节一致」立刻就会发现（它会把暗灯拉到 220）。 */
+                   { kind:'fill', level:220, pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0,
+                     cmode:0, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0, en:0 }]);
 st.effects = { version: 1, list: effs };
 st.modes = { version: 1, list: [
   { id:'mA', name:'全环追逐', latin:'ALL_CHASE', enabled:true,
@@ -235,6 +239,28 @@ st.modes.list.forEach((mode, mi) => {
 ok(bad === 0, bad === 0
    ? `${st.modes.list.length} 个模式 × ${TICKS} 帧，整个 104 灯 fb 与 JS 预览逐字节一致`
    : `${bad}/${st.modes.list.length} 个模式不一致，首例: ${JSON.stringify(firstBad)}`);
+
+/* ---------- 4b) F5) 旁路的图层（en=0）在真编译的 C 里也被跳过 ---------- */
+console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
+{
+  const fx2 = st.effects.list[2];
+  ok(fx2.layers.length === 3 && fx2.layers[2].en === 0,
+     `FX2 第 3 层是旁路的填充（level=${fx2.layers[2].level}, en=${fx2.layers[2].en}）`);
+  ok(fs.readFileSync(path.join(dir, 'led_effects_gen.h'), 'utf8').includes('if (!L->en) continue;'),
+     '生成头里的图层循环带跳过分支（上面那份逐字节比对跑的正是它）');
+  /* 反向确认：把这一层打开，帧序列必须变 —— 否则上面「一致」就是没区分度的空断言 */
+  const runJs = stt => {
+    const s = JSON.parse(JSON.stringify(stt));
+    s.anim.modeId = s.modes.list[2].id;
+    const sim = simInit(); simApplyMode(sim, s); simSetSpeed(sim, 'slow');
+    for (let t = 0; t < TICKS; t++) simTick(sim, s, false);
+    return [...sim.fb.slice(0, FW.LED_COUNT * 3)];
+  };
+  const opened = JSON.parse(JSON.stringify(st));
+  opened.effects.list[2].layers[2].en = 1;
+  ok(JSON.stringify(runJs(st)) !== JSON.stringify(runJs(opened)),
+     '把该层打开后 JS 帧序列确实变了（这条断言有区分度）');
+}
 
 /* ---------- 5) 音量档：C 侧每拍从 ring 级同步档位，与 JS 预览逐字节一致 ----------
  * 固件链路：spimled_service.c 每 20ms 调 ring_set_audio_level() → 改 ring->speed_cur；

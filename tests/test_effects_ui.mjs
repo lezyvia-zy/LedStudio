@@ -136,7 +136,7 @@ ok(/0 CUSTOM0_CUSTOM|0 .*CUSTOM/.test(out) || out.includes('custom'), 'g_presets
 ok(/^    \{ 1, 0, 0, 0, 1, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 3, 0, 1 \},/m.test(eb),
    '效果行记录了 layers_count=3: ' + ((eb.match(/^    \{ 1,.*/m) || ['(没找到)'])[0]));
 
-ok(/^    \{ 0, 5, 20, /m.test(out), `图层表第一行 = kind=0(光点), count=5, width=20: ${(out.match(/^    \{ 0, 5, 20,.*/m) || ['(没找到)'])[0]}`);
+ok(/^    \{ 0, 1, 5, 20, /m.test(out), `图层表第一行 = kind=0(光点), en=1, count=5, width=20: ${(out.match(/^    \{ 0, 1, 5, 20,.*/m) || ['(没找到)'])[0]}`);
 ok(byId.get('xWarn').innerHTML.includes('一次性补丁'), '导出时提示要打固件补丁');
 
 /* ---- 6) 关掉工具再打开：自定义动效要还在 ---- */
@@ -146,6 +146,59 @@ ok(e0d.kind === 'custom', '重开后槽位 0 仍是自定义');
 ok(e0d.layers.length === 3, `重开后图层数 ${e0d.layers.length}`);
 ok(e0d.layers[0].count === 5 && e0d.layers[0].width === 20, '重开后图层参数一致');
 ok(projState(0).anim.effectId === e0d.id, '重开后选中的还是同一个效果');
+
+/* ---- 6b) F5) 图层卡：旁路勾选 + 复制层 ---- */
+{
+  tabBtn('fx').onclick();
+  const box = byId.get('fLayers');
+  ok(box.children.length === 3, `图层卡 ${box.children.length} 行`);
+  const headOf = row => (row.children || []).find(c => c.className === 'cardHead');
+  const head0 = headOf(box.children[0]);
+  const cbs = (head0.children || []).filter(c => c.tagName === 'INPUT' && c.type === 'checkbox');
+  ok(cbs.length === 1 && cbs[0].checked === true, '第 1 层有「启用」勾选框，默认勾上');
+
+  const off = cbs[0];
+  off.checked = false; off.onchange();
+  await new Promise(r => setTimeout(r, 700));
+  const e1 = fxListOf(0)[0];
+  ok(e1.layers[0].en === 0, `取消勾选 → en=${e1.layers[0].en}`);
+  ok(e1.layers.length === 3, '图层数不变（旁路 ≠ 删除）');
+  const row0 = byId.get('fLayers').children[0];
+  ok(row0.className === 'card off', `旁路的层卡片带 off 标记（class="${row0.className}"）`);
+  ok(/旁路/.test(headOf(row0).children[0].textContent), `卡片标题标出旁路: "${headOf(row0).children[0].textContent}"`);
+
+  { /* 复制第 2 层 */
+    const head1 = headOf(byId.get('fLayers').children[1]);
+    const cp = (head1.children || []).find(b => b.tagName === 'BUTTON' && b.textContent === '复制');
+    ok(!!cp, '第 2 层有「复制」按钮');
+    cp.onclick();
+    await new Promise(r => setTimeout(r, 700));
+    const e2 = fxListOf(0)[0];
+    ok(e2.layers.length === 4, `复制后 ${e2.layers.length} 层: ${e2.layers.map(l => l.kind).join('+')}`);
+    ok(JSON.stringify(e2.layers[1]) === JSON.stringify(e2.layers[2]), '副本与原层内容完全一致');
+    ok(/已复制第 2 层/.test(byId.get('status').textContent),
+       `状态栏给了反馈: "${byId.get('status').textContent.slice(0, 30)}"`);
+
+    /* 改副本，原层不能跟着变 */
+    const nums = [];
+    (function walk(n) { (n.children || []).forEach(c => {
+      if (c.tagName === 'INPUT' && c.type === 'number') nums.push(c); walk(c); }); })(byId.get('fLayers').children[2]);
+    nums[0].value = '9'; nums[0].oninput();
+    await new Promise(r => setTimeout(r, 700));
+    const e3 = fxListOf(0)[0];
+    ok(e3.layers[2].density === 9, `副本第 1 个数值改成 9（${e3.layers[2].density}）`);
+    ok(JSON.stringify(e3.layers[1]) === JSON.stringify(e2.layers[1]), '原层没被副本带着改');
+  }
+
+  /* 满 8 层时「复制」按钮禁用 */
+  for (let k = 0; k < 4; k++) click('fxAddFill');
+  await new Promise(r => setTimeout(r, 700));
+  const n8 = fxListOf(0)[0].layers.length;
+  ok(n8 === 8, `已填到 ${n8} 层`);
+  const head8 = headOf(byId.get('fLayers').children[0]);
+  const cp8 = (head8.children || []).find(b => b.tagName === 'BUTTON' && b.textContent === '复制');
+  ok(cp8 && cp8.disabled === true, '满 8 层时「复制」按钮禁用');
+}
 
 /* ---- 7) 老存档迁移：只有 anim.preset、没有 effects ---- */
 const oldProj = {

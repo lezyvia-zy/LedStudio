@@ -11,6 +11,9 @@ const ok = (c, m) => { console.log((c ? '  PASS  ' : '  FAIL  ') + m); if (!c) f
 const fwRows = fs.readFileSync('tests/fixtures/fw_g_presets.txt', 'utf8')
                  .split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l.startsWith('{'));
 const toks = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').match(/\{[^{}]*\}|[A-Z_]+|\d+/g) || [];
+/* 表行 → 数字数组（kind, en, count, ...）；尾部 }, 的空项不能当成 0 */
+const numsOf = row => row.replace(/\/\*.*$/, '').replace(/[{}]/g, ' ').replace(/,/g, ' ')
+                          .trim().split(/\s+/).map(Number);
 
 const st = projectFromPreset(PRESET_SP3122D);
 const hdr = exportEffectsC(st, { form:'header', comment:'ascii', eol:'lf' });
@@ -72,6 +75,10 @@ ok(/^    \{ 1,/.test(e3row), '第 3 个效果被标成自定义（kind=1）: ' +
 const lay = h2.slice(h2.indexOf('static const led_gen_layer_t'), h2.indexOf('};', h2.indexOf('static const led_gen_layer_t')));
 ok((lay.match(/^    \{/gm) || []).length === 1, '图层表 1 行');
 ok(/0, 255, 2, 0, 1, 1 \}/.test(lay), '图层行写出了 hue_spread=255 / hue_speed=2 / cmode=1');
+/* F5: 字段顺序 kind, en, count, ...（en 紧跟 kind），末尾仍是 flags */
+const layRows = (lay.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
+ok(layRows.length === 1 && layRows[0].length === 21 && layRows[0][0] === 2 && layRows[0][1] === 1,
+   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 21 个 / 2 / 1）`);
 
 console.log('--- 头文件结构 ---');
 ok(hdr.includes('#ifndef __LED_EFFECTS_GEN_H__'), '有 include guard');
@@ -109,6 +116,26 @@ ok(/RING_PRESET_COUNT 9/.test(body), '横幅提到要注释掉旧的 RING_PRESET
 console.log('--- 粘贴块 ---');
 const paste = exportEffectsC(st2, { form:'paste', comment:'ascii', eol:'lf' });
 ok(paste.includes('【1】') || paste.includes('[1]'), '粘贴块含补丁指引');
+
+console.log('--- F5) 图层「启用」：旁路的层照样写进表里，只是合成时跳过 ---');
+{
+  const st3 = projectFromPreset(PRESET_SP3122D);
+  const mkFill = (level, en) => ({ kind:'fill', level, pulse_period:0, pulse_amp:0, wave:0,
+    direction:1, bounce:0, cmode:0, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0, en });
+  st3.effects.list[3] = Object.assign(newCustomEffect(3, '两段红'),
+    { layers: [mkFill(255, 0), mkFill(80, 1)] });
+  const h5 = exportEffectsC(st3, { form:'header', comment:'ascii', eol:'lf' });
+  ok(/uint8_t en;\s+\/\* 1 = enabled/.test(h5), '结构体里有 en 字段（注释写明 1/0 的含义）');
+  ok(h5.includes('if (!L->en) continue;'), 'C 的图层循环跳过被旁路的层');
+  const l5 = h5.slice(h5.indexOf('static const led_gen_layer_t'),
+                      h5.indexOf('};', h5.indexOf('static const led_gen_layer_t')));
+  const r5 = (l5.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
+  ok(r5.length === 2 && r5.every(r => r.length === 21) && r5[0][1] === 0 && r5[1][1] === 1,
+     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 21）`);
+  ok(r5[0][0] === 2 && r5[1][0] === 2, '两层都还是填充图层（kind=2），表行数不因旁路而变');
+  const zh5 = exportEffectsC(st3, { form:'header', comment:'zh', eol:'lf' });
+  ok(/被旁路的层/.test(zh5), '中文注释模式下那条 continue 的说明是中文（ASCII 模式走英文，见上面整体检查）');
+}
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

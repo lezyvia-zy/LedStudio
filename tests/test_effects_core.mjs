@@ -232,6 +232,48 @@ console.log('--- 边界与性质 ---');
   ok(m.every(v => v === 0), '图层为 null 不崩');
 }
 
+/* ---- 8b) F5) 旁路的层（en=0）不参与合成：效果与「压根没这层」逐字节相同 ---- */
+console.log('--- 图层旁路（en=0）---');
+{
+  const { layerNums } = CORE;
+  const base = { count:1, width:2, phase:0, falloff:FALL.COS, pulse_period:0, pulse_amp:0,
+                 wave:0, direction:1, bounce:0, cmode:0, hue_base:0, hue_spread:0,
+                 hue_speed:0, spans:0, rotate:0, flags:1 };
+  const fill = layerNums(Object.assign({ kind:'fill', level:100 }, base));
+  const spotOff = layerNums(Object.assign({ kind:'spot' }, base, { en:0 }));
+  const spotOn  = layerNums(Object.assign({ kind:'spot' }, base));
+  const len = 24;
+  const run = lss => { const m = mk(len), h = hz(len); genRender(m, h, len, 0, lss, 0, 0); return [m, h]; };
+
+  const [mA, hA] = run([fill, spotOff]);      /* 旁路的层：应等同于没有它 */
+  const [mB, hB] = run([fill]);
+  ok(JSON.stringify([...mA]) === JSON.stringify([...mB]) &&
+     JSON.stringify([...hA]) === JSON.stringify([...hB]),
+     'en=0 的层与「删掉这一层」的 mask/hue 逐字节相同');
+  ok(mA.every(v => v === 100), `只剩填充层时整环 = 100（说明光点层确实没叠上来）`);
+  const [mC] = run([fill, spotOn]);
+  ok(Math.max(...mC) > 200, `同一层不旁路时最大亮度 = ${Math.max(...mC)}（光点确实会叠上来）`);
+  /* en 缺省 = 启用：老存档里没有这个字段（migration 之前的工程） */
+  const old = layerNums(Object.assign({ kind:'spot' }, base));
+  delete old.en;
+  const [mD] = run([fill, old]);
+  ok(Math.max(...mD) > 200, `缺少 en 字段的旧数据按「启用」渲染（最大 ${Math.max(...mD)}，不做迁移也安全）`);
+
+  /* V37：整条效果的层都被旁路 → 校验页要提醒（渲染出来是全黑） */
+  const L0 = { kind:'spot', en:1, count:1, width:4, phase:0, falloff:'cos', pulse_period:0, pulse_amp:0,
+               density:48, rate:4, lo:0, hi:255, level:255, spans:0, rotate:0,
+               hue_base:0, hue_spread:0, hue_speed:0, wave:0, cmode:0, flags:1 };
+  const st2 = CORE.emptyProject();
+  st2.effects.list.push({ id:'fx_bp', name:'旁路测试', kind:'custom', layers:[{ ...L0 }, { ...L0, en:0 }] });
+  let iss = CORE.validate(st2);
+  ok(!iss.some(i => i.code === 'V37'), '还有一层启用着 → 不报 V37');
+  st2.effects.list[st2.effects.list.length - 1].layers[0].en = 0;
+  iss = CORE.validate(st2);
+  const v37 = iss.filter(i => i.code === 'V37');
+  ok(v37.length === 1 && v37[0].level === 'warn' && /旁路/.test(v37[0].msg),
+     `全层旁路 → V37 警告: ${v37[0] ? v37[0].msg : '(没报)'}`);
+}
+
 /* ---- 9) 速度档信号链：ring 级 → 实例（对应固件 ring_set_audio_level()）---- */
 console.log('--- 速度档（ring 级 → 实例）---');
 {

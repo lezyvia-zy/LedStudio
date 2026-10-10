@@ -121,6 +121,8 @@
   .card{display:flex; flex-wrap:wrap; gap:1px 10px; align-items:center;
         border:1px solid var(--line); border-radius:4px; padding:5px; margin:4px 0; min-width:0}
   .cardHead{flex:1 1 100%; display:flex; align-items:center; gap:4px; margin-bottom:2px}
+  .card.off{border-style:dashed; opacity:.55}   /* 被旁路的图层：位置还在，只是不参与合成 */
+  .cardHead .layOn{margin:0 2px 0 0}
   .card>label.row{flex:1 1 148px; min-width:140px; margin:1px 0}
   /* ---- 悬浮说明 ---- */
   #tipBox{
@@ -564,6 +566,9 @@
 
         <h3 id="hs-layer">效果页：图层怎么调</h3>
         <p>一个自定义效果由若干「图层」叠加而成，每个灯位取所有图层里<b>最亮</b>的那一个（连带它的颜色）。</p>
+        <p>图层卡最左边有个勾选框：取消勾选就是<b>旁路</b>这一层 —— 预览和固件都跳过它，但参数和位置都留着，
+           想比「少了这层会怎样」时不用删了再加回来（整条效果的层全被旁路，校验页会提示 V37：渲染出来是一片黑）。
+           旁边的<b>复制</b>把这一层连同参数复制一份插在后面，做「看着一样、错开相位」的变体不用重配一遍。</p>
 
         <h4>① 光点（spot）—— 沿环跑的光斑</h4>
         <table>
@@ -1025,6 +1030,8 @@ function validate(state) {
     const ls = e.layers || [];
     if (!ls.length || ls.length > 8)
       push('err', 'V22', `自定义效果「${e.name}」的图层数 ${ls.length} 不在 1..8`);
+    if (ls.length && ls.every(L => L.en === 0))
+      push('warn', 'V37', `自定义效果「${e.name}」的图层全被旁路了（en=0），渲染出来是一片全黑`);
     ls.forEach((L, li) => {
       const at = `「${e.name}」第 ${li + 1} 层`;
       if (L.kind === 'spot') {
@@ -1437,6 +1444,7 @@ function genRender(mask, hue, len, pos, layers, tick, offset) {
   let p = pos + Math.floor((offset | 0) * len);   /* 效果的起始位（0..255 分数） */
   p %= rd; if (p < 0) p += rd;
   for (const L of layers) {
+    if (L.en === 0) continue;        /* 被旁路的层（F5）：与 C 的 `if (!L->en) continue;` 对齐 */
     const gain = (L.kind === LAYER.TWINKLE) ? 255
                : pulseGain(tick, L.pulse_period | 0, L.pulse_amp | 0, L.wave | 0);
     switch (L.kind) {
@@ -1892,6 +1900,9 @@ function layerNums(L) {
   const bn   = L.bounce ? 1 : 0;
   return {
     kind,
+    /* en=0 的层照旧写进 C 表，只是合成时跳过 —— 这样「临时关掉第 2 层看差异」
+       不用删掉再调回来，也不会让 C 表的行号漂移（F5）。 */
+    en: L.en === 0 ? 0 : 1,
     count: L.count | 0, width: L.width | 0, phase: L.phase | 0,
     falloff: fall < 0 ? 0 : fall,
     pulse_period: L.pulse_period | 0, pulse_amp: L.pulse_amp | 0,
@@ -2151,6 +2162,7 @@ const LED_GEN_IMPL = [
 '    p %= rd; if (p < 0) p += rd;',
 '    for (k = 0; k < E->layers_count; k++) {',
 '        L = &led_gen_layers[E->layers_first + k];',
+'        if (!L->en) continue;   /* @bypass@ */',
 '        gain = (L->kind == (uint8_t)LED_GEN_LAYER_TWINKLE)',
 '               ? 255u : led_gen_pulse(tick, L->pulse_period, L->pulse_amp, L->wave);',
 '        switch (L->kind) {',
@@ -2344,6 +2356,7 @@ const GEN_COMMENTS = {
   zonerender:{ zh:'单个分区渲染：内建走固件原函数，自定义走图层合成', en:'render one zone: built-in via the firmware, custom via layer compositing' },
   setpos:    { zh:'位置推进：把 from 折算到离 target 最近的等价位置（顺带修掉「转一圈闪一下」）', en:'position advance; re-bases from to the nearest equivalent (fixes the once-per-revolution flash)' },
   layersrender:{ zh:'自定义效果的图层合成（对应工具里的 genRender）', en:'layer compositing for custom effects' },
+  bypass: { zh:'被旁路的层：占位还在，合成时跳过', en:'bypassed layer: the placeholder stays, compositing skips it' },
   cmt0: { zh:'这个实例跑的是第几个效果（led_gen_effects 的下标）', en:'index of the effect this instance runs (into led_gen_effects)' },
   cmt1: { zh:'分区渲染用的复用缓冲', en:'reused scratch buffer for per-zone rendering' },
   cmt2: { zh:'实例 → 效果下标', en:'instance -> effect index' },
@@ -2515,6 +2528,7 @@ function exportEffectsC(state, opt) {
     lwave: '脉动/渐变波形: TRI 呼吸 / SQUARE 闪烁 / SAW 锯齿',
     lcmode: 'GLOBAL 用效果配色 / SPATIAL 本层空间色相',
     lflags: 'bit0: 方向, bit1: 往返',
+    layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
     ringNote2: 'led_ring.h 里原来那句 #define RING_PRESET_COUNT 9 请整句注释掉。',
     effLibNote: '效果库。下标 = 工具里效果列表的顺序（模式表按下标引用它们）',
@@ -2565,6 +2579,7 @@ function exportEffectsC(state, opt) {
     lwave: 'waveform: TRI breathe / SQUARE flash / SAW saw',
     lcmode: 'GLOBAL effect colour / SPATIAL per-LED hue',
     lflags: 'bit0: direction, bit1: ping-pong',
+    layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
     ringNote2: 'The original #define RING_PRESET_COUNT 9 in led_ring.h must be commented out.',
     effLibNote: 'effect library. Index == order in the tool list (the mode table references these)',
@@ -2612,6 +2627,7 @@ function exportEffectsC(state, opt) {
        '',
        'typedef struct {',
        '    uint8_t kind;          /* ' + t.lkind + ' */',
+       '    uint8_t en;            /* ' + t.layen + ' */',
        '    uint8_t count;         /* ' + t.lcount + ' */',
        '    uint8_t width;         /* ' + t.lwidth + ' */',
        '    uint8_t phase;         /* ' + t.lphase + ' */',
@@ -2663,13 +2679,13 @@ function exportEffectsC(state, opt) {
   if (layerRows.length) {
     push('static const led_gen_layer_t led_gen_layers[] = {');
     for (const R of layerRows) {
-      push('    { ' + [R.kind, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
+      push('    { ' + [R.kind, R.en, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
                        R.hue_base, R.hue_spread, R.hue_speed, R.wave, R.cmode, R.flags].join(', ') + ' },');
     }
     push('};');
   } else {
-    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
+    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
   }
   push('');
   push('/* ' + t.effLibNote + ' */');
@@ -3903,7 +3919,7 @@ function selEffect() { return fxList()[selFx] || null; }
 
 /* 图层小工具：造一个带全部字段的默认图层 */
 function mkLayer(kind) {
-  const base = { kind, cmode:0, hue_base:0, hue_spread:0, hue_speed:0,
+  const base = { kind, en:1, cmode:0, hue_base:0, hue_spread:0, hue_speed:0,
                  pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0,
                  spans:0, rotate:0, lo:0, hi:255, level:255, density:48, rate:4,
                  count:1, width:8, phase:0, falloff:'cos' };
@@ -3984,14 +4000,25 @@ function renderLayers() {
   (e.layers || []).forEach((L, i) => {
     if (L.kind && !(L.kind in LAYER_NAME)) L.kind = 'spot';
     const row = document.createElement('div');
-    row.className = 'card';
+    row.className = (L.en === 0) ? 'card off' : 'card';   /* 旁路的层淡一点 */
 
     const head = document.createElement('div');
     head.className = 'cardHead';
     const lab = document.createElement('b');
-    lab.style.flex = '1'; lab.textContent = (i + 1) + '. ' + (LAYER_NAME[L.kind] || L.kind);
+    lab.style.flex = '1';
+    lab.textContent = (i + 1) + '. ' + (LAYER_NAME[L.kind] || L.kind) + (L.en === 0 ? '（已旁路）' : '');
     head.appendChild(lab);
     const mk = (txt, fn, dis) => { const b = document.createElement('button'); b.textContent = txt; b.disabled = !!dis; b.onclick = fn; head.appendChild(b); };
+
+    /* 启用勾选：关掉只是「旁路」—— 预览和固件都跳过它，层的位置与参数都留着，
+       想比「这一层到底有没有用」时不用删了再加回来（F5）。 */
+    const on = document.createElement('input');
+    on.type = 'checkbox'; on.checked = L.en !== 0; on.className = 'layOn';
+    tip(on, '启用这一层。\n关掉 = 旁路：预览和固件渲染都跳过它，但参数和图层位置都留着 —— 方便对比「少了这一层会怎样」。');
+    on.onchange = () => { L.en = on.checked ? 1 : 0; fxLive(); renderLayers(); };
+    head.appendChild(on);
+
+    mk('复制', () => copyLayer(i), (e.layers || []).length >= 8);
     mk('↑', () => moveLayer(i, -1), i === 0);
     mk('↓', () => moveLayer(i, 1), i === e.layers.length - 1);
     mk('×', () => delLayer(i));
@@ -4041,6 +4068,15 @@ function moveLayer(i, d) {
 function delLayer(i) {
   const e = editTarget(); if (!e) return;
   e.layers.splice(i, 1);
+  fxLive(); fxStruct();
+}
+/* 复制一层（插在原层后面，参数全带上）：改参数做变体时不用从零再配一遍（F5） */
+function copyLayer(i) {
+  const e = editTarget(); if (!e) return;
+  const L = (e.layers || [])[i]; if (!L) return;
+  if (e.layers.length >= 8) { status('图层最多 8 层', 'warn'); return; }
+  e.layers.splice(i + 1, 0, JSON.parse(JSON.stringify(L)));
+  status(`已复制第 ${i + 1} 层 → 新的第 ${i + 2} 层（改它的参数不影响原层）`);
   fxLive(); fxStruct();
 }
 function addLayer(kind) {
