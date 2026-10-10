@@ -19,6 +19,7 @@ ok(doc.includes('三角') && doc.includes('方波') && doc.includes('锯齿'), '
 ok(doc.includes('呼吸灯') && doc.includes('彗星拖尾') && doc.includes('绕环彩虹'), '常见做法给了配方');
 ok(/LED_MODE_1/.test(doc) || /慢速渐变色/.test(doc), '举了「一个模式里分区各跑各的」的例子');
 ok(doc.includes('多个分区选同一个效果') && doc.includes('同步'), '解释了「同效果 = 同步」');
+ok(doc.includes('ring_set_audio_level') && doc.includes('音乐来了'), '解释了「自动」速度档怎么跟着音乐变');
 
 /* 悬浮说明 */
 const tips = [...html.matchAll(/data-tip="([^"]+)"/g)].map(m=>m[1]);

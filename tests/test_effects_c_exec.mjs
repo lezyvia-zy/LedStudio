@@ -75,7 +75,9 @@ const stub = [
   '#define ZONE_MAX ' + FW.ZONE_MAX,
   'typedef struct { uint8_t type; anim_t position; anim_params_t params; uint8_t mask[ZONE_MAX_LEN]; uint16_t gen_tick; } anim_ctx_t;',
   'typedef struct { uint8_t type; rgb_t current, secondary; anim_t phase; uint8_t tick_cnt, spectrum_speed; } color_ctx_t;',
-  'typedef struct { anim_ctx_t anim; color_ctx_t color; uint8_t bri; led_zone_t zones[ZONE_MAX]; uint8_t zone_count; bool zone_en[ZONE_MAX]; uint8_t fb[LED_COUNT][3]; } ring_t;',
+  /* ring 级速度档：固件 led_ring.h 里本来就有这三个字段（led_ring.c ring_init: 8/1/8），
+   * 由 ring_set_audio_level() 按音量改 speed_cur —— 生成代码要从这里读档位信号 */
+  'typedef struct { anim_ctx_t anim; color_ctx_t color; uint8_t bri; uint8_t speed_slow, speed_fast, speed_cur; led_zone_t zones[ZONE_MAX]; uint8_t zone_count; bool zone_en[ZONE_MAX]; uint8_t fb[LED_COUNT][3]; } ring_t;',
   'static const uint8_t cos_window_tbl[256] = {',
   '    ' + Array.from(FW.cos_window_tbl).join(','),
   '};',
@@ -125,6 +127,7 @@ fs.writeFileSync(path.join(dir, 'led_ring.h'), stub);
 
 /* ---------- 3) 主程序：每个模式各跑 N 帧，打印整个 fb ---------- */
 const TICKS = 37;
+const HALF_TICK = Math.floor(TICKS / 2);   /* 音量档场景：前一半慢档、后一半快档 */
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -149,6 +152,40 @@ const main = [
   '            printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '        printf("|");',
   '    }',
+  /* 音量档场景：同一模式，前一半拍慢档、后一半拍快档。
+   * 对应固件 spimled_service.c 每 20ms 调 ring_set_audio_level() 改 ring->speed_cur —— 生成代码从 ring 级读档位。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    led_gen_apply_mode(&g_ring, 1);',
+  '    for (t = 0; t < ' + TICKS + '; t++) {',
+  '        g_ring.speed_cur = (t < ' + HALF_TICK + ') ? g_ring.speed_slow : g_ring.speed_fast;',
+  '        led_gen_tick(&g_ring);',
+  '    }',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+  /* 对照：同一模式、同样帧数，全程慢档 —— 用来证明「切到快档」帧序列真的变了 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_ring.speed_cur = 8;',
+  '    led_gen_apply_mode(&g_ring, 1);',
+  '    for (t = 0; t < ' + TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+
   '    printf("\\n");',
   '    return 0;',
   '}',
@@ -171,7 +208,10 @@ if (!compiled) { console.log('\n=== 中止 ==='); process.exit(1); }
 const out = execFileSync(path.join(dir, 'gen.exe'), { env: ENV, encoding: 'latin1' });
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-ok(cModes.length === st.modes.list.length, `C 侧输出 ${cModes.length} 个模式（期望 ${st.modes.list.length}）`);
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 2 段音量档场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 第 4 段 = 音量档场景，第 5 段 = 全程慢档对照 */
+cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
+ok(cAll === st.modes.list.length + 2, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 2 段音量档场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -195,6 +235,38 @@ st.modes.list.forEach((mode, mi) => {
 ok(bad === 0, bad === 0
    ? `${st.modes.list.length} 个模式 × ${TICKS} 帧，整个 104 灯 fb 与 JS 预览逐字节一致`
    : `${bad}/${st.modes.list.length} 个模式不一致，首例: ${JSON.stringify(firstBad)}`);
+
+/* ---------- 5) 音量档：C 侧每拍从 ring 级同步档位，与 JS 预览逐字节一致 ----------
+ * 固件链路：spimled_service.c 每 20ms 调 ring_set_audio_level() → 改 ring->speed_cur；
+ * 生成代码在 led_gen_tick() 里把 ring 级档位同步进每个实例（各效果仍用自己的 fast/slow）。 */
+{
+  const sA = JSON.parse(JSON.stringify(st));
+  sA.anim.modeId = st.modes.list[1].id;
+  const simA = simInit();
+  simApplyMode(simA, sA);
+  for (let t = 0; t < TICKS; t++) {
+    simSetSpeed(simA, t < HALF_TICK ? 'slow' : 'fast');   /* 与 C 侧同一驱动时序 */
+    simTick(simA, sA, false);
+  }
+  const fa = cAux[0] || [];
+  let badA = 0, firstA = null;
+  for (let i = 0; i < FW.LED_COUNT; i++) {
+    const j = simA.fb[i * 3], k = simA.fb[i * 3 + 1], l = simA.fb[i * 3 + 2];
+    if (!fa[i] || fa[i][0] !== j || fa[i][1] !== k || fa[i][2] !== l) {
+      badA++;
+      if (!firstA) firstA = { led: i, c: fa[i], js: [j, k, l] };
+      break;
+    }
+  }
+  ok(badA === 0, badA === 0
+     ? `音量档：前 ${HALF_TICK} 拍慢档 + 后 ${TICKS - HALF_TICK} 拍快档，C 侧与 JS 逐字节一致`
+     : `音量档不一致，首例: ${JSON.stringify(firstA)}`);
+
+  const moved = JSON.stringify(cAux[0]) !== JSON.stringify(cAux[1]);
+  ok(moved, moved
+     ? '切到快档后帧序列确实变了（有声音时会变快，不是永远停在慢档）'
+     : '切档没生效：快档段的 fb 与全程慢档一模一样');
+}
 
 /* 覆盖度自检 */
 let lit = 0, hueUsed = 0;

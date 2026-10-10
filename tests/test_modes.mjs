@@ -1,4 +1,4 @@
-/* 模拟「关掉工具再打开」：连跑两次界面层，共享同一份 localStorage */
+/* 模式页：一个模式里给各分区分配不同效果；同一效果的多条绑定共享一份实例（相位同步） */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];

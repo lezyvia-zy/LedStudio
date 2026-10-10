@@ -232,5 +232,29 @@ console.log('--- 边界与性质 ---');
   ok(m.every(v => v === 0), '图层为 null 不崩');
 }
 
+/* ---- 9) 速度档信号链：ring 级 → 实例（对应固件 ring_set_audio_level()）---- */
+console.log('--- 速度档（ring 级 → 实例）---');
+{
+  const { simInit, instNew, ringIsFast, instSpeedFromRing, simSetSpeed, simSyncSpeed } = CORE;
+  const sim = simInit();
+  sim.insts = [Object.assign(instNew(), { speed_slow: 8, speed_fast: 1, speed_cur: 8 })];
+  ok(ringIsFast(sim) === false, 'ring_init 的默认档位（8/1/8）算慢档');
+  ok(instSpeedFromRing(sim.insts[0], sim) === 8, '慢档：实例用自己配的 slow');
+  simSetSpeed(sim, 'fast');
+  ok(sim.speed_cur === 1 && sim.insts[0].speed_cur === 1, '有声音（切快档）：ring 级与实例一起变成 1');
+  ok(instSpeedFromRing(sim.insts[0], sim) === 1, '快档：实例用自己配的 fast');
+  /* 各效果用各自的数值：再加一个 slow=40 / fast=5 的实例 */
+  sim.insts.push(Object.assign(instNew(), { speed_slow: 40, speed_fast: 5, speed_cur: 40 }));
+  simSyncSpeed(sim);
+  ok(sim.insts[1].speed_cur === 5, '同一个档位下，各效果仍用自己配的 fast（slow40/fast5 → 5）');
+  simSetSpeed(sim, 'slow');
+  ok(sim.insts[1].speed_cur === 40, '回慢档：slow40/fast5 的实例用 40');
+  /* 退化保护：fast 并不比 slow 快时一律慢档（与打补丁前行为一致） */
+  sim.speed_slow = 8; sim.speed_fast = 8; sim.speed_cur = 8;
+  simSyncSpeed(sim);
+  ok(sim.insts[0].speed_cur === 8, '参数退化（fast == slow）时按慢档走，不切档');
+}
+
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

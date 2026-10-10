@@ -171,5 +171,24 @@ rows()[0].onclick();
 await new Promise(r => setTimeout(r, 100));
 ok(pre.value === pick, '切回项目0 又回到它自己选的模式');
 
+
+/* ---- D) 速度档「自动（跟着音乐）」的接线与存盘 ---- */
+const spd = byId.get('aSpeed'), aud = byId.get('aAudio');
+spd.value = 'auto'; spd.onchange();
+await new Promise(r => setTimeout(r, 700));
+ok(animOf(0).speed === 'auto', '速度档改成了 auto');
+ok(aud.disabled === false, '自动档下「音乐来了」按钮可用');
+aud.onclick();
+await new Promise(r => setTimeout(r, 700));
+ok(animOf(0).audio === true, '「音乐来了」状态存住了（audio = true）');
+ok(aud.classList.contains('on') && /快档/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
+aud.onclick();
+await new Promise(r => setTimeout(r, 700));
+ok(animOf(0).audio === false, '再点一下回慢档（audio = false）');
+spd.value = 'slow'; spd.onchange();
+await new Promise(r => setTimeout(r, 100));
+ok(aud.disabled === true, '手动慢/快档时「音乐来了」按钮灰掉');
+
+
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

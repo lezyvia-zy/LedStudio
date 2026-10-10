@@ -1,4 +1,4 @@
-/* 模拟「关掉工具再打开」：连跑两次界面层，共享同一份 localStorage */
+/* 右侧栏分隔条：拖拽 / 边界夹紧 / 双击复位 / 键盘调节 / 宽度记忆，以及面板的弹性布局 */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];

@@ -1,8 +1,8 @@
 # LedStudio 项目交接文档
 
 > 目标读者：接手本项目的下一个 AI 编码助手（Cline）。
-> 先读这份，再读 [CLAUDE.md](CLAUDE.md)（里面有 14 条踩坑记录，改代码前必看）和 [README.md](README.md)（面向用户）。
-> 本文由 Claude Code 在 v1.0 提交（`9209a17`）时整理，描述的是当时的代码状态。
+> 先读这份，再读 [CLAUDE.md](CLAUDE.md)（里面有 15 条踩坑记录，改代码前必看）和 [README.md](README.md)（面向用户）。
+> 本文由 Claude Code 在 v1.0 提交（`9209a17`）时整理，描述的是当时的代码状态；后续变更见文末「变更记录」。
 
 ---
 
@@ -24,7 +24,7 @@
 ```
 led_layout_editor.html       工具本体（唯一交付物）
 README.md                    面向用户的说明
-CLAUDE.md                    给 Claude 会话的项目说明（含 14 条踩坑）
+CLAUDE.md                    给 Claude 会话的项目说明（含 15 条踩坑）
 HANDOFF.md                   本文件（交接文档）
 docs/firmware-contract.md    目标固件必须提供什么 / 一次性补丁
 tools/extract_fw_tables.py   从固件源码重抽查表与 fixture
@@ -64,7 +64,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 - **工程模型**：`emptyProject()`、`projectFromPreset()`、`PRESET_SP3122D`、`defaultEffects()`、`newCustomEffect()`、`emptyModes()`、`defaultModesFromEffects()`。
 - **动效（逐字移植固件 `ring_tick`/`render_all`）**：`animNew/animSet/animUpdate`、`zoneScaled`、`chaseSingle/chaseDual/fillAnim`、`colorUpdate`、`renderZoneMask`。
 - **图层 / 渲染原语**：`LAYER/FALL/WAVE/CMODE` 枚举，`genSpot/genTwinkle/genFill/genGradient`、`genRender`、`renderZoneMaskTo`、`layerHue`、`pulseGain`、`bouncePos`、`effectColorAt`。
-- **模式 / 模拟**：`simInit`、`instNew`、`instApplyPreset`、`simApplyEffect`、`simApplyMode`、`simApplySolo`、`simSetSpeed`、`instTick`、`simTick`、`resolveEffect`、`bindKey`、`effectAtSlot`、`effectById`。
+- **模式 / 模拟**：`simInit`、`instNew`、`instApplyPreset`、`simApplyEffect`、`simApplyMode`、`simApplySolo`、`simSetSpeed`、`ringIsFast`、`instSpeedFromRing`、`simSyncSpeed`、`instTick`、`simTick`、`resolveEffect`、`bindKey`、`effectAtSlot`、`effectById`。
 - **C 导出**：`exportC`、`exportEffectsC`、`modesPlan`、`layerToCRow`、`layerNums`、`buildPatchText`、`mangleComment`、`PATCH_BANNER2`、`patchLines`、`genImpl`、`GEN_COMMENTS`、`LED_GEN_IMPL`、`ANIM_TOK`、`COLOR_TOK`。
 
 ### 1.4 ui 脚本内部的模块（按出现顺序）
@@ -80,7 +80,8 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
     effects:{list[]}, modes:{version,list[]}, zones[], leds[] }
   ```
 - **`store`** —— `store.projects[i] = { id, name, state }`，多项目，自动保存到 localStorage（400ms 防抖）。
-- **`A()`** —— 动画页预览状态：`playing/speed/rate/previewTarget/modeId/soloEffectId/fix/showNum/showRing/showArrow/showFrame`。
+- **`A()`** —— 动画页预览状态：`playing/speed/rate/audio/previewTarget/modeId/soloEffectId/fix/showNum/showRing/showArrow/showFrame`。
+  （`speed='auto'` + `audio=true` = 模拟「样机上有声音」，与固件 `ring_set_audio_level()` 切档等价）
 - **`S()`** —— 懒建的模拟器（sim），`sim.plan` 是 `[{inst, zones:[分区下标]}]`。
 - **`stagePlaying`** —— 效果编辑台的独立播放状态，与动画页的 `A().playing` 互不影响。
 
@@ -138,6 +139,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 效果编辑台（直线 + 圆环 + 8/24/40 多长度对比） | ui 效果编辑台 `stageView`；状态在 `state.stage` |
 | 模式分配 + 覆盖参数 | core `resolveEffect/bindKey`；ui 模式页 |
 | 动画页真实灯板预览 | ui 动画页；core `sim*` / `renderAllSim` |
+| 速度档跟着音乐变（预览可模拟） | ui `#aSpeed` 的「自动」+ `#aAudio`「音乐来了」；core `ringIsFast/instSpeedFromRing/simSyncSpeed`；生成的 C 用同一条判据（`led_gen_tick`）—— 见 docs/firmware-contract.md 第三节 |
 | C 代码导出（效果表+模式表+渲染器+补丁横幅） | core `exportC/exportEffectsC/modesPlan/buildPatchText`；ui 导出页 |
 | 生成 C 注释双语（中/ASCII） | core `GEN_COMMENTS` + `mangleComment`（模板内中文用 `@key@` 占位） |
 | 多项目 + 自动保存（localStorage） | ui 项目库 `store` |
@@ -147,13 +149,13 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 悬浮说明 + 完整帮助页 | ui 悬浮说明 + 帮助页；被 `test_help` 断言 |
 | 从固件源码重抽查表 | `tools/extract_fw_tables.py` |
 
-### 测试覆盖（19 套件、421 项断言）
+### 测试覆盖（19 套件、437 项断言）
 
 | 类型 | 套件 | 验什么 |
 |---|---|---|
-| 纯逻辑 | `test_effects_core`(43) `test_core`(17) `test_map`(8) `test_wrap`(4) `test_anim`(8) `test_effects_c`(31) | 图层原语、排布生成、校验、C 文本、回绕修正 |
-| 真编译 | `test_effects_c_exec`(5) | 用 AndeSight cygwin gcc 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对** |
-| 假 DOM | `test_ui`(27) `test_anim2`(21) `test_modes`(21) `test_override`(29) `test_fx_presets`(23) `test_stage`(17) `test_split`(25) `test_help`(28) | 界面层真跑一遍（`boot()` 走通）、交互、接线；`test_help` 断言帮助页章节与 `data-tip` |
+| 纯逻辑 | `test_effects_core`(50) `test_core`(17) `test_map`(8) `test_wrap`(4) `test_anim`(8) `test_effects_c`(31) | 图层原语、排布生成、校验、C 文本、回绕修正、速度档信号链 |
+| 真编译 | `test_effects_c_exec`(7) | 用 AndeSight cygwin gcc 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的音量档场景（验「音乐来了会变快」这条链路） |
+| 假 DOM | `test_ui`(27) `test_anim2`(27) `test_modes`(21) `test_override`(29) `test_fx_presets`(23) `test_stage`(17) `test_split`(25) `test_help`(28) | 界面层真跑一遍（`boot()` 走通）、交互、接线（含速度档「自动」接线）；`test_help` 断言帮助页章节与 `data-tip` |
 | 持久化 | `test_persist`(15) `test_solo`(31) | 关掉再打开还在、迁移、状态隔离 |
 | 结构 | `test_struct`(6) | 脚本分块结构 |
 
@@ -163,7 +165,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 5. 进行中 / 未完成的功能（及当前思路）
 
-工具本体**功能完整、421 项断言全绿**。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
+工具本体**功能完整、437 项断言全绿**。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
 
 1. **抽公共测试驾具**：19 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 19 处。应该抽成 `tests/_harness.mjs`。
    - **注意**：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
@@ -191,6 +193,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 12. 测试里改完控件要等 700ms 再断言存盘结果（自动保存有 400ms 防抖）。
 13. core 新增函数/常量必须加进末尾 `CORE = { … }` 导出清单。
 14. 帮助页文案与 `data-tip` 是 `test_help` 断言对象，改教程文字前先看 `test_help.mjs`。
+15. 速度档是 **ring 级信号**（`ring->speed_cur`，由固件 `ring_set_audio_level()` 按音量切），生成代码在 `led_gen_tick()` 开头同步进每个实例；预览侧 `simSetSpeed()` 也走同一条路（改的是 `sim.speed_cur` 再广播）。改判据要 C/JS 两边一起改（`ringIsFast()`），否则真编译套件立刻红。
 
 ### 6.2 底层硬件约束（详见 docs/firmware-contract.md）
 
@@ -198,6 +201,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 - **`ring_set_position()` 回绕修正**：老固件「灯点转一圈闪一下」，根因是 `anim_set()` 把 `from` 设成当前值（5888）而目标是 0，插值沿最直的路倒扫整圈。修法是把 `from` 折算到离 `target` 最近的等价位置（位置以 `RING_SIZE*256` 为周期）。
 - **`zpos` 归一化**：回绕瞬间 `pos` 会略小于 0，C 的 `/` 对负数**向零截断**、JS 是 `Math.floor`，两边差 1，破坏「预览与代码逐字节一致」。需在两边都归一化。
 - **效果数 > 9 时**：固件模式键在 `MODE_OFF`(=9) 处回绕，只选得到 9 条。生成文件接管 `RING_PRESET_COUNT`，但 `main_task.c`、`main.c`、`display.c` 三处要跟着改（数码管 `(LEDMode+1)%10` 只显示一位，工具不管）。
+- **速度跟着音乐变（`ring->speed_cur`）**：固件 `spimled_service.c` 每 20ms 调 `ring_set_audio_level(&g_ring, mainAppCt.FFTLevel)`，按 `LED_FFT_THRESHOLD` 把 `ring->speed_cur` 在 `speed_slow` / `speed_fast` 之间切。打补丁后 `ring_tick()` 已被 `led_gen_tick(ring)` 取代，**只有生成代码读这个 ring 级档位**才能生效（否则永远慢档）—— 现在 `led_gen_tick()` 每帧同步它。不需要额外补丁。注意 `ring->speed_slow / speed_fast` 打补丁后不再由 `ring_apply_preset()` 刷新（`ring_init()` 里是 8 / 1），只作判档参考。
 - **连续编号假设**：生成代码假定分区在 SPI 链上连续编号（`start + i`）。目标板子编号不连续需要额外映射，目前没做。
 - **颜色顺序假设**：生成代码直接用 `ring->fb[phys][3]`，R/G/B 顺序。目标用别的顺序要在 `led_gen_render_mode()` 里换。
 - **彩虹表耦合**：色相/彩虹依赖 `spectrum_tbl` 是 `{r,g,b}` 的 256 项数组，换表就换整套配色风格。
@@ -258,7 +262,8 @@ node tests/run_all.mjs 效果 编译
 node tests/test_map.mjs
 
 # 真编译套件（需 cygwin gcc 进 PATH，否则 cc1.exe 找不到 DLL）
-export PATH="/c/Andestech/AndeSight_RDS_v323/cygwin/bin:$PATH"
+export PATH="/c/Andestech/AndeSight_RDS_v323/cygwin/bin:$PATH"   # bash / git-bash
+$env:PATH='C:\Andestech\AndeSight_RDS_v323\cygwin\bin;'+$env:PATH   # Windows PowerShell
 node tests/run_all.mjs effects_c_exec
 
 # 从固件源码重抽查表（--fixture 更新回归锚点，--js 输出贴进 html 的片段）
@@ -276,3 +281,19 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 5. 动了帮助页文字 / `data-tip` → 看 `test_help`（坑 14）。
 6. 动了面板 CSS → `.pane` 在 `#right` 里、`overflow:auto`、`#right` `min-height:0`（坑 11）。
 7. 查表（`cos_window_tbl`/`spectrum_tbl`/`presets`）→ 用 `extract_fw_tables.py` 抽，不要手改。
+
+---
+
+## 11. 变更记录
+
+**2026-10-10（本次）—— 速度档跟着音乐变（不需要新的固件补丁）**
+
+- **根因**：补丁 [5] 把 `ring_tick()` 换成 `led_gen_tick(ring)` 之后，推进实例的只剩生成代码，而它只读实例自己的 `speed_cur` —— 固件 `ring_set_audio_level()` 每 20ms 写的 `ring->speed_cur` 没人读，速度永远停在慢档。
+- **改法（零固件改动）**：`led_gen_tick()` 每帧先算一次 ring 级档位（`ring->speed_fast < ring->speed_slow && ring->speed_cur <= ring->speed_fast`），再把 `I->speed_cur` 设成该实例自己的 `speed_fast` / `speed_slow`。判据保守：固件没接音量或参数退化（`fast >= slow`）时一律慢档，与打补丁前行为一致。
+- **预览同源**：`simInit()` 增加 ring 级 `speed_slow/speed_fast/speed_cur`；`simSetSpeed(sim,'fast'|'slow')` 改为「改 ring 级 + 广播」（等价 `ring_set_audio_level()`）；`simTick()` 每拍同步一次。新增纯函数 `ringIsFast()` / `instSpeedFromRing()` / `simSyncSpeed()`（已加进 `CORE`）。
+- **界面**：动画页「速度档」新增「自动（跟着音乐）」；新增「音乐来了」按钮（仅自动档可用，文案与 `on` 状态跟着切；`A().audio` 随项目存盘）。
+- **文档**：`docs/firmware-contract.md` 新增第三节「速度档怎么跟着音乐走」并重编号（原三～六 → 四～七）；补丁清单新增 [7]（速度档，无需补丁），原 [7] 变 [8]；工具内帮助页加说明；README / CLAUDE.md（新增坑 15）同步。
+- **测试**：+16 条，合计 **437**。真编译套件新增「前 18 拍慢档 + 后 19 拍快档」场景（C 侧与 JS 逐字节一致 + 快档段确实与原慢档不同）；`test_effects_core` 加信号链 7 条；`test_anim2` 加自动档接线 6 条；`test_help` 加帮助页 1 条。
+
+**2026-10-10 —— `b7aef3a` 文档落盘**：补交 `HANDOFF.md`、`LedStudio.code-workspace`，更新 CLAUDE.md 踩坑（v1.0 提交 `9209a17` 之后的工作）。同批修正 `test_modes.mjs` / `test_split.mjs` 开头写错的文件说明，并在 README / CLAUDE / HANDOFF 的真编译命令旁补 Windows PowerShell 写法（`export PATH=...` 在 PowerShell 里不成立）。
+

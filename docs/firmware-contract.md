@@ -24,7 +24,7 @@
 | `rgb_t` | `{ uint8_t r, g, b; }` |
 | `led_zone_t` | `{ uint8_t start, count, reverse; }` —— 分区的起止灯号 |
 | `anim_t` / `anim_ctx_t` / `color_ctx_t` | 动画与颜色的运行状态 |
-| `ring_t` | 灯环总状态，**必须至少有**：`anim`、`color`、`brightness`、`zones[ZONE_MAX]`、`zone_count`、`zone_en[ZONE_MAX]`、`fb[LED_COUNT][3]` |
+| `ring_t` | 灯环总状态，**必须至少有**：`anim`、`color`、`brightness`、`zones[ZONE_MAX]`、`zone_count`、`zone_en[ZONE_MAX]`、`fb[LED_COUNT][3]`、`speed_slow` / `speed_fast` / `speed_cur`（速度档信号源，见第三节） |
 
 ### 枚举与常量
 
@@ -75,13 +75,54 @@
         原: ring_apply_preset(&g_ring, &g_presets[mainAppCt.LEDMode]);
         新: led_gen_apply_mode(&g_ring, (uint8_t)mainAppCt.LEDMode);
 
-[7] 可选 —— 内建那条路径现在被绕过了；如果还想留作兜底，记得把
+[7] services/spimled_service.c  速度跟着音乐变（不需要再打补丁）:
+    ring_set_audio_level() 本来就在每 20ms 按 FFTLevel 改 ring->speed_cur；
+    led_gen_tick() 现在会读这个 ring 级档位并落到每个实例上，
+    各效果仍用工具里配的 fast/slow 数值。
+    ring->speed_slow / speed_fast 保持合理（ring_init: 8 / 1）即可 ——
+    若 fast 并不比 slow 快，生成代码一律按慢档走（与打补丁前一致）。
+
+[8] 可选 —— 内建那条路径现在被绕过了；如果还想留作兜底，记得把
     ring_set_position() 的回绕修正也打上（见下）
 ```
 
 > 注意 [2] 的 `gen_tick` **必须是一个字段**，不能用函数内的 `static` 计数器：`anim_render_zone()` 是每个分区每帧都被调一次，用 static 会跑成 5 倍速。
 
-## 三、连带的两个修正
+## 三、速度档怎么跟着音乐走（自动生效，不需要补丁）
+
+样机上「有声音就变快」是**固件本来就有**的一条链路：
+
+```c
+/* services/spimled_service.c，每 20ms 一次 */
+ring_set_audio_level(&g_ring, mainAppCt.FFTLevel);
+/* device/led_ring.c 里它做的事： */
+ring->speed_cur = (fft_level >= LED_FFT_THRESHOLD) ? ring->speed_fast : ring->speed_slow;
+```
+
+打补丁之前这条链路是**断的**：`ring_tick()` 被换成 `led_gen_tick(ring)` 之后，推进实例的是生成代码，
+而它只认每个实例自己的 `speed_cur` —— `ring->speed_cur` 写了也没人读，于是速度永远停在慢档。
+
+现在 `led_gen_tick()` 每帧先读一次 ring 级档位，再落到实例上：
+
+```c
+fast = (ring->speed_fast < ring->speed_slow && ring->speed_cur <= ring->speed_fast) ? 1u : 0u;
+...
+I->speed_cur = (fast != 0u) ? I->speed_fast : I->speed_slow;   /* 各效果仍用自己配的 fast/slow */
+```
+
+三点要注意：
+
+- **不再需要额外的补丁**：`spimled_service.c` 里那行 `ring_set_audio_level()` 原样保留即可（清单里的 [7] 只是说明）。
+- **判据是保守的**：只有「快档确实更快」（`speed_fast < speed_slow`）且 `speed_cur` 落在快档时才认快档；
+  否则一律慢档 —— 目标固件没接音量、或参数被改成 `fast >= slow` 时，行为与打补丁前一模一样。
+- **`ring->speed_slow / speed_fast` 只是判档参考**：打补丁后 `ring_apply_preset()` 不再被调用，
+  这两个字段不会被效果参数刷新（`ring_init()` 里是 8 / 1）。各效果真正的快慢，由生成的
+  `led_gen_effects[]` 里的 `slow` / `fast` 决定。
+
+工具侧对应：动画页的「速度档」选**自动（跟着音乐）**，再用「音乐来了」按钮模拟有声音那一下。
+判档逻辑与生成代码同源（`ringIsFast()` 与 C 里那行表达式等价），预览因此仍是逐字节可信的。
+
+## 四、连带的两个修正
 
 ### 1. `ring_set_position()` 的回绕修正（内建路径用）
 
@@ -115,7 +156,7 @@ else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 2
 
 > 内建路径被绕过时这条也用不上；但生成代码内部已经这么做了。
 
-## 四、效果数超过 9 个时
+## 五、效果数超过 9 个时
 
 固件的模式键原来在 `MODE_OFF`(=9) 处回绕，所以只选得到 9 条。生成文件会把 `RING_PRESET_COUNT` 定义成实际条数，模式键那几处要跟着改（导出页会多给一段补丁）：
 
@@ -124,7 +165,7 @@ else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 2
 - 这两个文件要能看到 `RING_PRESET_COUNT`（加 `#include "led_ring.h"`，或直接写死数字）
 - **数码管显示模式号**那段（`display/display.c` 的 `(LEDMode+1)%10`）只显示一位，工具不管，需要自己改
 
-## 五、生成文件里各部分的职责
+## 六、生成文件里各部分的职责
 
 | 部分 | 内容 |
 |---|---|
@@ -135,7 +176,7 @@ else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 2
 
 `led_gen_render_mode()` 先把 `ring->fb` 清零，然后**逐分区**：按 `zone → 实例` 映射取状态，算 `zpos = pos × len / RING_SIZE` 并归一化，渲染出亮度掩码 + 每灯位色相，最后乘上亮度写进 `fb`。SPI 发送仍由固件原有的 `spi_dma_send()` 负责。
 
-## 六、移植到别的固件
+## 七、移植到别的固件
 
 按第一节对齐符号即可。已知要注意的点：
 

@@ -29,7 +29,7 @@ LED 灯效设计与代码生成工具。**一个 HTML 文件，离线可用，�
    - 点「播放」就地在编辑台播放，边改边看。要看真实灯板就点「在灯板上看」。
    - 打开**「多长度对比」**：同一个效果在不同长度的灯带上长得不一样（等比缩放），调宽度时务必开着它。
 3. **模式页**：新建一个模式 → 「+ 添加绑定」→ 选效果 + 勾分区。重复到每个分区都分到。
-4. **动画页**：预览整个模式在真实灯板上的样子。
+4. **动画页**：预览整个模式在真实灯板上的样子。速度档可以选**「自动（跟着音乐）」** —— 再用「音乐来了」按钮模拟样机上有声音那一下，效果就切到快档（与固件 `ring_set_audio_level()` 的行为同源）。
 5. **导出页**：生成 `led_effects_gen.h`，里面带一份**固件补丁说明**（照它改一次固件即可）。
 
 界面里每个可调项**鼠标停一下**都有小窗说明；右侧还有个**「帮助」页签**有完整教程。
@@ -51,17 +51,18 @@ node tests/run_all.mjs            # 全部
 node tests/run_all.mjs 效果 编译   # 只跑名字含这些字样的
 ```
 
-当前 **19 个套件、421 项断言**，全部通过。
+当前 **19 个套件、437 项断言**，全部通过。
 
 ### 真编译测试（`test_effects_c_exec`）
 
-这一个会**真编译、真运行**生成的头文件，把结果和工具里的预览**逐字节比对** —— 它验的是「预览和最终代码是不是一回事」，这条不成立整个工具就没意义。
+这一个会**真编译、真运行**生成的头文件，把结果和工具里的预览**逐字节比对** —— 它验的是「预览和最终代码是不是一回事」，这条不成立整个工具就没意义。里面除了 3 个模式各跑 37 帧，还跑一段**前半慢档、后半快档**的音量档场景，验「音乐来了会变快」这条链路。
 
 它需要 AndeSight 自带的 cygwin gcc（`C:\Andestech\AndeSight_RDS_v323\cygwin\bin`）。没有的话这个套件会失败，其余照常在。
 
 ```bash
 # gcc 必须把自己的 bin 放进 PATH，否则 cc1.exe 找不到 DLL
-export PATH="/c/Andestech/AndeSight_RDS_v323/cygwin/bin:$PATH"
+export PATH="/c/Andestech/AndeSight_RDS_v323/cygwin/bin:$PATH"   # bash / git-bash
+$env:PATH='C:\Andestech\AndeSight_RDS_v323\cygwin\bin;'+$env:PATH   # Windows PowerShell
 node tests/run_all.mjs effects_c_exec
 ```
 

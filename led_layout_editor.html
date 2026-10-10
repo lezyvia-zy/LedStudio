@@ -243,10 +243,12 @@
         </select></label>
         <label class="row"><span>选哪个</span><select id="aPreset"></select></label>
         <div class="hint" id="aTargetHint"></div>
-        <label class="row"><span>速度档</span><select id="aSpeed" data-tip="用固件里的哪一档速度（慢=产品里空闲时，快=有声音时）。">
+        <label class="row"><span>速度档</span><select id="aSpeed" data-tip="用固件里的哪一档速度（慢=产品里空闲时，快=有声音时）。&#10;「自动」= 跟着音乐：样机上由 ring_set_audio_level() 按音量在慢/快之间切，工具里用下面那个按钮模拟。">
           <option value="slow">慢速 (speed_slow)</option>
           <option value="fast">快速 (speed_fast)</option>
+          <option value="auto">自动（跟着音乐）</option>
         </select></label>
+        <label class="row"><span></span><button id="aAudio" data-tip="只在「自动」档下生效：模拟样机上有声音，固件把 ring->speed_cur 切到快档。&#10;样机上这条线是 spimled_service.c 每 20ms 调 ring_set_audio_level()，按 FFTLevel 改档。">音乐来了（切快档）</button></label>
         <label class="row"><span>播放倍率</span><select id="aRate" data-tip="播放倍率：把时间整体拉慢/加快，只影响预览，不影响导出的参数。">
           <option value="0.25">0.25× 慢动作</option>
           <option value="0.5">0.5×</option>
@@ -629,11 +631,15 @@
         <table>
           <tr><th>控件</th><th>作用</th></tr>
           <tr><td>选哪个</td><td>选要预览的模式 / 效果。</td></tr>
-          <tr><td>速度档 / 播放倍率</td><td>速度档是固件里的快慢两档；倍率是把播放时间整体拉慢/加快，方便观察。</td></tr>
+          <tr><td>速度档 / 播放倍率</td><td>速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>（样机上有声音就切快档，见下）；倍率是把播放时间整体拉慢/加快，方便观察。</td></tr>
           <tr><td>播放 / 单步 / 归零</td><td>单步走一格（固件的 speed_cur 个节拍），归零回到起始帧。</td></tr>
           <tr><td>方向修正</td><td>关 = 当前固件的真实表现；开 = 按各分区实际绕行方向反向映射（配 reverse 补丁后的表现）。它下面那行会显示每个分区此刻亮到几号灯。</td></tr>
           <tr><td>显示</td><td>编号 / 圆圈灯位 / 方向箭头 / 动效帧 四个开关，播放中也能随时切。</td></tr>
         </table>
+        <div class="hint"><b>「自动」速度档与「音乐来了」按钮</b>：样机上「有声音就变快」是固件本来就有的链路 ——
+          <code>spimled_service.c</code> 每 20ms 调 <code>ring_set_audio_level()</code>，按音量把速度档在慢/快之间切。
+          选「自动」后，点一下「音乐来了」就相当于那一刻有声音：效果立刻变快，再点一下回慢档。
+          预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），在这里看到的快慢就是样机上的快慢。</div>
 
         <h3>导出与固件</h3>
         <p>「导出」页分两块：上面是<b>分区表</b>（<code>g_default_zones[]</code>），下面是<b>动效</b>（<code>led_effects_gen.h</code>）。</p>
@@ -1030,6 +1036,9 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 /* 每个项目独立的动画播放设置（跟着项目一起存盘，互不影响） */
 function defaultAnim() {
   return { preset: 0, speed: 'slow', rate: 1, fix: true, playing: false,
+           /* audio：仅 speed='auto' 时有效 —— 模拟「样机上有声音」，
+            * 正是固件 ring_set_audio_level() 把 ring->speed_cur 切到快档那一下 */
+           audio: false,
            showNum: true, showRing: true, showArrow: true, showFrame: true,
            previewTarget: 'mode', soloEffectId: '' };
 }
@@ -1435,6 +1444,10 @@ function simInit() {
     insts: [],
     /* ring_init(): brightness.current = target = 256（0..256，不是 0..255） */
     brightness: Object.assign(animNew(), { current: 256, target: 256 }),
+    /* ring 级速度档（固件 ring_t 的同名字段，ring_init 里是 8/1/8）。
+     * 生成代码每拍从这里判断「现在该快还是该慢」—— 预览必须走同一条路径，
+     * 否则预览和导出的代码就不是同一件事。 */
+    speed_slow: 8, speed_fast: 1, speed_cur: 8,
     gen_tick: 0, power_on: true, fb: new Uint8Array(FW.LED_COUNT * 3),
   };
 }
@@ -1509,8 +1522,28 @@ function simApplySolo(sim, state, effectId) {
   return inst;
 }
 
+/* —— 速度档信号链（预览与生成的代码共用这一条线）——————————————————————
+ * 固件：spimled_service.c 每 20ms 调 ring_set_audio_level()，按音量把 ring->speed_cur
+ *       在 speed_slow / speed_fast 之间切；生成代码在 led_gen_tick() 里每拍把这个
+ *       ring 级档位同步进每个实例（各效果仍用自己在效果页配的 fast/slow 数值）。
+ * 判据刻意保守：只有「快档确实比慢档快」时才认快档，否则一律慢档 ——
+ *       固件没接音量、或参数退化（slow <= fast）时，行为与打补丁前一模一样。 */
+function ringIsFast(r) {
+  return r.speed_fast < r.speed_slow && r.speed_cur <= r.speed_fast;
+}
+/* ring 级档位 → 某个实例这一拍该用的 speed_cur */
+function instSpeedFromRing(inst, r) {
+  return ringIsFast(r) ? inst.speed_fast : inst.speed_slow;
+}
+/* 每拍从 ring 级同步一遍（只改 speed_cur，不动 step_cnt —— 切档时相位不跳） */
+function simSyncSpeed(sim) {
+  sim.insts.forEach(i => { i.speed_cur = instSpeedFromRing(i, sim); });
+}
+
 function simSetSpeed(sim, which) {
-  sim.insts.forEach(i => { i.speed_cur = (which === 'fast') ? i.speed_fast : i.speed_slow; });
+  /* 等价于固件的 ring_set_audio_level()：改的是 ring 级档位，再广播给各实例 */
+  sim.speed_cur = (which === 'fast') ? sim.speed_fast : sim.speed_slow;
+  simSyncSpeed(sim);
 }
 
 /* 效果对象 → ring_preset_t 形状（内建/自定义共用） */
@@ -1544,6 +1577,7 @@ function instTick(inst) {
 
 function simTick(sim, state, applyReverse) {
   sim.gen_tick = (sim.gen_tick + 1) & 0xFFFF;
+  simSyncSpeed(sim);            /* 与 C 侧 led_gen_tick() 一样：每拍先同步 ring 级档位 */
   for (const inst of sim.insts) instTick(inst);
   if (sim.power_on) {
     animUpdate(sim.brightness);
@@ -2153,11 +2187,14 @@ const LED_GEN_IMPL = [
 '/* @gentick@ */',
 'void led_gen_tick(ring_t *ring)',
 '{',
-'    uint8_t i;',
+'    uint8_t i, fast;',
 '    led_gen_inst_t *I;',
-'    (void)ring;',
+'    /* @syncspeed@ */',
+'    fast = (ring->speed_fast < ring->speed_slow && ring->speed_cur <= ring->speed_fast) ? 1u : 0u;',
 '    for (i = 0; i < led_gen_inst_count; i++) {',
 '        I = &led_gen_inst[i];',
+'        /* @instspeed@ */',
+'        I->speed_cur = (fast != 0u) ? I->speed_fast : I->speed_slow;',
 '        I->step_cnt++;',
 '        if (I->step_cnt >= I->speed_cur) {',
 '            I->step_cnt = 0;',
@@ -2231,6 +2268,8 @@ const GEN_COMMENTS = {
   insttype:  { zh:'一个效果实例的运行状态。同一条效果被多个分区引用时共用一个实例 = 相位同步', en:'runtime state of one effect instance. Zones sharing an effect share the instance = synchronised' },
   applymode: { zh:'切模式：按绑定表建实例（同一效果只建一次）', en:'switch mode: build instances from the bind table (one per distinct effect)' },
   gentick:   { zh:'每帧推进一次：所有实例各推进各的', en:'called once per frame: advance every instance' },
+  syncspeed: { zh:'ring 级速度档：speed_cur 由 ring_set_audio_level() 按音量在 slow/fast 之间切。只有「快档确实更快」才认快档，否则一律慢档（与打补丁前一致）', en:'ring-level speed stage: ring_set_audio_level() switches speed_cur between slow/fast by volume. Treated as fast only when fast is really quicker, else slow (as before the patch)' },
+  instspeed: { zh:'每拍把 ring 级档位同步进本实例；各效果仍用自己配的 fast/slow', en:'sync the ring-level stage into this instance every frame; each effect keeps its own fast/slow' },
   genrender: { zh:'把当前模式渲染进 ring->fb。内建效果直接调固件原有的渲染函数，行为完全一致', en:'render the current mode into ring->fb. built-ins call the firmware own renderers' },
   zonerender:{ zh:'单个分区渲染：内建走固件原函数，自定义走图层合成', en:'render one zone: built-in via the firmware, custom via layer compositing' },
   setpos:    { zh:'位置推进：把 from 折算到离 target 最近的等价位置（顺带修掉「转一圈闪一下」）', en:'position advance; re-bases from to the nearest equivalent (fixes the once-per-revolution flash)' },
@@ -2286,7 +2325,14 @@ function patchLines(zh) {
     '        old: ring_apply_preset(&g_ring, &g_presets[mainAppCt.LEDMode]);',
     '        new: led_gen_apply_mode(&g_ring, (uint8_t)mainAppCt.LEDMode);',
     '',
-    '[7] OPTIONAL - the built-in path is bypassed now, but if you still use it,',
+    '[7] services/spimled_service.c - speed follows the music (NO extra patch):',
+    '    ring_set_audio_level() already writes ring->speed_cur from FFTLevel every',
+    '    20ms; led_gen_tick() now reads that ring-level stage and applies it to',
+    '    every instance, so each effect keeps the slow/fast values from the tool.',
+    '    Keep ring->speed_slow / speed_fast sane (ring_init: 8 / 1); if fast is',
+    '    NOT quicker than slow, the generated code stays on the slow stage.',
+    '',
+    '[8] OPTIONAL - the built-in path is bypassed now, but if you still use it,',
     '    apply the wrap fix in ring_set_position() so the spot does not sweep',
     '    backwards once per revolution (see the tool export panel).',
     '==========================================================================',
@@ -2324,7 +2370,14 @@ function patchLines(zh) {
     '        原: ring_apply_preset(&g_ring, &g_presets[mainAppCt.LEDMode]);',
     '        新: led_gen_apply_mode(&g_ring, (uint8_t)mainAppCt.LEDMode);',
     '',
-    '[7] 可选 —— 内建那条路径现在被绕过了；如果还想留作兜底，记得把',
+    '[7] services/spimled_service.c  速度跟着音乐变（不需要再打补丁）:',
+    '    ring_set_audio_level() 本来就在每 20ms 按 FFTLevel 改 ring->speed_cur；',
+    '    led_gen_tick() 现在会读这个 ring 级档位并落到每个实例上，',
+    '    各效果仍用工具里配的 fast/slow 数值。',
+    '    ring->speed_slow / speed_fast 保持合理（ring_init: 8 / 1）即可 ——',
+    '    若 fast 并不比 slow 快，生成代码一律按慢档走（与打补丁前一致）。',
+    '',
+    '[8] 可选 —— 内建那条路径现在被绕过了；如果还想留作兜底，记得把',
     '    ring_set_position() 的回绕修正也打上（否则转一圈会闪一下）。',
     '==========================================================================',
   ];
@@ -2628,6 +2681,7 @@ const CORE = { FW, GEN, deriveZoneDir, zoneReverse, validate, emptyProject, clon
                zoneScaled, chaseSingle, chaseDual, fillAnim, renderZoneMask,
                colorUpdate, simInit, instApplyPreset, simApplyEffect, simApplyMode,
                simSetSpeed, simSetupPreset, simApplySolo, instTick, simTick, modeOf, effectById, effectIndex,
+               ringIsFast, instSpeedFromRing, simSyncSpeed,
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
                FALL, LAYER, WAVE, CMODE, pulseGain, bouncePos, layerHue,
@@ -2781,6 +2835,21 @@ function A() {
   if (!state.anim) state.anim = defaultAnim();
   return state.anim;
 }
+/* 当前该用哪一档速度。auto = 跟着「音乐来了」按钮，
+ * 也就是固件里 ring_set_audio_level() 按音量切的那一档。 */
+function speedWhich() {
+  const a = A();
+  return (a.speed === 'auto') ? (a.audio ? 'fast' : 'slow') : (a.speed || 'slow');
+}
+/* 把当前档位同步给预览：只改速度档，不动相位 / step_cnt（切档瞬间不跳帧） */
+function syncPreviewSpeed(s) { simSetSpeed(s || S(), speedWhich()); }
+/* 「音乐来了」按钮的外观：只有自动档下才有意义，其它档灰掉 */
+function syncAudioBtn() {
+  const a = A(), on = !!a.audio, b = $('#aAudio');
+  b.textContent = on ? '音乐来了：快档（点掉回慢档）' : '音乐来了（切快档）';
+  b.classList.toggle('on', on);
+  b.disabled = (a.speed !== 'auto');
+}
 /* 当前项目的动画运行时。第一次取用时就按模式铺好实例 ——
  * 少了这一步，开局点任何只重画不推进的按钮（比如方向修正）都会面对空实例表，
  * 画面直接变黑。 */
@@ -2791,7 +2860,7 @@ function S() {
     s = simInit();
     sims.set(id, s);
     simDirty = false;
-    if (state) { simApplyMode(s, state); simSetSpeed(s, A().speed); }
+    if (state) { simApplyMode(s, state); simSetSpeed(s, speedWhich()); }
   }
   return s;
 }
@@ -2807,7 +2876,7 @@ function resetSim() {
   const s = S();
   if (A().previewTarget === 'effect') simApplySolo(s, state, A().soloEffectId);
   else                                simApplyMode(s, state);
-  simSetSpeed(s, A().speed);
+  simSetSpeed(s, speedWhich());
   return s;
 }
 let selZone = 0;
@@ -3481,7 +3550,16 @@ function buildAnimPanel() {
     A().previewTarget = $('#aTarget').value;
     resetSim(); fillPresetSelect(); applyFrame(); saveStore();
   };
-  $('#aSpeed').onchange = () => { A().speed = $('#aSpeed').value; simSetSpeed(S(), A().speed); applyFrame(); saveStore(); };
+  /* 速度档：auto 时快慢由下面那个「音乐来了」按钮决定
+   * （对应固件 ring_set_audio_level() 切 ring->speed_cur 那一下） */
+  $('#aSpeed').onchange = () => {
+    A().speed = $('#aSpeed').value;
+    syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+  };
+  $('#aAudio').onclick = () => {
+    A().audio = !A().audio;
+    syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+  };
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };
   $('#aPlay').onclick   = () => { playToggle(!A().playing); saveStore(); };
   $('#aStep').onclick   = () => {
@@ -3557,6 +3635,7 @@ function syncAnimPanel() {
   $('#aShowFrame').checked = a.showFrame;
   $('#aPlay').textContent  = a.playing ? '暂停' : '播放';
   $('#aPlay').classList.toggle('on', a.playing);
+  syncAudioBtn();
 }
 
 /* 播放/暂停开关。播放状态是每个项目各自记着的。 */

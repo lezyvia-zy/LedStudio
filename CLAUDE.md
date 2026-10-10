@@ -24,7 +24,8 @@ node tests/run_all.mjs 效果 编译
 node tests/test_map.mjs
 
 # 真编译套件需要 cygwin gcc 进 PATH，否则 cc1.exe 找不到 DLL
-export PATH="/c/Andestech/AndeSight_RDS_v323/cygwin/bin:$PATH"
+export PATH="/c/Andestech/AndeSight_RDS_v323/cygwin/bin:$PATH"   # bash / git-bash
+$env:PATH='C:\Andestech\AndeSight_RDS_v323\cygwin\bin;'+$env:PATH   # Windows PowerShell
 node tests/run_all.mjs effects_c_exec
 
 # 从固件源码重抽查表（--fixture 更新回归锚点，--js 输出贴进 html 的片段）
@@ -122,12 +123,12 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 测试怎么组织的
 
-19 个套件、421 项断言。四类：
+19 个套件、437 项断言。四类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
 | **纯逻辑** | `test_effects_core` `test_core` `test_map` | 图层原语、排布生成、校验、C 文本 |
-| **真编译** | `test_effects_c_exec` | 用 **AndeSight 自带的 cygwin gcc** 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对** |
+| **真编译** | `test_effects_c_exec` | 用 **AndeSight 自带的 cygwin gcc** 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的场景，验「音乐来了会变快」 |
 | **假 DOM** | `test_ui` `test_modes` `test_stage` `test_override` `test_help` … | 把界面层真跑一遍（`boot()` 走通）、交互、接线；`test_help` 还断言帮助页章节与 `data-tip` |
 | **持久化** | `test_persist` `test_solo` | 关掉再打开还在、迁移、状态隔离 |
 
@@ -149,10 +150,11 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 12. **测试里改完控件要等 700ms 再断言存盘结果**（自动保存有 400ms 防抖）。
 13. **core 里新增的函数/常量必须加进末尾的 `CORE = { … }` 导出清单**，否则测试抽不到它（`CORE.xxx` 为 `undefined`，报错还很绕）。
 14. **帮助页文案与 `data-tip` 是测试断言对象**（`test_help`）：章节标题、关键短语（如「本层空间色相」）、特定控件的 `data-tip` 都在断言里。改教程文字或删说明前先看 `test_help.mjs`。
+15. **速度档是 ring 级信号，不是实例级的**：`ring->speed_cur` 由固件 `ring_set_audio_level()` 按音量切，生成代码在 `led_gen_tick()` 开头把它同步进每个实例（`I->speed_cur = fast ? I->speed_fast : I->speed_slow`，各效果仍用自己配的 fast/slow）。改这条判据必须同时改 JS 侧的 `ringIsFast()` —— 否则真编译套件立刻红。判据是保守的：只有 `speed_fast < speed_slow` 且 `speed_cur` 落在快档才算「有声音」。
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、421 项断言全绿。已知的待办：
+工具本体功能完整、437 项断言全绿。已知的待办：
 
 1. **抽公共测试驾具**：19 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 19 处。应该抽成 `tests/_harness.mjs`。注意：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
 2. **`_fxui_body*.js` 的构建脚本**（原来在临时目录）没搬过来 —— 有两个套件（`test_effects_ui`/`test_fx_presets`/`test_solo`/`test_stage`/`test_override`/`test_split`）是从 `test_split.mjs` 的前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改其中一个的公共部分时要留意重复。
