@@ -1021,6 +1021,25 @@ function validate(state) {
     });
   }
 
+  /* 重名：导出的 C 注释、模式摘要都靠名字认人，同名会分不出谁是谁（只提示，不挡导出） */
+  {
+    const dupes = (list, label, code) => {
+      const seen = new Map();
+      list.forEach((x, i) => {
+        const k = (x.name || '').trim(); if (!k) return;
+        if (!seen.has(k)) seen.set(k, []);
+        seen.get(k).push(i);
+      });
+      seen.forEach((idx, k) => {
+        if (idx.length < 2) return;
+        push('info', code,
+          `${idx.length} 个${label}都叫「${k}」（第 ${idx.map(i => i + 1).join('、')} 条）—— 导出的注释和模式摘要会分不出谁是谁`);
+      });
+    };
+    dupes(EFFS, '效果', 'V35');
+    dupes((state.modes && state.modes.list) || [], '模式', 'V36');
+  }
+
   if (state.meta.ringSize > 127)
     push('err', 'V26', `RING_SIZE ${state.meta.ringSize} > 127：pos 是 int16，会溢出`);
   state.zones.forEach(z => { if (z.count > 127) push('err', 'V26', `分区「${z.name}」长度 ${z.count} > 127：pos 是 int16，会溢出`); });

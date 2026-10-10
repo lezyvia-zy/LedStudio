@@ -53,6 +53,18 @@ ok(!iss.some(i=>i.level==='err'), '无错误');
 ok(iss.filter(i=>i.code==='V11').length===0, 'V11 相邻性干净');
 ok(iss.filter(i=>i.code==='V13').length===1, '恰好 1 条 V13 方向告警');
 
+/* 重名效果/模式：提示级点出（导出注释 / 模式摘要靠名字认人） */
+const v35 = iss.filter(i=>i.code==='V35');
+ok(v35.length>=1, `重名效果被点出（${v35.length} 组）`);
+ok(v35.every(i=>i.level==='info'), '重名只算提示级，不挡导出');
+v35.forEach(i=>console.log('  ' + i.msg));
+{
+  const st2 = JSON.parse(JSON.stringify(st));
+  st2.modes = { list: [{ id:'m1', name:'夜间调试', binds:[] }, { id:'m2', name:'夜间调试', binds:[] }], current: 0 };
+  const iss2 = validate(st2);
+  ok(iss2.filter(i=>i.code==='V36').length===1, '模式重名被点出 1 组');
+}
+
 console.log('\n--- C 导出 ---');
 const code = exportC(st,{variant:'table',comment:'ascii',nominal:'cw'});
 console.log(code.split('\n').map(l=>'  '+l).join('\n'));
