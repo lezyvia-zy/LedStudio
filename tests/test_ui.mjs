@@ -181,5 +181,30 @@ pd2({ pointerId:1, button:0, clientX:300, clientY:300, shiftKey:false, preventDe
 await new Promise(r => setTimeout(r, 700));
 ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}）`);
 
+/* ---- 11) 状态栏分级：提示带级别，err 留在栏里不被统计串盖掉 ---- */
+{
+  const statusEl = byId.get('status');
+  const st = () => JSON.parse(store.get('led_layout_editor.v1'));
+
+  /* a) 空白项目：删掉唯一分区 → 点「铺灯」走 warn 分支（先提醒、不打断） */
+  byId.get('btnZoneDel').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  ok(st().projects[1].state.zones.length === 0,
+     `空白项目已删掉唯一分区（剩 ${st().projects[1].state.zones.length} 个）`);
+  byId.get('gApply').onclick();
+  ok(/lv-warn/.test(statusEl.className), `缺前置条件的提示带 warn 级别（class="${statusEl.className}"）`);
+  ok(/选中一个分区/.test(statusEl.textContent), `提示文案: "${statusEl.textContent}"`);
+
+  /* b) SP-3122D：编号已排满时新增分区 → err 分支，且不自动清除 */
+  projRows()[0].onclick();
+  await new Promise(r => setTimeout(r, 100));
+  byId.get('btnZoneAdd').onclick();
+  ok(/lv-err/.test(statusEl.className), `失败提示带 err 级别（class="${statusEl.className}"）`);
+  ok(/没有空余区间/.test(statusEl.textContent), `失败文案: "${statusEl.textContent}"`);
+  await new Promise(r => setTimeout(r, 400));
+  ok(/没有空余区间/.test(statusEl.textContent), 'err 级提示不会被自动清除（不再打断式 alert）');
+  statusEl.textContent = ''; statusEl.className = '';
+}
+
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

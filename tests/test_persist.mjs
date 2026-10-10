@@ -94,6 +94,33 @@ console.log(`   放的灯: n=${placed && placed.n} @ (${placed && placed.x}, ${p
 ok(s1.projects[0].state.zones[0].name === '改过的名字',
    `原项目分区名已改: "${s1.projects[0].state.zones[0].name}"`);
 
+/* 3) 编辑手感（吸附 / 格边长）属于工程设置：改完立刻存盘，且画布读的是 state 不是 DOM 默认值 */
+const chkSnap = byId.get('chkSnap'), cellSize = byId.get('cellSize');
+ok(!!chkSnap && !!chkSnap.onchange && !!cellSize && !!cellSize.onchange, '吸附开关与格边长输入框已接线');
+const ledCountB = () => decode().projects[1].state.leds.length;
+const lastLed   = () => { const a = decode().projects[1].state.leds; return a[a.length - 1]; };
+chkSnap.checked = false; chkSnap.onchange({ target: chkSnap });
+cellSize.value = '32';   cellSize.onchange({ target: cellSize });
+const c1 = ledCountB();
+pd({ pointerId:1, button:0, clientX:700, clientY:700, shiftKey:false });
+await new Promise(r=>setTimeout(r,800));
+const s3 = decode();
+ok(s3.projects[1].state.view.snap === false, '关掉吸附已存盘（view.snap=false）');
+ok(s3.projects[1].state.view.grid === 32, `格边长已存盘（view.grid=${s3.projects[1].state.view.grid}）`);
+ok(ledCountB() === c1 + 1, `关吸附时照样能放灯（${c1} → ${ledCountB()}）`);
+const loose = lastLed();
+ok(!(loose.x % 32 === 16 && loose.y % 32 === 16), `关吸附时落点不在格心: (${loose.x}, ${loose.y})`);
+chkSnap.checked = true;  chkSnap.onchange({ target: chkSnap });
+cellSize.value = '40';   cellSize.onchange({ target: cellSize });
+pd({ pointerId:1, button:0, clientX:760, clientY:760, shiftKey:false });
+await new Promise(r=>setTimeout(r,800));
+const snapped = lastLed();
+ok(snapped.x % 40 === 20 && snapped.y % 40 === 20, `开吸附时落点在格心: (${snapped.x}, ${snapped.y})`);
+/* 收尾：把上面这两颗测试灯撤销掉，后面的断言仍按「1 颗灯」走 */
+byId.get('btnUndo').onclick(); byId.get('btnUndo').onclick();
+await new Promise(r=>setTimeout(r,800));
+ok(ledCountB() === 1, `撤销两次后回到 1 颗灯（实际 ${ledCountB()}）`);
+
 /* ===== 关掉工具，重新打开 ===== */
 install(); boot(); await new Promise(r=>setTimeout(r,700));
 

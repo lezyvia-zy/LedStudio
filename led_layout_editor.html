@@ -105,6 +105,10 @@
     position:absolute; left:0; bottom:0; right:0; padding:3px 8px; font-size:12px;
     background:var(--status-bg); color:var(--dim); pointer-events:none; white-space:nowrap; overflow:hidden;
   }
+  /* 状态栏按级别上色：失败（err）留在栏里不自动清，警告/成功各自一色 */
+  #status.lv-err{color:var(--err)}
+  #status.lv-warn{color:var(--warn)}
+  #status.lv-ok{color:var(--ok)}
   textarea{
     width:100%; height:190px; background:var(--canvas-bg); color:var(--fg); border:1px solid var(--line);
     border-radius:4px; font:12px/1.45 Consolas,"Courier New",monospace; padding:6px; resize:vertical;
@@ -686,7 +690,6 @@
 </main>
 
 <input type="file" id="fileJson" accept=".json,application/json" hidden>
-<textarea id="sink" hidden></textarea>
 
 <script id="core">
 /* ============================================================================
@@ -3232,8 +3235,11 @@ function nextFreeNumber() {
   for (let n = 0; n < state.meta.ledCount; n++) if (!used.has(n)) return n;
   return null;
 }
+/* 吸附 / 格边长是「工程设置」（跟着项目存），画布直接读 state，
+ * 别再问 DOM 控件 —— 否则工具刚打开、控件还没同步时画布与存盘值会不一致。 */
+function snapEnabled() { return !(state && state.view && state.view.snap === false); }
 function snapXY(x, y) {
-  if (!$('#chkSnap').checked) return [x, y];
+  if (!snapEnabled()) return [x, y];
   const g = GEN.CELL;
   return [Math.round((x - g / 2) / g) * g + g / 2, Math.round((y - g / 2) / g) * g + g / 2];
 }
@@ -3261,7 +3267,7 @@ cv.addEventListener('pointerdown', e => {
       if (n !== undefined) { const t = state.leds.find(k => k.n === n); if (t) { t.n = L.n; L.n = n; } }
     } else {
       const n = nextFreeNumber();
-      if (n === null) { status('编号已排满'); return; }
+      if (n === null) { status('编号已排满', 'warn'); return; }
       const [x, y] = snapXY(wx, wy);
       state.leds.push({ n, x, y });
       sel = new Set([n]);
@@ -3295,7 +3301,7 @@ cv.addEventListener('pointermove', e => {
   if (drag.kind === 'move') {
     if (!drag.moved) { snapshot(); drag.moved = true; }
     const dx = wx - drag.wx, dy = wy - drag.wy;
-    const snapOn = $('#chkSnap').checked;
+    const snapOn = snapEnabled();
     for (const s of drag.start) {
       let x = s.x + dx, y = s.y + dy;
       if (snapOn) { const g = GEN.CELL; x = Math.round((x - g/2)/g)*g + g/2; y = Math.round((y - g/2)/g)*g + g/2; }
@@ -3934,8 +3940,8 @@ function delLayer(i) {
 }
 function addLayer(kind) {
   const e = editTarget(); if (!e) return;
-  if (e.kind !== 'custom') { status('这是内建类型的效果，先「转为自定义」或「新建」纯自定义效果才能加图层'); return; }
-  if ((e.layers || []).length >= 8) { status('图层最多 8 层'); return; }
+  if (e.kind !== 'custom') { status('这是内建类型的效果，先「转为自定义」或「新建」纯自定义效果才能加图层', 'warn'); return; }
+  if ((e.layers || []).length >= 8) { status('图层最多 8 层', 'warn'); return; }
   e.layers.push(mkLayer(kind));
   fxLive(); fxStruct();
 }
@@ -4082,7 +4088,7 @@ function buildFxPanel() {
 
   $('#fxTbl').onclick = null;
   $('#fxAdd').onclick = () => {
-    if (fxList().length >= EFFECT_SLOTS) { alert('效果条数已达上限 ' + EFFECT_SLOTS); return; }
+    if (fxList().length >= EFFECT_SLOTS) { status('效果条数已达上限 ' + EFFECT_SLOTS, 'err'); return; }
     const e = newCustomEffect(fxList().length, '自定义' + fxList().length);
     state.effects.list.push(e);
     selFx = state.effects.list.length - 1;
@@ -4129,7 +4135,7 @@ function buildFxPanel() {
   };
   $('#fxDel').onclick = () => {
     const e = selEffect(); if (!e) return;
-    if (fxList().length <= 1) { alert('至少要保留一个效果'); return; }
+    if (fxList().length <= 1) { status('至少要保留一个效果', 'err'); return; }
     if (!confirm('删除效果「' + e.name + '」？')) return;
     state.effects.list.splice(selFx, 1);
     if (state.anim.effectId === e.id) state.anim.effectId = fxList()[0].id;
@@ -4374,7 +4380,7 @@ function buildModePanel() {
   };
   $('#mdDel').onclick = () => {
     const m = selMode(); if (!m) return;
-    if (mdList().length <= 1) { alert('至少要保留一个模式'); return; }
+    if (mdList().length <= 1) { status('至少要保留一个模式', 'err'); return; }
     if (!confirm('删除模式「' + m.name + '」？')) return;
     state.modes.list.splice(selMd, 1);
     state.anim.modeId = (mdList()[selMd] || mdList()[0]).id;
@@ -4406,7 +4412,7 @@ function buildModePanel() {
   $('#mdAllZones').onclick = () => {
     const m = selMode(); if (!m) return;
     const binds = m.binds || [];
-    if (binds.length !== 1) { status('只有「一条覆盖全部分区」的绑定才能一键拆开'); return; }
+    if (binds.length !== 1) { status('只有「一条覆盖全部分区」的绑定才能一键拆开', 'warn'); return; }
     const eff = binds[0].effect;
     m.binds = state.zones.map((_, i) => ({ effect: eff, zones: [i] }));
     mdLive(); mdStruct();
@@ -4449,7 +4455,7 @@ function doExport() {
 }
 function copyOut() {
   const ta = $('#eOut');
-  const done = () => status('已复制到剪贴板');
+  const done = () => status('已复制到剪贴板', 'ok');
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
   } else { ta.select(); document.execCommand('copy'); done(); }
@@ -4538,15 +4544,22 @@ function exportPng() {
 }
 
 /* ---------- 状态栏 ---------- */
+/* level 省略 = 普通提示（3.2s 后回到统计串）；'warn' = 要用户留意（6s）；
+ * 'err' = 操作失败，留在栏里不被统计串盖掉，直到下一次 status()。
+ * 传空串 = 立刻恢复统计串。 */
 let statusTimer = null;
-function status(msg) {
-  $('#status').textContent = msg;
+function status(msg, level) {
+  const el = $('#status');
+  el.textContent = msg;
+  el.className = level ? 'lv-' + level : '';
   clearTimeout(statusTimer);
+  if (!msg || level === 'err') return;
   statusTimer = setTimeout(() => {
-    $('#status').textContent =
+    el.className = '';
+    el.textContent =
       `模式：${MODES.find(m => m[0] === mode)[1]}　灯 ${state.leds.length}/${state.meta.ledCount}　` +
       `分区 ${state.zones.length}　缩放 ${(view.zoom * 100).toFixed(0)}%`;
-  }, 3200);
+  }, level === 'warn' ? 6000 : 3200);
 }
 
 /* ---------- 项目切换 / 新建 / 删除 ---------- */
@@ -4580,6 +4593,7 @@ function bindProject() {
   undoStack.length = 0; redoStack.length = 0;
   renderProjList();
   syncBgPanel();
+  syncViewPanel();
   syncAnimPanel();
   fitView(); afterChange();
   /* 本项目上次是播放状态就接着放；不是就停下（循环里会自行退出） */
@@ -4637,7 +4651,7 @@ function projRen() {
   renderProjList(); afterChange(); saveStore(true);
 }
 function projDel() {
-  if (store.projects.length <= 1) { alert('至少要保留一个项目'); return; }
+  if (store.projects.length <= 1) { status('至少要保留一个项目', 'err'); return; }
   const p = curProj();
   if (!confirm(`删除项目「${p.name}」？此操作不可撤销。`)) return;
   sims.delete(p.id);                 /* 连同它的动画运行时一起丢掉 */
@@ -4652,7 +4666,7 @@ $('#btnZoneAdd').onclick = () => {
   const zs = state.zones;
   let start = 0;
   for (const z of zs) start = Math.max(start, z.start + z.count);
-  if (start >= state.meta.ledCount) { alert(`编号已排到 ${state.meta.ledCount}，没有空余区间了`); return; }
+  if (start >= state.meta.ledCount) { status(`编号已排到 ${state.meta.ledCount}，没有空余区间了`, 'err'); return; }
   snapshot();
   zs.push({ id: 'z' + Date.now().toString(36), name: '分区' + (zs.length + 1),
             latin: 'ZONE' + zs.length, color: ['#ff9a3c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#f06292', '#4db6ac', '#a1887f'][zs.length % 8],
@@ -4663,7 +4677,7 @@ $('#btnZoneAdd').onclick = () => {
 $('#btnZoneDel').onclick = () => {
   if (!state.zones.length) return;
   const z = state.zones[selZone];
-  if (!confirm(`删除分区「${z.name}」？（它区间内的灯编号不会被删）`)) return;
+  if (!confirm(`删除分区「${z.name}」？它区间内的灯编号会保留；这一步可用 Ctrl+Z 撤销。`)) return;
   snapshot();
   state.zones.splice(selZone, 1);
   selZone = Math.max(0, selZone - 1);
@@ -4693,7 +4707,7 @@ $('#mZoneMax').oninput   = e => { state.meta.zoneMax = Math.max(1, +e.target.val
 $('#mZoneMaxLen').oninput= e => { state.meta.zoneMaxLen = Math.max(1, +e.target.value || 1); afterChange(); };
 
 $('#btnNew').onclick  = () => {
-  if (!confirm('把当前项目重置为内置 SP-3122D 预设？当前排布将丢失。')) return;
+  if (!confirm('把当前项目重置为内置 SP-3122D 预设？当前排布会丢失，且不可撤销。')) return;
   const st = projectFromPreset(PRESET_SP3122D);
   const p = curProj();
   Object.keys(state).forEach(k => { delete state[k]; });
@@ -4706,7 +4720,7 @@ $('#btnOpen').onclick = () => $('#fileJson').click();
 $('#fileJson').onchange = e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { try { loadJson(r.result); } catch (err) { alert('打开失败：' + err.message); } };
+  r.onload = () => { try { loadJson(r.result); } catch (err) { status('打开失败：' + err.message, 'err'); } };
   r.readAsText(f, 'utf-8');
   e.target.value = '';
 };
@@ -4725,9 +4739,19 @@ $('#btnTheme').onclick = () => {
   const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
   setTheme(cur === 'dark' ? 'light' : 'dark');
 };
-$('#chkSnap').onchange = () => { };
-$('#cellSize').onchange = e => { GEN.CELL = Math.max(8, +e.target.value || 40); render(); };
-
+/* 吸附与格边长属于「工程设置」：改完跟着项目存，重开工具 / 切项目都保留 */
+function syncViewPanel() {
+  const v = state.view || (state.view = { zoom: 1, panX: 0, panY: 0, grid: GEN.CELL, snap: true });
+  if (!(v.grid >= 8)) v.grid = GEN.CELL;
+  GEN.CELL = Math.max(8, v.grid | 0);
+  $('#chkSnap').checked = v.snap !== false;
+  $('#cellSize').value = GEN.CELL;
+}
+$('#chkSnap').onchange  = e => { state.view.snap = !!(e.target || $('#chkSnap')).checked; saveStore(); };
+$('#cellSize').onchange = e => {
+  GEN.CELL = Math.max(8, +(e.target || $('#cellSize')).value || 40);
+  state.view.grid = GEN.CELL; render(); saveStore();
+};
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => tab(b.dataset.tab));
 
 $('#zName').oninput  = e => { const z = state.zones[selZone]; if (z) { z.name = e.target.value; renderZoneList(); } };
@@ -4751,11 +4775,11 @@ function genInfo() {
 }
 ['#gX0','#gY0','#gW','#gH','#gDir','#gK'].forEach(s => $(s).oninput = genInfo);
 $('#gApply').onclick = () => {
-  const z = state.zones[selZone]; if (!z) { status('请先在「分区」里选中一个分区'); return; }
+  const z = state.zones[selZone]; if (!z) { status('请先在「分区」里选中一个分区', 'warn'); return; }
   const p = genParams();
   p.first = z.start; p.count = z.count;
   const P = GEN.rectPath(p.W, p.H, p.dir).length;
-  if (p.count > P) { alert(`本分区 ${p.count} 颗 > 周长 ${P} 格，放不下`); return; }
+  if (p.count > P) { status(`本分区 ${p.count} 颗 > 周长 ${P} 格，放不下`, 'err'); return; }
   snapshot();
   const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
   state.leds = state.leds.filter(l => !nums.has(l.n));
@@ -4763,10 +4787,10 @@ $('#gApply').onclick = () => {
   state.leds = state.leds.concat(leds);
   const byN = new Map(state.leds.map(l => [l.n, l])); state.leds = [...byN.values()];
   afterChange();
-  status(`已铺设「${z.name}」${leds.length} 颗`);
+  status(`已铺设「${z.name}」${leds.length} 颗`, 'ok');
 };
 $('#cApply').onclick = () => {
-  const z = state.zones[selZone]; if (!z) { status('请先选中分区'); return; }
+  const z = state.zones[selZone]; if (!z) { status('请先选中分区', 'warn'); return; }
   snapshot();
   const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
   state.leds = state.leds.filter(l => !nums.has(l.n));
@@ -4778,7 +4802,7 @@ $('#cApply').onclick = () => {
   afterChange();
 };
 $('#qApply').onclick = () => {
-  const z = state.zones[selZone]; if (!z) { status('请先选中分区'); return; }
+  const z = state.zones[selZone]; if (!z) { status('请先选中分区', 'warn'); return; }
   const p = genParams(); p.first = z.start; p.count = z.count; p.dir = $('#qDir').value;
   snapshot();
   const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
@@ -4815,8 +4839,8 @@ $('#xBuild').onclick = doFxExport;
 $('#xCopy').onclick = () => {
   const ta = $('#xOut'); ta.select();
   if (navigator.clipboard && navigator.clipboard.writeText)
-    navigator.clipboard.writeText(ta.value).then(() => status('已复制动效 C'), () => { document.execCommand('copy'); status('已复制动效 C'); });
-  else { document.execCommand('copy'); status('已复制动效 C'); }
+    navigator.clipboard.writeText(ta.value).then(() => status('已复制动效 C', 'ok'), () => { document.execCommand('copy'); status('已复制动效 C', 'ok'); });
+  else { document.execCommand('copy'); status('已复制动效 C', 'ok'); }
 };
 $('#xDownload').onclick = () => download('led_effects_gen.h', $('#xOut').value, 'text/plain;charset=utf-8');
 $('#btnPng').onclick = exportPng;
