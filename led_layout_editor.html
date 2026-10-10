@@ -891,6 +891,42 @@ function zoneReverse(state, zone, nominal) {
 
 /* ---- 校验 ---------------------------------------------------------------- */
 
+/* 每颗灯到「最近邻」的距离（空间哈希 + 逐圈扩大：结果与两两比较完全一致）。
+ * validate 的 V11 阈值取它的中位数；原来那份是 O(n²)，灯一多就白等（H5）。 */
+function nearestDists(leds, cell) {
+  const s = Math.max(1, +cell || 40);                 /* 桶边长，只影响快慢，不影响结果 */
+  const buckets = new Map();
+  for (let i = 0; i < leds.length; i++) {
+    const k = Math.floor(leds[i].x / s) + ',' + Math.floor(leds[i].y / s);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(i);
+  }
+  const out = [];
+  for (let i = 0; i < leds.length; i++) {
+    const L = leds[i];
+    const cx = Math.floor(L.x / s), cy = Math.floor(L.y / s);
+    let best = Infinity;
+    /* 逐圈往外找。已找到 best ≤ r*s 就收工：更外那一圈的灯距离一定 ≥ r*s，不可能更近。
+       上限 1024 圈（≈ 4 万 px）只是防呆，正常板子几圈就命中。 */
+    for (let r = 0; r <= 1024 && best > r * s; r++) {
+      for (let gx = cx - r; gx <= cx + r; gx++) {
+        for (let gy = cy - r; gy <= cy + r; gy++) {
+          if (Math.max(Math.abs(gx - cx), Math.abs(gy - cy)) !== r) continue;   /* 只扫最外那一圈 */
+          const arr = buckets.get(gx + ',' + gy);
+          if (!arr) continue;
+          for (const j of arr) {
+            if (j === i) continue;
+            const d = Math.hypot(leds[j].x - L.x, leds[j].y - L.y);
+            if (d < best) best = d;
+          }
+        }
+      }
+    }
+    if (isFinite(best)) out.push(best);
+  }
+  return out;
+}
+
 function validate(state) {
   const out = [];
   const push = (level, code, msg, leds) => out.push({ level, code, msg, leds: leds || [] });
@@ -954,15 +990,8 @@ function validate(state) {
   /* 相邻性：同一分区内连续编号应在图上相邻。
    * 跨分区（如 55|56、79|80）之间是靠导线连接的，物理上可以相隔很远，不检查。 */
   const zoneIdxOf = n => state.zones.findIndex(z => n >= z.start && n < z.start + z.count);
-  const near = [];
-  for (const L of state.leds) {
-    let best = Infinity;
-    for (const O of state.leds) {
-      if (O === L) continue;
-      best = Math.min(best, Math.hypot(O.x - L.x, O.y - L.y));
-    }
-    if (isFinite(best)) near.push(best);
-  }
+  /* 最近邻距离中位数（空间哈希版，见 nearestDists）—— 用来当「不相邻」的阈值 */
+  const near = nearestDists(state.leds, GEN.CELL);
   near.sort((a, b) => a - b);
   const med = near.length ? near[Math.floor(near.length / 2)] : 0;
   const thr = med * 1.5;
@@ -2717,7 +2746,7 @@ function buildPatchText(state, o, EOL) {
   return out.join(EOL);
 }
 
-const CORE = { FW, GEN, deriveZoneDir, zoneReverse, validate, emptyProject, clone,
+const CORE = { FW, GEN, deriveZoneDir, zoneReverse, validate, nearestDists, emptyProject, clone,
                PRESET_SP3122D, projectFromPreset, animNew, animSet, animUpdate,
                zoneScaled, chaseSingle, chaseDual, fillAnim, renderZoneMask,
                colorUpdate, simInit, instApplyPreset, simApplyEffect, simApplyMode,
@@ -2923,6 +2952,7 @@ function resetSim() {
 let selZone = 0;
 let flash = null;          /* {leds:[n], t:0} 校验定位闪烁 */
 let helpTouched = false;   /* 帮助页进过没有：只第一次进来时回顶（P1） */
+let curPane = 'zones';     /* 当前页签：校验页没露面时不白算 validate（H5） */
 let drag = null;
 let spaceDown = false;     /* 空格按住 = 平移 */
 
@@ -3487,6 +3517,7 @@ function renderProjList() {
 
 /* ---------- 面板 ---------- */
 function tab(name) {
+  curPane = name;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
   if (name === 'exp') { buildExport(); doFxExport(); }
@@ -3580,6 +3611,9 @@ function syncZoneEdit() {
 }
 
 function renderIssues() {
+  /* 校验页没露面就先不算（H5）：validate 要跑一遍全量检查，改什么都算一遍不划算。
+     切到校验页时 tab() 会再调一次，那时才真算 —— 所以页面上看到的永远是最新的。 */
+  if (curPane !== 'check') return;
   const box = $('#issues');
   box.innerHTML = '';
   const iss = validate(state);

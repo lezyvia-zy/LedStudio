@@ -53,6 +53,34 @@ ok(!iss.some(i=>i.level==='err'), '无错误');
 ok(iss.filter(i=>i.code==='V11').length===0, 'V11 相邻性干净');
 ok(iss.filter(i=>i.code==='V13').length===1, '恰好 1 条 V13 方向告警');
 
+/* ---- H5) 最近邻距离用空间哈希算：结果必须与「两两比较」逐项一致 ---- */
+{
+  const { nearestDists } = CORE;
+  const brute = leds => leds.map((L, i) => {
+    let best = Infinity;
+    leds.forEach((O, j) => { if (j !== i) best = Math.min(best, Math.hypot(O.x - L.x, O.y - L.y)); });
+    return best;
+  }).filter(d => isFinite(d)).sort((a, b) => a - b);
+  const mine = nearestDists(st.leds, GEN.CELL).sort((a, b) => a - b);
+  const ref = brute(st.leds);
+  ok(mine.length === ref.length && mine.every((v, i) => Math.abs(v - ref[i]) < 1e-9),
+     `104 颗灯逐项一致（最近邻中位数 ${mine[Math.floor(mine.length / 2)].toFixed(1)}px）`);
+
+  /* 边界：单颗 / 完全重合 / 相距很远 / 稀疏大网格 */
+  const cases = [
+    [{ x: 0, y: 0, n: 0 }],
+    [{ x: 0, y: 0, n: 0 }, { x: 0, y: 0, n: 1 }],
+    [{ x: 0, y: 0, n: 0 }, { x: 9000, y: 9000, n: 1 }],
+    Array.from({ length: 40 }, (_, i) => ({ x: (i % 8) * 300, y: Math.floor(i / 8) * 300, n: i })),
+  ];
+  let edgeOk = true;
+  for (const cs of cases) {
+    const a = nearestDists(cs, 40).sort((p, q) => p - q), b = brute(cs);
+    if (a.length !== b.length || a.some((v, i) => Math.abs(v - b[i]) > 1e-9)) edgeOk = false;
+  }
+  ok(edgeOk, '单颗 / 完全重合 / 相距很远 / 300px 稀疏网格：新旧算法结果都一致');
+}
+
 /* 重名效果/模式：提示级点出（导出注释 / 模式摘要靠名字认人） */
 const v35 = iss.filter(i=>i.code==='V35');
 ok(v35.length>=1, `重名效果被点出（${v35.length} 组）`);

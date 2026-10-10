@@ -49,6 +49,7 @@ const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k] = ()=>{})) , set:
 
 const store = new Map();
 const byId = new Map();
+const boxCache = new Map();      /* querySelectorAll 的静态节点缓存（见下） */
 globalThis.localStorage = {
   getItem:k => store.has(k) ? store.get(k) : null,
   setItem:(k,v) => { store.set(k,v); },
@@ -80,7 +81,12 @@ globalThis.document = {
   querySelector:q,
   querySelectorAll(sel){
     if (sel === '#left button[data-mode]') return (byId.get('left')?.children || []);
-    if (staticBoxes[sel]) return staticBoxes[sel].map(v => { const e = mkEl('button'); e.dataset = { tab:v, pane:v, mode:v }; return e; });
+    /* 同一批静态节点要缓存 —— 真实 DOM 每次返回的就是同一批元素，boot 时绑的 onclick 才留得住 */
+    if (staticBoxes[sel]) {
+      if (!boxCache.has(sel))
+        boxCache.set(sel, staticBoxes[sel].map(v => { const e = mkEl('button'); e.dataset = { tab:v, pane:v, mode:v }; return e; }));
+      return boxCache.get(sel);
+    }
     return [];
   },
   createElement: t => mkEl(t,''),
@@ -265,6 +271,34 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   byId.get('mLedTrim').onclick();
   await new Promise(r => setTimeout(r, 700));
   ok(leds() === 100, `裁剪后灯数 = ${leds()}（期望 100）`);
+}
+
+/* ---- 13) H5) 校验页没露面就不白算 validate；切过去才重算 ---- */
+{
+  const tabs = document.querySelectorAll('#tabs button');
+  const go = n => tabs.find(b => b.dataset.tab === n).onclick();
+  const issOf = () => byId.get('issues') || {};
+  const iss = () => (issOf().innerHTML || '') + ((issOf().children) || []).map(c => c.textContent).join('|');
+
+  ok(!byId.has('issues'), '还没进过校验页：问题清单一次都没算（H5 惰性）');
+
+  go('check');
+  const s1 = iss();
+  ok(s1.length > 0, `切到校验页后才渲染清单: "${s1.replace(/<[^>]+>/g, ' ').slice(0, 70)}"`);
+  ok(/\[V\d|全部检查通过/.test(s1), '清单里有条目（或全部通过）');
+
+  /* 切走 → 改板级参数（灯总数变化会引出 V2/V3）→ 清单保持旧内容，不重算 */
+  go('zones');
+  const lc = byId.get('mLedCount');
+  lc.value = '120'; lc.oninput({ target: lc });
+  await new Promise(r => setTimeout(r, 700));
+  const s2 = iss();
+  ok(s2 === s1, '校验页不可见时改数据，清单原样不动（没白算 validate）');
+
+  go('check');
+  const s3 = iss();
+  ok(s3 !== s2 && /\[V3\]/.test(s3),
+     `切回校验页才重算，并出现新问题: "${s3.replace(/<[^>]+>/g, ' ').slice(0, 90)}"`);
 }
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
