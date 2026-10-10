@@ -116,6 +116,11 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 三种共有：**波形**（`WAVE`: 三角=呼吸 / 方波=闪烁 / 锯齿=跳变）、**配色模式**（`CMODE`: 跟随效果配色 / **本层空间色相** = 每颗灯自己的色相，用来做绕环彩虹）。效果级还有**起始位**（`offset`）与**随位置前进**（`moves`）。
 
+**图层可以旁路**：图层卡最左的勾选框取消勾选 = `en = 0` —— 那一层照旧写进 C 表（行号不漂移），
+但 JS 预览与固件合成都跳过它（`genRender` 里 `if (L.en === 0) continue;` ↔ C 的 `if (!L->en) continue;`），
+想比「少了这层会怎样」不用删了再加回来。旁边的**复制**把参数深拷贝一份插在原层后面（满 8 层禁用）。
+整条效果的层全被旁路时，校验页报 `V37`（渲染出来是全黑）。
+
 ### 等比缩放这条语义必须记住
 
 `zpos = pos × len / RING_SIZE`，宽度也按 `len / RING_SIZE` 缩放。结果是：
@@ -135,6 +140,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 排布校验 | core `validate`；ui 校验页 |
 | 内建效果（9 个，来自固件 `presets[]`） | core `FW.presets` + `defaultEffects` |
 | 自定义效果（图层列表） | core `newCustomEffect` + 图层原语；ui 效果页 |
+| 图层旁路 / 复制（F5） | ui `renderLayers` 的 `layOn` 勾选 + `copyLayer`；core `layerNums`/`genRender` 的 `en`；生成的 C 里 `led_gen_layer_t.en` + `if (!L->en) continue;`；校验 `V37` |
 | 16 个预置模板 | ui `effectPreset`（单点追逐/双点追逐/多点追逐(4)/拖尾彗星/摆动/呼吸/闪烁/跳变/绕环彩虹/彩虹光点/沿环渐变/渐变旋转/双向填充/呼吸彩虹/随机闪/闪+底色） |
 | 效果编辑台（直线 + 圆环 + 8/24/40 多长度对比） | ui 效果编辑台 `stageView`；状态在 `state.stage` |
 | 模式分配 + 覆盖参数 | core `resolveEffect/bindKey`；ui 模式页 |
@@ -149,15 +155,15 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 悬浮说明 + 完整帮助页 | ui 悬浮说明 + 帮助页；被 `test_help` 断言 |
 | 从固件源码重抽查表 | `tools/extract_fw_tables.py` |
 
-### 测试覆盖（19 套件、437 项断言）
+### 测试覆盖（19 套件、528 项断言）
 
 | 类型 | 套件 | 验什么 |
 |---|---|---|
-| 纯逻辑 | `test_effects_core`(50) `test_core`(17) `test_map`(8) `test_wrap`(4) `test_anim`(8) `test_effects_c`(31) | 图层原语、排布生成、校验、C 文本、回绕修正、速度档信号链 |
-| 真编译 | `test_effects_c_exec`(7) | 用 AndeSight cygwin gcc 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的音量档场景（验「音乐来了会变快」这条链路） |
-| 假 DOM | `test_ui`(27) `test_anim2`(27) `test_modes`(21) `test_override`(29) `test_fx_presets`(23) `test_stage`(17) `test_split`(25) `test_help`(28) | 界面层真跑一遍（`boot()` 走通）、交互、接线（含速度档「自动」接线）；`test_help` 断言帮助页章节与 `data-tip` |
-| 持久化 | `test_persist`(15) `test_solo`(31) | 关掉再打开还在、迁移、状态隔离 |
-| 结构 | `test_struct`(6) | 脚本分块结构 |
+| 纯逻辑 | `test_effects_core`(56) `test_core`(22) `test_map`(8) `test_wrap`(4) `test_anim`(10) `test_effects_c`(43) | 图层原语、排布生成、校验、C 文本、回绕修正、速度档信号链 |
+| 真编译 | `test_effects_c_exec`(10) | 用 AndeSight cygwin gcc 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的音量档场景（验「音乐来了会变快」这条链路） |
+| 假 DOM | `test_effects_ui`(38) `test_ui`(52) `test_anim2`(30) `test_modes`(21) `test_override`(29) `test_fx_presets`(32) `test_stage`(22) `test_split`(25) `test_help`(51) | 界面层真跑一遍（`boot()` 走通）、交互、接线（含速度档「自动」接线）；`test_help` 断言帮助页章节与 `data-tip` |
+| 持久化 | `test_persist`(31) `test_solo`(31) | 关掉再打开还在、迁移、状态隔离 |
+| 结构 | `test_struct`(13) | 脚本分块结构 |
 
 > 注：断言计数以 `run_all.mjs` 的统计为准（靠正则 `/  PASS  /` `/  FAIL  /`），上表括号内是粗略的 `ok(` 行数，仅供参考。
 
