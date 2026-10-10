@@ -74,6 +74,25 @@ const zName = byId.get('zName');
 ok(!!zName && !!zName.oninput, '分区名输入框已接线');
 zName.value = '改过的名字'; zName.oninput({ target: zName });
 
+/* 1b) 分区名/别名/颜色/使能必须立刻存盘 —— 不能靠后面「新建项目」顺带保存 */
+await new Promise(r=>setTimeout(r,700));
+ok(decode().projects[0].state.zones[0].name === '改过的名字', '分区改名后立刻存盘（无需再做别的操作）');
+const zLatin = byId.get('zLatin'), zColor2 = byId.get('zColor'), zEn2 = byId.get('zEn');
+zLatin.value = 'TOP';      zLatin.oninput({ target: zLatin });
+zColor2.value = '#123456'; zColor2.oninput({ target: zColor2 });
+zEn2.checked = false;      zEn2.onchange({ target: zEn2 });
+await new Promise(r=>setTimeout(r,700));
+{
+  const z0 = decode().projects[0].state.zones[0];
+  ok(z0.latin === 'TOP', `分区别名已存盘: "${z0.latin}"`);
+  ok(z0.color === '#123456', `分区色已存盘: ${z0.color}`);
+  ok(z0.enabled === false, '分区使能已存盘: enabled=false');
+}
+/* 还原，别影响后面的断言 */
+zColor2.value = '#ff9a3c'; zColor2.oninput({ target: zColor2 });
+zEn2.checked = true;       zEn2.onchange({ target: zEn2 });
+await new Promise(r=>setTimeout(r,700));
+
 /* 2) 新建一个空白项目，在里面放一颗灯 */
 byId.get('btnProjNew').onclick();
 await new Promise(r=>setTimeout(r,700));
@@ -137,6 +156,29 @@ ok(byId.get('headInfo').textContent.includes('1/104'),
    `重新打开后顶栏显示: "${byId.get('headInfo').textContent}"`);
 ok(((byId.get('projList')||{}).children||[]).length === 2, '重新打开后左侧项目区有 2 项');
 ok(((byId.get('projList')||{}).children||[])[1].classList.contains('on'), '重新打开后高亮仍在原来的项目上');
+
+/* 4) 底图参数也要存盘：临时往存档里塞一个底图，再拖滑块 */
+{
+  const raw = JSON.parse(store.get('led_layout_editor.v1'));
+  const ix = raw.projects.findIndex(p => p.id === raw.current);
+  raw.projects[ix].state.canvas.background = { href: 'data:,x', x: 0, y: 0, scale: 1, opacity: 0.45 };
+  store.set('led_layout_editor.v1', JSON.stringify(raw));
+  install(); boot(); await new Promise(r=>setTimeout(r,700));
+
+  const s = byId.get('bgScale'), o = byId.get('bgOp'), bx = byId.get('bgX');
+  ok(!!s && !!s.oninput && !!o && !!o.oninput, '底图参数控件已接线');
+  s.value = '2';      s.oninput({ target: s });
+  o.value = '80';     o.oninput({ target: o });
+  bx.value = '60';    bx.oninput({ target: bx });
+  await new Promise(r=>setTimeout(r,700));
+  const bg = decode().projects[ix].state.canvas.background;
+  ok(bg && bg.scale === 2, `底图缩放已存盘（scale=${bg && bg.scale}）`);
+  ok(bg && Math.abs(bg.opacity - 0.8) < 1e-6, `底图透明度已存盘（opacity=${bg && bg.opacity}）`);
+  ok(bg && bg.x === 60, `底图 X 偏移已存盘（x=${bg && bg.x}）`);
+  byId.get('bgClear').onclick();
+  await new Promise(r=>setTimeout(r,700));
+  ok(decode().projects[ix].state.canvas.background === null, '移除底图也一并存盘了');
+}
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

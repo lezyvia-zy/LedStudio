@@ -215,6 +215,7 @@
         <label class="row"><span>start</span><input type="number" id="zStart" min="0"></label>
         <label class="row"><span>count</span><input type="number" id="zCount" min="1"></label>
         <label class="row"><span>颜色</span><input type="color" id="zColor" style="width:40px;padding:0;height:22px"></label>
+        <div class="row" style="margin:2px 0 4px"><span></span><span id="zPalette" style="display:flex;gap:3px;flex-wrap:wrap;align-items:center"></span></div>
         <label class="row"><span>使能</span><input type="checkbox" id="zEn" checked></label>
         <label class="row"><span>实体方向</span><span id="zDir" class="num">—</span></label>
       </fieldset>
@@ -3492,9 +3493,36 @@ function highlightZone(z) {
   setTimeout(() => { flash = null; render(); }, 700);
 }
 
+/* 分区配色：8 色循环 —— 手动点色块比一个个拖取色器快，也方便让相邻分区自动不同色 */
+const ZONE_COLORS = ['#ff9a3c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#f06292', '#4db6ac', '#a1887f'];
+function setZoneColor(color) {
+  const z = state.zones[selZone]; if (!z) return;
+  z.color = color;
+  $('#zColor').value = color;
+  render(); renderZoneList();
+  saveStore();
+}
+function renderZPalette() {
+  const box = $('#zPalette'); if (!box) return;
+  box.innerHTML = '';
+  ZONE_COLORS.forEach(c => {
+    const b = document.createElement('button');
+    b.style.cssText = 'width:16px;height:16px;padding:0;border-radius:3px;border:1px solid var(--line);background:' + c;
+    tip(b, '把选中分区改成这个颜色');
+    b.onclick = () => setZoneColor(c);
+    box.appendChild(b);
+  });
+  const b = document.createElement('button');
+  b.textContent = '按序取色';
+  tip(b, '按分区序号从这 8 色里取一个 —— 挨个点分区时不用每次挑颜色。');
+  b.onclick = () => setZoneColor(ZONE_COLORS[selZone % ZONE_COLORS.length]);
+  box.appendChild(b);
+}
+
 function syncZoneEdit() {
   const z = state.zones[selZone];
   const on = !!z;
+  renderZPalette();                    /* 色块跟着选中分区重建（未选中也显示，点了不生效） */
   ['zName', 'zLatin', 'zStart', 'zCount', 'zColor', 'zEn'].forEach(id => { $('#' + id).disabled = !on; });
   if (!on) { $('#zDir').textContent = '—'; return; }
   $('#zName').value = z.name;
@@ -4669,7 +4697,7 @@ $('#btnZoneAdd').onclick = () => {
   if (start >= state.meta.ledCount) { status(`编号已排到 ${state.meta.ledCount}，没有空余区间了`, 'err'); return; }
   snapshot();
   zs.push({ id: 'z' + Date.now().toString(36), name: '分区' + (zs.length + 1),
-            latin: 'ZONE' + zs.length, color: ['#ff9a3c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#f06292', '#4db6ac', '#a1887f'][zs.length % 8],
+            latin: 'ZONE' + zs.length, color: ZONE_COLORS[zs.length % ZONE_COLORS.length],
             start: start, count: Math.min(8, state.meta.ledCount - start), enabled: true });
   selZone = zs.length - 1;
   afterChange();
@@ -4754,12 +4782,13 @@ $('#cellSize').onchange = e => {
 };
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => tab(b.dataset.tab));
 
-$('#zName').oninput  = e => { const z = state.zones[selZone]; if (z) { z.name = e.target.value; renderZoneList(); } };
-$('#zLatin').oninput = e => { const z = state.zones[selZone]; if (z) { z.latin = e.target.value.replace(/[^\x20-\x7E]/g, ''); } };
+/* 分区名/别名/颜色/使能都是工程数据：改完必须存盘（只 render 不存 = 刷新或切项目就丢） */
+$('#zName').oninput  = e => { const z = state.zones[selZone]; if (z) { z.name = e.target.value; renderZoneList(); saveStore(); } };
+$('#zLatin').oninput = e => { const z = state.zones[selZone]; if (z) { z.latin = e.target.value.replace(/[^\x20-\x7E]/g, ''); saveStore(); } };
 $('#zStart').oninput = e => { const z = state.zones[selZone]; if (z) { z.start = Math.max(0, +e.target.value || 0); afterChange(); } };
 $('#zCount').oninput = e => { const z = state.zones[selZone]; if (z) { z.count = Math.max(1, +e.target.value || 1); afterChange(); } };
-$('#zColor').oninput = e => { const z = state.zones[selZone]; if (z) { z.color = e.target.value; render(); renderZoneList(); } };
-$('#zEn').onchange   = e => { const z = state.zones[selZone]; if (z) { z.enabled = e.target.checked; render(); renderZoneList(); } };
+$('#zColor').oninput = e => { const z = state.zones[selZone]; if (z) { z.color = e.target.value; render(); renderZoneList(); saveStore(); } };
+$('#zEn').onchange   = e => { const z = state.zones[selZone]; if (z) { z.enabled = e.target.checked; afterChange(); } };
 $('#btnDelLed').onclick = () => { if (sel.size) { snapshot(); state.leds = state.leds.filter(l => !sel.has(l.n)); sel.clear(); afterChange(); } };
 
 /* 生成器 */
@@ -4820,15 +4849,17 @@ $('#bgFile').onchange = e => {
   r.onload = () => {
     state.canvas.background = { href: r.result, x: 0, y: 0, scale: 1, opacity: +$('#bgOp').value / 100 };
     loadBgImage(state.canvas.background);
+    saveStore();
   };
   r.readAsDataURL(f);
   e.target.value = '';
 };
-$('#bgOp').oninput    = e => { if (state.canvas.background) { state.canvas.background.opacity = e.target.value / 100; render(); } };
-$('#bgScale').oninput = e => { if (state.canvas.background) { state.canvas.background.scale = +e.target.value || 1; render(); } };
-$('#bgX').oninput     = e => { if (state.canvas.background) { state.canvas.background.x = +e.target.value || 0; render(); } };
-$('#bgY').oninput     = e => { if (state.canvas.background) { state.canvas.background.y = +e.target.value || 0; render(); } };
-$('#bgClear').onclick = () => { state.canvas.background = null; render(); };
+/* 底图参数同样是工程数据：只 render 不存，刷新一下刚才的调整就白做了 */
+$('#bgOp').oninput    = e => { if (state.canvas.background) { state.canvas.background.opacity = e.target.value / 100; render(); saveStore(); } };
+$('#bgScale').oninput = e => { if (state.canvas.background) { state.canvas.background.scale = +e.target.value || 1; render(); saveStore(); } };
+$('#bgX').oninput     = e => { if (state.canvas.background) { state.canvas.background.x = +e.target.value || 0; render(); saveStore(); } };
+$('#bgY').oninput     = e => { if (state.canvas.background) { state.canvas.background.y = +e.target.value || 0; render(); saveStore(); } };
+$('#bgClear').onclick = () => { state.canvas.background = null; render(); saveStore(); };
 
 /* 导出 */
 $('#eBuild').onclick = doExport;

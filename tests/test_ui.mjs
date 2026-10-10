@@ -113,6 +113,19 @@ if (store.has('led_layout_editor.v1')) {
      `存档内容: ${o.projects.length} 个项目, ${o.projects[0].state.leds.length} 颗灯`);
 }
 
+/* ---- 4b) 分区配色：色块一点就改色，并立刻存盘 ---- */
+{
+  const zc = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state.zones[0].color;
+  const btns = () => ((byId.get('zPalette') || {}).children || []);
+  ok(btns().length >= 9, `预设配色有 ${btns().length} 个按钮（8 色 + 按序取色）`);
+  ok(new Set(btns().slice(0, 8).map(b => b.style.cssText)).size === 8, '8 个预设色互不相同');
+  const before = zc();
+  btns()[2].onclick();
+  await new Promise(r => setTimeout(r, 700));
+  ok(zc() !== before, `点色块改色并存盘: ${before} → ${zc()}`);
+  ok(byId.get('zColor').value === zc(), `取色器显示同步: ${byId.get('zColor').value}`);
+}
+
 /* ---- 5) 交互：切换方向修正，诊断行必须变化 ---- */
 const fix = byId.get('aFix');
 const diag = () => byId.get('fixDiag') || {};   /* 惰性创建 */
