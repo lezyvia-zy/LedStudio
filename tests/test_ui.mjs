@@ -577,5 +577,113 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   }
 }
 
+/* ---- 16) 批 2 · 分区页：编辑即时体检（Z2）/ 复制分区（Z3）/ 编号压缩与补缺（Z4） ---- */
+{
+  const CORE2 = new Function(coreSrc + '\n; return CORE;')();   /* 纯逻辑：用真 validate 复核 */
+  globalThis.confirm = m => { confirmCalls.push(m); return true; };  /* F4 的测试把它改成了「取消」 */
+  const tabs = document.querySelectorAll('#tabs button');
+  const go = n => tabs.find(b => b.dataset.tab === n).onclick();
+  const rows = () => (byId.get('zoneTbl') || {}).children || [];
+  const prj = i => JSON.parse(store.get('led_layout_editor.v1')).projects[i].state;
+  const nums = st => st.leds.map(l => l.n).sort((a, b) => a - b);
+  const codes = st => CORE2.validate(st).map(x => x.code);
+  const chk = () => byId.get('zChk');
+
+  /* --- Z2：编辑时就地体检（在空白项目上做：它没有形状，改 count 不会顺手重铺灯） --- */
+  projRows()[1].onclick();
+  await new Promise(r => setTimeout(r, 100));
+  go('zones');
+  byId.get('btnZoneAdd').onclick();                     /* 分区A [0,8)，加完自动选中 */
+  await new Promise(r => setTimeout(r, 700));
+
+  const zsEl = byId.get('zStart'), zcEl = byId.get('zCount');
+  zsEl.value = '100'; zsEl.oninput({ target: zsEl });   /* [100,108) 越过 ledCount 104 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(/\[V9\]/.test(chk().innerHTML),
+     `Z2：start 越界时字段旁立即出现 V9（"${chk().innerHTML.replace(/<[^>]+>/g, '')}"）`);
+  ok(zsEl.classList.contains('bad'), 'Z2：越界的 start 输入框被描红');
+  ok(/err/.test(chk().className), `Z2：提示行按错误级着色（class="${chk().className}"）`);
+
+  zsEl.value = '8'; zsEl.oninput({ target: zsEl });     /* 回到 [8,16)，挨着 分区1 但不重叠 */
+  zcEl.value = '60'; zcEl.oninput({ target: zcEl });    /* [8,68)：长度超 ZONE_MAX_LEN 40 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(/\[V8\]/.test(chk().innerHTML), 'Z2：count 超 ZONE_MAX_LEN 时出 V8');
+  ok(zcEl.classList.contains('bad') && !zsEl.classList.contains('bad'), 'Z2：只把超长的 count 描红');
+
+  zcEl.value = '200'; zcEl.oninput({ target: zcEl });   /* 200 > 127：pos 是 int16 会溢出 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(/\[V26\]/.test(chk().innerHTML) && /\[V9\]/.test(chk().innerHTML),
+     'Z2：count 填到 200 时同时报 V9（越界）与 V26（pos 溢出）');
+
+  zcEl.value = '8'; zcEl.oninput({ target: zcEl });
+  byId.get('btnZoneAdd').onclick();                     /* 分区3 [16,24)，与前面两个都相邻不重叠 */
+  await new Promise(r => setTimeout(r, 700));
+  zsEl.value = '4'; zsEl.oninput({ target: zsEl });     /* 分区3 → [4,12)，同时压住 分区1 与 分区2 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(/\[V5\]/.test(chk().innerHTML) && /重叠/.test(chk().innerHTML),
+     'Z2：与相邻分区重叠时出 V5（并说明跟谁重叠）');
+
+  zsEl.value = '16'; zsEl.oninput({ target: zsEl });
+  await new Promise(r => setTimeout(r, 700));
+  ok(!/\[V\d/.test(chk().innerHTML) && !zsEl.classList.contains('bad') &&
+     !zcEl.classList.contains('bad') && !/err/.test(chk().className),
+     `Z2：改回不冲突的区间后提示与描红一起消失（"${chk().innerHTML}"）`);
+
+  /* --- Z3：复制分区（当前选中的是刚加的 分区3；副本插在它后面一位） --- */
+  const zsBefore = prj(1).zones.length, codesBefore = new Set(codes(prj(1)));
+  byId.get('btnZoneDup').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  const z3 = prj(1).zones, cp = z3[z3.length - 1] || {}, src = z3[z3.length - 2] || {};
+  ok(z3.length === zsBefore + 1, `Z3：复制后分区数 ${zsBefore} → ${z3.length}`);
+  ok(cp.name === src.name + ' 副本' && cp.latin === src.latin + '_CP',
+     `Z3：副本按源分区起名（name="${cp.name}" / latin="${cp.latin}"，源是「${src.name}」）`);
+  ok(cp.start === src.start + src.count && cp.count === src.count,
+     `Z3：副本排在源分区后面并沿用颗数（start=${cp.start}, count=${cp.count}）`);
+  ok(cp.id !== src.id, `Z3：副本 id 与源分区不重复（${cp.id}）`);
+  ok(byId.get('zName').value === cp.name, 'Z3：复制完自动选中副本（右栏跟着切换）');
+  ok(!z3.slice(0, -1).some(o => cp.start < o.start + o.count && o.start < cp.start + cp.count),
+     'Z3：副本不压住任何已有分区（validate 挑不出 V5）');
+  const added = codes(prj(1)).filter(c => !codesBefore.has(c));
+  ok(!added.some(c => ['V1', 'V2', 'V3', 'V3b', 'V5'].includes(c)),
+     `Z3：复制分区不引入编号类问题（validate 新增条目: ${added.join(', ') || '无'}）`);
+  byId.get('btnZoneDel').onclick();                     /* 收拾干净：删掉副本 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(prj(1).zones.length === zsBefore, `Z3：删掉副本后回到 ${prj(1).zones.length} 个分区`);
+
+  /* --- Z4：编号压缩 / 补缺号（回到预设的满板，才有 0..103 可数） --- */
+  projRows()[0].onclick();
+  byId.get('btnNew').onclick();                         /* 重置成干净的 SP-3122D 预设 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(nums(prj(0)).length === 104 && nums(prj(0))[0] === 0 && nums(prj(0))[103] === 103,
+     'Z4 前置：预设是满板 0..103（没被前面的用例带脏）');
+
+  /* 分区表每渲染一次就往里追加一批行，只有最后一批还指向当前 state —— 拿错行会选中旧区间的编号 */
+  const zr = rows();
+  const row0 = zr[zr.length - prj(0).zones.length];
+  ok(!!row0, 'Z4 前置：拿得到分区表当前渲染的第一行');
+  (row0 || { onclick() {} }).onclick();                 /* 点第 1 个分区 → 整段选中它的 8 颗 */
+  byId.get('btnDelLed').onclick();                      /* 删掉 0..7，人为留出缺号 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(nums(prj(0)).length === 96 && nums(prj(0))[0] === 8,
+     `Z4 前置：删掉 8 颗后剩 ${nums(prj(0)).length} 颗（最小号 ${nums(prj(0))[0]}）`);
+  ok(codes(prj(0)).includes('V2'), 'Z4 前置：缺号确实进了 validate（V2）');
+
+  byId.get('btnCompact').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  const n1 = nums(prj(0));
+  ok(n1.length === 96 && n1.every((n, i) => n === i),
+     `Z4：压缩编号后是连续的 0..${n1.length - 1}（缺号被挤到尾部）`);
+
+  const gap = 104 - n1.length;
+  for (let i = 0; i < gap; i++) byId.get('btnFillGap').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  const n2 = nums(prj(0));
+  ok(n2.length === 104 && n2.every((n, i) => n === i),
+     `Z4：「补一个缺号」点 ${gap} 次后补齐 0..103（共 ${n2.length} 颗）`);
+  const cs = codes(prj(0)).filter(c => c !== 'OK');
+  ok(!cs.some(c => ['V1', 'V2', 'V3', 'V3b', 'V12'].includes(c)),
+     `Z4：补齐后 validate 无 V1/V2/V3/V3b/V12（补号不压坐标）（剩下: ${cs.join(', ') || '无'}）`);
+}
+
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

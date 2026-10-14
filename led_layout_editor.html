@@ -114,6 +114,10 @@
     border-radius:4px; font:12px/1.45 Consolas,"Courier New",monospace; padding:6px; resize:vertical;
   }
   .hint{color:var(--dim); font-size:11.5px; margin:4px 0}
+  /* Z2：选中分区的就地体检 —— 字段旁的冲突提示 + 出问题的输入框描红 */
+  #zChk{margin:4px 0 0; line-height:1.55}
+  #zChk.err{color:var(--err)}
+  input.bad{border-color:var(--err) !important; background:var(--iss-err-bg)}
   .kbd{display:inline-block; background:var(--kbd-bg); border:1px solid var(--kbd-line); border-radius:3px;
        padding:0 4px; font-size:11px; margin-right:2px}
   .num{font-variant-numeric:tabular-nums}
@@ -271,8 +275,9 @@
         <div class="hint" id="mBoardInfo"></div>
       </fieldset>
       <table id="zoneTbl"></table>
-      <div style="margin:4px 0"><button id="btnZoneAdd">新增分区</button>
-        <button id="btnZoneDel">删除分区</button></div>
+      <div style="margin:4px 0"><button id="btnZoneAdd" data-tip="在编号末尾新起一个分区（start 接在现有分区之后）。可 Ctrl+Z 撤销。">新增分区</button>
+        <button id="btnZoneDup" data-tip="把选中分区原样复制一份（名字加「副本」、别名加 _CP）。start 优先排在源分区后面，那儿被占就退到编号末尾 —— 做多个同长度分区（比如 5 个 8 颗旋钮）时不用手填。可 Ctrl+Z 撤销。">复制分区</button>
+        <button id="btnZoneDel" data-tip="删掉选中分区；它区间内的灯编号会保留（不会跟着消失）。可 Ctrl+Z 撤销。">删除分区</button></div>
       <div class="hint">点击分区选中；编号按 <b>start</b> 起连续 <b>count</b> 颗，与固件 <code>{start,count}</code> 一致。</div>
       <fieldset id="zoneEdit">
         <legend>选中分区</legend>
@@ -284,11 +289,14 @@
         <div class="row" style="margin:2px 0 4px"><span></span><span id="zPalette" style="display:flex;gap:3px;flex-wrap:wrap;align-items:center"></span></div>
         <label class="row"><span>使能</span><input type="checkbox" id="zEn" checked></label>
         <label class="row"><span>实体方向</span><span id="zDir" class="num">—</span></label>
+        <div class="hint" id="zChk"></div>
       </fieldset>
       <fieldset>
         <legend>灯</legend>
         <div class="hint" id="selInfo">未选中</div>
-        <button id="btnDelLed">删除选中编号</button>
+        <button id="btnDelLed" data-tip="删掉当前选中的编号（在画布上框选 / 点灯，或点分区表把整段选中）。可 Ctrl+Z 撤销。">删除选中编号</button>
+        <button id="btnCompact" data-tip="把现有编号按大小重排成 0..N-1（0,1,3,5 → 0,1,2,3）来收拾缺号，灯的位置原样不动 —— 校验页 V2「缺号」的收尾动作。可 Ctrl+Z 撤销。">压缩编号 0..N-1</button>
+        <button id="btnFillGap" data-tip="补上最小的那个缺号，位置放在相邻两颗灯之间（拖一下就能挪走）；缺几个就点几次。可 Ctrl+Z 撤销。">补一个缺号</button>
       </fieldset>
       <div class="hint">以下是<b>铺灯</b>：选一个分区，用<b>形状</b>给它铺编号（形状是<b>编辑期</b>概念 ——
         顶点/坐标不进固件导出，所以想怎么摆都行）。<b>底图</b>照实物照片描图用。</div>
@@ -4186,6 +4194,22 @@ function nextFreeNumber() {
   for (let n = 0; n < state.meta.ledCount; n++) if (!used.has(n)) return n;
   return null;
 }
+/* 找一个没被占的格心：先看候选点，被占了就以它为中心一圈圈往外找最近的空格心。
+ * 一键加灯不能把两颗灯放同一个坐标上（那是校验的 V12，错误级）。 */
+function freeCell(x, y) {
+  const used = new Set(state.leds.map(l => `${Math.round(l.x)},${Math.round(l.y)}`));
+  const g = GEN.CELL;
+  const free = (px, py) => !used.has(`${Math.round(px)},${Math.round(py)}`);
+  const [cx, cy] = snapXY(x, y);
+  if (free(cx, cy)) return [cx, cy];
+  for (let r = 1; r <= 15; r++) {
+    for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;   /* 只看这一圈 */
+      if (free(cx + dx * g, cy + dy * g)) return [cx + dx * g, cy + dy * g];
+    }
+  }
+  return [cx, cy];
+}
 /* 吸附 / 格边长是「工程设置」（跟着项目存），画布直接读 state，
  * 别再问 DOM 控件 —— 否则工具刚打开、控件还没同步时画布与存盘值会不一致。 */
 function snapEnabled() { return !(state && state.view && state.view.snap === false); }
@@ -4506,6 +4530,7 @@ function syncZoneEdit() {
   const on = !!z;
   renderZPalette();                    /* 色块跟着选中分区重建（未选中也显示，点了不生效） */
   ['zName', 'zLatin', 'zStart', 'zCount', 'zColor', 'zEn'].forEach(id => { $('#' + id).disabled = !on; });
+  renderZoneCheck();                   /* Z2：就地体检（没选中时顺手清掉上一次的提示与描红） */
   if (!on) { $('#zDir').textContent = '—'; return; }
   $('#zName').value = z.name;
   $('#zLatin').value = z.latin || '';
@@ -4516,6 +4541,38 @@ function syncZoneEdit() {
   const d = deriveZoneDir(state, z);
   $('#zDir').textContent = (d === 'cw' ? '顺时针 (CW)' : d === 'ccw' ? '逆时针 (CCW)' : '无法判定（近似共线）');
   $('#selInfo').textContent = sel.size ? `已选 ${sel.size} 颗：${[...sel].sort((a, b) => a - b).join(', ')}` : '未选中';
+}
+
+/* Z2：选中分区的就地体检 —— 只报「现在这一段就有问题」的那几种，用的还是校验页那套 V 码，
+ * 省得改完 start/count 要切到校验页才知道。校验页仍是唯一权威（只有它做全量检查）。 */
+function zoneConflicts(z, zi) {
+  const out = [];
+  if (!z) return out;
+  const M = state.meta;
+  if (z.start + z.count > M.ledCount)
+    out.push({ code: 'V9', msg: `区间 ${z.start}..${z.start + z.count - 1} 越过 LED_COUNT(${M.ledCount})` });
+  if (z.count > M.zoneMaxLen)
+    out.push({ code: 'V8', msg: `颗数 ${z.count} > ZONE_MAX_LEN(${M.zoneMaxLen})，固件放不下，得拆分区` });
+  if (z.count > 127)
+    out.push({ code: 'V26', msg: `颗数 ${z.count} > 127：pos 是 int16，会溢出` });
+  state.zones.forEach((o, oi) => {
+    if (oi === zi || !o) return;
+    if (z.start < o.start + o.count && o.start < z.start + z.count)
+      out.push({ code: 'V5', msg: `编号与「${o.name}」(${o.start}..${o.start + o.count - 1}) 重叠 —— 固件里先出现的那条说了算` });
+  });
+  return out;
+}
+/* 把体检结果写进 #zChk，并给两个输入框描红 */
+function renderZoneCheck() {
+  const box = $('#zChk'); if (!box) return;
+  const z = state.zones[selZone];
+  const iss = zoneConflicts(z, selZone);
+  const codes = new Set(iss.map(o => o.code));
+  $('#zStart').classList.toggle('bad', !!z && (codes.has('V9') || codes.has('V5')));
+  $('#zCount').classList.toggle('bad', !!z && codes.size > 0);
+  box.classList.toggle('err', iss.length > 0);
+  box.innerHTML = iss.length ? iss.map(o => `[${o.code}] ${o.msg}`).join('<br>')
+                             : (z ? '✓ 这一段编号不与别的分区冲突' : '');
 }
 
 function renderIssues() {
@@ -5948,6 +6005,34 @@ $('#btnZoneAdd').onclick = () => {
   selZone = zs.length - 1;
   afterChange();
 };
+$('#btnZoneDup').onclick = () => {
+  const z = state.zones[selZone];
+  if (!z) { status('先在分区表里点一个分区再复制', 'err'); return; }
+  const zs = state.zones;
+  if (zs.length >= state.meta.zoneMax) { status(`分区数已达 ZONE_MAX(${state.meta.zoneMax})，复制不了`, 'err'); return; }
+  const len = Math.max(1, z.count);
+  const after = z.start + len;
+  const taken = zs.some(o => o !== z && after < o.start + o.count && o.start < after + len);
+  let start = after;                                        /* 优先排源分区后面（挨着好对照） */
+  if (taken || start + len > state.meta.ledCount) {         /* 后面被占 / 放不下就退到编号末尾 */
+    start = 0;
+    for (const o of zs) start = Math.max(start, o.start + o.count);
+  }
+  if (start + len > state.meta.ledCount) {
+    status(`末尾只剩 ${state.meta.ledCount - start} 颗，放不下一个 ${len} 颗的分区`, 'err');
+    return;
+  }
+  let id = z.id + '_cp';
+  while (zs.some(o => o.id === id)) id += 'p';
+  snapshot();
+  zs.splice(selZone + 1, 0, {
+    id, name: z.name + ' 副本', latin: (z.latin || 'ZONE') + '_CP',
+    color: ZONE_COLORS[zs.length % ZONE_COLORS.length], start, count: len, enabled: z.enabled !== false,
+  });
+  selZone += 1;
+  afterChange();
+  status(`已复制「${z.name}」→「${z.name} 副本」（start=${start}, count=${len}），可 Ctrl+Z 撤销`, 'ok');
+};
 $('#btnZoneDel').onclick = () => {
   if (!state.zones.length) return;
   const z = state.zones[selZone];
@@ -6133,6 +6218,36 @@ function resyncZoneCount(z) {
 $('#zColor').oninput = e => { const z = state.zones[selZone]; if (z) { z.color = e.target.value; render(); renderZoneList(); saveStore(); } };
 $('#zEn').onchange   = e => { const z = state.zones[selZone]; if (z) { z.enabled = e.target.checked; afterChange(); } };
 $('#btnDelLed').onclick = () => { if (sel.size) { snapshot(); state.leds = state.leds.filter(l => !sel.has(l.n)); sel.clear(); afterChange(); } };
+/* Z4：把编号压成连续的 0..N-1（0,1,3,5 → 0,1,2,3）—— 校验页 V2「缺号」的收尾动作。
+ * 只重排编号，灯的位置原样不动（在画布上看起来一点没变，变的只是名字）。 */
+$('#btnCompact').onclick = () => {
+  if (!state.leds.length) { status('板上还没有灯，没什么可压缩的', 'warn'); return; }
+  const ns = state.leds.map(l => l.n).sort((a, b) => a - b);
+  if (ns.every((n, i) => n === i)) { status(`编号已经是连续的 0..${ns.length - 1}，不用压`, 'ok'); return; }
+  snapshot();
+  state.leds.sort((a, b) => a.n - b.n).forEach((L, i) => { L.n = i; });
+  sel.clear();
+  afterChange();
+  status(`已把 ${state.leds.length} 颗灯压成 0..${state.leds.length - 1}（可 Ctrl+Z 撤销）`, 'ok');
+};
+/* Z4：补上最小的那个缺号，位置放在相邻两颗之间（拖一下就能挪走）—— 缺几个点几次 */
+$('#btnFillGap').onclick = () => {
+  const n = nextFreeNumber();
+  if (n === null) { status(`0..${state.meta.ledCount - 1} 已经排满，没有缺号`, 'ok'); return; }
+  const prev = state.leds.find(l => l.n === n - 1);
+  const nx   = state.leds.find(l => l.n === n + 1);
+  let x, y;
+  if (prev && nx) { x = (prev.x + nx.x) / 2; y = (prev.y + nx.y) / 2; }
+  else if (prev)  { x = prev.x + GEN.CELL;   y = prev.y; }
+  else if (nx)    { x = nx.x - GEN.CELL;     y = nx.y; }
+  else            { x = GEN.CELL / 2;        y = GEN.CELL / 2; }
+  snapshot();
+  const [sx, sy] = freeCell(x, y);        /* 与画布放置同一套吸附，且不压在别的灯上（V12 是 err） */
+  state.leds.push({ n, x: Math.round(sx), y: Math.round(sy) });
+  sel = new Set([n]);
+  afterChange();
+  status(`补了 ${n} 号（位置放在相邻两颗之间，拖一下就能挪）—— 还缺就再点一次`, 'ok');
+};
 
 /* ---------- 铺灯 · 形状（面板 ⇄ SHAPE 引擎） ---------- */
 let selShape = 0;
