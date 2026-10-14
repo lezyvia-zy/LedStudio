@@ -194,6 +194,14 @@
     padding:6px 8px; border-bottom:1px solid var(--line);
   }
   .dlgOpts label.row{margin:1px 0; flex:1 1 190px; min-width:170px}
+  /* 导出前的校验闸门（E1/C3）：有 err 级问题时在窗口顶部亮一条，不放行就不生成内容 */
+  .dlgErr{
+    flex:0 0 auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:6px 8px; font-size:11.5px; line-height:1.45;
+    color:var(--err); background:var(--iss-err-bg); border-bottom:1px solid var(--line);
+  }
+  .dlgErr .grow{flex:1 1 auto; min-width:0}
+  .dlgErr button{flex:none}
   .dlgBody{flex:1 1 auto; min-height:0; display:flex; padding:8px}
   .dlgBody textarea{flex:1 1 auto; height:auto; min-height:0; resize:none}
   .dlgFoot{display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:6px 8px; border-top:1px solid var(--line)}
@@ -726,6 +734,11 @@
     <button id="expTabFx" data-x="fx" class="on" data-tip="动效头文件：整个 led_effects_gen.h。">动效头文件</button>
     <button id="expTabTable" data-x="table" data-tip="分区表：g_default_zones[] 那段 C。">排布表 C</button>
     <button id="expTabJson" data-x="json" data-tip="整个工程的 JSON（底图引用、动效库、模式绑定都在里面）。">工程 JSON</button>
+  </div>
+  <!-- 校验未通过时的红条：默认藏着；有 err 级问题时才亮，挡住生成直到点「仍要导出」 -->
+  <div class="dlgErr hide" id="expErrBar">
+    <span class="grow" id="expErrMsg"></span>
+    <button id="expErrGo" data-tip="校验里的「错误」级问题会让导出的表贴进固件后跑不对。确实要现在生成（先备份 / 稍后再改）就点它。">仍要导出</button>
   </div>
   <div class="dlgOpts">
     <div id="optFx" style="display:contents">
@@ -4690,26 +4703,53 @@ const EXPORT_KINDS = {
     tab: '#expTabFx', opt: '#optFx', out: '#xOut', warn: '#xWarn',
     title: '导出动效 C', sub: 'led_effects_gen.h → 放到 SDK 的 bt_audio_app_src/inc/ 下',
     file: () => 'led_effects_gen.h', mime: 'text/plain;charset=utf-8',
+    gate: true,                       /* 给固件用的两种导出：有 err 级问题时必须二次确认（E1/C3） */
     build: () => doFxExport(),
   },
   table: {
     tab: '#expTabTable', opt: '#optTable', out: '#eOut', warn: '#eWarn',
     title: '导出排布表 C', sub: 'g_default_zones[] 那段分区表',
     file: () => (state.meta.name || 'ledboard') + '_g_default_zones.c', mime: 'text/plain;charset=utf-8',
+    gate: true,                       /* 同上：排布表也是直接贴进固件的 */
     build: () => buildExport(),
   },
   json: {
     tab: '#expTabJson', opt: '#optJson', out: '#jOut', warn: '#expJsonHint',
     title: '导出工程 JSON', sub: '整个工程（备份 / 换机器用）',
     file: () => (state.meta.name || 'ledboard') + '.json', mime: 'application/json',
+    gate: false,                      /* 备份不拦：工程越有问题越该先存一份（E1/C3） */
     build: () => { $('#jOut').value = buildJsonText(); },
   },
 };
 const EXPORT_ORDER = ['fx', 'table', 'json'];
 let expKind = 'fx';                     /* 窗口里当前看的是哪一种 */
+let expForce = false;                   /* 红条上点过「仍要导出」= 这一次放行（E1/C3） */
 function exportIsOpen() {
   const d = $('#exportDlg');
   return !!(d && d.classList && d.classList.contains('on'));
+}
+/* E1/C3：导出前的校验闸门。
+ * 「动效头文件 / 排布表」是直接贴进固件的：工程里有 err 级问题（V5、V9…）时先亮红条、
+ * 不生成内容，点「仍要导出」才放行 —— 免得导出一张「看起来正常」的表。JSON 是整库备份，
+ * 只提示不拦（工程越有问题越该先存一份）。返回 true = 这一次可以生成。 */
+function exportGate() {
+  const bar = $('#expErrBar'); if (!bar) return true;
+  if (!state) { bar.classList.add('hide'); return true; }
+  const errs = validate(state).filter(i => i.level === 'err');
+  if (!errs.length) {
+    expForce = false;                 /* 修好了就把闸门重新关上 */
+    bar.classList.add('hide');
+    return true;
+  }
+  const needGate = EXPORT_KINDS[expKind].gate !== false;
+  const codes = [...new Set(errs.map(e => e.code))].join(' ');
+  const msg = $('#expErrMsg');
+  if (msg) msg.textContent = `校验未通过：${errs.length} 个错误（${codes}）—— ` +
+    (needGate ? '生成的表贴进固件会跑不对，建议先修掉。' : 'JSON 是整库备份，仍可保存。');
+  const go = $('#expErrGo');
+  if (go) go.classList.toggle('hide', !needGate || expForce);
+  bar.classList.remove('hide');
+  return !(needGate && !expForce);
 }
 function showExportKind(kind) {
   if (!EXPORT_KINDS[kind]) kind = 'fx';
@@ -4723,7 +4763,12 @@ function showExportKind(kind) {
   }
   $('#expTitle').textContent = EXPORT_KINDS[expKind].title;
   $('#expSub').textContent = EXPORT_KINDS[expKind].sub;
-  EXPORT_KINDS[expKind].build();      /* 每次切过来都重算：刚改过效果的人立刻看到最新的 */
+  const cur = EXPORT_KINDS[expKind];
+  if (exportGate()) cur.build();      /* 每次切过来都重算：刚改过效果的人立刻看到最新的 */
+  else {
+    $(cur.out).value = '';            /* 被闸门挡住：清空输出、别留上一次的旧内容 */
+    const w = $(cur.warn); if (w) w.innerHTML = '';
+  }
   return expKind;
 }
 function centerExportDlg() {
@@ -4736,6 +4781,7 @@ function centerExportDlg() {
 }
 function openExport(kind) {
   if (!state) return;
+  expForce = false;                   /* 每次重新打开都重新问一遍（E1/C3） */
   if (!exportIsOpen()) centerExportDlg();
   showExportKind(kind || expKind);
   $('#exportMask').classList.add('on');
@@ -5265,11 +5311,13 @@ $('#expSave').onclick = saveExport;
 $('#expCopy').onclick = copyExport;
 $('#expClose').onclick = closeExport;
 $('#exportMask').onclick = closeExport;
-$('#eBuild').onclick = () => showExportKind('table');      /* 「重新生成」= 重算当前这一页 */
-['#eVar','#eCmt','#eNom'].forEach(s => $(s).onchange = doExport);
-$('#xBuild').onclick = doFxExport;
-['#xForm','#xCmt','#xEol'].forEach(s => $(s).onchange = doFxExport);
-$('#xDownload').onclick = () => saveAsFile('led_effects_gen.h', () => $('#xOut').value, 'text/plain;charset=utf-8');
+$('#eBuild').onclick = () => showExportKind('table');      /* 「重新生成」= 重算当前这一页（走闸门） */
+['#eVar','#eCmt','#eNom'].forEach(s => $(s).onchange = () => showExportKind('table'));
+$('#xBuild').onclick = () => showExportKind('fx');
+['#xForm','#xCmt','#xEol'].forEach(s => $(s).onchange = () => showExportKind('fx'));
+/* 红条上的「仍要导出」：放行这一次（expForce），随后重算当前页 */
+$('#expErrGo').onclick = () => { expForce = true; showExportKind(expKind); };
+$('#xDownload').onclick = saveExport;      /* 与「保存到文件…」同一条路：被闸门挡着时不会存出空文件 */
 $('#btnPng').onclick = exportPng;
 $('#btnFramePng').onclick = exportFramePng;
 

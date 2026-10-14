@@ -282,5 +282,39 @@ byId.get('expTabJson').onclick();
   globalThis.window.innerWidth = 1280;
 }
 
+/* ---- 15) E1/C3) 校验没通过时导出被红条挡住：默认不生成，点「仍要导出」才放行 ---- */
+{
+  const zc = byId.get('zCount');
+  ok(!!zc, '前置：分区「长度」输入框在（用它造一个 V9 错误）');
+  const count0 = zc.value;
+  zc.value = '999'; zc.oninput({ target: zc });        /* 0+999 > LED_COUNT → V9（err 级） */
+  await new Promise(r => setTimeout(r, 700));
+
+  byId.get('expOpenFx').onclick();
+  ok(!byId.get('expErrBar').classList.contains('hide'), '有 err 时导出窗口顶部亮起红条');
+  ok(/校验未通过/.test(txt('expErrMsg')) && /V9/.test(txt('expErrMsg')),
+     `红条说清了几个错、哪几条: "${txt('expErrMsg')}"`);
+  ok(byId.get('xOut').value === '', '默认不生成内容（免得一张「看起来正常」的表贴进固件）');
+  ok(!byId.get('expErrGo').classList.contains('hide'), '红条上给了「仍要导出」的出口');
+
+  byId.get('expTabJson').onclick();
+  ok(JSON.parse(byId.get('jOut').value).format === 'ledboard', 'JSON 页不受闸门影响（工程越有问题越该先存一份）');
+  ok(byId.get('expErrGo').classList.contains('hide'), 'JSON 页不显示「仍要导出」（本来就没拦）');
+
+  byId.get('expTabFx').onclick();
+  ok(byId.get('xOut').value === '', '切回动效页仍然被挡住（同一份工程数据）');
+  byId.get('expErrGo').onclick();
+  ok(/#ifndef|led_effects_gen/.test(byId.get('xOut').value), '点「仍要导出」后照常生成内容');
+  ok(!byId.get('expErrBar').classList.contains('hide'), '红条留在原位（问题本身还没修）');
+
+  /* 修好问题 → 闸门自己关上 */
+  zc.value = count0; zc.oninput({ target: zc });
+  await new Promise(r => setTimeout(r, 700));
+  byId.get('expTabFx').onclick();
+  ok(byId.get('expErrBar').classList.contains('hide'), '把问题修掉后红条自动收起');
+  ok(/#ifndef|led_effects_gen/.test(byId.get('xOut').value), '内容又正常生成了');
+  byId.get('expClose').onclick();
+}
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);
