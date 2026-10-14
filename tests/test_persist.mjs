@@ -140,6 +140,41 @@ byId.get('btnUndo').onclick(); byId.get('btnUndo').onclick();
 await new Promise(r=>setTimeout(r,800));
 ok(ledCountB() === 1, `撤销两次后回到 1 颗灯（实际 ${ledCountB()}）`);
 
+/* 3b) 形状（批 7-A/B）：预设自带 5 个形状；改过的形状参数要跟着项目一起存 */
+{
+  const projRows = () => (byId.get('projList') || {}).children || [];
+  projRows()[0].onclick();
+  await new Promise(r=>setTimeout(r,700));
+  const s = decode();
+  ok((s.projects[0].state.shapes || []).length === 5,
+     `SP-3122D 预设带出 ${(s.projects[0].state.shapes || []).length} 个可编辑形状（老工程迁移的起点）`);
+  const zrows = (byId.get('zoneTbl') || {}).children || [];
+  zrows[1].onclick();                                     /* 点分区 → 自动选上它关联的形状 */
+  const dist = byId.get('shDist');
+  ok(!!dist && !!dist.oninput && byId.get('shList').value === '1',
+     `点分区自动选上关联形状（#shList 停在 ${byId.get('shList').value}）`);
+  dist.value = 'even'; dist.oninput({ target: dist });
+  await new Promise(r=>setTimeout(r,700));
+  const sh1 = decode().projects[0].state.shapes[1];
+  ok(sh1.dist === 'even' && sh1.zone === 'z1', `改形状分布已存盘（shapes[1].dist=${sh1.dist} / zone=${sh1.zone}）`);
+  /* 切成圆环 / 再切回来：新露出来的几何格是空的，不能因此把形状挪到 0,0 */
+  const kind = byId.get('shKind');
+  kind.value = 'circle'; kind.oninput({ target: kind });
+  await new Promise(r=>setTimeout(r,700));
+  {
+    const s2 = decode().projects[0].state.shapes[1];
+    ok(s2.kind === 'circle' && s2.r > 0 && (s2.cx !== 0 || s2.cy !== 0),
+       `切形状类型不会把几何清零（kind=${s2.kind} 圆芯 ${s2.cx},${s2.cy} r=${s2.r}）`);
+    ok(s2.pts.length === 4, '切类型时原来的顶点留着（切回来不丢）');
+  }
+  kind.value = 'rect'; kind.oninput({ target: kind });
+  await new Promise(r=>setTimeout(r,700));
+  ok(decode().projects[0].state.shapes[1].pts.length === 4, '切回矩形：顶点还在（4 个）');
+  /* 收尾：切回刚才那个空白项目，后面的断言仍按「当前 = 项目 1」走 */
+  projRows()[1].onclick();
+  await new Promise(r=>setTimeout(r,700));
+}
+
 /* ===== 关掉工具，重新打开 ===== */
 install(); boot(); await new Promise(r=>setTimeout(r,700));
 
@@ -156,6 +191,8 @@ ok(byId.get('headInfo').textContent.includes('1/104'),
    `重新打开后顶栏显示: "${byId.get('headInfo').textContent}"`);
 ok(((byId.get('projList')||{}).children||[]).length === 2, '重新打开后左侧项目区有 2 项');
 ok(((byId.get('projList')||{}).children||[])[1].classList.contains('on'), '重新打开后高亮仍在原来的项目上');
+ok((s2.projects[0].state.shapes || []).length === 5, `重新打开后 5 个形状都还在`);
+ok(s2.projects[0].state.shapes[1].dist === 'even', '重新打开后形状参数仍是改过的值（shapes[1].dist=even）');
 
 /* 4) 底图参数也要存盘：临时往存档里塞一个底图，再拖滑块 */
 {
@@ -178,6 +215,20 @@ ok(((byId.get('projList')||{}).children||[])[1].classList.contains('on'), '重�
   byId.get('bgClear').onclick();
   await new Promise(r=>setTimeout(r,700));
   ok(decode().projects[ix].state.canvas.background === null, '移除底图也一并存盘了');
+}
+
+/* 5) 老存档（批 7 之前存的）没有 shapes 字段：打开时要自动补空数组，不能炸 */
+{
+  const raw = JSON.parse(store.get('led_layout_editor.v1'));
+  raw.projects.forEach(p => { delete p.state.shapes; });
+  store.set('led_layout_editor.v1', JSON.stringify(raw));
+  install(); boot(); await new Promise(r=>setTimeout(r,700));
+  const s = decode();
+  const cur = s.projects.find(p => p.id === s.current);
+  ok(Array.isArray(cur.state.shapes) && cur.state.shapes.length === 0,
+     `老存档（没有 shapes 字段）打开后当前项目自动补成空数组（其他项目等切过去再补）`);
+  ok(!byId.get('shList') || byId.get('shList').value === '',
+     '没有形状时面板不乱选：#shList 空着，等用户点「新增矩形」或「由分区反推」');
 }
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');

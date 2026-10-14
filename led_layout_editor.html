@@ -124,6 +124,19 @@
   .card.off{border-style:dashed; opacity:.55}   /* 被旁路的图层：位置还在，只是不参与合成 */
   .cardHead .layOn{margin:0 2px 0 0}
   .card>label.row{flex:1 1 148px; min-width:140px; margin:1px 0}
+  /* ---- 铺灯 · 形状选择框（照画图工具那种缩略图栅格） ---- */
+  #shGallery{display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin:4px 0 2px}
+  #shGallery button{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    height:50px; padding:2px 0; border:1px solid var(--line); border-radius:4px;
+    background:var(--panel2); color:var(--fg); cursor:pointer;
+  }
+  #shGallery button:hover{border-color:var(--accent)}
+  #shGallery button.on{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+  #shGallery svg{width:32px; height:24px; fill:none; stroke:currentColor; stroke-width:1.8}
+  #shGallery span{font-size:10.5px; color:var(--dim); line-height:1.1}
+  #shGallery button.on span{color:var(--fg)}
+  #shTool{min-height:14px}
   /* ---- 悬浮说明 ---- */
   #tipBox{
     position:fixed; display:none; z-index:99; max-width:330px;
@@ -277,33 +290,47 @@
         <div class="hint" id="selInfo">未选中</div>
         <button id="btnDelLed">删除选中编号</button>
       </fieldset>
-      <div class="hint">以下是<b>铺灯</b>（按形状给这一段分区生成编号）和<b>底图</b>（照着实物照片描图用）——
-        先在表格里点中一个分区，再来铺。</div>
+      <div class="hint">以下是<b>铺灯</b>：选一个分区，用<b>形状</b>给它铺编号（形状是<b>编辑期</b>概念 ——
+        顶点/坐标不进固件导出，所以想怎么摆都行）。<b>底图</b>照实物照片描图用。</div>
       <fieldset>
-        <legend>铺灯 · 矩形环绕圈</legend>
-        <label class="row"><span>左上格</span><input type="number" id="gX0" value="0"><input type="number" id="gY0" value="0"></label>
-        <label class="row"><span>宽 W</span><input type="number" id="gW" value="10" min="1"></label>
-        <label class="row"><span>高 H</span><input type="number" id="gH" value="12" min="1"></label>
-        <label class="row"><span>方向</span><select id="gDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
-        <label class="row"><span>起点偏移 k</span><input type="number" id="gK" value="0" min="0"></label>
-        <div class="hint" id="gInfo"></div>
-        <button id="gApply" class="pri">按上面参数铺灯</button>
-      </fieldset>
-      <fieldset>
-        <legend>铺灯 · 圆环 / 圆弧</legend>
-        <label class="row"><span>圆芯</span><input type="number" id="cX" value="200"><input type="number" id="cY" value="200"></label>
-        <label class="row"><span>半径</span><input type="number" id="cR" value="160"></label>
-        <label class="row"><span>起始角</span><input type="number" id="cA0" value="90" step="5"></label>
-        <label class="row"><span>张角</span><input type="number" id="cSweep" value="360" step="5"></label>
-        <label class="row"><span>方向</span><select id="cDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
-        <label class="row"><span></span><input type="checkbox" id="cClosed" checked>闭合环</label>
-        <button id="cApply" class="pri">按上面参数铺灯</button>
-      </fieldset>
-      <fieldset>
-        <legend>铺灯 · 矩形描点 (照片描图用)</legend>
-        <div class="hint">四角坐标直接由「左上格/宽/高」派生的四边形，按弧长等分撒点。当某边除不尽时用它。</div>
-        <label class="row"><span>方向</span><select id="qDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
-        <button id="qApply" class="pri">按四边形铺灯</button>
+        <legend>铺灯 · 形状</legend>
+        <div class="hint"><b>①</b> 挑形状　<b>②</b> 到画布上拖出来（灯跟着边框<b>等间距</b>排开；一颗挨不下就
+          重叠着，把框拉大到灯距 ≥ 一格，画完自动松开鼠标）　<b>③</b> 点这个形状进入编辑（点空白或 <span class="kbd">Esc</span> 释放；
+          拖四角小方块改大小、拖框里挪动、点其它形状切换），再点「在画布上定头尾」，在形状上点两下：
+          先点<b>头</b>、再点<b>尾</b>定方向。左侧 <span class="kbd">S</span> 键也能进「画形状」。</div>
+        <div id="shGallery">
+          <button id="shGalLine" data-kind="line" data-tip="直线：在画布上拖一条线出来，这一段的灯沿它等间距排（开环，不闭回来）。"><svg viewBox="0 0 30 26"><line x1="4" y1="21" x2="26" y2="5"/></svg><span>直线</span></button>
+          <button id="shGalCircle" data-kind="circle" data-tip="圆环：拖一个框出来，灯沿椭圆环等间距排（拖成正方形就是正圆；纵半轴留空 = 正圆）。"><svg viewBox="0 0 30 26"><ellipse cx="15" cy="13" rx="11" ry="9"/></svg><span>圆环</span></button>
+          <button id="shGalRRect" data-kind="rrect" data-tip="圆角矩形：拖一个框出来，四角带圆角，灯沿边框等间距排（最像实物灯箱的走线）。"><svg viewBox="0 0 30 26"><rect x="4" y="4" width="22" height="18" rx="6"/></svg><span>圆角矩形</span></button>
+        </div>
+        <div class="hint" id="shTool"></div>
+        <label class="row"><span>形状</span><select id="shList"></select></label>
+        <div class="row" style="margin:2px 0 4px"><span></span><button id="shAdd">新增空白形状</button><button id="shDel">删除形状</button><button id="shFromZone" data-tip="把选中分区现有的灯位包围盒反推成一个矩形形状（整数格上能重现旧排布时自动用「格点」档），老工程迁过来第一件事。">由分区反推</button></div>
+        <label class="row"><span>归属分区</span><select id="shZone" data-tip="形状跟着这个分区走：头/颗数默认取分区的 start/count。「(只当参考线)」= 不铺灯，只画出来给自己看。"></select></label>
+        <label class="row"><span>形状类型</span><select id="shKind"><option value="rect">矩形</option><option value="rrect">圆角矩形</option><option value="circle">圆环 / 圆弧</option><option value="poly">多边形</option><option value="line">直线</option></select></label>
+        <label class="row" id="shRectRow"><span>左上格</span><input type="number" id="shX0" step="0.5"><input type="number" id="shY0" step="0.5"></label>
+        <label class="row" id="shSizeRow"><span>宽 W / 高 H</span><input type="number" id="shW" step="0.5" min="1"><input type="number" id="shH" step="0.5" min="1"></label>
+        <label class="row" id="shRcRow"><span>圆角 px</span><input type="number" id="shRc" min="0" step="5"></label>
+        <label class="row" id="shCircleRow"><span>圆芯 / 半径</span><input type="number" id="shCx" step="5"><input type="number" id="shCy" step="5"><input type="number" id="shR" step="5" min="1"></label>
+        <label class="row" id="shRyRow"><span>纵半轴 ry</span><input type="number" id="shRy" step="5" min="1" data-tip="留空 = 正圆；填了就是椭圆（在画布上拖成竖着的框，这里会自动填上）。"></label>
+        <label class="row" id="shArcRow"><span>起始角 / 张角</span><input type="number" id="shA0" step="5"><input type="number" id="shSweep" step="5" min="1" max="360"></label>
+        <label class="row" id="shPtsRow"><span>顶点 px</span><input type="text" id="shPts" placeholder="20,20; 220,20; 220,240; 20,240"></label>
+        <label class="row" id="shDistRow"><span>分布</span><select id="shDist" data-tip="每边颗数：四边分别填 6,5,6,4 这类，最贴实物灯带（各边灯距会不一样）。&#10;等分弧长：任意颗数沿形状均匀铺满，闭环连缝一起均匀（画形状拖出来的默认就是它）。&#10;等灯距：按灯距撒点，闭环时告诉你差多少才回得到起点。&#10;格点：旧的「矩形环绕圈」整数格行为，老工程原样重现用。">
+          <option value="sides">每边颗数</option><option value="even">等分弧长</option>
+          <option value="pitch">等灯距</option><option value="cells">格点（旧行为）</option></select></label>
+        <label class="row" id="shSidesRow"><span>每边颗数</span><input type="text" id="shSides" placeholder="6,5,6,4"></label>
+        <label class="row" id="shPitchRow"><span>灯距 px</span><input type="number" id="shPitch" min="1" step="1"></label>
+        <label class="row" id="shCornerRow"><span>角上落灯</span><select id="shCorner"><option value="in">落（含角）</option><option value="out">不落（边中分）</option></select></label>
+        <label class="row"><span>起始编号</span><input type="number" id="shFirst" min="0"></label>
+        <label class="row"><span>颗数</span><input type="number" id="shCount" min="1"></label>
+        <label class="row"><span>方向</span><select id="shDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
+        <label class="row" id="shClosedRow"><span></span><input type="checkbox" id="shClosed" checked>闭环</label>
+        <label class="row" id="shEntryRow"><span>起点偏移</span><input type="number" id="shEntry" min="0" step="10"></label>
+        <div class="hint" id="shInfo"></div>
+        <button id="shApply" class="pri">铺到灯位</button>
+        <button id="shPick" data-tip="到画布上点两下：第一下点「头」（这一段从哪儿开始），第二下点「尾」（往哪边走）。两点定完自动铺入编号。">在画布上定头尾</button>
+        <button id="shFlip" data-tip="几何不动，只把这一段的编号顺序倒过来 —— 头换到另一头、各分区绕行方向整体翻转。">反向编号</button>
+        <button id="shKeep" data-tip="只保存/画出这个形状当参考线，不动任何灯位。">只画不铺</button>
       </fieldset>
       <fieldset>
         <legend>底图</legend>
@@ -488,6 +515,7 @@
           （Chrome / Edge 会弹系统「另存为」，其它浏览器退回下载目录）。</div>
         <button id="expOpenFx" class="pri" data-tip="打开导出窗口，先看动效头文件 led_effects_gen.h。">动效头文件…</button>
         <button id="expOpenTable" data-tip="打开导出窗口，先看分区表 C 代码（g_default_zones[]）。">排布表 C…</button>
+        <button id="expOpenHal" data-tip="打开导出窗口，先看 HAL 接口 led_gen_hal.h —— 平台要实现的那几个函数（工具拥有参数 / 查表 / 引擎）。">HAL 接口…</button>
       </fieldset>
 
       <fieldset>
@@ -508,8 +536,9 @@
         <p><b>先有效果，再出代码。</b>工具里把排布和灯效都做出来，导出 C 贴进固件。</p>
         <ol>
           <li><b>分区</b> —— 告诉工具「板子分成几块、每块从几号灯到几号灯」。SP-3122D 预设里已经填好。<br>
-            这一页还管着<b>板级参数</b>（项目名 / 灯总数）、<b>按形状铺灯</b>（矩形 / 圆环 / 四边形）
-            和<b>底图</b>（选一张实物照片当参照，照着它描灯位最省事）—— 换一块板从头做，全在这一页里走完。</li>
+            这一页还管着<b>板级参数</b>（项目名 / 灯总数）、<b>按形状铺灯</b>（矩形 / 圆环 / 多边形，
+            见下面「按形状铺灯」那一节）和<b>底图</b>（选一张实物照片当参照，照着它描灯位最省事）——
+            换一块板从头做，全在这一页里走完。</li>
           <li><b>效果</b> —— 做素材：一个效果 = 一套图层 + 配色 + 速度。效果是<b>素材库</b>，可以被任意多个模式、任意多个分区复用。</li>
           <li><b>模式</b> —— 把效果分配到分区：一个模式 = 若干条「分区 → 效果」的绑定。模式顺序就是固件的 LEDMode 顺序。</li>
           <li><b>动画</b> —— 预览选中的模式（整个板子按绑定跑起来），调速度、单步、归零、方向修正。</li>
@@ -534,6 +563,44 @@
         </table>
         <div class="hint">要点：<b>多个分区选同一个效果 = 它们共享一份相位，就是真同步</b>。想要「看起来一样但各自错开」，
           就复制一个效果改改参数，让两边用不同的效果。</div>
+
+        <h3 id="hs-shape">按形状铺灯（画形状：先挑、再拖、点两下定头尾）</h3>
+        <p>「铺灯」= 给某一段编号（一个分区）决定<b>哪一号灯落在哪、编号怎么走</b>。现在是照画图工具：<b>先挑形状 → 画布上拖出来 → 点两下定头尾</b>。</p>
+        <div class="hint"><b>形状不进固件。</b>导出物只有分区表的 <code>{start, count, reverse}</code>（坐标一个字节都不导），
+          所以形状、顶点、灯距怎么调都不会动到固件 —— 它是给你自己看着铺、照着核对的。</div>
+        <p><b>三步走</b>：</p>
+        <ul>
+          <li><b>① 挑形状</b>：在「铺灯 · 形状」的形状选择框里点一个 —— <b>直线 / 圆环 / 圆角矩形</b>（左侧 <span class="kbd">S</span> 键进「画形状」模式）。</li>
+          <li><b>② 拖出来</b>：到画布上按住一拖，灯沿边框<b>等间距</b>依次排开（这时候<b>不带编号</b>，只报「N 颗 · 灯距 x px」）。
+            排不下就重叠着 —— 把框拖大到「灯距 ≥ 一格」就排开了；拖形状内部 = 挪动，拖四角/四边的小方块 = 改大小。<b>画完自动松开鼠标</b>。</li>
+          <li><b>③ 点形状进编辑、定头尾</b>：点一下刚画好的形状（轮廓，没铺的连内部也算）就进入编辑态；抓四角小方块改大小、拖框里挪动、
+            <b>点空白或 Esc 释放</b>、<b>点其它形状随时切换选中</b>。要定方向就点「<b>在画布上定头尾</b>」，然后在形状上点两下 ——
+            第一下是<b>头</b>（这一段从哪儿开始），第二下是<b>尾</b>（编号顺着短的那边走），两点定完自动铺进编号。</li>
+        </ul>
+        <p>下面是四种<b>分布</b>（拖出来的新形状默认「等分弧长」；接老工程 / 贴实物灯带再换别的）：</p>
+        <table>
+          <tr><th>分布</th><th>什么时候用</th></tr>
+          <tr><td><b>每边颗数</b></td><td>实物就是「上面 6 颗、右面 5 颗…」这么焊的。填 <code>6,5,6,4</code> 就行，
+            最贴真实灯带（各边灯距因此会不一样，诊断行会写出来）。</td></tr>
+          <tr><td><b>等分弧长</b></td><td>只想让这 N 颗沿形状均匀铺满，不关心每边几颗。闭环时连最后的缝一起均匀。</td></tr>
+          <tr><td><b>等灯距</b></td><td>按真实<b>灯距</b>撒点（最像走线）。闭环时诊断行会告诉你「周长 ÷ 灯距 = 21.00 颗 → 正好闭环 ✓」，
+            差一点就写「差 40px 才回得到起点」，照着把形状尺寸调一格就行。</td></tr>
+          <tr><td><b>格点</b></td><td>旧的「矩形环绕圈」整数格行为。老工程要一字不差重现原来的排布时用它。</td></tr>
+        </table>
+        <p><b>头 / 尾 / 方向</b>：<b>头</b>是这一段编号的第 1 颗（默认取分区 start），<b>方向</b>决定编号顺着形状顶点顺序走还是倒着走，
+          <b>起点偏移</b>把头沿着路径挪一挪（想让它从某个角开始就填那个角对应的弧长）。画布上这条形状会标出<b>「头 N」</b>（实心点）和
+          <b>「尾 M」</b>（空心圈）—— 一看就知道编号从哪进、从哪出。</p>
+        <ul>
+          <li><b>铺到灯位</b>：按当前形状把这一段编号铺下去（号段上原有灯会先问一句再覆盖，可 Ctrl+Z）。</li>
+          <li><b>反向编号</b>：几何一点不动，只把这一段的编号顺序倒过来 —— 头换到另一头，各分区绕行方向随之翻转。</li>
+          <li><b>只画不铺</b>：把形状存成参考线，不动任何灯位。</li>
+          <li><b>由分区反推</b>：接手老工程时先点它 —— 按现有灯位的包围盒反推一个形状（整数格上能重现旧排布时自动用「格点」档），
+            之后就能拖着改了。</li>
+        </ul>
+        <div class="hint"><b>举个例子：21 颗要围成一圈闭合。</b>整数格矩形的周长是 <code>2W+2H-4</code>，<b>恒为偶数</b>，
+          所以「21 颗正好铺满一圈」在老做法里做不到（一定留一个空格当豁口）。现在顶点可以落在半格上：
+          宽 <b>6</b>、高 <b>6.5</b> 的矩形周长 = 840px，按灯距 <b>40px</b> 正好 21 颗、连缝都等距 ——
+          分布选「等灯距」、灯距填 40，诊断行会写「正好闭环 ✓」。实物是 6/5/6/4，就把分布改成「每边颗数」。</div>
 
         <h3 id="hs-stage">效果编辑台（基础排布）</h3>
         <p>效果**和你的真实灯板无关**。在「效果」页时中央画布会切到<b>编辑台</b> —— 一个通用的基础排布：</p>
@@ -669,12 +736,16 @@
           预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），在这里看到的快慢就是样机上的快慢。</div>
 
         <h3 id="hs-export">导出与固件</h3>
-        <p>导出都在一个<b>独立窗口</b>里做：在「导出」页签点「动效头文件…」「排布表 C…」「导出 JSON…」把它打开。
+        <p>导出都在一个<b>独立窗口</b>里做：在「导出」页签点「动效头文件…」「排布表 C…」「HAL 接口…」「导出 JSON…」把它打开。
           窗口可以按住标题栏<b>拖动</b>、从右下角<b>拉伸</b>，<span class="kbd">Esc</span> 或点窗口外面就关掉 —— 它不占右侧栏，也不挡画布。</p>
-        <p>窗口里有三个页签：<b>动效头文件</b>（<code>led_effects_gen.h</code>）、<b>排布表 C</b>（<code>g_default_zones[]</code>）、
-          <b>工程 JSON</b>（整份工程，备份 / 换机器用）。左上角选好形式与注释，下面就是结果，改选项会自动重算。</p>
+        <p>窗口里有四个页签：<b>动效头文件</b>（<code>led_effects_gen.h</code>）、<b>排布表 C</b>（<code>g_default_zones[]</code>）、
+          <b>HAL 接口</b>（<code>led_gen_hal.h</code>，平台要实现的那几个函数）、<b>工程 JSON</b>（整份工程，备份 / 换机器用）。左上角选好形式与注释，下面就是结果，改选项会自动重算。</p>
         <p>存文件点<b>「保存到文件…」</b>：Chrome / Edge 会弹系统「另存为」，<b>目录和文件名都能自己选</b>；
           其它浏览器退回「下载到默认目录」，状态栏会说明。想直接贴进编辑器就用「复制」。</p>
+        <p><b>工具是唯一真源</b>：参数、查表、引擎都由工具生成，平台只实现 HAL 那一层（帧发送 / 音量 / 亮度 / 分区开关 / 毫秒计数），
+          并按 20ms 调一次引擎。平台侧写 <code>#define LED_GEN_HAL_IMPLEMENTS 1</code> 后，与工具契约版本不一致会<b>编译期直接报错</b> ——
+          所以「固件按工具的需要改」这件事有编译器兜底。完整契约（谁拥有什么、路线、账本）见 <code>docs/firmware-contract.md</code>。</p>
+
         <ul>
           <li><b>形式</b>：独立头文件 / 粘贴块（补丁指引）/ 两者。</li>
           <li><b>注释</b>：默认 ASCII，最安全。<b>选中文注释时</b>，贴进 SDK 后必须在编辑器里存成 ANSI/GBK，否则乱码。</li>
@@ -698,6 +769,8 @@
           <tr><td>旋钮光晕太窄</td><td>模式页那条绑定勾「覆盖参数」→「微调参数」→ 把光宽调大（效果页的「多长度对比」用的是你板子上真实的几条长度，先在编辑台看清再改）。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
           <tr><td>两个分区要错开相位</td><td>给其中一个分区单独勾「覆盖参数」，把「起始位」改一下。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
           <tr><td>沿环渐变呼吸</td><td>亮度渐变层（三角、绕环 1 轮）+ 一个填充层配脉动。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>21 颗要围成一圈闭合</td><td>分区页：形状类型选<b>矩形</b>，宽 <b>6</b>、高 <b>6.5</b>（周长 840px），分布选<b>等灯距</b>、灯距 <b>40</b> —— 诊断行写「正好闭环 ✓」。实物是 6/5/6/4 就把分布改成<b>每边颗数</b>。</td><td><button class="help-go" data-go="zones" data-tip="跳到分区页，选一个分区再动「铺灯 · 形状」那块。">分区页</button></td></tr>
+          <tr><td>接手一个老工程</td><td>分区页点<b>「由分区反推」</b>：按现有灯位的包围盒生成一个形状（能原样重现旧排布），之后改形状、调头尾都方便。</td><td><button class="help-go" data-go="zones" data-tip="跳到分区页，点「由分区反推」。">分区页</button></td></tr>
         </table>
 
         <h3 id="hs-keys">快捷键</h3>
@@ -729,6 +802,7 @@
   <div class="dlgTabs">
     <button id="expTabFx" data-x="fx" class="on" data-tip="动效头文件：整个 led_effects_gen.h。">动效头文件</button>
     <button id="expTabTable" data-x="table" data-tip="分区表：g_default_zones[] 那段 C。">排布表 C</button>
+    <button id="expTabHal" data-x="hal" data-tip="平台适配层接口：led_gen_hal.h —— 平台要实现的那几个函数（工具拥有参数 / 查表 / 引擎）。">HAL 接口</button>
     <button id="expTabJson" data-x="json" data-tip="整个工程的 JSON（底图引用、动效库、模式绑定都在里面）。">工程 JSON</button>
   </div>
   <!-- 校验未通过时的红条：默认藏着；有 err 级问题时才亮，挡住生成直到点「仍要导出」 -->
@@ -773,16 +847,29 @@
     <div id="optJson" class="hide" style="display:contents">
       <div class="hint">工程 JSON = 完整工程（底图引用、动效库、模式绑定都在里面），用于备份或换机器。</div>
     </div>
+    <div id="optHal" class="hide" style="display:contents">
+      <label class="row"><span>注释</span><select id="hCmt" data-tip="ASCII 注释最安全。选中文注释时，贴进 SDK 后必须在编辑器里存成 ANSI/GBK，否则乱码。">
+        <option value="ascii">ASCII (推荐)</option>
+        <option value="zh">中文 (注意 GBK 编码)</option>
+      </select></label>
+      <label class="row"><span>换行</span><select id="hEol" data-tip="目标源文件是 CRLF（Windows），默认就对。">
+        <option value="crlf">CRLF (Windows 目标)</option>
+        <option value="lf">LF</option>
+      </select></label>
+      <button id="hBuild" class="pri" data-tip="按上面的选项重新生成一遍。">重新生成</button>
+    </div>
   </div>
   <div class="dlgBody">
     <textarea id="xOut" spellcheck="false" placeholder="这里显示 led_effects_gen.h 的内容（改上面的选项会自动重算）"></textarea>
     <textarea id="eOut" class="hide" spellcheck="false" placeholder="这里显示 g_default_zones[] 那段 C"></textarea>
+    <textarea id="hOut" class="hide" spellcheck="false" placeholder="这里显示 led_gen_hal.h（平台要实现的那几个函数）"></textarea>
     <textarea id="jOut" class="hide" spellcheck="false" readonly placeholder="这里显示工程 JSON"></textarea>
   </div>
   <div class="dlgFoot">
     <div class="grow hint" id="xWarn"></div>
     <div class="grow hint hide" id="eWarn"></div>
     <div class="grow hint hide" id="expJsonHint">保存后可以用顶栏的「打开」把它载入回来。</div>
+    <div class="grow hint hide" id="hWarn"></div>
     <button id="expCopy" data-tip="把当前这一页的内容复制到剪贴板。">复制</button>
     <button id="expSave" class="pri" data-tip="选择保存路径并保存：Chrome / Edge 弹系统「另存为」（可自选目录和文件名），其它浏览器退回下载目录。">保存到文件…</button>
   </div>
@@ -936,6 +1023,415 @@ const GEN = {
       out.push({ n: p.first + j, x: a[0] + (b[0]-a[0]) * t, y: a[1] + (b[1]-a[1]) * t });
     }
     return out;
+  },
+};
+
+/* ---- 形状（形状 → 编号） ----------------------------------------------------
+ * 形状是**纯编辑期**概念：它只决定「哪一号灯落在哪、编号怎么走」。
+ * 顶点/坐标/间距一个字节都不进固件 —— 导出物只有 g_default_zones[] 的
+ * {start,count,reverse} 和退路用的 led_map[]，所以形状怎么灵活都不影响契约。
+ *
+ * 顶点是画布世界坐标 px，**允许落在半格上**。这是「21 颗 × 灯距 40px 正好闭环」
+ * 能成立的关键：那种矩形周长 840px（240+180+240+180），有一条边是 4.5 格；
+ * 而旧的整数格路径周长恒为偶数格（2W+2H-4），21 颗必然留一个豁口。
+ *
+ * 四种分布（dist）：
+ *   sides  每边颗数   6,5,6,4 → 21 颗，最贴真实灯带
+ *   even   等分弧长   任意颗数均匀铺满（闭环连缝一起均匀）
+ *   pitch  等灯距     按灯距撒点；闭环时报告差多少才回得到起点
+ *   cells  格点       沿用旧「矩形环绕圈」的整数格行为（逐字节兼容老工程）
+ */
+const SHAPE = {
+  DISTS: ['sides', 'even', 'pitch', 'cells'],
+  DIST_NAMES: { sides: '每边颗数', even: '等分弧长', pitch: '等灯距', cells: '格点（旧行为）' },
+  /* 形状类型：rect 直角矩形 / rrect 圆角矩形 / circle 圆环(可椭圆) / poly 多边形 / line 直线(开环) */
+  KINDS: ['rect', 'rrect', 'circle', 'poly', 'line'],
+  KIND_NAMES: { rect: '矩形', rrect: '圆角矩形', circle: '圆环 / 圆弧', poly: '多边形', line: '直线' },
+  /* 形状选择框里那三种「拖出来就能用」的形状（顺序就是画布/面板里的顺序） */
+  TOOLS: ['line', 'circle', 'rrect'],
+  TOOL_NAMES: { line: '直线', circle: '圆环', rrect: '圆角矩形' },
+
+  /* 一个空形状的默认参数（各字段含义见文档 / 面板提示） */
+  blank(over) {
+    return Object.assign({
+      id: '',
+      kind: 'rect',                 /* rect | rrect | circle | poly | line */
+      pts: [[20, 20], [220, 20], [220, 300], [20, 300]],   /* 顶点 px（kind=circle 时用下面那组） */
+      cx: 200, cy: 200, r: 160, a0: 90, sweep: 360,        /* kind=circle：圆芯 / 横半轴 / 起始角 / 张角 */
+      ry: null,                     /* kind=circle：纵半轴（null = 正圆） */
+      rc: 30,                       /* kind=rrect：圆角半径 px */
+      closed: true,
+      zone: null,                   /* 归属分区 id；null = 只当参考线，不铺灯 */
+      first: 0, count: 8,           /* 头（起始编号）、颗数 */
+      dir: 'cw',                    /* 编号沿顶点顺序走(cw) 还是逆着走(ccw) */
+      dist: 'sides',                /* 分布规则，见上面四种 */
+      sides: [2, 2, 2, 2],          /* dist=sides：每边颗数（数组或 "6,5,6,4"） */
+      pitch: 40,                    /* dist=pitch：灯距 px */
+      entry: 0,                     /* 起点偏移：沿路径的弧长 px（闭环时是旋转量） */
+      corner: 'in',                 /* 闭环 + sides：角上落灯(in) 还是每条边中分布(out) */
+    }, over || {});
+  },
+
+  /* 矩形顶点：左上格 + 宽高（单位=格，含两端）—— 与旧「矩形环绕圈」的 W/H 同义，
+   * 所以 W=10,H=12 这个形状在 cells 档下能一字不差地重现旧排布。 */
+  rectPts(x0, y0, W, H, cell) {
+    const h = cell / 2;
+    const xa = x0 * cell + h, xb = (x0 + W - 1) * cell + h;
+    const ya = y0 * cell + h, yb = (y0 + H - 1) * cell + h;
+    return [[xa, ya], [xb, ya], [xb, yb], [xa, yb]];
+  },
+  /* 圆角矩形顶点（px 角点 + 圆角半径）：四角各一段四分之一圆，直边保留；
+   * 顶点顺序与 rectPts 一致（屏幕坐标下左上起 → 顺时针），长度不够时圆角自动收到半宽/半高。 */
+  roundPts(x0, y0, x1, y1, rc, seg) {
+    const xa = Math.min(x0, x1), xb = Math.max(x0, x1);
+    const ya = Math.min(y0, y1), yb = Math.max(y0, y1);
+    const w = xb - xa, h = yb - ya;
+    if (!(w > 0) || !(h > 0)) return [[xa, ya], [xb, ya], [xb, yb], [xa, yb]];
+    const r = Math.max(0, Math.min(+rc || 0, Math.min(w, h) / 2));
+    if (r < 0.5) return [[xa, ya], [xb, ya], [xb, yb], [xa, yb]];
+    const n = Math.max(2, Math.round(seg || 5));          /* 每个圆角切几段 */
+    const out = [];
+    const corner = (ccx, ccy, a0, a1) => {
+      for (let i = 0; i <= n; i++) {
+        const th = (a0 + (a1 - a0) * (i / n)) * Math.PI / 180;
+        out.push([ccx + r * Math.cos(th), ccy + r * Math.sin(th)]);
+      }
+    };
+    corner(xa + r, ya + r, 180, 270);                     /* 左上 */
+    corner(xb - r, ya + r, 270, 360);                     /* 右上 */
+    corner(xb - r, yb - r, 0, 90);                        /* 右下 */
+    corner(xa + r, yb - r, 90, 180);                      /* 左下 */
+    return out;
+  },
+  newRect(p, cell) {
+    const c = Math.max(1, +cell || 40);
+    const r = p || {};
+    return SHAPE.blank({ pts: SHAPE.rectPts(+r.x0 || 0, +r.y0 || 0,
+                                             (r.W === undefined ? 6 : +r.W),
+                                             (r.H === undefined ? 7 : +r.H), c) });
+  },
+  /* 旧「矩形环绕圈」参数 / 预设里的 zone.rect → 形状（迁移用；cells 档结果逐字节相同）。
+   * laid=true：这个形状描述的正是板上已铺出来的灯，所以后面拖它 = 跟着重铺。 */
+  fromRect(rect, cell, zone, first, count) {
+    const sh = SHAPE.newRect(rect, cell);
+    const c = Math.max(1, +cell || 40);
+    Object.assign(sh, { dist: 'cells', corner: 'in', laid: true,
+                        dir: (rect && rect.dir) || 'cw', entry: ((rect && +rect.k) || 0) * c,
+                        zone: zone || null, first: Math.max(0, +first || 0),
+                        count: Math.max(1, +count || 1) });
+    return sh;
+  },
+  /* 由一段现有灯位反推矩形形状（老工程迁移的「一键」）：顶点跟着灯位的包围盒走，
+   * 整数格上能重现旧排布时用 cells 档，否则用等分弧长。 */
+  fromLeds(leds, cell, zone, first, count, dir) {
+    const c = Math.max(1, +cell || 40), h = c / 2;
+    const xs = leds.map(l => l.x), ys = leds.map(l => l.y);
+    if (!xs.length) return null;
+    const gx0 = (Math.min(...xs) - h) / c, gy0 = (Math.min(...ys) - h) / c;
+    const W = (Math.max(...xs) - Math.min(...xs)) / c + 1, H = (Math.max(...ys) - Math.min(...ys)) / c + 1;
+    const sh = SHAPE.blank({ pts: SHAPE.rectPts(gx0, gy0, W, H, c), zone: zone || null,
+                             first: Math.max(0, +first || 0), count: Math.max(1, +count || 1),
+                             dir: dir || 'cw', dist: 'even', sides: [1, 1, 1, 1],
+                             entry: 0, pitch: c, laid: true });
+    const integral = [gx0, gy0, W, H].every(v => Math.abs(v - Math.round(v)) < 1e-6);
+    if (integral) { sh.dist = 'cells'; sh.pts = SHAPE.rectPts(Math.round(gx0), Math.round(gy0), Math.round(W), Math.round(H), c); }
+    return sh;
+  },
+
+  /* 形状的顶点表：矩形/多边形/直线直接用 pts；圆按时序多边形化（96 段/圈，够用且省事），
+   * 横半轴 r + 可选纵半轴 ry（ry 为空就是正圆）。 */
+  ptsOf(sh) {
+    if (!sh || sh.kind !== 'circle') return (sh && sh.pts) || [];
+    const cx = +sh.cx || 0, cy = +sh.cy || 0;
+    const rx = Math.max(0.001, +sh.r || 0);
+    const ry = Math.max(0.001, (sh.ry != null ? +sh.ry : +sh.r) || 0);
+    const a0 = +sh.a0 || 0;
+    const sweep = sh.closed ? 360 : Math.max(0.001, Math.min(360, +sh.sweep || 0));
+    const n = Math.max(8, Math.round(96 * sweep / 360));
+    const out = [];
+    for (let i = 0; i < (sh.closed ? n : n + 1); i++) {           /* 画布 y 向下：角度递增 = 视觉顺时针 */
+      const th = (a0 + sweep * (i / n)) * Math.PI / 180;
+      out.push([cx + rx * Math.cos(th), cy + ry * Math.sin(th)]);
+    }
+    return out;
+  },
+
+  /* 边（段）表：闭环时含最后一条闭边 */
+  segs(sh) {
+    const p = SHAPE.ptsOf(sh), n = p.length, out = [];
+    if (n < 2) return out;
+    const last = sh.closed ? n : n - 1;
+    for (let i = 0; i < last; i++) {
+      const a = p[i], b = p[(i + 1) % n];
+      out.push({ a, b, len: Math.hypot(b[0] - a[0], b[1] - a[1]) });
+    }
+    return out;
+  },
+  pathLen(sh) { let t = 0; for (const g of SHAPE.segs(sh)) t += g.len; return t; },
+  /* 每段起点的累计弧长 */
+  accs(sh) {
+    const out = [];
+    let t = 0;
+    for (const g of SHAPE.segs(sh)) { out.push(t); t += g.len; }
+    return out;
+  },
+
+  /* 弧长 → 坐标（线性插值；闭环按弧长取模，开环夹到 [0,L]） */
+  at(sh, s) {
+    const gs = SHAPE.segs(sh);
+    if (!gs.length) return [0, 0];
+    const L = SHAPE.pathLen(sh);
+    if (!(L > 0)) return [gs[0].a[0], gs[0].a[1]];
+    if (sh.closed) s = ((s % L) + L) % L; else s = Math.max(0, Math.min(L, s));
+    for (const g of gs) {
+      if (s <= g.len + 1e-9) {
+        const t = g.len > 0 ? Math.min(1, s / g.len) : 0;
+        return [g.a[0] + (g.b[0] - g.a[0]) * t, g.a[1] + (g.b[1] - g.a[1]) * t];
+      }
+      s -= g.len;
+    }
+    const e = gs[gs.length - 1].b;
+    return [e[0], e[1]];
+  },
+
+  /* 点在路径上的弧长（诊断用：算「每边各落了几颗」）。先按共线判定落哪一段 */
+  arcAt(sh, pt) {
+    const gs = SHAPE.segs(sh), acc = SHAPE.accs(sh);
+    for (let i = 0; i < gs.length; i++) {
+      const a = gs[i].a, b = gs[i].b;
+      const vx = b[0] - a[0], vy = b[1] - a[1], len2 = vx * vx + vy * vy;
+      const cross = vx * (pt[1] - a[1]) - vy * (pt[0] - a[0]);
+      const dot = vx * (pt[0] - a[0]) + vy * (pt[1] - a[1]);
+      if (Math.abs(cross) < 1e-6 && dot >= -1e-6 && dot <= len2 + 1e-6)
+        return acc[i] + (len2 > 0 ? dot / len2 : 0) * (gs[i].len || 0);
+    }
+    return null;
+  },
+
+  /* 轮廓最近点：画形状工具用它判「点在不在形状上」（定头尾 / 抓轮廓）。
+   * 返回 { s 弧长, d 距离, i 第几段 }；离路径超过 tol（默认 10px）就返回 null。 */
+  arcNear(sh, pt, tol) {
+    const gs = SHAPE.segs(sh), acc = SHAPE.accs(sh);
+    let best = null;
+    for (let i = 0; i < gs.length; i++) {
+      const a = gs[i].a, b = gs[i].b;
+      const vx = b[0] - a[0], vy = b[1] - a[1], len2 = vx * vx + vy * vy;
+      const t = len2 > 0 ? Math.max(0, Math.min(1, ((pt[0] - a[0]) * vx + (pt[1] - a[1]) * vy) / len2)) : 0;
+      const d = Math.hypot(pt[0] - (a[0] + vx * t), pt[1] - (a[1] + vy * t));
+      if (!best || d < best.d) best = { s: acc[i] + gs[i].len * t, d, i };
+    }
+    return best && best.d <= (tol == null ? 10 : tol) ? best : null;
+  },
+
+  /* 弧长 s 处的单位切向（沿顶点顺序走）。头/尾标签往「形状外侧」放时用它求法向。 */
+  tangent(sh, s) {
+    const e = 0.5;
+    const a = SHAPE.at(sh, s - e), b = SHAPE.at(sh, s + e);
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy) || 1;
+    return [dx / len, dy / len];
+  },
+
+  /* 形状的包围盒（px）：手柄、拖拽、面板回填都按它算 */
+  boxOf(sh) {
+    const p = SHAPE.ptsOf(sh);
+    if (!p.length) return { x0: 0, y0: 0, x1: 0, y1: 0 };
+    const xs = p.map(q => q[0]), ys = p.map(q => q[1]);
+    return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+  },
+
+  /* 把一个拖出来的框「画」成指定类型的形状（只改几何，其它参数不动）。
+   * 拖画新形状 / 抓手柄改大小 / 面板改 W-H / 换形状类型 都走这里，四个入口结果一致。
+   * 多边形：原顶点按包围盒整体缩放（保持形状的相似变换）。 */
+  fromBox(sh, kind, box) {
+    const x0 = Math.min(box.x0, box.x1), x1 = Math.max(box.x0, box.x1);
+    const y0 = Math.min(box.y0, box.y1), y1 = Math.max(box.y0, box.y1);
+    const k = SHAPE.KINDS.indexOf(kind) >= 0 ? kind : 'rect';
+    if (k === 'poly') {
+      const b = SHAPE.boxOf(Object.assign({}, sh, { kind: 'poly' }));
+      const sx = (b.x1 - b.x0) > 1e-9 ? (x1 - x0) / (b.x1 - b.x0) : 1;
+      const sy = (b.y1 - b.y0) > 1e-9 ? (y1 - y0) / (b.y1 - b.y0) : 1;
+      sh.pts = ((sh && sh.pts) || []).map(p => [x0 + (p[0] - b.x0) * sx, y0 + (p[1] - b.y0) * sy]);
+    } else if (k === 'circle') {
+      sh.cx = (x0 + x1) / 2; sh.cy = (y0 + y1) / 2;
+      sh.r  = Math.max(0.5, (x1 - x0) / 2);
+      sh.ry = Math.max(0.5, (y1 - y0) / 2);
+      sh.closed = true;
+    } else if (k === 'rrect') {
+      sh.pts = SHAPE.roundPts(x0, y0, x1, y1, Math.max(0, +sh.rc || 0), 5);
+      sh.closed = true;
+    } else if (k === 'line') {
+      sh.pts = [[x0, y0], [x1, y1]];
+      sh.closed = false;
+    } else {
+      sh.pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      sh.closed = true;
+    }
+    sh.kind = k;
+    return sh;
+  },
+
+  /* 每边颗数：数组或 "6,5,6,4" 都收；长度不够就按段数补齐 */
+  sidesOf(sh, n) {
+    const raw = sh && sh.sides;
+    let a = Array.isArray(raw) ? raw.slice() : String(raw == null ? '' : raw).split(/[,\s;]+/);
+    a = a.map(v => Math.max(0, Math.round(+v || 0)));
+    const m = (n == null) ? SHAPE.segs(sh).length : n;
+    while (a.length < m) a.push(a.length ? a[a.length - 1] : 1);
+    if (a.length > m) a = a.slice(0, m);
+    return a;
+  },
+
+  /* 颗数：sides / pitch 档由形状自己算（尺寸说了算），其余用存下来的 count */
+  count(sh) {
+    const gs = SHAPE.segs(sh);
+    if (!gs.length) return 0;
+    if (sh.dist === 'sides') return SHAPE.sidesOf(sh, gs.length).reduce((a, b) => a + b, 0);
+    if (sh.dist === 'pitch') {
+      const L = SHAPE.pathLen(sh), p = Math.max(0.001, +sh.pitch || 40), e = Math.max(0, +sh.entry || 0);
+      return Math.max(1, sh.closed ? Math.round(L / p) : Math.floor((L - e) / p) + 1);
+    }
+    return Math.max(1, Math.round(+sh.count || 1));
+  },
+
+  /* 轴对齐矩形 + 整数格顶点 → 换成 {x0,y0,W,H}（格）；否则 null。
+   * cells 档靠它接回旧的 GEN.rectPath，保证老工程逐字节不变。 */
+  asCells(sh, cell) {
+    const c = Math.max(1, +cell || 40), h = c / 2;
+    if (!sh || sh.kind !== 'rect') return null;
+    const p = sh.pts || [];
+    if (p.length !== 4) return null;
+    const xs = p.map(q => q[0]), ys = p.map(q => q[1]);
+    if (new Set(xs.map(v => Math.round(v))).size !== 2) return null;
+    if (new Set(ys.map(v => Math.round(v))).size !== 2) return null;
+    const gx0 = (Math.min(...xs) - h) / c, gy0 = (Math.min(...ys) - h) / c;
+    const gx1 = (Math.max(...xs) - h) / c, gy1 = (Math.max(...ys) - h) / c;
+    const int = v => Math.abs(v - Math.round(v)) < 1e-6;
+    if (![gx0, gy0, gx1, gy1].every(int)) return null;
+    const W = Math.round(gx1) - Math.round(gx0) + 1, H = Math.round(gy1) - Math.round(gy0) + 1;
+    if (W < 1 || H < 1) return null;
+    return { x0: Math.round(gx0), y0: Math.round(gy0), W, H };
+  },
+  /* 格点档落点：编号 first+j 落在 path[(k+j) mod P]（k = 起点偏移 / 格边长） */
+  cellsPts(sh, r, cell) {
+    const path = GEN.rectPath(r.W, r.H, sh.dir === 'ccw' ? 'ccw' : 'cw'), P = path.length;
+    const n = SHAPE.count(sh), k = Math.round(Math.max(0, +sh.entry || 0) / cell);
+    const out = [];
+    for (let j = 0; j < n; j++) {
+      const cp = path[(((k + j) % P) + P) % P];
+      out.push({ x: (r.x0 + cp[0]) * cell + cell / 2, y: (r.y0 + cp[1]) * cell + cell / 2 });
+    }
+    return out;
+  },
+
+  /* 落点的弧长表（sides / even / pitch 三档都用它，最后统一交给 at() 取坐标） */
+  arcs(sh, dist) {
+    const mode = dist || sh.dist || 'even';
+    const gs = SHAPE.segs(sh), acc = SHAPE.accs(sh), L = SHAPE.pathLen(sh);
+    if (!gs.length || !(L > 0)) return [];
+    const entry = Math.max(0, +sh.entry || 0);
+    const out = [];
+    if (mode === 'sides') {
+      const sides = SHAPE.sidesOf(sh, gs.length);
+      const last = gs.length - 1;
+      for (let i = 0; i < gs.length; i++) {
+        const k = sides[i];
+        for (let j = 0; j < k; j++) {
+          /* 闭环：角上落灯(in) 含起点不含终点；边中分布(out) 每边摆在中间。
+             开环：中间的边含起点不含终点，最后一条边收在终点上。 */
+          const t = sh.closed ? (sh.corner === 'out' ? (j + 0.5) / k : j / k)
+                              : ((i === last && k > 1) ? j / (k - 1) : (k > 1 ? j / k : 0));
+          out.push(acc[i] + gs[i].len * t);
+        }
+      }
+      return sh.closed ? out.map(s => s + entry) : out;
+    }
+    if (mode === 'pitch') {
+      const p = Math.max(0.001, +sh.pitch || 40), n = SHAPE.count(sh);
+      for (let j = 0; j < n; j++) out.push(entry + j * p);
+      return sh.closed ? out : out.filter(s => s <= L + 1e-9);
+    }
+    const n = SHAPE.count(sh);                        /* even：等分弧长 */
+    if (sh.closed) { for (let j = 0; j < n; j++) out.push(entry + L * j / n); return out; }
+    for (let j = 0; j < n; j++) out.push(n > 1 ? entry + (L - entry) * j / (n - 1) : entry);
+    return out;
+  },
+
+  /* 铺灯计划：pts 已带编号（first + i）；dir=ccw 时把落点表整体倒过来。
+   * cells 档例外：方向由 GEN.rectPath 决定，保持旧行为（也是老工程逐字节不变的原因）。 */
+  plan(sh, cell) {
+    const c = Math.max(1, +cell || 40);
+    const notes = [];
+    let dist = SHAPE.DISTS.indexOf(sh.dist) >= 0 ? sh.dist : 'even';
+    let pts = null;
+    if (dist === 'cells') {
+      const r = SHAPE.asCells(sh, c);
+      if (r) pts = SHAPE.cellsPts(sh, r, c);
+      else { dist = 'pitch'; notes.push('格点档只认「轴对齐矩形 + 整数格顶点」，这个形状改用等灯距'); }
+    }
+    if (!pts) {
+      const arcs = SHAPE.arcs(sh, dist);
+      pts = arcs.map(s => { const q = SHAPE.at(sh, s); return { x: q[0], y: q[1] }; });
+      if (sh.dir === 'ccw' && pts.length > 1) pts.reverse();
+    }
+    const first = Math.max(0, Math.round(+sh.first || 0));
+    pts.forEach((p, i) => { p.n = first + i; });
+    return { pts, count: pts.length, dist, notes };
+  },
+
+  /* 诊断：面板那一行字全靠它，也是测试直接断言的接口（不碰 DOM） */
+  info(sh, cell, plan) {
+    const c = Math.max(1, +cell || 40);
+    const L = SHAPE.pathLen(sh);
+    const pl = plan || SHAPE.plan(sh, c);
+    const pts = pl.pts, n = pts.length;
+    /* 间距按**沿路径的弧长**算（= 实物灯距）；弦长在拐角处必然更短，不能用它当灯距 */
+    const arcs = pts.map(p => SHAPE.arcAt(sh, [p.x, p.y]));
+    let gaps = [], chord = [];
+    if (!arcs.some(a => a === null)) {
+      const s = arcs.slice().sort((a, b) => a - b);
+      for (let i = 1; i < s.length; i++) gaps.push(s[i] - s[i - 1]);
+      if (sh.closed && s.length > 1) gaps.push(L - s[s.length - 1] + s[0]);
+    } else {
+      for (let i = 1; i < n; i++) gaps.push(Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+      if (sh.closed && n > 1) gaps.push(Math.hypot(pts[0].x - pts[n - 1].x, pts[0].y - pts[n - 1].y));
+    }
+    for (let i = 1; i < n; i++) chord.push(Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    const avg = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0;
+    const notes = pl.notes.slice();
+    const gs = SHAPE.segs(sh), ac = SHAPE.accs(sh);
+    /* 每边落了几颗：sides 档直接读输入，其余按落点弧长反推 */
+    let perSide = null;
+    if (pl.dist === 'sides') perSide = SHAPE.sidesOf(sh, gs.length);
+    else {
+      perSide = gs.map(() => 0);
+      for (const p of pts) {
+        const s = SHAPE.arcAt(sh, [p.x, p.y]);
+        if (s === null) continue;
+        let i = 0;
+        for (let k = 0; k < gs.length; k++) if (s >= ac[k] - 1e-6) i = k;
+        perSide[i]++;
+      }
+    }
+    notes.push(`周长 ${L.toFixed(0)}px（${(L / c).toFixed(2)} 格）· 实铺 ${n} 颗 · 灯距 ` +
+      (gaps.length ? `沿路径 ${Math.min(...gaps).toFixed(1)}~${Math.max(...gaps).toFixed(1)}px（均值 ${avg.toFixed(1)}，标称 ${c}px）` : '—'));
+    if (pl.dist === 'pitch' && sh.closed) {
+      const p = Math.max(0.001, +sh.pitch || 40), need = L / p, gap = L - n * p;
+      notes.push(Math.abs(gap) < 0.05 ? `周长 ÷ 灯距 ${p}px = ${need.toFixed(2)} 颗 → 正好闭环 ✓`
+                                      : `周长 ÷ 灯距 ${p}px = ${need.toFixed(2)} 颗：差 ${Math.abs(gap).toFixed(0)}px 才回得到起点`);
+    }
+    if (gs.length > 1 && n) notes.push(`每边落点 ${perSide.join(' / ')}（共 ${perSide.reduce((a, b) => a + b, 0)}）`);
+    if (pl.dist === 'cells') {
+      const r = SHAPE.asCells(sh, c);
+      if (r) {
+        const P = GEN.rectPath(r.W, r.H, sh.dir === 'ccw' ? 'ccw' : 'cw').length;
+        if (n > P) notes.push(`本段 ${n} 颗 > 周长 ${P} 格：编号会重叠，得把形状放大或换分布`);
+      }
+    }
+    return { total: L, totalCells: L / c, count: n, dist: pl.dist,
+             spacing: { min: gaps.length ? Math.min(...gaps) : 0, max: gaps.length ? Math.max(...gaps) : 0, avg,
+                        chordMin: chord.length ? Math.min(...chord) : 0 },
+             perSide, notes };
   },
 };
 
@@ -1280,7 +1776,7 @@ function emptyProject() {
     stage: { ringN: 24, stripN: 24, compare: false },   /* 效果编辑台的基础排布 */
     effects: defaultEffects(),
     modes: emptyModes(),
-    zones: [], leds: [],
+    zones: [], leds: [], shapes: [],
   };
 }
 
@@ -1299,12 +1795,15 @@ function projectFromPreset(preset) {
   const st = emptyProject();
   st.meta = Object.assign(st.meta, clone(preset.meta));
   st.canvas.width = 640; st.canvas.height = 1600;
-  st.zones = []; st.leds = [];
+  st.zones = []; st.leds = []; st.shapes = [];
   preset.zones.forEach((zz, i) => {
     st.zones.push({ id: 'z' + i, name: zz.name, latin: zz.latin || ('ZONE' + i), color: zz.color,
                     start: zz.start, count: zz.count, enabled: true });
     const p = Object.assign({}, zz.rect, { first: zz.start, count: zz.count });
     st.leds = st.leds.concat(GEN.rectLeds(p, GEN.CELL));
+    /* 预设的 rect 参数顺带留成可编辑的形状（格点档 = 逐字节重现上面那批灯位）。
+       灯位仍由 GEN.rectLeds 生成：形状只在用户点「铺到灯位」时才生效。 */
+    st.shapes.push(SHAPE.fromRect(zz.rect, GEN.CELL, 'z' + i, zz.start, zz.count));
   });
   st.leds.sort((a, b) => a.n - b.n);
   return st;
@@ -2831,6 +3330,119 @@ function exportEffectsC(state, opt) {
   return header + EOL + EOL + '/* ==================== 以下是粘贴 / 补丁指引，不属于头文件 ==================== */' + EOL + EOL + patch;
 }
 
+/* ============================================================================
+ * HAL 契约导出 —— 生成 led_gen_hal.h
+ *
+ * 这是「工具 → 平台」唯一的接口面：工具拥有参数 / 查表 / 引擎，平台只实现
+ * LED_GEN_HAL.proto 里那几个函数，并按周期调引擎入口（LED_GEN_HAL.entry）。
+ * 平台侧定义 LED_GEN_HAL_IMPLEMENTS = 自己实现的契约版本，与工具不一致会
+ * 直接编译不过 —— 「固件契合工具」因此有编译期保障，不靠文档自觉。
+ *
+ * 改这里 = 改契约，三处必须同步（tests/test_gen_independence.mjs 会交叉校验）：
+ *   ① 本结构体（version / tag / tick_ms / proto / entry）
+ *   ② docs/firmware-contract.md 第二节「平台实现」
+ *   ③ tests/test_gen_independence.mjs 的契约清单与文档断言
+ * ==========================================================================*/
+const LED_GEN_HAL = {
+  version: 1,
+  tag: 'led_gen/v1',
+  tick_ms: 20,
+  proto: [
+    'led_gen_hal_present',       /* 一帧推给灯：fb 3 字节/灯 */
+    'led_gen_hal_audio_level',   /* 音量/节奏 0..255 */
+    'led_gen_hal_brightness',    /* 全局亮度 0..256 */
+    'led_gen_hal_zone_enable',   /* 分区开关 */
+    'led_gen_hal_millis',        /* 单调毫秒 */
+  ],
+  entry: ['led_gen_apply_mode', 'led_gen_tick'],
+};
+
+function exportHalC(state, opt) {
+  const o = Object.assign({ comment: 'ascii', eol: 'crlf' }, opt || {});
+  const EOL = (o.eol === 'lf') ? '\n' : '\r\n';
+  const zh = o.comment === 'zh';
+  const V = LED_GEN_HAL.version;
+  const raw = String((state && state.meta && state.meta.name) || 'ledboard');
+  const board = zh ? raw : raw.replace(/[^\x20-\x7E]/g, '?');   /* 与 exportEffectsC 一致：ASCII 模式下不许有非 ASCII 字节 */
+  const t = zh ? {
+    brief: '平台适配层（HAL）—— 工具与平台之间唯一的接口（契约 v' + V + '）',
+    note:  '工具拥有参数 / 查表 / 引擎；平台只实现下面这几个函数，并按周期调引擎入口。',
+    ver:   '契约版本：平台侧定义 LED_GEN_HAL_IMPLEMENTS 后，版本不一致直接编译不过',
+    tick:  '引擎被调用的周期（毫秒）',
+    buf:   '帧缓冲布局：fb[灯号 * 3 + 0/1/2] = R/G/B，长度 = 灯总数 * 3',
+    impl:  '下面这些由平台实现（MVsB1 参考实现见 docs/firmware-contract.md 附录 B）',
+    p1: '把一帧推给灯（真 SPI / DMA / WS2812 都在这层）',
+    p2: '音量 / 节奏 0..255（不接音频就 return 0）',
+    p3: '全局亮度 0..256（平台没有这个控制就 return 256）',
+    p4: '分区开关：1 = 亮，0 = 灭（没有分区开关就 return 1）',
+    p5: '单调毫秒（引擎若由平台固定周期驱动，这里 return 0 即可）',
+    call:  '引擎入口：由平台调用 —— 切模式时调一次，每 LED_GEN_TICK_MS 调一次 tick',
+    call2: '引擎由工具生成，平台不需要改它；这两个是平台唯一要调的东西。',
+  } : {
+    brief: 'platform adapter (HAL) -- the only interface between the tool and the platform (contract v' + V + ')',
+    note:  'the tool owns parameters / tables / engine; the platform only implements the functions below and calls the engine entry points.',
+    ver:   'contract version: define LED_GEN_HAL_IMPLEMENTS on the platform side to get a compile-time mismatch error',
+    tick:  'how often the engine is called (milliseconds)',
+    buf:   'frame buffer layout: fb[led * 3 + 0/1/2] = R/G/B, length = led_count * 3',
+    impl:  'the platform implements these (MVsB1 reference implementation: docs/firmware-contract.md appendix B)',
+    p1: 'push one frame to the LEDs (real SPI / DMA / WS2812 lives here)',
+    p2: 'audio level 0..255 (return 0 when there is no audio input)',
+    p3: 'global brightness 0..256 (return 256 when the platform has no such control)',
+    p4: 'per-zone enable: 1 = on, 0 = off (return 1 when the platform has no zone switch)',
+    p5: 'monotonic milliseconds (return 0 when the engine is driven by a fixed timer instead)',
+    call:  'engine entry points: called by the platform -- once on mode change, and every LED_GEN_TICK_MS',
+    call2: 'the engine is generated by the tool (never hand-edit it); these two are all the platform calls.',
+  };
+  const L = [];
+  const push = (...xs) => xs.forEach(x => L.push(x));
+  push('/**',
+       ' *******************************************************************************',
+       ' * @file    led_gen_hal.h',
+       ' * @author  LED layout editor (Automatic generated)',
+       ' * @brief   ' + t.brief,
+       ' * @note    ' + board,
+       ' *          ' + t.note,
+       ' *******************************************************************************',
+       ' */',
+       '#ifndef __LED_GEN_HAL_H__',
+       '#define __LED_GEN_HAL_H__',
+       '',
+       '#include <stdint.h>',
+       '',
+       '/* ' + t.ver + ' */',
+       '#define LED_GEN_CONTRACT_TAG     "' + LED_GEN_HAL.tag + '"',
+       '#define LED_GEN_HAL_VERSION      ' + V,
+       '#if defined(LED_GEN_HAL_IMPLEMENTS) && (LED_GEN_HAL_IMPLEMENTS != LED_GEN_HAL_VERSION)',
+       '#error "led_gen: platform HAL version != tool contract version. Re-export or update the platform side."',
+       '#endif',
+       '',
+       '/* ' + t.tick + ' */',
+       '#define LED_GEN_TICK_MS          ' + LED_GEN_HAL.tick_ms,
+       '',
+       '/* ' + t.buf + ' */',
+       'typedef struct { uint8_t r, g, b; } led_gen_rgb_t;',
+       '',
+       '/* ---- ' + t.impl + ' ---- */',
+       '/* ' + t.p1 + ' */',
+       'void     led_gen_hal_present(const uint8_t *fb, uint16_t led_count);',
+       '/* ' + t.p2 + ' */',
+       'uint8_t  led_gen_hal_audio_level(void);',
+       '/* ' + t.p3 + ' */',
+       'uint16_t led_gen_hal_brightness(void);',
+       '/* ' + t.p4 + ' */',
+       'uint8_t  led_gen_hal_zone_enable(uint8_t zone_idx);',
+       '/* ' + t.p5 + ' */',
+       'uint32_t led_gen_hal_millis(void);',
+       '',
+       '/* ---- ' + t.call + ' ---- */',
+       '/* ' + t.call2 + ' */',
+       'void led_gen_apply_mode(uint8_t mode_idx);',
+       'void led_gen_tick(void);',
+       '',
+       '#endif /* __LED_GEN_HAL_H__ */');
+  return L.join(EOL);
+}
+
 /* 6 处补丁的 before/after 指引（form = paste / both） */
 function buildPatchText(state, o, EOL) {
   const zh = o.comment === 'zh';
@@ -2867,7 +3479,7 @@ function buildPatchText(state, o, EOL) {
   return out.join(EOL);
 }
 
-const CORE = { FW, GEN, deriveZoneDir, zoneReverse, validate, nearestDists, emptyProject, clone,
+const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDists, emptyProject, clone,
                PRESET_SP3122D, projectFromPreset, animNew, animSet, animUpdate,
                zoneScaled, chaseSingle, chaseDual, fillAnim, renderZoneMask,
                colorUpdate, simInit, instApplyPreset, simApplyEffect, simApplyMode,
@@ -2881,6 +3493,7 @@ const CORE = { FW, GEN, deriveZoneDir, zoneReverse, validate, nearestDists, empt
                effectPreset, simApplyEffect,
                EFFECT_SLOTS, defaultEffects, newCustomEffect, effectAtSlot,
                layerToCRow, layerNums, modesPlan, exportEffectsC, buildPatchText, mangleComment,
+               LED_GEN_HAL, exportHalC,
                PATCH_BANNER2, patchLines, genImpl, GEN_COMMENTS,
                LED_GEN_IMPL, ANIM_TOK, COLOR_TOK };
 </script>
@@ -3076,11 +3689,17 @@ let helpTouched = false;   /* 帮助页进过没有：只第一次进来时回�
 let curPane = 'zones';     /* 当前页签：校验页没露面时不白算 validate（H5） */
 let drag = null;
 let spaceDown = false;     /* 空格按住 = 平移 */
+let shapeTool = 'rrect';   /* 形状选择框里挑中的那个（拖出来的新形状用它） */
+let shDraft = null;        /* 画布上正拖着的那一下：{kind:'box'|'resize'|'move', …} */
+let shPickStep = 0;        /* 定头尾：0=不做，1=等点头，2=等点尾 */
+let shAdding = false;      /* 画形状模式的来意：true=点形状选择框进来「添加」（点空白=新建），
+                              false=点形状进来「编辑」（点空白=释放回到选择模式） */
 
 const MODES = [
   ['select', '选择/编辑', 'V'],
   ['place',  '放置编号', 'P'],
   ['erase',  '擦除',     'E'],
+  ['shape',  '画形状',   'S'],
 ];
 
 /* ---------- 撤销 ----------
@@ -3099,7 +3718,7 @@ function undo() { if (!undoStack.length) return; redoStack.push(JSON.stringify(s
 function redo() { if (!redoStack.length) return; undoStack.push(JSON.stringify(state)); applySnapshot(redoStack.pop()); }
 
 function afterChange() {
-  normalize(); render(); renderZoneList(); renderIssues(); renderDirDiag(); syncZoneEdit();
+  normalize(); render(); renderZoneList(); renderIssues(); renderDirDiag(); syncZoneEdit(); syncShapeEdit();
   syncMeta();
   $('#headInfo').textContent = `${state.meta.name} · ${state.leds.length}/${state.meta.ledCount} 灯 · RING_SIZE ${state.meta.ringSize}`;
   saveStore();
@@ -3110,6 +3729,34 @@ function afterChange() {
 function normalize() {
   state.leds.forEach(l => { l.x = Math.round(l.x); l.y = Math.round(l.y); });
   state.leds.sort((a, b) => a.n - b.n);
+  normalizeShapes();
+}
+
+/* 形状：老工程（没有 shapes 字段）补空数组，坏字段就地纠正。
+ * afterChange / 载入 / 撤销都会经过这里，所以必须幂等。 */
+function normalizeShapes() {
+  const list = Array.isArray(state.shapes) ? state.shapes : (state.shapes = []);
+  list.forEach((sh, i) => {
+    if (!sh || typeof sh !== 'object') { list[i] = SHAPE.blank({ id: 's' + i }); return; }
+    if (!sh.id) sh.id = 's' + i;
+    if (!Array.isArray(sh.pts) || sh.pts.length < 2) sh.pts = SHAPE.blank().pts;
+    if (SHAPE.DISTS.indexOf(sh.dist) < 0) sh.dist = 'even';
+    if (SHAPE.KINDS.indexOf(sh.kind) < 0) sh.kind = 'rect';
+    if (sh.kind === 'line') sh.closed = false;                  /* 直线是开环的，闭环没意义 */
+    sh.rc     = Math.max(0, sh.rc == null ? 30 : (+sh.rc || 0));
+    if (sh.ry == null || !(+sh.ry > 0)) delete sh.ry; else sh.ry = +sh.ry;   /* 纵半轴：没有 = 正圆 */
+    sh.laid   = !!sh.laid;                                      /* 这形状描述的是不是板上已铺出来的灯 */
+    sh.count  = Math.max(1, Math.round(+sh.count || 1));
+    sh.first  = Math.max(0, Math.round(+sh.first || 0));
+    sh.entry  = Math.max(0, +sh.entry || 0);
+    sh.pitch  = Math.max(1, +sh.pitch || GEN.CELL);
+    sh.r      = Math.max(1, +sh.r || 160);
+    if (sh.dir !== 'ccw') sh.dir = 'cw';
+    if (sh.corner !== 'out') sh.corner = 'in';
+    sh.closed = sh.closed !== false;
+    if (typeof sh.zone !== 'string' || !state.zones.some(z => z.id === sh.zone)) sh.zone = null;
+  });
+  return list;
 }
 
 /* ---------- 坐标 ---------- */
@@ -3324,6 +3971,96 @@ function render() {
   const sim       = S();
   const showLabel = showNum && view.zoom > 0.45;
 
+  /* 形状（编辑期参考层）：
+   *   没铺过的形状 → 只画「沿边框等间距排开」的灯预览（**不带编号**）+ 轮廓
+   *   铺过的形状 → 轮廓 + 头(实心点)/尾(空心圈) + 编号（跟真实灯位重合）
+   *   画形状模式 + 当前形状 → 实线轮廓 + 8 个手柄小方块（好拖着改大小） */
+  const shapeCur = mode === 'shape' ? curShape() : null;
+  for (const sh of (state.shapes || [])) {
+    const sp = SHAPE.ptsOf(sh);
+    if (sp.length < 2) continue;
+    const isCur = sh === shapeCur;
+    const z = state.zones.find(k => k.id === sh.zone);
+    const col = z ? z.color : TC.accent;
+    ctx.save();
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = isCur ? 1 : (z ? 0.72 : 0.45);
+    ctx.lineWidth = (isCur ? 2 : 1.5) / view.zoom;
+    if (!isCur) ctx.setLineDash([6 / view.zoom, 4 / view.zoom]);
+    ctx.beginPath();
+    sp.forEach((q, i) => { i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
+    if (sh.closed) ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+
+    const pl = SHAPE.plan(sh, GEN.CELL);
+    /* 灯预览：没铺过的形状（或正在画的那个）—— 只画点，不标编号（「就只有分区的总颗数」） */
+    if (!sh.laid || isCur) {
+      ctx.fillStyle = col;
+      ctx.globalAlpha = sh.laid ? 0.85 : 0.95;
+      for (const p of pl.pts) { ctx.beginPath(); ctx.arc(p.x, p.y, GEN.CELL * 0.3, 0, Math.PI * 2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+    if (sh.laid && pl.pts.length) {                    /* 铺过才标头/尾 + 编号 */
+      const head = pl.pts[0], tail = pl.pts[pl.pts.length - 1];
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(head.x, head.y, GEN.CELL * 0.22, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 2 / view.zoom;
+      ctx.beginPath(); ctx.arc(tail.x, tail.y, GEN.CELL * 0.32, 0, Math.PI * 2); ctx.stroke();
+      if (view.zoom > 0.45) {
+        /* 「头 N / 尾 M」放在小圆点的侧边、形状外侧（沿该点法向往外偏），别压在灯点上碍事 */
+        const outward = p => {
+          const near = SHAPE.arcNear(sh, [p.x, p.y], 1e9);
+          const t = near ? SHAPE.tangent(sh, near.s) : [1, 0];
+          let nx = -t[1], ny = t[0];
+          const b = SHAPE.boxOf(sh);
+          const rx = p.x - (b.x0 + b.x1) / 2, ry = p.y - (b.y0 + b.y1) / 2;
+          if (nx * rx + ny * ry < 0) { nx = -nx; ny = -ny; }
+          return [nx, ny];
+        };
+        const [hx, hy] = outward(head), [tx, ty] = outward(tail);
+        ctx.fillStyle = TC.label; ctx.textBaseline = 'middle';
+        ctx.font = `${Math.round(11 / view.zoom)}px "Microsoft YaHei",monospace`;
+        ctx.textAlign = hx >= 0 ? 'left' : 'right';
+        ctx.fillText('头 ' + head.n, head.x + hx * GEN.CELL * 0.5, head.y + hy * GEN.CELL * 0.5);
+        ctx.textAlign = tx >= 0 ? 'left' : 'right';
+        ctx.fillText('尾 ' + tail.n, tail.x + tx * GEN.CELL * 0.55, tail.y + ty * GEN.CELL * 0.55);
+      }
+    }
+    ctx.restore();
+  }
+
+  /* 正在拖的那个新形状：虚线框 + 灯预览 + 一行「N 颗 · 灯距 x px」（排不开就变红提示） */
+  const draftSh = (mode === 'shape') ? shDraftShape() : null;
+  if (draftSh) {
+    const sp = SHAPE.ptsOf(draftSh);
+    const z = state.zones.find(k => k.id === draftSh.zone);
+    const col = z ? z.color : TC.accent;
+    ctx.save();
+    ctx.strokeStyle = col; ctx.lineWidth = 2 / view.zoom;
+    ctx.setLineDash([5 / view.zoom, 3 / view.zoom]);
+    ctx.beginPath();
+    sp.forEach((q, i) => { i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
+    if (draftSh.closed) ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const pl = SHAPE.plan(draftSh, GEN.CELL);
+    const info = SHAPE.info(draftSh, GEN.CELL, pl);
+    ctx.fillStyle = col; ctx.globalAlpha = 0.95;
+    for (const p of pl.pts) { ctx.beginPath(); ctx.arc(p.x, p.y, GEN.CELL * 0.3, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    if (view.zoom > 0.35) {
+      const b = SHAPE.boxOf(draftSh);
+      const over = info.spacing.min < GEN.CELL - 0.5;
+      ctx.font = `${Math.round(11 / view.zoom)}px "Microsoft YaHei",monospace`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillStyle = over ? '#ff5252' : TC.label;
+      ctx.fillText(`${pl.count} 颗 · 灯距 ${info.spacing.min > 0 ? info.spacing.min.toFixed(1) : '—'}px` +
+                   (over ? '（排不开，会重叠）' : ''), b.x0, b.y0 - 6 / view.zoom);
+    }
+    ctx.restore();
+  }
+
   /* 分区方向箭头 */
   state.zones.forEach(z => {
     const a = state.leds.find(l => l.n === z.start);
@@ -3411,6 +4148,19 @@ function render() {
     }
   }
 
+  /* 手柄（当前选中的形状）：画在所有灯之上，别被灯点盖住 */
+  if (shapeCur) {
+    const sh = shapeCur;
+    ctx.save();
+    for (const hh of shHandles(sh)) {
+      const hx = hh[1], hy = hh[2], s = 4 / view.zoom;
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = TC.accent; ctx.lineWidth = 1.5 / view.zoom;
+      ctx.fillRect(hx - s, hy - s, s * 2, s * 2);
+      ctx.strokeRect(hx - s, hy - s, s * 2, s * 2);
+    }
+    ctx.restore();
+  }
+
   /* 框选 */
   if (drag && drag.kind === 'marquee') {
     ctx.strokeStyle = TC.accent; ctx.lineWidth = 1 / view.zoom;
@@ -3461,6 +4211,7 @@ cv.addEventListener('pointerdown', e => {
     return;
   }
   if (e.button !== 0) return;
+  if (mode === 'shape') { shDown(wx, wy); return; }
   if (mode === 'place') {
     snapshot();
     if (L) {                                  /* 把选中编号挪到此格 */
@@ -3480,6 +4231,13 @@ cv.addEventListener('pointerdown', e => {
     return;
   }
 
+  /* select：点形状（轮廓或包围盒内，无论已铺与否）= 选中并进「画形状」编辑态。
+   * 形状优先于选灯 —— 想微调单个灯用框选或「擦除/放置」模式。 */
+  if (mode === 'select') {
+    const si = hitShapeAny(wx, wy);
+    if (si >= 0) { enterShapeEdit(si); return; }
+  }
+
   /* select */
   if (!L) {
     if (!e.shiftKey) sel.clear();
@@ -3494,9 +4252,10 @@ cv.addEventListener('pointerdown', e => {
 });
 
 cv.addEventListener('pointermove', e => {
-  if (!drag) return;
   const r = cv.getBoundingClientRect();
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
+  if (shDraft) { shDragMove(wx, wy); return; }                  /* 画形状：拖框 / 拖手柄 / 挪形状 */
+  if (!drag) { if (mode === 'shape') shHover(wx, wy); return; }
   if (drag.kind === 'pan') { view.panX = drag.px + (e.clientX - drag.sx); view.panY = drag.py + (e.clientY - drag.sy); render(); return; }
   if (drag.kind === 'marquee') { drag.x1 = wx; drag.y1 = wy; render(); return; }
   if (drag.kind === 'move') {
@@ -3513,6 +4272,7 @@ cv.addEventListener('pointermove', e => {
 });
 
 cv.addEventListener('pointerup', e => {
+  if (shDraft) { shDrop(); return; }
   if (!drag) return;
   if (drag.kind === 'marquee') {
     const x0 = Math.min(drag.x0, drag.x1), x1 = Math.max(drag.x0, drag.x1);
@@ -3541,6 +4301,18 @@ cv.addEventListener('wheel', e => {
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && exportIsOpen()) { closeExport(); e.preventDefault(); return; }   /* Esc 关导出窗口 */
   if (/input|textarea|select/i.test(e.target.tagName)) return;
+  if (e.key === 'Escape') {
+    if (shDraft) {
+      const wasNew = shDraft.kind === 'box';
+      shDraft = null; shPickStep = 0;
+      if (!wasNew) undo(); else render();
+      syncShapeTool();
+      status(wasNew ? '已取消这次拖画' : '已取消这次拖动（恢复原样）', 'ok');
+      return;
+    }
+    if (shPickStep) { shPickStep = 0; render(); syncShapeTool(); status('已取消定头尾（形状没动）', 'ok'); return; }
+    if (mode === 'shape') { shPickStep = 0; setMode('select'); status('已退出形状编辑（Esc）', 'ok'); return; }
+  }
   if (e.code === 'Space') { spaceDown = true; cv.style.cursor = 'grab'; e.preventDefault(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
@@ -3551,6 +4323,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'v' || e.key === 'V') { setMode('select'); return; }
   if (e.key === 'p' || e.key === 'P') { setMode('place');  return; }
   if (e.key === 'e' || e.key === 'E') { setMode('erase');  return; }
+  if (e.key === 's' || e.key === 'S') { setMode('shape');  return; }
   /* 「生成」页已并入「分区」页（批 5-A：板级参数 / 铺灯 / 底图都搬到那一页了）——
      原来指向「生成」页的 g / t 两个快捷键都改指到「分区」页，不再有死键 */
   if (e.key === 'g' || e.key === 'G' || e.key === 't' || e.key === 'T') { tab('zones');  return; }
@@ -3582,7 +4355,9 @@ function setMode(m) {
   cv.style.cursor = m === 'select' ? 'default' : 'crosshair';
   status({ select: '选择/编辑：拖动改位置；Shift 多选；方向键微调；Del 删除',
            place: '放置编号：点空白放下一号；点已有灯把当前选中编号挪过去',
-           erase: '擦除：点击删除该编号' }[m]);
+           erase: '擦除：点击删除该编号',
+           shape: '画形状：拖空白 = 新建；拖形状里 = 挪动；拖小方块 = 改大小；在形状上点两下 = 定头尾' }[m]);
+  if (typeof syncShapeTool === 'function') syncShapeTool();
 }
 function buildLeft() {
   const box = $('#left');
@@ -3681,7 +4456,13 @@ function renderZoneList() {
       <td>${z.enabled ? '' : '<s>' }${z.name}${z.enabled ? '' : '</s>'}</td>
       <td class="num">${z.start}</td><td class="num">${z.count}</td>
       <td class="num">${d === 'cw' ? '顺' : d === 'ccw' ? '逆' : '—'}</td>`;
-    tr.onclick = () => { selZone = i; renderZoneList(); syncZoneEdit(); highlightZone(z); };
+    tr.onclick = () => {
+      selZone = i;
+      /* 点分区 → 顺手把它关联的形状也选上（改了形状点了分区，不用再回上面找） */
+      const si = shapeList().findIndex(s => s.zone === z.id);
+      if (si >= 0) selShape = si;
+      renderZoneList(); syncZoneEdit(); syncShapeEdit(); highlightZone(z);
+    };
     t.appendChild(tr);
   });
 }
@@ -4772,6 +5553,16 @@ function doExport() {
     nominal: $('#eNom').value,
   });
 }
+/* ---------- HAL 契约导出 ---------- */
+function doHalExport() {
+  $('#hOut').value = exportHalC(state, { comment: $('#hCmt').value, eol: $('#hEol').value });
+  const warn = [];
+  warn.push('这是「工具 → 平台」唯一的接口面（契约 v' + LED_GEN_HAL.version + '）：平台实现那 ' +
+            LED_GEN_HAL.proto.length + ' 个函数、按周期调引擎入口即可 —— 不改工具生成的引擎。');
+  warn.push('平台侧定义 LED_GEN_HAL_IMPLEMENTS = ' + LED_GEN_HAL.version + '：与工具契约版本不一致时直接编译不过。');
+  warn.push('注意：当前 led_effects_gen.h 的入口仍是 led_gen_tick(ring_t *) 那套；无参入口随契约第 2 步「引擎自洽化」一起落地 —— 见 docs/firmware-contract.md 第五节。');
+  $('#hWarn').innerHTML = warn.map(w => '· ' + w).join('<br>');
+}
 /* ---------- 导出窗口（独立弹窗） ----------
  * 导出内容不再挤在右侧栏那张窄面板里（两个 textarea 一撑就把界面占满）。
  * 现在是屏幕中央的一个窗口：标题栏可拖动、右下角可拉伸、Esc 关闭；
@@ -4799,8 +5590,15 @@ const EXPORT_KINDS = {
     gate: false,                      /* 备份不拦：工程越有问题越该先存一份（E1/C3） */
     build: () => { $('#jOut').value = buildJsonText(); },
   },
+  hal: {
+    tab: '#expTabHal', opt: '#optHal', out: '#hOut', warn: '#hWarn',
+    title: '导出 HAL 接口', sub: 'led_gen_hal.h → 平台只实现这几个函数（工具拥有参数 / 查表 / 引擎）',
+    file: () => 'led_gen_hal.h', mime: 'text/plain;charset=utf-8',
+    gate: false,                      /* 接口声明与工程数据无关：工程有错也照导，方便先给平台侧定接口 */
+    build: () => doHalExport(),
+  },
 };
-const EXPORT_ORDER = ['fx', 'table', 'json'];
+const EXPORT_ORDER = ['fx', 'table', 'hal', 'json'];
 let expKind = 'fx';                     /* 窗口里当前看的是哪一种 */
 let expForce = false;                   /* 红条上点过「仍要导出」= 这一次放行（E1/C3） */
 function exportIsOpen() {
@@ -5092,6 +5890,7 @@ function boot() {
   store = r.store;
   if (!store.current || !store.projects.some(p => p.id === store.current)) store.current = store.projects[0].id;
   buildLeft(); setMode('select');
+  buildShapeGallery();
   buildAnimPanel();
   buildFxPanel();
   buildModePanel();
@@ -5296,16 +6095,228 @@ document.querySelectorAll('#helpDoc [data-go]').forEach(b => b.onclick = () => {
 $('#zName').oninput  = e => { const z = state.zones[selZone]; if (z) { z.name = e.target.value; renderZoneList(); saveStore(); } };
 $('#zLatin').oninput = e => { const z = state.zones[selZone]; if (z) { z.latin = e.target.value.replace(/[^\x20-\x7E]/g, ''); saveStore(); } };
 $('#zStart').oninput = e => { const z = state.zones[selZone]; if (z) { z.start = Math.max(0, +e.target.value || 0); afterChange(); } };
-$('#zCount').oninput = e => { const z = state.zones[selZone]; if (z) { z.count = Math.max(1, +e.target.value || 1); afterChange(); } };
+$('#zCount').oninput = e => {
+  const z = state.zones[selZone];
+  if (!z) return;
+  z.count = Math.max(1, +e.target.value || 1);
+  resyncZoneCount(z);
+  afterChange();
+};
+/* 分区「颗数」变了：跟着这个分区的形状同步颗数，并重铺已铺过的（自动增删灯）。
+ * 只在号段还落在这块板内（start+count ≤ ledCount）时才动灯 —— 填成 999 那种超界情况
+ * 交给校验报 V9，别自动铺一堆越界灯、也别误删别的分区的灯。 */
+function resyncZoneCount(z) {
+  if (!z) return;
+  const inBounds = z.start + z.count <= state.meta.ledCount;
+  if (!inBounds) return;
+  const laid = [];
+  const oldNums = new Set();
+  for (const sh of shapeList()) {
+    if (sh.zone !== z.id) continue;
+    if (sh.laid) {
+      for (let n = sh.first; n < sh.first + Math.max(1, Math.round(+sh.count || 1)); n++) oldNums.add(n);
+      laid.push(sh);
+    }
+    sh.count = Math.max(1, z.count);
+  }
+  if (!laid.length) return;
+  /* 只删旧号段的灯，再把新颗数铺进去（不碰别的分区） */
+  state.leds = state.leds.filter(l => !oldNums.has(l.n));
+  for (const sh of laid) {
+    const pl = SHAPE.plan(sh, GEN.CELL);
+    const byN = new Map(state.leds.map(l => [l.n, l]));
+    pl.pts.forEach(p => byN.set(p.n, { n: p.n, x: p.x, y: p.y }));
+    state.leds = [...byN.values()];
+    sh.laid = true;
+  }
+}
 $('#zColor').oninput = e => { const z = state.zones[selZone]; if (z) { z.color = e.target.value; render(); renderZoneList(); saveStore(); } };
 $('#zEn').onchange   = e => { const z = state.zones[selZone]; if (z) { z.enabled = e.target.checked; afterChange(); } };
 $('#btnDelLed').onclick = () => { if (sel.size) { snapshot(); state.leds = state.leds.filter(l => !sel.has(l.n)); sel.clear(); afterChange(); } };
 
-/* 生成器 */
-function genParams() {
-  return { x0: +$('#gX0').value, y0: +$('#gY0').value, W: +$('#gW').value, H: +$('#gH').value,
-           dir: $('#gDir').value, k: +$('#gK').value, first: state.zones[selZone] ? state.zones[selZone].start : 0,
-           count: state.zones[selZone] ? state.zones[selZone].count : 8 };
+/* ---------- 铺灯 · 形状（面板 ⇄ SHAPE 引擎） ---------- */
+let selShape = 0;
+function shapeList() { return Array.isArray(state.shapes) ? state.shapes : (state.shapes = []); }
+function curShape() { return shapeList()[selShape] || null; }
+/* "20,20; 220,20; …" ⇄ 顶点表（px） */
+function parsePts(txt) {
+  return String(txt == null ? '' : txt).split(';').map(s => s.trim()).filter(Boolean)
+    .map(s => { const a = s.split(/[,\s]+/).map(Number); return [a[0] || 0, a[1] || 0]; });
+}
+function ptsText(sh) { return SHAPE.ptsOf(sh).map(p => Math.round(p[0]) + ',' + Math.round(p[1])).join('; '); }
+
+/* 面板 → 形状（几何按类型分别读，其余字段直读）。
+ * **空输入框一律「不改」**：刚切类型时那几行还没填值，不能因为读到一个空串就把形状挪到 0。 */
+function readShapePanel(sh) {
+  if (!sh) return null;
+  const c = GEN.CELL;
+  const num = (id, cur, min) => {
+    const v = $('#' + id).value;
+    if (v === '' || v === null || v === undefined) return cur;
+    const n = +v;
+    if (!isFinite(n)) return cur;
+    return (min !== undefined && n < min) ? min : n;
+  };
+  sh.kind   = $('#shKind').value || sh.kind;
+  sh.zone   = $('#shZone').value || null;
+  sh.dist   = $('#shDist').value || sh.dist;
+  sh.dir    = $('#shDir').value || sh.dir;
+  sh.closed = $('#shClosed').checked;
+  sh.corner = $('#shCorner').value || sh.corner;
+  sh.sides  = $('#shSides').value || sh.sides;
+  sh.pitch  = num('shPitch', sh.pitch, 1);
+  sh.entry  = num('shEntry', sh.entry, 0);
+  sh.first  = Math.round(num('shFirst', sh.first, 0));
+  sh.count  = Math.round(num('shCount', sh.count, 1));
+  if (sh.kind === 'circle') {
+    sh.cx = num('shCx', sh.cx); sh.cy = num('shCy', sh.cy);
+    sh.r = num('shR', sh.r, 1);
+    const rv = $('#shRy').value;                     /* 纵半轴：留空 = 正圆（拖成椭圆时才有） */
+    if (rv === '' || rv === null || rv === undefined) delete sh.ry;
+    else sh.ry = Math.max(1, +rv || sh.r);
+    sh.a0 = num('shA0', sh.a0);
+    sh.sweep = Math.min(360, num('shSweep', sh.sweep, 1));
+  } else if (sh.kind === 'poly' || sh.kind === 'line') {
+    const pts = parsePts($('#shPts').value);
+    if (pts.length >= 2) sh.pts = sh.kind === 'line' ? pts.slice(0, 2) : pts;
+    if (sh.kind === 'line') sh.closed = false;
+  } else {
+    /* 矩形 / 圆角矩形：四格都填了才重算顶点，否则保留原几何（fillShapeFields 下一步会把空格补上） */
+    const raw = ['shX0', 'shY0', 'shW', 'shH'].map(id => $('#' + id).value);
+    if (raw.every(v => v !== '' && v !== undefined)) {
+      const q = SHAPE.rectPts(+raw[0] || 0, +raw[1] || 0,
+                              Math.max(1, +raw[2] || 1), Math.max(1, +raw[3] || 1), c);
+      const xs = q.map(p => p[0]), ys = q.map(p => p[1]);
+      const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+      if (sh.kind === 'rrect') {
+        sh.rc = num('shRc', sh.rc, 0);
+        sh.pts = SHAPE.roundPts(x0, y0, x1, y1, sh.rc, 5);
+      } else {
+        sh.pts = q;
+      }
+    }
+  }
+  return sh;
+}
+
+/* 形状 → 面板（列表 / 分区下拉 / 各输入框 / 诊断行） */
+function syncShapeEdit() {
+  const list = shapeList(), sh = curShape();
+  if (selShape >= list.length) selShape = Math.max(0, list.length - 1);
+  const sel = $('#shList');
+  if (sel) {
+    sel.innerHTML = list.map((s, i) => {
+      const z = state.zones.find(k => k.id === s.zone);
+      return `<option value="${i}">${i + 1}. ${SHAPE.KIND_NAMES[s.kind] || s.kind}`
+        + `${z ? ' · ' + z.name : ' · 参考线'}</option>`;
+    }).join('');
+    sel.value = list.length ? String(selShape) : '';
+  }
+  const zsel = $('#shZone');
+  if (zsel) {
+    zsel.innerHTML = '<option value="">(只当参考线)</option>' +
+      state.zones.map(z => `<option value="${z.id}">${z.name}（${z.start}..${z.start + z.count - 1}）</option>`).join('');
+  }
+  const on = !!sh;
+  ['shZone', 'shKind', 'shX0', 'shY0', 'shW', 'shH', 'shRc', 'shCx', 'shCy', 'shR', 'shRy',
+   'shA0', 'shSweep', 'shPts', 'shDist', 'shSides', 'shPitch', 'shCorner', 'shFirst', 'shCount',
+   'shDir', 'shClosed', 'shEntry', 'shApply', 'shPick', 'shFlip', 'shKeep', 'shDel', 'shFromZone']
+    .forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
+  shapeRows(sh);
+  syncShapeTool();
+  if (!on) {
+    $('#shInfo').innerHTML = '还没有形状 —— 在上面挑一个形状，到画布上拖出来；或点「新增空白形状」/「由分区反推」。';
+    return;
+  }
+  fillShapeFields(sh, false);
+  $('#shInfo').innerHTML = shapeInfoText(sh);
+}
+function Round2(v) { return Math.round(v * 100) / 100; }
+
+/* 形状 → 各输入框。onlyEmpty=true 时**只填空着的**：
+ * 面板上刚切了形状类型 / 分布，新露出来的那几行是空的，这时把它们补上，
+ * 但正在打字的那一格绝不覆盖（否则光标内容会被自己改写）。 */
+function fillShapeFields(sh, onlyEmpty) {
+  const c = GEN.CELL;
+  const set = (id, v) => {
+    const el = $('#' + id);
+    if (!el) return;
+    if (onlyEmpty && el.value !== '' && el.value !== undefined) return;
+    el.value = v;
+  };
+  const box = SHAPE.boxOf(sh);
+  set('shKind', sh.kind);
+  set('shZone', sh.zone || '');
+  set('shDist', sh.dist);
+  set('shDir', sh.dir);
+  set('shCorner', sh.corner === 'out' ? 'out' : 'in');
+  set('shSides', SHAPE.sidesOf(sh, Math.max(1, SHAPE.segs(sh).length)).join(','));
+  set('shPitch', sh.pitch);
+  set('shEntry', Math.round((+sh.entry || 0) * 10) / 10);
+  set('shFirst', sh.first);
+  set('shCount', SHAPE.count(sh));
+  set('shRc', Math.max(0, +sh.rc || 0));
+  const cl = $('#shClosed'); if (cl) cl.checked = sh.closed !== false;
+  if (sh.kind === 'circle') {
+    set('shCx', Round2(sh.cx)); set('shCy', Round2(sh.cy)); set('shR', Round2(sh.r));
+    set('shA0', sh.a0); set('shSweep', sh.sweep);
+    /* 纵半轴：正圆就得是空的（切类型时别让上一次填的值留下来） */
+    if (!onlyEmpty) { const ry = $('#shRy'); if (ry) ry.value = (sh.ry == null ? '' : Round2(sh.ry)); }
+    else set('shRy', sh.ry == null ? '' : Round2(sh.ry));
+  } else if (sh.kind === 'poly' || sh.kind === 'line') {
+    set('shPts', ptsText(sh));
+  } else {
+    set('shX0', Round2((box.x0 - c / 2) / c));
+    set('shY0', Round2((box.y0 - c / 2) / c));
+    set('shW', Round2((box.x1 - box.x0) / c + 1));
+    set('shH', Round2((box.y1 - box.y0) / c + 1));
+  }
+}
+
+/* 按类型 / 分布只留该露的几行（几何字段与分布参数各自成组）。
+ * 左上格 / 宽高 / 圆角px / 起点偏移 一律不显示 —— 几何在画布上拖出来、用四角四边小方块改，
+ * 起点在形状上点两下（头/尾）定；圆芯/半径/张角、顶点 px、闭环也都不显示 ——
+ * 面板只留真正要手填的：分区 / 类型 / 起始编号 / 颗数 / 方向。 */
+function shapeRows(sh) {
+  $('#shRectRow').classList.add('hide');
+  $('#shSizeRow').classList.add('hide');
+  $('#shRcRow').classList.add('hide');
+  $('#shEntryRow').classList.add('hide');
+  $('#shDistRow').classList.add('hide');       /* 分布固定「等分弧长」，不再显示 */
+  $('#shSidesRow').classList.add('hide');
+  $('#shPitchRow').classList.add('hide');
+  $('#shCornerRow').classList.add('hide');
+  $('#shCircleRow').classList.add('hide');     /* 几何在画布上拖，面板不再显示这些参数 */
+  $('#shRyRow').classList.add('hide');
+  $('#shArcRow').classList.add('hide');
+  $('#shPtsRow').classList.add('hide');
+  $('#shClosedRow').classList.add('hide');
+}
+
+/* 诊断行：SHAPE.info 的几条 + 与分区号段的对照 */
+function shapeInfoText(sh) {
+  if (!sh) return '还没有形状 —— 在上面挑一个形状到画布上拖出来，或点「新增空白形状」/「由分区反推」。';
+  const info = SHAPE.info(sh, GEN.CELL);
+  const out = info.notes.slice();
+  /* 关键反馈：灯距 < 灯径（一格）时这一段的灯会重叠 —— 把形状拉大（或调小颗数）直到排开 */
+  if (info.spacing.min < GEN.CELL - 0.5)
+    out.push(`排不开：灯距最小 ${info.spacing.min.toFixed(1)}px < 灯径 ${GEN.CELL}px，灯会重叠 —— ` +
+             `把形状拉大（或把颗数调小）直到 ≥ ${GEN.CELL}px`);
+  else if (info.spacing.min > 0)
+    out.push(`排得开：灯距最小 ${info.spacing.min.toFixed(1)}px ≥ 灯径 ${GEN.CELL}px，不会重叠 ✓`);
+  const z = state.zones.find(k => k.id === sh.zone);
+  if (z) {
+    const hit = ledsInRange(z);
+    out.push(`分区「${z.name}」号段 ${z.start}..${z.start + z.count - 1}：` +
+      (z.count === info.count ? '颗数一致 ✓' : `颗数不一致（分区 ${z.count} / 形状 ${info.count}）`) +
+      (z.start === sh.first ? '，头一致 ✓' : `，头不一致（分区 ${z.start}）`));
+    if (hit) out.push(`该号段上已有 ${hit} 颗灯，铺灯会先删掉再重铺（可撤销）`);
+  } else {
+    out.push('没有归属分区：只画形状当参考线，不铺灯。');
+  }
+  const g = SHAPE.asCells(sh, GEN.CELL);
+  if (g) out.push(`格点档识别为 W=${g.W} H=${g.H}（左上格 ${g.x0},${g.y0}）`);
+  return out.map(t => '· ' + t).join('<br>');
 }
 /* G1：铺灯是「先删掉这个号段上已有的灯、再重铺」—— 手工微调过的编号会被覆盖。
  * 数一下该号段上现存的灯，先问一句（有快照，能撤销）。 */
@@ -5320,53 +6331,403 @@ function confirmOverwrite(z) {
   return confirm(`「${z.name}」号段 ${z.start}..${z.start + z.count - 1} 上已经有 ${hit} 颗灯，` +
                  `铺灯会先删掉它们再重铺。\n继续？（可以撤销）`);
 }
-function genInfo() {
-  const p = genParams(), P = GEN.rectPath(p.W, p.H, p.dir).length;
-  const z = state.zones[selZone], hit = ledsInRange(z);
-  $('#gInfo').innerHTML = `周长 ${P} 格，本分区 ${p.count} 颗` +
-    (p.count === P ? '（正好一圈）' : p.count < P ? `（不足一圈，空 ${P - p.count} 格）` : `（<span style="color:var(--err)">超过一圈 ${p.count - P} 格</span>）`) +
-    (hit ? `　<span style="color:var(--warn)">该号段已有 ${hit} 颗，铺灯会覆盖</span>` : '');
+/* 面板改一点：形状跟着变、画布跟着画、顺手存盘（saveStore 自带 400ms 合并）。
+ * 这里**不回填**几何输入框 —— 否则正在打字的内容会被自己覆盖。 */
+function shapeTouched() {
+  const sh = curShape();
+  if (!sh) return;
+  const kindNow = $('#shKind').value || sh.kind;
+  if (kindNow !== sh.kind) {                       /* 换类型：外框不动地换（跟形状选择框点一下同路），别读还没填的新字段 */
+    snapshot();
+    shSetKind(sh, kindNow);
+    if (SHAPE.TOOLS.indexOf(kindNow) >= 0) shapeTool = kindNow;   /* 高亮跟着切到这种 */
+    /* 已铺的形状换类型后灯要跟着重铺，别等下一次拖动才重置 */
+    if (!shRelay(sh, '换成了' + (SHAPE.KIND_NAMES[kindNow] || kindNow)))
+      status('形状已换成「' + (SHAPE.KIND_NAMES[kindNow] || kindNow) + '」', 'ok');
+    afterChange();
+    return;
+  }
+  readShapePanel(sh);
+  shSyncPanel(true);
+  render(); saveStore();
 }
-['#gX0','#gY0','#gW','#gH','#gDir','#gK'].forEach(s => $(s).oninput = genInfo);
-$('#gApply').onclick = () => {
-  const z = state.zones[selZone]; if (!z) { status('请先在「分区」里选中一个分区', 'warn'); return; }
-  const p = genParams();
-  p.first = z.start; p.count = z.count;
-  const P = GEN.rectPath(p.W, p.H, p.dir).length;
-  if (p.count > P) { status(`本分区 ${p.count} 颗 > 周长 ${P} 格，放不下`, 'err'); return; }
-  if (!confirmOverwrite(z)) { status('已取消：这个样子没动', 'warn'); return; }
-  snapshot();
-  const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
-  state.leds = state.leds.filter(l => !nums.has(l.n));
-  const leds = GEN.rectLeds(p, GEN.CELL);
-  state.leds = state.leds.concat(leds);
-  const byN = new Map(state.leds.map(l => [l.n, l])); state.leds = [...byN.values()];
+['#shKind', '#shZone', '#shDist', '#shDir', '#shClosed', '#shCorner', '#shSides', '#shPitch', '#shEntry',
+ '#shFirst', '#shCount', '#shX0', '#shY0', '#shW', '#shH', '#shRc',
+ '#shCx', '#shCy', '#shR', '#shRy', '#shA0', '#shSweep', '#shPts']
+  .forEach(s => { const el = $(s); if (el) el.oninput = shapeTouched; });
+$('#shList').onchange = () => { selShape = +$('#shList').value || 0; syncShapeEdit(); render(); };
+
+/* 形状选择框：高亮永远跟着 `shapeTool`（点哪个亮哪个）。
+ * `shapeTool` 由三处显式更新：① gallery 点击；② enterShapeEdit 选中形状时同步到该形状类型；
+ * ③ 面板「形状类型」下拉转换时同步。别在这里自动改 shapeTool，否则会覆盖用户刚点的类型。 */
+function syncShapeTool() {
+  if (!state) return;                              /* boot 早期 setMode 时 state 还没就位 */
+  const sh = curShape();
+  document.querySelectorAll('#shGallery button').forEach(b => {
+    const k = (b.dataset && b.dataset.kind) || '';
+    if (b.classList && b.classList.toggle) b.classList.toggle('on', k === shapeTool);
+  });
+  const el = $('#shTool');
+  if (!el) return;
+  let t;
+  if (sh && shPickStep === 1) t = '现在：在形状上点一下定「<b>头</b>」（点哪边就从哪边开始）';
+  else if (sh && shPickStep === 2) t = '现在：再点一下定「<b>尾</b>」（编号顺着短的那边走）';
+  else {
+    const nm = SHAPE.TOOL_NAMES[shapeTool] || shapeTool;
+    if (mode === 'shape') {
+      t = shAdding
+        ? '当前：<b>' + nm + '</b> —— 在画布上按住一拖就出来一个（点空白退出）'
+        : '编辑中：抓小方块改大小、拖形状挪动、点空白释放；点「在画布上定头尾」定方向';
+    } else {
+      t = '当前：<b>' + nm + '</b> —— 点它进「画形状」模式，或按 <span class="kbd">S</span>';
+    }
+  }
+  el.innerHTML = t;
+}
+function buildShapeGallery() {
+  document.querySelectorAll('#shGallery button').forEach(b => {
+    const kind = (b.dataset && b.dataset.kind) || '';
+    if (SHAPE.TOOLS.indexOf(kind) < 0) return;
+    b.onclick = () => {
+      const sh = curShape();
+      if (mode === 'shape' && !shAdding && sh) {
+        /* 正在编辑一个形状：点形状选择框 = 把它换成这种（外框不动，立即生效），保持编辑态 */
+        if (sh.kind !== kind) {
+          snapshot();
+          shSetKind(sh, kind);
+          /* 已铺的形状换类型后灯要跟着重铺，别等下一次拖动才重置 */
+          if (!shRelay(sh, '换成了' + SHAPE.TOOL_NAMES[kind]))
+            status('形状已换成「' + SHAPE.TOOL_NAMES[kind] + '」（外框没动；Ctrl+Z 可撤销）', 'ok');
+          afterChange();
+        } else {
+          status('当前就是这个形状「' + SHAPE.TOOL_NAMES[kind] + '」', 'ok');
+        }
+        shapeTool = kind;
+        shAdding = false;
+        shPickStep = 0;
+        setMode('shape');
+      } else {
+        /* 没在编辑形状（select 模式 / 添加态）：选类型进「添加态」，画布上拖出来 = 新建 */
+        shapeTool = kind;
+        shAdding = true;
+        shPickStep = 0;
+        setMode('shape');
+        status('已选「' + SHAPE.TOOL_NAMES[kind] + '」—— 在画布上按住一拖就出来一个（点空白退出；点已有形状则转编辑）', 'ok');
+      }
+      syncShapeTool();
+    };
+  });
+  syncShapeTool();
+}
+
+/* 把形状的落点写进灯位：先删掉「该分区号段 ∪ 形状要占的编号」，再铺。
+ * 两者不一致时（形状 22 颗、分区 21 颗…）不会互相踩，校验页的 V5 也会报出来。
+ * 铺完给形状打上 laid：之后在画布上拖它 = 跟着重铺（没铺过的形状只画预览，不动灯）。 */
+/* ---------- 画形状（画布上直接拖） ----------
+ * 拖空白 = 新建；拖形状内部 = 挪动；拖四角/四边小方块 = 改大小。
+ * 全程按「沿边框等间距」把灯撒出来给用户看（**不带编号**，只报这一段的总颗数），
+ * 所以他拖大拖小能一眼看出「排不下 → 重叠」还是「刚好排开」。
+ * 形状做好后点两下：先点「头」（起点偏移），再点「尾」（决定编号往哪边走）。 */
+function shGrabTol() { return Math.max(6, 10 / view.zoom); }     /* 手柄抓取半径（世界 px；大一点好抓） */
+function shNearTol() { return Math.max(8, 12 / view.zoom); }    /* 轮廓抓取半径 */
+function shHandles(sh) {
+  const b = SHAPE.boxOf(sh), mx = (b.x0 + b.x1) / 2, my = (b.y0 + b.y1) / 2;
+  return [['nw', b.x0, b.y0], ['n', mx, b.y0], ['ne', b.x1, b.y0], ['e', b.x1, my],
+          ['se', b.x1, b.y1], ['s', mx, b.y1], ['sw', b.x0, b.y1], ['w', b.x0, my]];
+}
+function shHandleAt(sh, wx, wy) {
+  if (!sh) return null;
+  let best = null;
+  for (const [h, x, y] of shHandles(sh)) {
+    const d = Math.hypot(wx - x, wy - y);
+    if (d <= shGrabTol() && (!best || d < best.d)) best = { h, d };
+  }
+  return best ? best.h : null;
+}
+function shResizeBox(b0, h, wx, wy) {
+  const b = { x0: b0.x0, y0: b0.y0, x1: b0.x1, y1: b0.y1 };
+  if (h.indexOf('w') >= 0) b.x0 = Math.min(wx, b.x1 - 4);
+  if (h.indexOf('e') >= 0) b.x1 = Math.max(wx, b.x0 + 4);
+  if (h.indexOf('n') >= 0) b.y0 = Math.min(wy, b.y1 - 4);
+  if (h.indexOf('s') >= 0) b.y1 = Math.max(wy, b.y0 + 4);
+  return b;
+}
+/* 拖出来的新形状：归属当前选中分区，颗数 = 分区总颗数（还没编号，先看排布） */
+function shNewShape(kind, box) {
+  const z = state.zones[selZone];
+  const sh = SHAPE.blank({
+    kind, dist: 'even', closed: kind !== 'line', sides: [1, 1, 1, 1], pitch: GEN.CELL,
+    zone: z ? z.id : null, first: z ? z.start : 0, count: z ? Math.max(1, z.count) : 12,
+  });
+  return SHAPE.fromBox(sh, kind, box);
+}
+function shDraftShape() {
+  if (!shDraft || shDraft.kind !== 'box') return null;
+  const box = { x0: Math.min(shDraft.x0, shDraft.x1), y0: Math.min(shDraft.y0, shDraft.y1),
+                x1: Math.max(shDraft.x0, shDraft.x1), y1: Math.max(shDraft.y0, shDraft.y1) };
+  if (!shDraft.temp) shDraft.temp = shNewShape(shapeTool, box);
+  else SHAPE.fromBox(shDraft.temp, shDraft.temp.kind, box);
+  return shDraft.temp;
+}
+/* 拖动结束：铺过的形状跟着重铺（没铺过的只更新预览，不动灯） */
+function shRelay(sh, why) {
+  if (!sh || !sh.laid) return 0;
+  const z = state.zones.find(k => k.id === sh.zone);
+  if (!z) return 0;
+  const n = layShape(sh, z);
+  status('形状' + (why || '改好了') + ' —— 已跟着重铺「' + z.name + '」' + n + ' 颗（Ctrl+Z 可撤销）', 'ok');
+  return n;
+}
+
+function shPickStep1(sh, s) {
+  sh.entry = Math.round(s * 10) / 10;                    /* 头：这一点就是 0 号位（起点偏移） */
+  shPickStep = 2;
   afterChange();
-  status(`已铺设「${z.name}」${leds.length} 颗`, 'ok');
+  status('「头」就定在这里了 —— 再在形状上点一下定「尾」（编号顺着短的那边走）', 'ok');
+}
+function shPickStep2(sh, s) {
+  const L = SHAPE.pathLen(sh);
+  const fwd = L > 0 ? (((s - (+sh.entry || 0)) % L) + L) % L : 0;
+  sh.dir = (L > 0 && fwd > L / 2) ? 'ccw' : 'cw';
+  shPickStep = 0;
+  const z = state.zones.find(k => k.id === sh.zone);
+  if (!z) { afterChange(); status('头/尾/方向都定了 —— 这个形状没有归属分区，只当参考线画着（选个分区再「铺到灯位」）', 'warn'); return; }
+  if (!confirmOverwrite(z)) { afterChange(); status('已取消：头/尾没铺到灯位（参数留着，点「铺到灯位」可补）', 'warn'); return; }
+  snapshot();
+  const n = layShape(sh, z);
+  afterChange();
+  status('已按形状铺「' + z.name + '」' + n + ' 颗：' + (sh.dir === 'ccw' ? '逆' : '顺') +
+         '时针走（Ctrl+Z 可撤销）', 'ok');
+}
+/* 换类型：只换「皮」，外框不动 —— 画成矩形了想改圆环/圆角矩形，点一下就换，不用重画。 */
+function shSetKind(sh, kind) {
+  if (!sh) return false;
+  const box = SHAPE.boxOf(sh), was = sh.kind;
+  if (kind === 'rrect' && !(+sh.rc > 0))
+    sh.rc = Math.round(Math.max(8, Math.min(box.x1 - box.x0, box.y1 - box.y0) * 0.18)) || 30;
+  SHAPE.fromBox(sh, kind, box);
+  return was !== kind;
+}
+function shSyncPanel(onlyEmpty) {
+  const sh = curShape();
+  if (!sh) return;
+  shapeRows(sh);
+  fillShapeFields(sh, onlyEmpty !== false);
+  syncShapeTool();
+  if ($('#shInfo')) $('#shInfo').innerHTML = shapeInfoText(sh);
+}
+/* ---------- 按下 / 移动 / 抬起 / 悬停 ---------- */
+function shDown(wx, wy) {
+  const sh = curShape();
+
+  /* 1) 抓手柄 = 改大小（永远最优先，点头尾态里也照常） */
+  const h = shHandleAt(sh, wx, wy);
+  if (h) { snapshot(); shDraft = { kind: 'resize', h, box0: SHAPE.boxOf(sh) }; return; }
+
+  /* 2) 点其它形状 = 切换选中（宽命中：轮廓或包围盒内，无论已铺与否）—— 随时能改选形状，
+   *    放在「拖当前形状挪动」之前，避免别的形状叠在当前形状上时点不动它。 */
+  {
+    const si = hitShapeAny(wx, wy);
+    if (si >= 0 && si !== selShape) { enterShapeEdit(si); return; }
+  }
+
+  /* 3) 点头尾态：点当前形状（包围盒内，含轮廓）→ 投影到轮廓上点头/尾 */
+  if (sh && shPickStep) {
+    const b = SHAPE.boxOf(sh), pad = shGrabTol();
+    if (wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad) {
+      const near = SHAPE.arcNear(sh, [wx, wy], 1e9);      /* 点形状内任意处，取最近轮廓点 */
+      if (near) { if (shPickStep === 1) shPickStep1(sh, near.s); else shPickStep2(sh, near.s); return; }
+    }
+  }
+
+  /* 4) 编辑态：拖当前形状内部（含轮廓）= 挪动 */
+  if (sh && !shPickStep) {
+    const b = SHAPE.boxOf(sh), pad = shGrabTol();
+    if (wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad) {
+      snapshot(); shDraft = { kind: 'move', box0: b, ox: wx, oy: wy, box1: b };
+      return;
+    }
+  }
+
+  /* 5) 空白：添加态 = 新建；编辑态 = 释放（回到选择/编辑模式） */
+  shPickStep = 0;
+  if (shAdding) {
+    shDraft = { kind: 'box', x0: wx, y0: wy, x1: wx, y1: wy };
+  } else {
+    setMode('select');
+    status('已退出形状编辑 —— 点这个形状可再进来', 'ok');
+  }
+  render();
+}
+function shDragMove(wx, wy) {
+  const d = shDraft;
+  if (d.kind === 'box') { d.x1 = wx; d.y1 = wy; d.temp = null; }
+  else if (d.kind === 'move') {
+    d.box1 = { x0: d.box0.x0 + wx - d.ox, y0: d.box0.y0 + wy - d.oy,
+               x1: d.box0.x1 + wx - d.ox, y1: d.box0.y1 + wy - d.oy };
+    SHAPE.fromBox(curShape(), curShape().kind, d.box1);
+    shSyncPanel(false);
+  } else if (d.kind === 'resize') {
+    d.box1 = shResizeBox(d.box0, d.h, wx, wy);
+    SHAPE.fromBox(curShape(), curShape().kind, d.box1);
+    shSyncPanel(false);
+  }
+  render();
+}
+function shDrop() {
+  const d = shDraft;
+  if (!d) return;
+  shDraft = null;
+  if (d.kind === 'box') {
+    const box = { x0: Math.min(d.x0, d.x1), y0: Math.min(d.y0, d.y1),
+                  x1: Math.max(d.x0, d.x1), y1: Math.max(d.y0, d.y1) };
+    if (box.x1 - box.x0 < 3 && box.y1 - box.y0 < 3) { render(); status('框太小了 —— 在画布上按住一拖就出来一个形状', 'warn'); return; }
+    snapshot();
+    const ns = shNewShape(shapeTool, box);
+    ns.id = 's' + Date.now().toString(36);
+    shapeList().push(ns);
+    selShape = shapeList().length - 1;
+    shPickStep = 0;
+    shAdding = false;
+    afterChange();
+    setMode('select');                     /* 画完释放鼠标：回到选择模式，不再处于「画形状」 */
+    status('「' + SHAPE.TOOL_NAMES[shapeTool] + '」画好了（' + SHAPE.count(ns) +
+           ' 颗还没编号）—— 点它进入编辑；改好大小后点「在画布上定头尾」定起点方向', 'ok');
+    return;
+  }
+  shRelay(curShape(), d.kind === 'move' ? '挪好了' : '改好大小了');
+  afterChange();
+}
+function shHover(wx, wy) {
+  const sh = curShape();
+  const h = shHandleAt(sh, wx, wy);
+  if (h) { cv.style.cursor = (h === 'n' || h === 's') ? 'ns-resize' : (h === 'e' || h === 'w') ? 'ew-resize'
+                     : (h === 'nw' || h === 'se') ? 'nwse-resize' : 'nesw-resize'; return; }
+  if (sh && shPickStep && SHAPE.arcNear(sh, [wx, wy], shNearTol())) { cv.style.cursor = 'pointer'; return; }
+  if (sh) {
+    const b = SHAPE.boxOf(sh), pad = shGrabTol();
+    if (wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad) { cv.style.cursor = 'move'; return; }
+  }
+  cv.style.cursor = shAdding ? 'crosshair' : 'default';   /* 添加态=十字（要画），编辑态=箭头（点空白释放） */
+}
+/* 画布上命中任意形状（轮廓 或 包围盒内，**无论已铺与否**）：选择模式与画形状编辑态里「点谁选谁」都用它。
+ * 从后往前（后画的在上层优先）。 */
+function hitShapeAny(wx, wy) {
+  const list = shapeList();
+  for (let i = list.length - 1; i >= 0; i--) {
+    const sh = list[i];
+    if (SHAPE.arcNear(sh, [wx, wy], shNearTol())) return i;
+    const b = SHAPE.boxOf(sh), pad = shGrabTol();
+    if (wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad) return i;
+  }
+  return -1;
+}
+/* 选中某个形状并进「画形状」编辑态：进来就是自由编辑（抓手柄改大小 / 拖内部挪动 / 点空白释放）。
+ * 定头尾不在这里自动触发 —— 用面板「在画布上定头尾」按钮（避免「想挪动却点了头」的手势冲突）。 */
+function enterShapeEdit(i) {
+  if (i < 0 || i >= shapeList().length) return;
+  selShape = i;
+  shAdding = false;
+  shPickStep = 0;
+  const sh = curShape();
+  if (SHAPE.TOOLS.indexOf(sh.kind) >= 0) shapeTool = sh.kind;   /* 高亮跟着选中的形状类型走 */
+  setMode('shape');
+  syncShapeEdit();
+  render();
+  status(sh && !sh.laid
+    ? '已选中这个形状 —— 抓小方块改大小 / 拖它挪动；点空白释放；点「在画布上定头尾」定起点方向'
+    : '已选中这个形状 —— 拖它改大小 / 挪动，点空白释放；点「在画布上定头尾」重新定方向', 'ok');
+}
+function layShape(sh, z) {
+  const nums = new Set();
+  for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
+  const pl = SHAPE.plan(sh, GEN.CELL);
+  pl.pts.forEach(p => nums.add(p.n));
+  state.leds = state.leds.filter(l => !nums.has(l.n));
+  const byN = new Map(state.leds.map(l => [l.n, l]));
+  pl.pts.forEach(p => byN.set(p.n, { n: p.n, x: p.x, y: p.y }));
+  state.leds = [...byN.values()];
+  if (sh) sh.laid = true;
+  return pl.count;
+}
+
+$('#shAdd').onclick = () => {
+  const z = state.zones[selZone];
+  const leds = z ? state.leds.filter(l => l.n >= z.start && l.n < z.start + z.count) : [];
+  snapshot();
+  let sh;
+  if (leds.length && z) sh = SHAPE.fromLeds(leds, GEN.CELL, z.id, z.start, z.count);
+  if (!sh) {
+    sh = SHAPE.blank({ count: z ? z.count : 12, dist: 'even', sides: [1, 1, 1, 1], pitch: GEN.CELL });
+    SHAPE.fromBox(sh, shapeTool, SHAPE.boxOf(sh));
+  }
+  sh.id = 's' + Date.now().toString(36);
+  if (z) Object.assign(sh, { zone: z.id, first: z.start, count: sh.count || z.count });
+  shapeList().push(sh);
+  selShape = shapeList().length - 1;
+  afterChange();
+  status(z ? `按「${z.name}」起了个「${SHAPE.KIND_NAMES[sh.kind] || sh.kind}」空形状 —— 到画布上拖一下定大小` 
+           : '新增了一个空形状 —— 到画布上拖出来，再给它选个归属分区', 'ok');
 };
-$('#cApply').onclick = () => {
-  const z = state.zones[selZone]; if (!z) { status('请先选中分区', 'warn'); return; }
-  if (!confirmOverwrite(z)) { status('已取消：这个样子没动', 'warn'); return; }
-  snapshot();
-  const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
-  state.leds = state.leds.filter(l => !nums.has(l.n));
-  const leds = GEN.circleLeds({ cx: +$('#cX').value, cy: +$('#cY').value, rx: +$('#cR').value, ry: +$('#cR').value,
-    a0: +$('#cA0').value, sweep: +$('#cSweep').value, dir: $('#cDir').value,
-    closed: $('#cClosed').checked, first: z.start, count: z.count }, GEN.CELL);
-  state.leds = state.leds.concat(leds);
-  const byN = new Map(state.leds.map(l => [l.n, l])); state.leds = [...byN.values()];
-  afterChange();
+$('#shPick').onclick = () => {
+  const sh = curShape();
+  if (!sh) { status('还没有形状 —— 先挑一个形状到画布上拖出来', 'warn'); return; }
+  readShapePanel(sh);
+  shAdding = false;
+  shPickStep = 1;
+  setMode('shape');
+  syncShapeTool(); render();
+  status('到画布上点这个形状：第一下是「头」，第二下是「尾」（定编号方向）；点空白取消', 'ok');
 };
-$('#qApply').onclick = () => {
-  const z = state.zones[selZone]; if (!z) { status('请先选中分区', 'warn'); return; }
-  const p = genParams(); p.first = z.start; p.count = z.count; p.dir = $('#qDir').value;
+$('#shDel').onclick = () => {
+  const sh = curShape(); if (!sh) return;
+  snapshot();
+  shapeList().splice(selShape, 1);
+  selShape = Math.max(0, selShape - 1);
+  afterChange();
+  status('形状已删除（灯位没动）', 'ok');
+};
+$('#shFromZone').onclick = () => {
+  const sh = curShape(), z = state.zones[selZone];
+  if (!sh) return;
+  if (!z) { status('请先在分区表里点中一个分区', 'warn'); return; }
+  const leds = state.leds.filter(l => l.n >= z.start && l.n < z.start + z.count);
+  if (!leds.length) { status(`「${z.name}」这段号位上还没有灯 —— 直接改形状参数，或先手工放几颗`, 'warn'); return; }
+  const nu = SHAPE.fromLeds(leds, GEN.CELL, z.id, z.start, z.count);
+  snapshot();
+  Object.assign(sh, nu, { id: sh.id, zone: z.id, first: z.start, count: z.count });
+  afterChange();
+  status(`已由「${z.name}」的 ${leds.length} 颗灯反推形状（${nu.dist === 'cells' ? '格点' : '等分弧长'}档）—— 点「铺到灯位」可原样重铺`, 'ok');
+};
+$('#shKeep').onclick = () => {
+  const sh = curShape(); if (!sh) return;
+  readShapePanel(sh);
+  afterChange();
+  status('形状已存下（没动灯位）—— 它在画布上就是一条参考线', 'ok');
+};
+$('#shFlip').onclick = () => {
+  const sh = curShape(); if (!sh) return;
+  readShapePanel(sh);
+  sh.dir = (sh.dir === 'ccw') ? 'cw' : 'ccw';
+  const z = state.zones.find(k => k.id === sh.zone);
+  if (!z) { afterChange(); status('形状方向已翻（没有归属分区，灯位没动）', 'ok'); return; }
+  if (!confirmOverwrite(z)) { status('已取消：方向没翻', 'warn'); return; }
+  snapshot();
+  const n = layShape(sh, z);
+  afterChange();
+  status(`已反向编号：「${z.name}」这 ${n} 颗的编号顺序倒过来了（几何没动）`, 'ok');
+};
+$('#shApply').onclick = () => {
+  const sh = curShape();
+  if (!sh) { status('还没有形状 —— 先点「新增矩形」或「由分区反推」起一个', 'warn'); return; }
+  readShapePanel(sh);
+  const z = state.zones.find(k => k.id === sh.zone);
+  if (!z) { afterChange(); status('这个形状没有归属分区，只当参考线画着 —— 先在上面选个分区再铺', 'warn'); return; }
   if (!confirmOverwrite(z)) { status('已取消：这个样子没动', 'warn'); return; }
   snapshot();
-  const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
-  state.leds = state.leds.filter(l => !nums.has(l.n));
-  state.leds = state.leds.concat(GEN.quadLeds(p, GEN.CELL));
-  const byN = new Map(state.leds.map(l => [l.n, l])); state.leds = [...byN.values()];
+  const n = layShape(sh, z);
   afterChange();
+  status(`已按形状铺「${z.name}」${n} 颗（Ctrl+Z 可撤销）`, 'ok');
 };
 /* 底图 */
 $('#bgFile').onchange = e => {
@@ -5402,9 +6763,11 @@ $('#bgClear').onclick = () => { state.canvas.background = null; render(); saveSt
 /* 导出：入口在「导出」页签，内容都在独立窗口里做（EXPORT_KINDS） */
 $('#expOpenFx').onclick = () => openExport('fx');
 $('#expOpenTable').onclick = () => openExport('table');
+$('#expOpenHal').onclick = () => openExport('hal');
 $('#btnJson').onclick = () => openExport('json');
 $('#expTabFx').onclick = () => showExportKind('fx');
 $('#expTabTable').onclick = () => showExportKind('table');
+$('#expTabHal').onclick = () => showExportKind('hal');
 $('#expTabJson').onclick = () => showExportKind('json');
 $('#expSave').onclick = saveExport;
 $('#expCopy').onclick = copyExport;
@@ -5412,6 +6775,8 @@ $('#expClose').onclick = closeExport;
 $('#exportMask').onclick = closeExport;
 $('#eBuild').onclick = () => showExportKind('table');      /* 「重新生成」= 重算当前这一页（走闸门） */
 ['#eVar','#eCmt','#eNom'].forEach(s => $(s).onchange = () => showExportKind('table'));
+$('#hBuild').onclick = () => showExportKind('hal');
+['#hCmt','#hEol'].forEach(s => $(s).onchange = () => showExportKind('hal'));
 $('#xBuild').onclick = () => showExportKind('fx');
 ['#xForm','#xCmt','#xEol'].forEach(s => $(s).onchange = () => showExportKind('fx'));
 /* 红条上的「仍要导出」：放行这一次（expForce），随后重算当前页 */

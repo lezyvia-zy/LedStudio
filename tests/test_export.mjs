@@ -1,4 +1,4 @@
-/* 导出窗口：独立弹窗（入口 / 三页签 / 选保存路径 / 回退下载 / 取消 / 拖动 / Esc） */
+/* 导出窗口：独立弹窗（入口 / 四页签 / 选保存路径 / 回退下载 / 取消 / 拖动 / Esc） */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
@@ -18,8 +18,9 @@ let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fa
   const tipZ = +(html.match(/#tipBox\{[^}]*z-index:(\d+)/) || [])[1];
   const maskZ = +(html.match(/\.dlgMask\{[^}]*z-index:(\d+)/) || [])[1];
   ok(tipZ > maskZ, `说明框 z-index(${tipZ}) 高于窗口遮罩(${maskZ})：窗口里的 data-tip 不会被挡`);
-  ['expOpenFx','expOpenTable','btnJson','expTabFx','expTabTable','expTabJson','expDrag',
-   'expClose','expCopy','expSave','expTitle','expSub','xOut','eOut','jOut','xWarn','eWarn']
+  ['expOpenFx','expOpenTable','expOpenHal','btnJson','expTabFx','expTabTable','expTabHal','expTabJson','expDrag',
+   'expClose','expCopy','expSave','expTitle','expSub','xOut','eOut','jOut','hOut','xWarn','eWarn','hWarn',
+   'optHal','hCmt','hEol','hBuild']
     .forEach(id => ok(ids.has(id), `有元素 #${id}`));
   ok(!ids.has('xCopy') && !ids.has('eCopy'), '窄面板时代的两个「复制」按钮已并成窗口里的一个');
   ok(/id="xForm"[\s\S]{0,400}?data-tip=/.test(html), '搬进窗口的「形式」下拉仍带说明');
@@ -144,7 +145,12 @@ ok(txt('expTitle').includes('动效') && txt('expSub').includes('bt_audio_app_sr
    `标题栏说明了当前导的是什么: ${txt('expTitle')} / ${txt('expSub')}`);
 ok(/导出窗口已打开/.test(txt('status')), `状态栏给了反馈: "${txt('status')}"`);
 
-/* ---- 5) 三个页签各自算自己的内容 ---- */
+/* 第四个入口按钮：直接打开 HAL 页（契约第 ① 步新增的控件） */
+byId.get('expOpenHal').onclick();
+ok(byId.get('hOut').value.includes('__LED_GEN_HAL_H__') && byId.get('xOut').classList.contains('hide'),
+   '点「HAL 接口…」直接打开 HAL 页并生成内容（动效那份收起来）');
+
+/* ---- 5) 四个页签各自算自己的内容 ---- */
 byId.get('expTabTable').onclick();
 ok(!byId.get('eOut').classList.contains('hide') && byId.get('xOut').classList.contains('hide'),
    '切到「排布表 C」：只显示排布表那份');
@@ -155,6 +161,20 @@ byId.get('expTabJson').onclick();
   ok(j.format === 'ledboard' && Array.isArray(j.leds) && j.leds.length === 104,
      `工程 JSON 预览可用（format=ledboard，${j.leds.length} 颗灯）`);
   ok(!byId.get('expJsonHint').classList.contains('hide'), 'JSON 页显示了「保存后怎么载入」的提示');
+}
+/* 契约第 ① 步：HAL 接口页（工具 → 平台唯一接口面） */
+byId.get('expTabHal').onclick();
+{
+  const h = byId.get('hOut').value;
+  ok(!byId.get('hOut').classList.contains('hide') && byId.get('jOut').classList.contains('hide'),
+     '切到「HAL 接口」：只显示 HAL 那份');
+  ok(/__LED_GEN_HAL_H__/.test(h) && /#define LED_GEN_HAL_VERSION\s+1/.test(h),
+     'HAL 头已生成（带契约版本宏）');
+  ok(/led_gen_hal_present\(const uint8_t \*fb, uint16_t led_count\)/.test(h) &&
+     /led_gen_tick\(void\)/.test(h), 'HAL 头里有「平台要实现」与「平台要调用」两组原型');
+  ok(!/[^\x00-\x7F]/.test(h), 'ASCII 模式下 HAL 头没有一个非 ASCII 字节');
+  ok(/HAL|契约/.test(txt('expSub') + txt('expTitle')), `标题栏说明了这一页是什么: ${txt('expTitle')}`);
+  ok(/LED_GEN_HAL_IMPLEMENTS|契约/.test(byId.get('hWarn').innerHTML), '页脚说明了版本守卫怎么用');
 }
 
 /* ---- 6) 「保存到文件…」：有系统选择器时就自己选路径 ---- */
@@ -170,13 +190,20 @@ byId.get('expTabJson').onclick();
   ok(/已保存/.test(txt('status')), `状态栏报出结果: "${txt('status')}"`);
 }
 
-/* ---- 7) 排布表 / JSON 各有各的文件名与过滤器 ---- */
+/* ---- 7) 排布表 / HAL / JSON 各有各的文件名与过滤器 ---- */
 {
   byId.get('expTabTable').onclick();
   const rec = fakePicker();
   await byId.get('expSave').onclick();
   ok(/^SP-3122D.*_g_default_zones\.c$/.test(rec.opts.suggestedName),
      `排布表文件名带项目名: ${rec.opts.suggestedName}`);
+  byId.get('expTabHal').onclick();
+  const recH = fakePicker();
+  await byId.get('expSave').onclick();
+  ok(recH.opts.suggestedName === 'led_gen_hal.h' && recH.opts.types[0].accept['text/plain'].includes('.h'),
+     `HAL 接口文件名固定为 led_gen_hal.h: ${recH.opts.suggestedName}`);
+  ok(String(recH.chunks[0].parts[0]).includes('__LED_GEN_HAL_H__'),
+     '写进文件的内容就是窗口里看到的 HAL 头');
   byId.get('expTabJson').onclick();
   const rec2 = fakePicker();
   await byId.get('expSave').onclick();
@@ -300,6 +327,11 @@ byId.get('expTabJson').onclick();
   byId.get('expTabJson').onclick();
   ok(JSON.parse(byId.get('jOut').value).format === 'ledboard', 'JSON 页不受闸门影响（工程越有问题越该先存一份）');
   ok(byId.get('expErrGo').classList.contains('hide'), 'JSON 页不显示「仍要导出」（本来就没拦）');
+
+  byId.get('expTabHal').onclick();
+  ok(/__LED_GEN_HAL_H__/.test(byId.get('hOut').value),
+     'HAL 页不受闸门影响（接口声明与工程数据无关，方便先给平台侧定接口）');
+  ok(byId.get('expErrGo').classList.contains('hide'), 'HAL 页不显示「仍要导出」（本来就没拦）');
 
   byId.get('expTabFx').onclick();
   ok(byId.get('xOut').value === '', '切回动效页仍然被挡住（同一份工程数据）');

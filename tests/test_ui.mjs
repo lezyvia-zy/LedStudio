@@ -31,10 +31,18 @@ if (unused.length) console.log(`  note   HTML 中未被脚本引用的 id: ${unu
   ok(boardInputs.length === 0, boardInputs.length ? `板上限输入框还在（应删）: ${boardInputs.join(', ')}`
                                                  : '板级参数只留项目名 / 灯总数（RING_SIZE / ZONE_MAX / ZONE_MAX_LEN 输入框已删）');
   ok(zonesPane.includes('id="mBoardInfo"'), '固定上限改成一行只读说明 #mBoardInfo（校验 V7/V8 的解释还留着）');
-  const moved = ['mName','mLedCount','mLedTrim','gX0','gW','gDir','gK','gApply','cX','cR','cApply','qDir','qApply','bgFile','bgAlign','bgClear'];
+  const moved = ['mName','mLedCount','mLedTrim','shList','shAdd','shDel','shFromZone','shZone','shKind',
+                 'shX0','shW','shDist','shSides','shPitch','shCorner','shFirst','shCount','shDir','shClosed',
+                 'shEntry','shApply','shFlip','shKeep','bgFile','bgAlign','bgClear'];
   const miss = moved.filter(id => !zonesPane.includes('id="' + id + '"'));
   ok(miss.length === 0, miss.length ? `这些控件没搬进「分区」页: ${miss.join(', ')}`
-                                    : `板级参数 / 铺灯 / 底图的 ${moved.length} 个控件都在「分区」页里`);
+                                    : `板级参数 / 铺灯形状 / 底图的 ${moved.length} 个控件都在「分区」页里`);
+  /* 批 7-A/B：铺灯改成「形状」引擎 —— 旧的矩形/圆环/四边形三套控件与它们的一次性生成器都撤了 */
+  const gone = ['gX0','gW','gDir','gK','gApply','cX','cR','cApply','qDir','qApply'];
+  ok(gone.every(id => !html.includes('id="' + id + '"')),
+     `旧铺灯控件（${gone.length} 个）已移除，改成形状面板`);
+  ok(zonesPane.includes('id="shInfo"') && /SHAPE\.plan/.test(coreSrc),
+     '形状面板带诊断行 #shInfo，且由 core 的 SHAPE 引擎算落点');
 }
 
 /* ---- 2) 假 DOM ---- */
@@ -97,7 +105,8 @@ function q(sel){
   return mkEl('div','');
 }
 const staticBoxes = { '#tabs button': [...html.matchAll(/data-tab="([a-z]+)"/g)].map(m=>m[1]),
-                      '#left button[data-mode]': [], '.pane': [...html.matchAll(/data-pane="([a-z]+)"/g)].map(m=>m[1]) };
+                      '#left button[data-mode]': [], '.pane': [...html.matchAll(/data-pane="([a-z]+)"/g)].map(m=>m[1]),
+                      '#shGallery button': ['line', 'circle', 'rrect'] };
 globalThis.document = {
   documentElement:{attrs:{},setAttribute(k,v){this.attrs[k]=v;},getAttribute(k){return this.attrs[k]||null;}},
   querySelector:q,
@@ -106,7 +115,8 @@ globalThis.document = {
     /* 同一批静态节点要缓存 —— 真实 DOM 每次返回的就是同一批元素，boot 时绑的 onclick 才留得住 */
     if (staticBoxes[sel]) {
       if (!boxCache.has(sel))
-        boxCache.set(sel, staticBoxes[sel].map(v => { const e = mkEl('button'); e.dataset = { tab:v, pane:v, mode:v }; return e; }));
+        boxCache.set(sel, staticBoxes[sel].map(v => { const e = mkEl('button');
+          e.dataset = (sel === '#shGallery button') ? { kind: v } : { tab:v, pane:v, mode:v }; return e; }));
       return boxCache.get(sel);
     }
     return [];
@@ -252,6 +262,7 @@ const cnt = () => JSON.parse(store.get('led_layout_editor.v1')).projects[1].stat
 const before = cnt();
 pd2({ pointerId:1, button:2, clientX:300, clientY:300, shiftKey:false, preventDefault(){} });
 ok(cnt() === before, `右键按下不放置灯（${before} → ${cnt()}）`);
+(listeners['cv:pointerup'] || [])[0]({});      /* 收尾：清掉右键平移的 drag=pan，别污染后面的形状交互 */
 pd2({ pointerId:1, button:0, clientX:300, clientY:300, shiftKey:false, preventDefault(){} });
 await new Promise(r => setTimeout(r, 700));
 ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}）`);
@@ -261,14 +272,14 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const statusEl = byId.get('status');
   const st = () => JSON.parse(store.get('led_layout_editor.v1'));
 
-  /* a) 空白项目：删掉唯一分区 → 点「铺灯」走 warn 分支（先提醒、不打断） */
+  /* a) 空白项目：删掉唯一分区、也没有形状 → 点「铺到灯位」走 warn 分支（先提醒、不打断） */
   byId.get('btnZoneDel').onclick();
   await new Promise(r => setTimeout(r, 700));
   ok(st().projects[1].state.zones.length === 0,
      `空白项目已删掉唯一分区（剩 ${st().projects[1].state.zones.length} 个）`);
-  byId.get('gApply').onclick();
+  byId.get('shApply').onclick();
   ok(/lv-warn/.test(statusEl.className), `缺前置条件的提示带 warn 级别（class="${statusEl.className}"）`);
-  ok(/选中一个分区/.test(statusEl.textContent), `提示文案: "${statusEl.textContent}"`);
+  ok(/还没有形状/.test(statusEl.textContent), `提示文案: "${statusEl.textContent}"`);
 
   /* b) SP-3122D：编号已排满时新增分区 → err 分支，且不自动清除 */
   projRows()[0].onclick();
@@ -370,18 +381,16 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const tabs = document.querySelectorAll('#tabs button');
   const go = n => tabs.find(b => b.dataset.tab === n).onclick();
   const rows = () => (byId.get('zoneTbl') || {}).children || [];
-  /* 周长放宽，确保拦截点只在「覆盖确认」这一处 */
-  const gw = byId.get('gW'), gh = byId.get('gH');
-  gw.value = '20'; gw.oninput({ target: gw });
-  gh.value = '20'; gh.oninput({ target: gh });
 
   go('zones');
   rows()[3].onclick();                       /* 环 A：号段上还有原排布留下的灯 */
   const before = leds();
+  byId.get('shAdd').onclick();               /* 按这个分区的现有灯位起一个形状 */
+  await new Promise(r => setTimeout(r, 700));
 
   confirmCalls.length = 0;
   globalThis.confirm = m => { confirmCalls.push(m); return false; };
-  byId.get('gApply').onclick();
+  byId.get('shApply').onclick();
   await new Promise(r => setTimeout(r, 700));
   ok(confirmCalls.length === 1 && /已经有 \d+ 颗灯/.test(confirmCalls[0]),
      `铺灯前先把「要覆盖多少颗」问清楚: "${String(confirmCalls[0]).split('\n')[0]}"`);
@@ -392,21 +401,180 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
      `状态栏说明已取消: "${byId.get('status').textContent}"`);
 
   globalThis.confirm = m => { confirmCalls.push(m); return true; };
-  byId.get('gApply').onclick();
+  byId.get('shApply').onclick();
   await new Promise(r => setTimeout(r, 700));
   ok(confirmCalls.length === 2, '再点一次仍然先问（每次都问，不设「别再问了」）');
-  ok(/已铺设/.test(byId.get('status').textContent),
+  ok(/已按形状铺/.test(byId.get('status').textContent),
      `确认之后才真铺: "${byId.get('status').textContent}"`);
 
   /* 号段上没有灯 → 直接铺，不打扰 */
   confirmCalls.length = 0;
   rows()[0].onclick();                       /* 第 1 个分区已挪到 115.. 上，没有灯 */
-  byId.get('gApply').onclick();
+  byId.get('shAdd').onclick();               /* 该号段空着 → 起一个「等分弧长」的矩形形状 */
+  await new Promise(r => setTimeout(r, 700));
+  byId.get('shApply').onclick();
   await new Promise(r => setTimeout(r, 700));
   ok(confirmCalls.length === 0, '号段上本来没有灯 → 不弹确认框，直接铺');
-  ok(/已铺设/.test(byId.get('status').textContent),
+  ok(/已按形状铺/.test(byId.get('status').textContent),
      `直接铺成功: "${byId.get('status').textContent}"`);
   globalThis.confirm = () => true;
+}
+
+/* ---- 16) 画形状：形状选择框 → 画布拖拽 → 点形状进编辑 → 定头尾（批 7-C） ---- */
+{
+  const st = () => JSON.parse(store.get('led_layout_editor.v1')).projects[1].state;
+  const shapes = () => st().shapes || [];
+  const gal = () => document.querySelectorAll('#shGallery button');
+  const pd = (listeners['cv:pointerdown'] || [])[0];
+  const pm = (listeners['cv:pointermove'] || [])[0];
+  const pu = (listeners['cv:pointerup'] || [])[0];
+  const move = (x, y) => pm({ clientX: x, clientY: y });
+
+  ok(gal().length === 3, `形状选择框有 ${gal().length} 个形状（直线/圆环/圆角矩形）`);
+  ok(['line', 'circle', 'rrect'].every(k => gal().some(b => b.dataset.kind === k)),
+     '三种形状 data-kind 齐全');
+
+  /* 空白项目：加一个分区，再点「直线」进画形状模式（添加态） */
+  projRows()[1].onclick();
+  await new Promise(r => setTimeout(r, 50));
+  byId.get('btnZoneAdd').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  gal().find(b => b.dataset.kind === 'line').onclick();
+  const shapeBtn = (byId.get('left').children || []).find(b => b.dataset.mode === 'shape');
+  const selectBtn = (byId.get('left').children || []).find(b => b.dataset.mode === 'select');
+  ok(!!shapeBtn && shapeBtn.classList.contains('on'), '点形状选择框后「画形状」模式被点亮');
+
+  /* 在画布上拖一条线：100,100 → 300,220 */
+  pd({ pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+  move(300, 220);
+  pu({});
+  await new Promise(r => setTimeout(r, 700));
+  {
+    const s0 = shapes()[0];
+    ok(!!s0 && s0.kind === 'line' && s0.closed === false && s0.pts.length === 2,
+       `拖出直线（kind=${s0 && s0.kind}，closed=${s0 && s0.closed}，顶点 ${s0 && s0.pts.length}）`);
+    ok(s0 && s0.dist === 'even' && s0.zone === st().zones[0].id && s0.count === st().zones[0].count,
+       `默认「等分弧长」，颗数 = 分区总颗数（${s0 && s0.count}），归属分区`);
+    ok(s0 && s0.pts[1][0] > s0.pts[0][0] && s0.pts[1][1] > s0.pts[0][1], '直线朝右下铺');
+    ok(s0 && s0.laid !== true, '刚拖出来还没铺（不带编号，只预览）');
+    ok(selectBtn.classList.contains('on') && !shapeBtn.classList.contains('on'),
+       '画完形状自动释放鼠标（回到「选择/编辑」模式）');
+  }
+
+  /* 点形状 = 选中并进编辑；点空白 = 释放 */
+  pd({ pointerId: 1, button: 0, clientX: 200, clientY: 160 });
+  ok(shapeBtn.classList.contains('on'), '点形状后进入「画形状」编辑态');
+  {
+    /* 面板只留 分区 / 类型 / 起始编号 / 颗数 / 方向，几何与闭环都藏起来 */
+    ok(byId.get('shCircleRow').classList.contains('hide'), '面板不显示「圆芯 / 半径」');
+    ok(byId.get('shPtsRow').classList.contains('hide'), '面板不显示「顶点 px」');
+    ok(byId.get('shClosedRow').classList.contains('hide'), '面板不显示「闭环」');
+    ok(/<span>起始编号<\/span>/.test(html), '「头(起始编号)」已改名「起始编号」');
+  }
+  pd({ pointerId: 1, button: 0, clientX: 500, clientY: 400 });
+  ok(selectBtn.classList.contains('on') && !shapeBtn.classList.contains('on'),
+     '编辑态点空白释放（回到「选择/编辑」模式）');
+
+  /* 再点形状进编辑 → 点「在画布上定头尾」→ 点两下（头/尾）自动铺 */
+  pd({ pointerId: 1, button: 0, clientX: 200, clientY: 160 });
+  byId.get('shPick').onclick();
+  pd({ pointerId: 1, button: 0, clientX: 200, clientY: 160 });   /* 头：线段中点 */
+  await new Promise(r => setTimeout(r, 50));
+  pd({ pointerId: 1, button: 0, clientX: 250, clientY: 190 });   /* 尾：下游 */
+  await new Promise(r => setTimeout(r, 700));
+  {
+    const s1 = shapes()[0];
+    const z = st().zones[0];
+    const onZone = st().leds.filter(l => l.n >= z.start && l.n < z.start + z.count);
+    ok(s1.entry > 0, `定「头」后起点偏移 entry=${s1.entry}（不再从起点开始）`);
+    ok(s1.laid === true, '定完「尾」自动铺进编号（laid=true）');
+    ok(onZone.length === z.count, `号段铺满 ${onZone.length} 颗（分区 ${z.count} 颗）`);
+  }
+
+  /* 改分区灯数 → 已铺形状自动增删灯（自适应颗数，不再留一个灰的多余灯） */
+  {
+    const zc = byId.get('zCount');
+    zc.value = '5'; zc.oninput({ target: zc });
+    await new Promise(r => setTimeout(r, 700));
+    {
+      const z = st().zones[0], s = shapes()[0];
+      const onZone = st().leds.filter(l => l.n >= z.start && l.n < z.start + z.count);
+      ok(z.count === 5 && s.count === 5, `分区灯数改成 5 → 形状颗数跟着变（${s.count}）`);
+      ok(onZone.length === 5, `号段自动删到 ${onZone.length} 颗（原来 8 颗，多出来的自动去掉）`);
+    }
+    zc.value = '8'; zc.oninput({ target: zc });            /* 改回来，后面换类型不受影响 */
+    await new Promise(r => setTimeout(r, 700));
+  }
+
+  /* 面板「形状类型」换成圆环（外框不动）；再拖右下角手柄改大小 */
+  {
+    const before = (() => {
+      const s = shapes()[0]; const xs = s.pts.map(p => p[0]), ys = s.pts.map(p => p[1]);
+      return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+    })();
+    const kindEl = byId.get('shKind');
+    kindEl.value = 'circle'; kindEl.oninput({ target: kindEl });
+    await new Promise(r => setTimeout(r, 700));
+    const c = shapes()[0];
+    ok(c.kind === 'circle' && c.r > 0 && c.ry > 0, `换成圆环（r=${c.r} ry=${c.ry}）`);
+    ok(Math.abs((c.cx - c.r) - before.x0) < 1e-6 && Math.abs((c.cy - c.ry) - before.y0) < 1e-6 &&
+       Math.abs((c.cx + c.r) - before.x1) < 1e-6 && Math.abs((c.cy + c.ry) - before.y1) < 1e-6,
+       '换类型外框不动');
+
+    const r0 = c.r, ry0 = c.ry;
+    pd({ pointerId: 1, button: 0, clientX: 300, clientY: 220 });
+    move(360, 280);
+    pu({});
+    await new Promise(r => setTimeout(r, 700));
+    const c2 = shapes()[0];
+    ok(c2.r > r0 && c2.ry > ry0, `拖右下角手柄后椭圆变大（r ${r0.toFixed(1)}→${c2.r.toFixed(1)}）`);
+  }
+
+  /* 随时改形状：编辑态点形状选择框 = 换类型；退出编辑后点形状选择框 = 画新的；Esc = 释放 */
+  {
+    /* 编辑态点形状选择框，立即把当前形状换成那种（外框不动），灯也立即跟着重铺 */
+    ok(shapes()[0].kind === 'circle', '前置：当前选中形状是圆环');
+    {
+      const z = st().zones[0];
+      const before = st().leds.find(l => l.n === z.start);
+      gal().find(b => b.dataset.kind === 'line').onclick();
+      await new Promise(r => setTimeout(r, 700));
+      const after = st().leds.find(l => l.n === z.start);
+      ok(shapes()[0].kind === 'line', '编辑态点「直线」立即把圆环换成直线（换类型）');
+      ok(before && after && (before.x !== after.x || before.y !== after.y),
+         '换类型后已铺的灯立即跟着重铺（不用再拖动一下）');
+    }
+    gal().find(b => b.dataset.kind === 'circle').onclick();
+    await new Promise(r => setTimeout(r, 700));
+    ok(shapes()[0].kind === 'circle', '再点「圆环」换回来（高亮与形状同步）');
+    ok(gal().find(b => b.dataset.kind === 'circle').classList.contains('on'),
+       '形状选择框高亮切到圆环');
+
+    /* 退出编辑（点空白释放），再点「直线」进添加态，画第 2 个形状 */
+    pd({ pointerId: 1, button: 0, clientX: 500, clientY: 400 });   /* 点空白释放 */
+    ok(selectBtn.classList.contains('on'), '点空白释放回选择模式');
+    gal().find(b => b.dataset.kind === 'line').onclick();
+    pd({ pointerId: 1, button: 0, clientX: 500, clientY: 100 });
+    move(600, 180);
+    pu({});
+    await new Promise(r => setTimeout(r, 700));
+    ok(shapes().length === 2, `又画了 1 个形状（共 ${shapes().length} 个）`);
+
+    /* 点第 1 个形状（圆环）进编辑，再点第 2 个（直线）切换选中 */
+    pd({ pointerId: 1, button: 0, clientX: 230, clientY: 190 });   /* 圆环内部（中心） */
+    ok(byId.get('shList').value === '0', '点第 1 个形状后选中圆环（#shList=0）');
+    pd({ pointerId: 1, button: 0, clientX: 550, clientY: 140 });   /* 直线中点，在其包围盒内 */
+    ok(byId.get('shList').value === '1', '编辑态点其它形状能切换选中（随时改形状，#shList=1）');
+
+    /* Esc = 释放（回到选择/编辑模式） */
+    (listeners['window:keydown'] || [])[0]({ key: 'Escape', target: { tagName: 'DIV' }, preventDefault() {} });
+    ok(selectBtn.classList.contains('on') && !shapeBtn.classList.contains('on'),
+       'Esc 键释放形状编辑（回到「选择/编辑」模式）');
+
+    /* 选择模式点已铺形状的内部（不是轮廓）也能选中 —— 之前只有轮廓能点，里面没反应 */
+    pd({ pointerId: 1, button: 0, clientX: 230, clientY: 190 });   /* 圆环内部（中心，有灯的形状） */
+    ok(byId.get('shList').value === '0', '点已铺形状的内部也能选中（#shList=0）');
+  }
 }
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
