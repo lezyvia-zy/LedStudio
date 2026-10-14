@@ -1,5 +1,7 @@
 # 测试编译产物（test_effects_c_exec 会把生成的头文件编到这里）
 tests/.build/
+# 本地固件 SDK 副本（透明加密、体积大，只作参考，不进仓库）
+MVsB1_BT_Audio_SDK_v0.3.4/
 # 编辑器 / 系统杂物
 .vscode/
 Thumbs.db
