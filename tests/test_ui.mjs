@@ -16,6 +16,22 @@ ok(missing.length === 0, missing.length ? `脚本引用了不存在的元素 id:
 const unused = [...ids].filter(id => !used.has(id) && !/^(cv|left|center|right|tabs|issues|status|dirDiag)$/.test(id));
 if (unused.length) console.log(`  note   HTML 中未被脚本引用的 id: ${unused.join(', ')}`);
 
+/* ---- 1b) 批 5-A：「生成」页已并入「分区」页（页签 8 → 7） ---- */
+{
+  const paneStart = html.indexOf('<div class="pane on" data-pane="zones">');
+  const paneEnd = html.indexOf('<div class="pane" data-pane="check">', paneStart);
+  const zonesPane = html.slice(paneStart, paneEnd);
+  const tabs = [...html.matchAll(/data-tab="([a-z]+)"/g)].map(m => m[1]);
+  const panes = [...html.matchAll(/data-pane="([a-z]+)"/g)].map(m => m[1]);
+  ok(!tabs.includes('gen') && !panes.includes('gen'),
+     `「生成」页签与面板已删除（页签 ${tabs.length} 个: ${tabs.join(',')}）`);
+  ok(!/id="gZone"/.test(html), '「生成」页里的分区下拉 #gZone 已删除（分区表就在同一页）');
+  const moved = ['mName','mLedCount','mLedTrim','gX0','gW','gDir','gK','gApply','cX','cR','cApply','qDir','qApply','bgFile','bgAlign','bgClear'];
+  const miss = moved.filter(id => !zonesPane.includes('id="' + id + '"'));
+  ok(miss.length === 0, miss.length ? `这些控件没搬进「分区」页: ${miss.join(', ')}`
+                                    : `板级参数 / 铺灯 / 底图的 ${moved.length} 个控件都在「分区」页里`);
+}
+
 /* ---- 2) 假 DOM ---- */
 const listeners = {};
 function mkEl(tag='div', id=''){

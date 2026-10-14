@@ -244,12 +244,22 @@
       <button data-tab="mode">模式</button>
       <button data-tab="anim">动画</button>
       <button data-tab="check">校验</button>
-      <button data-tab="gen">生成</button>
       <button data-tab="exp">导出</button>
       <button data-tab="help">帮助</button>
     </div>
 
     <div class="pane on" data-pane="zones">
+      <fieldset>
+        <legend>板级参数（每个项目独立）</legend>
+        <label class="row"><span>项目名</span><input type="text" id="mName"></label>
+        <label class="row"><span>灯总数</span><input type="number" id="mLedCount" min="1" max="1000"></label>
+        <label class="row"><span>RING_SIZE</span><input type="number" id="mRingSize" min="1" max="255"></label>
+        <label class="row"><span>ZONE_MAX</span><input type="number" id="mZoneMax" min="1" max="255"></label>
+        <label class="row"><span>ZONE_MAX_LEN</span><input type="number" id="mZoneMaxLen" min="1" max="255"></label>
+        <div class="hint">与固件 <code>led_ring.h</code> 的 <code>#define</code> 对齐；校验用它们判断能不能编译通过。换一块板只改这里，不动代码。<br>
+          把「灯总数」改小之后，多出来的编号要点下面这个按钮清掉（校验页会一直报 V3/V2）。</div>
+        <div class="row"><span></span><button id="mLedTrim" data-tip="删掉编号 ≥ 灯总数的灯。-&#10;改小灯总数后用它收尾；这一步可 Ctrl+Z 撤销。">裁剪超出灯总数的编号</button></div>
+      </fieldset>
       <table id="zoneTbl"></table>
       <div style="margin:4px 0"><button id="btnZoneAdd">新增分区</button>
         <button id="btnZoneDel">删除分区</button></div>
@@ -270,7 +280,44 @@
         <div class="hint" id="selInfo">未选中</div>
         <button id="btnDelLed">删除选中编号</button>
       </fieldset>
-      <div class="hint">板级参数（项目名 / 灯总数 / RING_SIZE / ZONE_MAX / ZONE_MAX_LEN）已挪到「生成」页 —— 铺灯前先去那里对一遍。</div>
+      <div class="hint">以下是<b>铺灯</b>（按形状给这一段分区生成编号）和<b>底图</b>（照着实物照片描图用）——
+        先在表格里点中一个分区，再来铺。</div>
+      <fieldset>
+        <legend>铺灯 · 矩形环绕圈</legend>
+        <label class="row"><span>左上格</span><input type="number" id="gX0" value="0"><input type="number" id="gY0" value="0"></label>
+        <label class="row"><span>宽 W</span><input type="number" id="gW" value="10" min="1"></label>
+        <label class="row"><span>高 H</span><input type="number" id="gH" value="12" min="1"></label>
+        <label class="row"><span>方向</span><select id="gDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
+        <label class="row"><span>起点偏移 k</span><input type="number" id="gK" value="0" min="0"></label>
+        <div class="hint" id="gInfo"></div>
+        <button id="gApply" class="pri">按上面参数铺灯</button>
+      </fieldset>
+      <fieldset>
+        <legend>铺灯 · 圆环 / 圆弧</legend>
+        <label class="row"><span>圆芯</span><input type="number" id="cX" value="200"><input type="number" id="cY" value="200"></label>
+        <label class="row"><span>半径</span><input type="number" id="cR" value="160"></label>
+        <label class="row"><span>起始角</span><input type="number" id="cA0" value="90" step="5"></label>
+        <label class="row"><span>张角</span><input type="number" id="cSweep" value="360" step="5"></label>
+        <label class="row"><span>方向</span><select id="cDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
+        <label class="row"><span></span><input type="checkbox" id="cClosed" checked>闭合环</label>
+        <button id="cApply" class="pri">按上面参数铺灯</button>
+      </fieldset>
+      <fieldset>
+        <legend>铺灯 · 矩形描点 (照片描图用)</legend>
+        <div class="hint">四角坐标直接由「左上格/宽/高」派生的四边形，按弧长等分撒点。当某边除不尽时用它。</div>
+        <label class="row"><span>方向</span><select id="qDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
+        <button id="qApply" class="pri">按四边形铺灯</button>
+      </fieldset>
+      <fieldset>
+        <legend>底图</legend>
+        <label class="row"><span>图片</span><input type="file" id="bgFile" accept="image/*" style="font-size:11px"></label>
+        <label class="row"><span>透明度</span><input type="range" id="bgOp" min="0" max="100" value="45"></label>
+        <label class="row"><span>缩放</span><input type="number" id="bgScale" value="1" step="0.05"></label>
+        <label class="row"><span>X/Y</span><input type="number" id="bgX" value="0"><input type="number" id="bgY" value="0"></label>
+        <button id="bgAlign" data-tip="把底图的 X/Y 对齐到半个格（格边长的一半）—— 描照片时让底图和画布网格对整齐，灯位更好点。">对齐到格</button>
+        <button id="bgClear">移除底图</button>
+        <div class="hint">底图只影响画布上看到的参照（不进固件导出）：把透明度调低一点，照着照片上的实际灯位铺灯最省事。</div>
+      </fieldset>
     </div>
 
     <div class="pane" data-pane="check">
@@ -437,56 +484,6 @@
       </fieldset>
     </div>
 
-    <div class="pane" data-pane="gen">
-      <fieldset>
-        <legend>板级参数（每个项目独立）</legend>
-        <label class="row"><span>项目名</span><input type="text" id="mName"></label>
-        <label class="row"><span>灯总数</span><input type="number" id="mLedCount" min="1" max="1000"></label>
-        <label class="row"><span>RING_SIZE</span><input type="number" id="mRingSize" min="1" max="255"></label>
-        <label class="row"><span>ZONE_MAX</span><input type="number" id="mZoneMax" min="1" max="255"></label>
-        <label class="row"><span>ZONE_MAX_LEN</span><input type="number" id="mZoneMaxLen" min="1" max="255"></label>
-        <div class="hint">与固件 <code>led_ring.h</code> 的 <code>#define</code> 对齐；校验用它们判断能不能编译通过。换一块板只改这里，不动代码。<br>
-          把「灯总数」改小之后，多出来的编号要点下面这个按钮清掉（校验页会一直报 V3/V2）。</div>
-        <div class="row"><span></span><button id="mLedTrim" data-tip="删掉编号 ≥ 灯总数的灯。-&#10;改小灯总数后用它收尾；这一步可 Ctrl+Z 撤销。">裁剪超出灯总数的编号</button></div>
-      </fieldset>
-      <fieldset>
-        <legend>矩形环绕圈</legend>
-        <label class="row"><span>分区</span><select id="gZone"></select></label>
-        <label class="row"><span>左上格</span><input type="number" id="gX0" value="0"><input type="number" id="gY0" value="0"></label>
-        <label class="row"><span>宽 W</span><input type="number" id="gW" value="10" min="1"></label>
-        <label class="row"><span>高 H</span><input type="number" id="gH" value="12" min="1"></label>
-        <label class="row"><span>方向</span><select id="gDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
-        <label class="row"><span>起点偏移 k</span><input type="number" id="gK" value="0" min="0"></label>
-        <div class="hint" id="gInfo"></div>
-        <button id="gApply" class="pri">按上面参数铺灯</button>
-      </fieldset>
-      <fieldset>
-        <legend>圆环 / 圆弧</legend>
-        <label class="row"><span>圆芯</span><input type="number" id="cX" value="200"><input type="number" id="cY" value="200"></label>
-        <label class="row"><span>半径</span><input type="number" id="cR" value="160"></label>
-        <label class="row"><span>起始角</span><input type="number" id="cA0" value="90" step="5"></label>
-        <label class="row"><span>张角</span><input type="number" id="cSweep" value="360" step="5"></label>
-        <label class="row"><span>方向</span><select id="cDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
-        <label class="row"><span></span><input type="checkbox" id="cClosed" checked>闭合环</label>
-        <button id="cApply" class="pri">按上面参数铺灯</button>
-      </fieldset>
-      <fieldset>
-        <legend>矩形描点 (照片描图用)</legend>
-        <div class="hint">四角坐标直接由「左上格/宽/高」派生的四边形，按弧长等分撒点。当某边除不尽时用它。</div>
-        <label class="row"><span>方向</span><select id="qDir"><option value="cw">顺时针</option><option value="ccw">逆时针</option></select></label>
-        <button id="qApply" class="pri">按四边形铺灯</button>
-      </fieldset>
-      <fieldset>
-        <legend>底图</legend>
-        <label class="row"><span>图片</span><input type="file" id="bgFile" accept="image/*" style="font-size:11px"></label>
-        <label class="row"><span>透明度</span><input type="range" id="bgOp" min="0" max="100" value="45"></label>
-        <label class="row"><span>缩放</span><input type="number" id="bgScale" value="1" step="0.05"></label>
-        <label class="row"><span>X/Y</span><input type="number" id="bgX" value="0"><input type="number" id="bgY" value="0"></label>
-        <button id="bgAlign" data-tip="把底图的 X/Y 对齐到半个格（格边长的一半）—— 描照片时让底图和画布网格对整齐，灯位更好点。">对齐到格</button>
-        <button id="bgClear">移除底图</button>
-      </fieldset>
-    </div>
-
     <div class="pane" data-pane="exp">
       <fieldset>
         <legend>导出</legend>
@@ -513,7 +510,9 @@
         <h3 id="hs-flow">整体流程</h3>
         <p><b>先有效果，再出代码。</b>工具里把排布和灯效都做出来，导出 C 贴进固件。</p>
         <ol>
-          <li><b>分区</b> —— 告诉工具「板子分成几块、每块从几号灯到几号灯」。SP-3122D 预设里已经填好。</li>
+          <li><b>分区</b> —— 告诉工具「板子分成几块、每块从几号灯到几号灯」。SP-3122D 预设里已经填好。<br>
+            这一页还管着<b>板级参数</b>（项目名 / 灯总数 / RING_SIZE 那几个 <code>#define</code>）、<b>按形状铺灯</b>（矩形 / 圆环 / 四边形）
+            和<b>底图</b>（选一张实物照片当参照，照着它描灯位最省事）—— 换一块板从头做，全在这一页里走完。</li>
           <li><b>效果</b> —— 做素材：一个效果 = 一套图层 + 配色 + 速度。效果是<b>素材库</b>，可以被任意多个模式、任意多个分区复用。</li>
           <li><b>模式</b> —— 把效果分配到分区：一个模式 = 若干条「分区 → 效果」的绑定。模式顺序就是固件的 LEDMode 顺序。</li>
           <li><b>动画</b> —— 预览选中的模式（整个板子按绑定跑起来），调速度、单步、归零、方向修正。</li>
@@ -3555,8 +3554,9 @@ window.addEventListener('keydown', e => {
   if (e.key === 'v' || e.key === 'V') { setMode('select'); return; }
   if (e.key === 'p' || e.key === 'P') { setMode('place');  return; }
   if (e.key === 'e' || e.key === 'E') { setMode('erase');  return; }
-  if (e.key === 'g' || e.key === 'G') { tab('gen');  return; }
-  if (e.key === 't' || e.key === 'T') { tab('gen');  return; }
+  /* 「生成」页已并入「分区」页（批 5-A：板级参数 / 铺灯 / 底图都搬到那一页了）——
+     原来指向「生成」页的 g / t 两个快捷键都改指到「分区」页，不再有死键 */
+  if (e.key === 'g' || e.key === 'G' || e.key === 't' || e.key === 'T') { tab('zones');  return; }
   if (e.key === '0') { fitView(); render(); return; }
   if (e.key === '1') { view.zoom = 1; render(); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -3687,10 +3687,6 @@ function renderZoneList() {
     tr.onclick = () => { selZone = i; renderZoneList(); syncZoneEdit(); highlightZone(z); };
     t.appendChild(tr);
   });
-  const opt = $('#gZone');
-  opt.innerHTML = '';
-  state.zones.forEach((z, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `${z.name} (${z.start}..${z.start + z.count - 1})`; opt.appendChild(o); });
-  opt.value = Math.min(selZone, state.zones.length - 1);
 }
 
 function highlightZone(z) {
@@ -5112,7 +5108,7 @@ function projNew() {
   const name = prompt('新项目名称（空白画布，独立于其它项目）', '新灯板');
   if (name === null) return;
   addProject(blankProject(name.trim() || '新灯板'), name.trim() || '新灯板');
-  status('已新建空白项目：可在「生成」页铺灯，或在「分区」页先加分区');
+  status('已新建空白项目：先到「分区」页加分区，再在下面铺灯');
 }
 function projCopy() {
   const p = curProj();
@@ -5288,7 +5284,7 @@ function helpFilter(q) {
 helpBuildToc();
 $('#helpSearch').oninput = e => helpFilter((e.target || $('#helpSearch')).value);
 /* 「常见做法」每行末尾的「去做」：跳到对应页签，接着照左边那列配 */
-const HELP_GO_CN = { zones: '分区', fx: '效果', mode: '模式', anim: '动画', gen: '生成', exp: '导出', check: '校验' };
+const HELP_GO_CN = { zones: '分区', fx: '效果', mode: '模式', anim: '动画', exp: '导出', check: '校验' };
 document.querySelectorAll('#helpDoc [data-go]').forEach(b => b.onclick = () => {
   const p = b.dataset.go;
   tab(p);
@@ -5371,8 +5367,6 @@ $('#qApply').onclick = () => {
   const byN = new Map(state.leds.map(l => [l.n, l])); state.leds = [...byN.values()];
   afterChange();
 };
-$('#gZone').onchange = e => { selZone = +e.target.value; renderZoneList(); syncZoneEdit(); };
-
 /* 底图 */
 $('#bgFile').onchange = e => {
   const f = e.target.files[0]; if (!f) return;

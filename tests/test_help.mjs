@@ -97,7 +97,8 @@ ok(/selInput\([^)]*,\s*$|selInput\([^)]*,\s*'|selInput\([\s\S]{0,120}?'跟随/.t
   /* P4：常见做法每行末尾的「去做」 */
   const goes = [...doc.matchAll(/data-go="([a-z]+)"/g)].map(m => m[1]);
   ok(goes.length >= 8, `「常见做法」有 ${goes.length} 行带「去做」按钮`);
-  const known = ['zones', 'fx', 'mode', 'anim', 'gen', 'exp', 'check'];
+  /* 目标页直接按页面上的页签列表算 —— 以后合并 / 改名页签时这里不会失效 */
+  const known = [...html.matchAll(/data-tab="([a-z]+)"/g)].map(m => m[1]);
   ok(goes.every(p => known.includes(p)), `「去做」目标页都是已存在的页签: ${[...new Set(goes)].join(', ')}`);
   ok(/querySelectorAll\('#helpDoc \[data-go\]'\)/.test(uiSrc), '「去做」按钮已接线（切页 + 状态栏说明）');
 }

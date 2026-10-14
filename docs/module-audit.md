@@ -1,6 +1,6 @@
 # 工具模块体检报告（逐模块优化的底稿）
 
-> **用途**：8 个页签 = 8 个功能模块，一件一件优化。每条发现都带**证据行号**（`led_layout_editor.html`，
+> **用途**：页签 = 功能模块，一件一件优化（原 8 个；**批 5-A（2026-10-14）** 把「生成」并入「分区」后是 7 个）。每条发现都带**证据行号**（`led_layout_editor.html`，
 > 基线提交 `34a6110`）、影响、建议动作、预估改动面、要跑的测试。行号会随实施漂移，动手前用关键字复核。
 >
 > **严重度**
@@ -21,12 +21,12 @@
 
 | 模块 | 页签 | HTML 标记 | 界面代码 | 核心逻辑 | 主要测试 |
 |---|---|---|---|---|---|
-| **分区** | `zones` | 202–231 | 3461–3503（表/编辑）、4650–4672（增删）、4733–4739（字段） | `validate` 872–1030、`deriveZoneDir` 844–868 | `test_ui` `test_struct` `test_core` |
+| **分区** | `zones` | 251–321（板级参数 / 分区表 / 铺灯 / 底图 —— 批 5-A 起全在这一页） | 3676–3694（表）、3692–3742（高亮/配色/编辑）、5139–5151（增删）、5304–5373（铺灯） | `validate` 872–1030、`deriveZoneDir` 844–868、`GEN` 866–944 | `test_ui` `test_struct` `test_core` `test_map` |
 | **效果** | `fx` | 317–393 | 3714–3941（列表/图层）、3943–3982（预置）、3998–4185（窗体接线） | `instApplyPreset` 1690–1721、`instNew`/`instTick` 1131–1641 | `test_effects_core` `test_effects_c` `test_effects_ui` `test_fx_presets` `test_stage` `test_solo` `test_override` `test_split` `test_effects_c_exec` |
 | **模式** | `mode` | 284–315 | 4187–4416 | `resolveEffect`/`bindKey`/`bindZones` 1642–1688 | `test_modes` `test_override` `test_split` |
 | **动画** | `anim` | 237–282 | 3542–3711（接线/播放）、3586–3639（下拉/同步） | `sim*` 1131–1641、`ringIsFast`/`instSpeedFromRing`/`simSyncSpeed` 1531–1546 | `test_anim` `test_anim2` `test_effects_c_exec` |
 | **校验** | `check` | 233–236 | `renderIssues` 3505–3526 | `validate` 872–1030 | `test_core` `test_struct` |
-| **生成** | `gen` | 395–430 | `genParams` 4742–4751、铺灯 4753–4807 | `GEN` 761–838 | `test_map` `test_struct` |
+| ~~**生成**~~ | ~~`gen`~~ | — | **批 5-A 已并入「分区」**（`genParams` / `genInfo` / `#gApply` 见上一行） | `GEN` 866–944 | `test_map` `test_struct` |
 | **导出** | `exp` | 482–496（面板入口）、718–780（`#exportDlg` 弹窗） | 4640–4671（生成）、4672–4790（导出窗口：`EXPORT_KINDS`/`openExport`/`saveAsFile`）、4791–4880（文件 / JSON / PNG） | `exportC`/`exportEffectsC` 1723–2695 | `test_effects_c` `test_map` `test_wrap` `test_export` |
 | **帮助** | `help` | 482–683 | `tab('help')` 3457、`tipInit` 2725–2747 | — | `test_help`（断言章节与 `data-tip`） |
 | 横向 | — | 左侧栏/画布/键盘 | 2697–3440 | 项目库 2780–2921、撤销 2893–2906、状态栏 4540–4550、项目切换 4552–4595 | `test_ui` `test_persist` |
@@ -104,6 +104,10 @@
 
 ## 8. 生成页 `gen`
 
+> **批 5-A（2026-10-14）已落地：本页并入「分区」页**（页签 8 → 7）。板级参数 / 铺灯 / 底图 的控件现在都在 `data-pane="zones"` 里，
+> 「给哪个分区铺」直接看同一页的分区表，原来的 `#gZone` 下拉与它的 `onchange` 一起删掉了（按键 `g` / `t` 也改指「分区」页）。
+> 下面的条目与行号保留以便回溯；`test_ui` 的「1b」块守住「这些控件必须在 zones 面板里」，`test_help` 的页签↔面板对应是动态校验的。
+
 | # | 严重度 | 现象 | 证据 | 建议动作 | 改动面 |
 |---|---|---|---|---|---|
 | **G1** ✓0677fed | P1 | **铺灯前不提示「将覆盖该分区已有编号」**：`#gApply`/`#cApply`/`#qApply` 会先删掉该区间的所有灯再重铺（4759–4764 等），提示只有一个 `status` 事后说明。用户手工微调过的灯位可能被覆盖（虽可撤销） | 4753–4767、4768–4779、4780–4789 | 铺灯前：若该区间已有灯，弹一次确认（或首次勾选「不再提示」）；`gInfo` 里显示「将覆盖 N 颗已有编号」 | ~25 行 |
@@ -142,6 +146,7 @@
 | **批 2**（易用性） | **Z2 / Z3 / Z4**（分区即时提示、复制分区、编号压缩）、**F1 / F2**（真实长度对比、效果过滤）、**M2 / M3 / M5**（预览模式、全选、拆绑定）、**A1 / A2**（快捷键、档位显示）、**C2 / C4 / C5**（一键修复、复制报告、分级过滤）、**E3 / E4 / E5**（文件名、抽 `copyText`、导出全部） | 每个都是「每天都要用的那几下」，改动独立、风险低 |
 | **批 3**（打磨与一致性） | **H2 / H3 / H4 / H5**、**Z5 / Z6**、**F5 / F6 / F7**、**A3 / A5**、**G2**、**P1–P4** | 手感与维护性。**F5（图层旁路）与 H5（校验降复杂度）要动 core/C**，别和别的改动混在一个 commit。**批 3 已全部落地**：H2/H3/H4 ✓cfbd9e7、H5 ✓06292d5、Z5 ✓70ba5b3（顺带修掉 H1/G3 的静默丢数据）、Z6 ✓644be41、F5 ✓7b54d71、F6 ✓e735f29、F7 ✓01988b6、A3/A5 ✓aaeaf83、G2 ✓dd0f8c2、P1–P4 ✓22fcc85 |
 | **批 4**（用户反馈，2026-10-10） | **E6**（导出改独立窗口）、**E2 / E3 ◐ / E4**（过期文案、文件名带项目名、复制实现合一）、**H9**（右栏上限自适应） | 实测反馈「导出打开后就铺满整个工具、不能选保存路径」。顺带清掉批 0/2 里剩下的几行。**已全部落地** ✓fd6e189（`test_export` 新增 65 项断言，全量 20 套件 / 593 项全绿） |
+| **批 5**（模块合并，2026-10-14 用户反馈） | **A：分区 + 生成 合并成一页**（板级参数 / 铺灯 / 底图 搬进「分区」，删 `gen` 页签与 `#gZone`）；**B：`zone.rect` 扶正**（选中分区时回填到铺灯表单、铺完写回、跟着项目存盘）；**C：画布直编**（点一颗灯就选中它所属分区、在空白处拉框定形状、拖形状手柄重铺） | 用户原话：「在这个页面，**参照实物布局和形状，在画布上进行彩灯样式编辑**」—— 现在「看照片 → 定形状 → 铺灯 → 调编号」被拆在两页，`#gZone` 下拉只是补丁。**A 已落地**（见下方记录）；B 是 C 的地基（没有 `zone.rect` 就存不住形状），顺序不能倒 |
 | **独立批次（既有路线）** | **H7**（抽 `tests/_harness.mjs`）、P2 任意 LED 数量、P3 固件契约「后端」抽象 | 与上面各批互不阻塞；`_harness` 建议在批 2 之后做（那时新增断言最多，抽取收益最大） |
 
 ### 改动面校准（据本报告估算）
@@ -165,11 +170,26 @@
 >
 > 提交拆分说明：批 1 的 7 个条目按「同一页签 + 同一份测试改动」合成 3 个 commit（F3+F4、E1+C3、C1+M1+G1）—— 因为 `test_effects_ui` / `test_ui` / `test_core` 里对应的断言块彼此相邻、无法按 hunk 拆到不同提交，强行拆会让中间提交的测试不完整。每个 commit 自身都是全绿的。
 
+### 批 5 落地记录（A：页面合并，2026-10-14）
+
+> 这一批不进「体检条目表」—— 它源自用户实测后的反馈（「分区和生成可以合并成一页」），不是体检报告里的问题条目。
+
+| 项 | 落点（现状行号） |
+|---|---|
+| 页签 8 → 7 | 删 `data-tab="gen"`（原 247）与整个 `data-pane="gen"` 面板（原 440–488），内容整体搬进 `data-pane="zones"` |
+| 新面板顺序 | 板级参数（252–262）→ 分区表 + 增删（263–265）→ 选中分区（267–277）→ 灯（278–282）→ 铺灯 ×3（285–310）→ 底图（311–320）。自上而下就是「换一块板」的工序：先对 `<define>`，再排分区，再按形状铺，最后照底图核对 |
+| 删 `#gZone` | 下拉（原 454）与 `$('#gZone').onchange`（原 5374）一起删；铺灯的目标 = 分区表里当前选中的分区（`selZone`），同一页直接看得见 |
+| `g` / `t` 快捷键 | 这两键原来都跳「生成」页，现改指「分区」页（3555–3557）—— 不留「按了跳到空白页」的死键 |
+| 文案 | `btnProjNew` 的状态栏提示（5108）、铺灯的前置提示（5331）；帮助页「整体流程」第 1 条补上「这一页还管板级参数 / 铺灯 / 底图」（513–515） |
+| 测试 | `test_ui` 新增「1b」块 3 条（页签与面板里都不再有 `gen`、`#gZone` 已删、16 个控件都落在 zones 面板里）；`test_help` 的「去做」目标页改为**按实际页签列表**校验（以后合并 / 改名页签不会失效）→ `node tests/run_all.mjs` 实测 **20 套件 / 646 项 / 0 FAIL**（`test_ui` 66 → 69，其余不动） |
+
+> **未做（用户选择「只做 A」）**：`zone.rect` 与铺灯表单互相回填（B）、画布上点灯选分区 / 拉框定形状 / 手柄重铺（C）。注意预设里 `zone.rect` 已经存在（`PRESET_SP3122D`，1294–1298）且只被 `buildPreset`（1310）消费一次 —— 先做 B 把它扶正，C 才有落脚点。
+
 ## 12. 验收清单（改哪个模块，跑哪些测试）
 
 **通用铁律**
 
-- 改完跑 `node tests/run_all.mjs`，目标 **20 套件 / 643+ 项 / 0 FAIL**（新增条目会让总数上升）。
+- 改完跑 `node tests/run_all.mjs`，目标 **20 套件 / 646+ 项 / 0 FAIL**（新增条目会让总数上升）。
 - 动 **core**（`CORE = { … }` 之前的部分）→ 同步末尾导出清单（坑 13），否则新符号在测试里是 `undefined`。
 - 动 **C 模板 / 图层原语 / `led_gen_tick`** → 必须跑 `test_effects_c_exec`（真编译 + 逐字节比对）。
 - 动 **帮助文案或 `data-tip`** → 先读 `tests/test_help.mjs`（坑 14），文案与断言一起改。
@@ -178,12 +198,12 @@
 
 | 模块 | 跑这些 | 新断言要点 |
 |---|---|---|
-| 分区 `zones` | `test_ui` `test_struct` `test_core` `test_persist` | H1/Z1：改 `#zName` 后等 700ms，`localStorage` 里出现新名字（**防回归**）；Z2：写出越界 `start` 后字段旁出现提示；Z3/Z4：复制分区 / 压缩编号后 `validate` 无 `V1/V2/V3b` |
+| 分区 `zones`（批 5-A 起含原 `gen` 的内容） | `test_ui` `test_struct` `test_core` `test_persist` `test_map` | H1/Z1：改 `#zName` 后等 700ms，`localStorage` 里出现新名字（**防回归**）；Z2：写出越界 `start` 后字段旁出现提示；Z3/Z4：复制分区 / 压缩编号后 `validate` 无 `V1/V2/V3b`；**页面归属**：板级参数 / 铺灯 / 底图 的 16 个控件必须在 `data-pane="zones"` 里、页面里不再有 `#gZone`（`test_ui` 1b） |
 | 效果 `fx` | `test_effects_ui` `test_fx_presets` `test_stage` `test_solo` `test_override` `test_split` `test_effects_core` `test_effects_c` `test_effects_c_exec` | F1：对比条长度来自 `state.zones` 的真实 `count`；F2：过滤后行数与 `slot` 不变；F3：状态栏文案；F4：删除时 `confirm` 文案含引用它的模式名 |
 | 模式 `mode` | `test_modes` `test_override` `test_split` `test_core` | M1：构造同分区两条绑定 → `validate` 出 `V34`；M2：点预览后 `A().previewTarget==='mode'` 且 `store.current` 项目未变；M3/M5：全选/拆条后 `binds` 结构正确 |
 | 动画 `anim` | `test_anim` `test_anim2` `test_effects_c_exec` | A1：键盘事件触发 `playing` 翻转；A2：自动档 + `fast>=slow` 时显示「慢档（原因：…）」，与 `ringIsFast` 结果一致 |
 | 校验 `check` | `test_core` `test_struct` `test_ui` | C1：条目点击后 `tab` / 选中变化；C2：修复后 `validate` 只剩 `ok`；C3：`err` 未清零时导出按钮转二次确认 |
-| 生成 `gen` | `test_map` `test_struct` | G1：已有灯位时 `confirm` 被调用（假 DOM 里计数）；G2：对齐网格后坐标是 `CELL/2` 的整数倍 |
+| ~~生成~~ `gen`（批 5-A 起并入 `zones`） | `test_map` `test_struct` `test_ui` | G1：已有灯位时 `confirm` 被调用（假 DOM 里计数）；G2：对齐网格后坐标是 `CELL/2` 的整数倍；G3：底图参数改完 700ms 后进存档 |
 | 导出 `exp` | `test_map` `test_effects_c` `test_wrap` `test_core` `test_export` | E1：`V5` 存在时输出区被标记；E2 ✓：页面里不再出现「第 4 节」；E4 ✓：复制只剩一个 `copyExport()`；E6/H9：窗口启动时关着、三个页签各自生成、「另存为」建议名与类型过滤器、回退下载的文件名、取消不写不下载、拖动 / 边界夹紧 / Esc、存档里的超大右栏宽度被夹紧 |
 | 帮助 `help` | `test_help` | P1：10 个 `<h3>` 都有 `id` 且目录链接数一致；P2：搜索框存在（新增 `data-tip`） |
 | 横向 | `test_persist` `test_ui` `test_solo` | H2：`#chkSnap` 状态进 `state.view.snap` 并在切项目后回填；H4：`status(msg,'err')` 不被 3.2s 计时器覆盖 |
