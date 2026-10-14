@@ -157,13 +157,13 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 悬浮说明 + 完整帮助页 | ui 悬浮说明 + 帮助页；被 `test_help` 断言 |
 | 从固件源码重抽查表 | `tools/extract_fw_tables.py` |
 
-### 测试覆盖（20 套件、593 项断言）
+### 测试覆盖（20 套件、643 项断言）
 
 | 类型 | 套件 | 验什么 |
 |---|---|---|
-| 纯逻辑 | `test_effects_core`(56) `test_core`(22) `test_map`(8) `test_wrap`(4) `test_anim`(10) `test_effects_c`(43) | 图层原语、排布生成、校验、C 文本、回绕修正、速度档信号链 |
+| 纯逻辑 | `test_effects_core`(56) `test_core`(30) `test_map`(8) `test_wrap`(4) `test_anim`(10) `test_effects_c`(43) | 图层原语、排布生成、校验、C 文本、回绕修正、速度档信号链 |
 | 真编译 | `test_effects_c_exec`(10) | 用 AndeSight cygwin gcc 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的音量档场景（验「音乐来了会变快」这条链路） |
-| 假 DOM | `test_effects_ui`(38) `test_ui`(52) `test_anim2`(30) `test_modes`(21) `test_override`(29) `test_fx_presets`(32) `test_stage`(22) `test_split`(25) `test_help`(51) `test_export`(65) | 界面层真跑一遍（`boot()` 走通）、交互、接线（含速度档「自动」接线）；`test_help` 断言帮助页章节与 `data-tip`；`test_export` 断言导出窗口开关/三页签/「另存为」与回退下载/取消/拖动/Esc、以及右栏宽度上限自适应 |
+| 假 DOM | `test_effects_ui`(50) `test_ui`(66) `test_anim2`(30) `test_modes`(25) `test_override`(29) `test_fx_presets`(32) `test_stage`(22) `test_split`(25) `test_help`(51) `test_export`(77) | 界面层真跑一遍（`boot()` 走通）、交互、接线（含速度档「自动」接线）；`test_help` 断言帮助页章节与 `data-tip`；`test_export` 断言导出窗口开关/三页签/「另存为」与回退下载/取消/拖动/Esc、右栏宽度上限自适应，以及批 1 的「校验没通过时导出被红条挡住」 |
 | 持久化 | `test_persist`(31) `test_solo`(31) | 关掉再打开还在、迁移、状态隔离 |
 | 结构 | `test_struct`(13) | 脚本分块结构 |
 
@@ -173,7 +173,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 5. 进行中 / 未完成的功能（及当前思路）
 
-工具本体**功能完整、593 项断言全绿**。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
+工具本体**功能完整、643 项断言全绿**。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
 
 1. **抽公共测试驾具**：20 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 20 处。应该抽成 `tests/_harness.mjs`。
    - **注意**：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。
@@ -295,7 +295,16 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 11. 变更记录
 
-**2026-10-10（本次）—— 速度档跟着音乐变（不需要新的固件补丁）**
+**2026-10-14 —— 批 1「防呆闭环」落地（`81dd19f` / `d90ddc8` / `0677fed`）**
+
+- **导出不再放过错误（E1 + C3）**：`EXPORT_KINDS.{fx,table}.gate = true`，生成前先过 `exportGate()` —— 工程里有 `err`（如 V5/V9）时清空输出区、在导出窗口顶部亮红条（列出条数与错误代码），点「仍要导出」才放行（`expForce` 只放行这一次，重开窗口会再问）。`.json` 是整库备份，标 `gate:false`：只提示、不拦。
+- **校验条目能跳（C1）**：`validate()` 的条目多了 `jump:{pane, zone|fx|mode}`，点校验页的条目就切到对应页并选中那一条（涉及编号的仍照旧闪灯），`jumpTip()` 把「点它能跳到哪」写进悬浮提示。
+- **绑定冲突有校验（M1）**：新增 `V34`（warn）—— 同一模式内同一分区被多条绑定覆盖（一条绑定不勾分区 = 全部分区）时点出分区名与「第几条绑定」，并跳回那个模式。
+- **铺灯不再静默覆盖（G1）**：`#gApply`/`#cApply`/`#qApply` 动手前数一下号段上的现存灯，先问一句（写清颗数与「可撤销」）；号段空着就不打扰；`genInfo()` 常驻显示「该号段已有 N 颗，铺灯会覆盖」。
+- **删效果不再静默丢引用（F4）**：确认框列出「哪个模式的几条绑定在用它」，并说明那些绑定会变成「（空）」，删完按 `warn` 级提醒去重选。顺带修 F3 文案（「效果顺序已调整」）。
+- **测试**：+50 条（`test_core` 30 / `test_ui` 66 / `test_export` 77 / `test_effects_ui` 50 / `test_modes` 25），全量 **20 套件 / 643 项 / 0 FAIL**。
+
+**2026-10-10 —— 速度档跟着音乐变（不需要新的固件补丁）**
 
 - **根因**：补丁 [5] 把 `ring_tick()` 换成 `led_gen_tick(ring)` 之后，推进实例的只剩生成代码，而它只读实例自己的 `speed_cur` —— 固件 `ring_set_audio_level()` 每 20ms 写的 `ring->speed_cur` 没人读，速度永远停在慢档。
 - **改法（零固件改动）**：`led_gen_tick()` 每帧先算一次 ring 级档位（`ring->speed_fast < ring->speed_slow && ring->speed_cur <= ring->speed_fast`），再把 `I->speed_cur` 设成该实例自己的 `speed_fast` / `speed_slow`。判据保守：固件没接音量或参数退化（`fast >= slow`）时一律慢档，与打补丁前行为一致。

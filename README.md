@@ -51,7 +51,7 @@ node tests/run_all.mjs            # 全部
 node tests/run_all.mjs 效果 编译   # 只跑名字含这些字样的
 ```
 
-当前 **20 个套件、593 项断言**，全部通过。
+当前 **20 个套件、643 项断言**，全部通过。
 
 ### 真编译测试（`test_effects_c_exec`）
 
