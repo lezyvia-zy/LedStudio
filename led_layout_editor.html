@@ -253,12 +253,9 @@
         <legend>板级参数（每个项目独立）</legend>
         <label class="row"><span>项目名</span><input type="text" id="mName"></label>
         <label class="row"><span>灯总数</span><input type="number" id="mLedCount" min="1" max="1000"></label>
-        <label class="row"><span>RING_SIZE</span><input type="number" id="mRingSize" min="1" max="255"></label>
-        <label class="row"><span>ZONE_MAX</span><input type="number" id="mZoneMax" min="1" max="255"></label>
-        <label class="row"><span>ZONE_MAX_LEN</span><input type="number" id="mZoneMaxLen" min="1" max="255"></label>
-        <div class="hint">与固件 <code>led_ring.h</code> 的 <code>#define</code> 对齐；校验用它们判断能不能编译通过。换一块板只改这里，不动代码。<br>
-          把「灯总数」改小之后，多出来的编号要点下面这个按钮清掉（校验页会一直报 V3/V2）。</div>
+        <div class="hint">把「灯总数」改小之后，多出来的编号要点下面这个按钮清掉（校验页会一直报 V3/V2）。</div>
         <div class="row"><span></span><button id="mLedTrim" data-tip="删掉编号 ≥ 灯总数的灯。-&#10;改小灯总数后用它收尾；这一步可 Ctrl+Z 撤销。">裁剪超出灯总数的编号</button></div>
+        <div class="hint" id="mBoardInfo"></div>
       </fieldset>
       <table id="zoneTbl"></table>
       <div style="margin:4px 0"><button id="btnZoneAdd">新增分区</button>
@@ -511,7 +508,7 @@
         <p><b>先有效果，再出代码。</b>工具里把排布和灯效都做出来，导出 C 贴进固件。</p>
         <ol>
           <li><b>分区</b> —— 告诉工具「板子分成几块、每块从几号灯到几号灯」。SP-3122D 预设里已经填好。<br>
-            这一页还管着<b>板级参数</b>（项目名 / 灯总数 / RING_SIZE 那几个 <code>#define</code>）、<b>按形状铺灯</b>（矩形 / 圆环 / 四边形）
+            这一页还管着<b>板级参数</b>（项目名 / 灯总数）、<b>按形状铺灯</b>（矩形 / 圆环 / 四边形）
             和<b>底图</b>（选一张实物照片当参照，照着它描灯位最省事）—— 换一块板从头做，全在这一页里走完。</li>
           <li><b>效果</b> —— 做素材：一个效果 = 一套图层 + 配色 + 速度。效果是<b>素材库</b>，可以被任意多个模式、任意多个分区复用。</li>
           <li><b>模式</b> —— 把效果分配到分区：一个模式 = 若干条「分区 → 效果」的绑定。模式顺序就是固件的 LEDMode 顺序。</li>
@@ -5044,6 +5041,10 @@ function bindProject() {
   state = p.state;
   if (!state.canvas) state.canvas = { width: 640, height: 1600, background: null };
   if (!state.meta)   state.meta = clone(emptyProject().meta);
+  /* 板上限 RING_SIZE / ZONE_MAX / ZONE_MAX_LEN 是固件 led_ring.h 的常量（界面上不给改）：老存档缺键就补固件默认 */
+  if (state.meta.ringSize   == null) state.meta.ringSize   = FW.RING_SIZE;
+  if (state.meta.zoneMax    == null) state.meta.zoneMax    = FW.ZONE_MAX;
+  if (state.meta.zoneMaxLen == null) state.meta.zoneMaxLen = FW.ZONE_MAX_LEN;
   if (!state.anim)   state.anim = defaultAnim();          /* 老存档补默认值 */
   /* 老存档迁移：以前是 anim.preset（FW.presets 的下标），现在是效果 id */
   if (!state.effects) state.effects = defaultEffects();
@@ -5163,9 +5164,11 @@ function syncMeta() {
   const m = state.meta;
   $('#mName').value = m.name;
   $('#mLedCount').value = m.ledCount;
-  $('#mRingSize').value = m.ringSize;
-  $('#mZoneMax').value = m.zoneMax;
-  $('#mZoneMaxLen').value = m.zoneMaxLen;
+  /* 板上限是固件 led_ring.h 的常量，界面上不给改 —— 只在这里如实显示；校验 V7/V8 按它报错 */
+  $('#mBoardInfo').innerHTML = '灯板上限跟固件 <code>led_ring.h</code> 对齐、不在界面上改：' +
+    `RING_SIZE <b>${m.ringSize != null ? m.ringSize : FW.RING_SIZE}</b>` +
+    ` · 分区数 ≤ <b>${m.zoneMax != null ? m.zoneMax : FW.ZONE_MAX}</b>` +
+    ` · 单分区 ≤ <b>${m.zoneMaxLen != null ? m.zoneMaxLen : FW.ZONE_MAX_LEN}</b> 颗（校验 V7/V8 就按这套上限报错）。`;
 }
 function syncBgPanel() {
   const bg = state.canvas.background;
@@ -5192,9 +5195,7 @@ $('#mLedTrim').onclick = () => {
   afterChange();
   status(`已裁掉 ${over.length} 颗编号 ≥ ${M.ledCount} 的灯（可 Ctrl+Z 撤销）`, 'ok');
 };
-$('#mRingSize').oninput  = e => { state.meta.ringSize = Math.max(1, +e.target.value || 1); afterChange(); };
-$('#mZoneMax').oninput   = e => { state.meta.zoneMax = Math.max(1, +e.target.value || 1); afterChange(); };
-$('#mZoneMaxLen').oninput= e => { state.meta.zoneMaxLen = Math.max(1, +e.target.value || 1); afterChange(); };
+/* 板上限 RING_SIZE / ZONE_MAX / ZONE_MAX_LEN 不给改（固件常量）：输入框已删，所以这里也没有接线 */
 
 $('#btnNew').onclick  = () => {
   if (!confirm('把当前项目重置为内置 SP-3122D 预设？当前排布会丢失，且不可撤销。')) return;

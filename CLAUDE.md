@@ -126,7 +126,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 测试怎么组织的
 
-20 个套件、646 项断言。四类：
+20 个套件、649 项断言。四类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -155,11 +155,12 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 14. **帮助页文案与 `data-tip` 是测试断言对象**（`test_help`）：章节标题、关键短语（如「本层空间色相」）、特定控件的 `data-tip` 都在断言里。改教程文字或删说明前先看 `test_help.mjs`。**每个 `<h3>` 必须带唯一的 `id`**（`#helpToc` 的目录按 h3 顺序生成、按 id 联动显隐），「常见做法」表里的「去做」按钮用 `data-go="<页签>"`，目标必须是已存在的页签（`test_help` 会校验）。
 15. **速度档是 ring 级信号，不是实例级的**：`ring->speed_cur` 由固件 `ring_set_audio_level()` 按音量切，生成代码在 `led_gen_tick()` 开头把它同步进每个实例（`I->speed_cur = fast ? I->speed_fast : I->speed_slow`，各效果仍用自己配的 fast/slow）。改这条判据必须同时改 JS 侧的 `ringIsFast()` —— 否则真编译套件立刻红。判据是保守的：只有 `speed_fast < speed_slow` 且 `speed_cur` 落在快档才算「有声音」。
 16. **导出的「另存为」必须先弹系统选择器、再异步生成内容**：`showSaveFilePicker()` 吃用户手势，塞进 `toBlob()` 的回调里就变成「非用户触发」而抛 `SecurityError` —— 所以 `saveAsFile(name, data, mime)` 的 `data` 允许传**函数**（先弹选择器 → `await make()` → 再写文件）。另外 `#tipBox` 的 `z-index` 必须**高于**弹窗遮罩（`.dlgMask`），否则导出窗口里的 `data-tip` 会被挡住弹不出来。
-17. **「生成」页已并入「分区」页（批 5-A）**：板级参数（`#mName`/`#mLedCount`/`#mLedTrim`…）、铺灯（`#gX0…`/`#cApply`/`#qApply`）、底图（`#bgFile…`）的控件都在 `data-pane="zones"` 里；`#gZone` 下拉已删 —— 铺灯目标就是分区表里当前选中的 `selZone`。按键 `g` / `t` 现在都跳到「分区」页（原来跳「生成」页）。`test_ui` 的「1b」块守住这些控件的归属，`test_help` 的「页签 ↔ 面板一一对应」是动态校验（页签改名/合并不会误伤），但**页签总数从 8 变 7**，别再照旧数字写文档。
+17. **「生成」页已并入「分区」页（批 5-A）**：板级参数（`#mName`/`#mLedCount`/`#mLedTrim`…）、铺灯（`#gX0…`/`#cApply`/`#qApply`）、底图（`#bgFile…`）的控件都在 `data-pane="zones"` 里；`#gZone` 下拉已删 —— 铺灯目标就是分区表里当前选中的 `selZone`。按键 `g` / `t` 现在都跳到「分区」页（原来跳「生成」页）。`test_ui` 的「1b」块守住这些控件的归属，`test_help` 的「页签 ↔ 面板一一对应」是动态校验（页签改名/合并不会误伤），但**页签总数从 8 变 7**，别再照旧数字写文档。板级参数现在只留**项目名 / 灯总数**（见坑 18）。
+18. **板上限不让用户改（5-A′）**：`RING_SIZE` / `ZONE_MAX` / `ZONE_MAX_LEN` 是**固件** `led_ring.h` 的 `#define`，在工具里改只会让校验（V7 分区数、V8 单分区长度、V23 光宽、V26 int16 溢出）跟真固件脱节 —— 2026-10-14 把这三个输入框删了，改成一行只读说明 `#mBoardInfo`（`syncMeta()` 填）。`state.meta` 里这三个键**保留**：校验和「导出前警示」（分区数超 `ZONE_MAX`）还读它，`bindProject()` 会给老存档缺键补 `FW.*`。真要换板子 = 改固件 `#define`，再同步文件开头的 `const FW` 与 `docs/firmware-contract.md`。
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、646 项断言全绿（`node tests/run_all.mjs` 实测 20 套件 / 646 项 / 0 FAIL）。
+工具本体功能完整、649 项断言全绿（`node tests/run_all.mjs` 实测 20 套件 / 649 项 / 0 FAIL）。
 **逐模块优化的体检报告在 `docs/module-audit.md`**（页签 = 模块：可优化点 + 优先级批次 + 改动面 + 每模块验收清单）—— 当前主线，**批 0 / 3 / 4 / 1 已全部落地**（批 1「防呆闭环」＝ 导出拦错误、校验条目可跳转、`V34` 绑定冲突、铺灯覆盖确认、删效果列引用），**批 5-A（分区 + 生成 合并成一页）也已落地**（见该报告第 11 节的落地记录）。已知的待办：
 
 1. **抽公共测试驾具**：20 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 20 处。应该抽成 `tests/_harness.mjs`。注意：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。

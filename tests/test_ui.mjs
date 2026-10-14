@@ -26,6 +26,11 @@ if (unused.length) console.log(`  note   HTML 中未被脚本引用的 id: ${unu
   ok(!tabs.includes('gen') && !panes.includes('gen'),
      `「生成」页签与面板已删除（页签 ${tabs.length} 个: ${tabs.join(',')}）`);
   ok(!/id="gZone"/.test(html), '「生成」页里的分区下拉 #gZone 已删除（分区表就在同一页）');
+  /* 板级参数只留项目名 / 灯总数 —— RING_SIZE / ZONE_MAX / ZONE_MAX_LEN 是固件 led_ring.h 的常量，不给改 */
+  const boardInputs = ['mRingSize', 'mZoneMax', 'mZoneMaxLen'].filter(id => html.includes('id="' + id + '"'));
+  ok(boardInputs.length === 0, boardInputs.length ? `板上限输入框还在（应删）: ${boardInputs.join(', ')}`
+                                                 : '板级参数只留项目名 / 灯总数（RING_SIZE / ZONE_MAX / ZONE_MAX_LEN 输入框已删）');
+  ok(zonesPane.includes('id="mBoardInfo"'), '固定上限改成一行只读说明 #mBoardInfo（校验 V7/V8 的解释还留着）');
   const moved = ['mName','mLedCount','mLedTrim','gX0','gW','gDir','gK','gApply','cX','cR','cApply','qDir','qApply','bgFile','bgAlign','bgClear'];
   const miss = moved.filter(id => !zonesPane.includes('id="' + id + '"'));
   ok(miss.length === 0, miss.length ? `这些控件没搬进「分区」页: ${miss.join(', ')}`
@@ -276,8 +281,11 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   statusEl.textContent = ''; statusEl.className = '';
 }
 
-/* ---- 12) 缩小灯总数后可以一键裁掉多出来的编号（板级参数在「生成」页） ---- */
+/* ---- 12) 缩小灯总数后可以一键裁掉多出来的编号（板级参数在「分区」页） ---- */
 {
+  const boards = byId.get('mBoardInfo');
+  ok(/RING_SIZE <b>24<\/b>/.test(boards.innerHTML),
+     `板上限只读说明按固件常量填好: "${boards.innerHTML.replace(/<[^>]+>/g, '').slice(0, 60)}"`);
   const leds = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state.leds.length;
   const lc = byId.get('mLedCount');
   ok(leds() === 104, `裁剪前灯数 = ${leds()}`);
