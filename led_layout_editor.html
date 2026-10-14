@@ -1013,7 +1013,8 @@ function nearestDists(leds, cell) {
 
 function validate(state) {
   const out = [];
-  const push = (level, code, msg, leds) => out.push({ level, code, msg, leds: leds || [] });
+  const push = (level, code, msg, leds, jump) =>
+    out.push({ level, code, msg, leds: leds || [], jump: jump || null });
   const M = state.meta;
   const nums = new Map();
   for (const L of state.leds) {
@@ -1047,20 +1048,24 @@ function validate(state) {
     if (!owner.has(n)) push('warn', 'V4', `${n} 号灯不属于任何分区`, [n]);
   }
   for (const [n, arr] of owner) if (arr.length > 1)
-    push('err', 'V5', `${n} 号灯同时属于「${arr[0].z.name}」和「${arr[1].z.name}」`, [n]);
+    push('err', 'V5', `${n} 号灯同时属于「${arr[0].z.name}」和「${arr[1].z.name}」`, [n],
+         { pane: 'zones', zone: arr[0].zi });
 
   /* 固件上限 */
   if (state.zones.length > M.zoneMax)
-    push('err', 'V7', `分区数 ${state.zones.length} > ZONE_MAX(${M.zoneMax})`);
+    push('err', 'V7', `分区数 ${state.zones.length} > ZONE_MAX(${M.zoneMax})`, [], { pane: 'zones' });
   state.zones.forEach((z, zi) => {
     if (z.count > M.zoneMaxLen)
-      push('err', 'V8', `分区「${z.name}」长度 ${z.count} > ZONE_MAX_LEN(${M.zoneMaxLen})，需拆分区`);
+      push('err', 'V8', `分区「${z.name}」长度 ${z.count} > ZONE_MAX_LEN(${M.zoneMaxLen})，需拆分区`,
+           [], { pane: 'zones', zone: zi });
     if (z.start + z.count > M.ledCount)
-      push('err', 'V9', `分区「${z.name}」start=${z.start},count=${z.count} 超出 LED_COUNT(${M.ledCount})`);
+      push('err', 'V9', `分区「${z.name}」start=${z.start},count=${z.count} 超出 LED_COUNT(${M.ledCount})`,
+           [], { pane: 'zones', zone: zi });
     let minN = null;
     for (let n = z.start; n < z.start + z.count; n++) if (nums.has(n)) { minN = n; break; }
     if (minN !== null && minN !== z.start)
-      push('warn', 'V10', `分区「${z.name}」编号不从 ${z.start} 开始（实际最小 ${minN}）`, [minN]);
+      push('warn', 'V10', `分区「${z.name}」编号不从 ${z.start} 开始（实际最小 ${minN}）`, [minN],
+           { pane: 'zones', zone: zi });
   });
 
   /* 坐标重合 */
@@ -1101,37 +1106,38 @@ function validate(state) {
   /* ---- 动效（V20 起）---- */
   const EFFS = (state.effects && state.effects.list) || [];
   let hasCustom = false;
-  for (const e of EFFS) {
+  for (const [ei, e] of EFFS.entries()) {
+    const JX = { pane: 'fx', fx: ei };          /* C1：点这条问题能跳到这个效果 */
     if (EFFS.length > EFFECT_SLOTS)
       push('err', 'V20', `效果条数 ${EFFS.length} 超过上限 ${EFFECT_SLOTS}（anim_type 是 uint8_t）`);
     if (e.kind !== 'custom') continue;
     hasCustom = true;
     const ls = e.layers || [];
     if (!ls.length || ls.length > 8)
-      push('err', 'V22', `自定义效果「${e.name}」的图层数 ${ls.length} 不在 1..8`);
+      push('err', 'V22', `自定义效果「${e.name}」的图层数 ${ls.length} 不在 1..8`, [], JX);
     if (ls.length && ls.every(L => L.en === 0))
-      push('warn', 'V37', `自定义效果「${e.name}」的图层全被旁路了（en=0），渲染出来是一片全黑`);
+      push('warn', 'V37', `自定义效果「${e.name}」的图层全被旁路了（en=0），渲染出来是一片全黑`, [], JX);
     ls.forEach((L, li) => {
       const at = `「${e.name}」第 ${li + 1} 层`;
       if (L.kind === 'spot') {
-        if (!(L.count >= 1 && L.count <= 32)) push('err', 'V23', `${at}：光点个数 ${L.count} 不在 1..32`);
+        if (!(L.count >= 1 && L.count <= 32)) push('err', 'V23', `${at}：光点个数 ${L.count} 不在 1..32`, [], JX);
         if (!(L.width >= 1 && L.width <= 2 * state.meta.ringSize))
-          push('err', 'V23', `${at}：光宽 ${L.width} 不在 1..${2 * state.meta.ringSize}`);
+          push('err', 'V23', `${at}：光宽 ${L.width} 不在 1..${2 * state.meta.ringSize}`, [], JX);
         if (['cos', 'linear', 'hard', 'tail'].indexOf(L.falloff) < 0)
-          push('err', 'V23', `${at}：衰减曲线「${L.falloff}」不是 cos/linear/hard/tail`);
-        if ((L.pulse_period | 0) > 255) push('err', 'V23', `${at}：脉动周期 ${L.pulse_period} > 255`);
+          push('err', 'V23', `${at}：衰减曲线「${L.falloff}」不是 cos/linear/hard/tail`, [], JX);
+        if ((L.pulse_period | 0) > 255) push('err', 'V23', `${at}：脉动周期 ${L.pulse_period} > 255`, [], JX);
       } else if (L.kind === 'twinkle') {
-        if (!(L.density >= 1)) push('err', 'V24', `${at}：点亮密度 ${L.density} 必须 ≥ 1`);
-        if (!(L.rate >= 1))    push('err', 'V24', `${at}：刷新间隔 ${L.rate} 必须 ≥ 1`);
-        if ((L.hi | 0) <= (L.lo | 0)) push('err', 'V24', `${at}：亮度上限 ${L.hi} 必须大于下限 ${L.lo}`);
+        if (!(L.density >= 1)) push('err', 'V24', `${at}：点亮密度 ${L.density} 必须 ≥ 1`, [], JX);
+        if (!(L.rate >= 1))    push('err', 'V24', `${at}：刷新间隔 ${L.rate} 必须 ≥ 1`, [], JX);
+        if ((L.hi | 0) <= (L.lo | 0)) push('err', 'V24', `${at}：亮度上限 ${L.hi} 必须大于下限 ${L.lo}`, [], JX);
       } else if (L.kind === 'fill') {
-        if (!(L.level >= 0 && L.level <= 255)) push('err', 'V25', `${at}：填充亮度 ${L.level} 不在 0..255`);
+        if (!(L.level >= 0 && L.level <= 255)) push('err', 'V25', `${at}：填充亮度 ${L.level} 不在 0..255`, [], JX);
       } else {
-        push('err', 'V22', `${at}：未知的图层类型「${L.kind}」`);
+        push('err', 'V22', `${at}：未知的图层类型「${L.kind}」`, [], JX);
       }
     });
     if (e.color === FW.COLOR.GRADIENT)
-      push('warn', 'V31', `自定义效果「${e.name}」选了渐变配色：固件只在「双点追逐 + 渐变」时才认第二个颜色（render_all），自定义动效用不上色②`);
+      push('warn', 'V31', `自定义效果「${e.name}」选了渐变配色：固件只在「双点追逐 + 渐变」时才认第二个颜色（render_all），自定义动效用不上色②`, [], JX);
   }
   /* 覆盖参数：同一个效果被多处绑定各自覆盖时提示一下（改原效果不会影响它们） */
   {
@@ -1140,20 +1146,40 @@ function validate(state) {
       (m.binds || []).forEach(b => {
         if (!b.override) return;
         if (!ovUse.has(b.effect)) ovUse.set(b.effect, []);
-        ovUse.get(b.effect).push(m.name);
+        ovUse.get(b.effect).push({ mi, name: m.name });
       });
     });
     ovUse.forEach((where, eid) => {
       if (where.length < 2) return;
       const e = effectById(state, eid);
       push('info', 'V33',
-        `效果「${e ? e.name : eid}」在 ${where.length} 条绑定里各自覆盖了参数（${where.join('、')}）—— 改效果库里的原效果不会影响它们`);
+        `效果「${e ? e.name : eid}」在 ${where.length} 条绑定里各自覆盖了参数（${where.map(w => w.name).join('、')}）—— 改效果库里的原效果不会影响它们`,
+        [], { pane: 'mode', mode: where[0].mi });
+    });
+  }
+
+  /* M1) 同一分区出现在同一模式的多条绑定里：固件只跑先出现的那条（帮助页写过），
+   * 但用户常以为是「两个效果叠着跑」。列出来 + 可跳到那个模式（一条绑定不勾分区 = 全部）。 */
+  {
+    const Z = state.zones || [];
+    (state.modes && state.modes.list || []).forEach((m, mi) => {
+      const hit = new Map();                       /* 分区下标 -> 覆盖它的绑定序号（从 1 数） */
+      (m.binds || []).forEach((b, bi) => {
+        const idxs = (!b.zones || !b.zones.length) ? Z.map((_, i) => i) : b.zones.slice();
+        idxs.forEach(i => { if (Z[i]) { if (!hit.has(i)) hit.set(i, []); hit.get(i).push(bi + 1); } });
+      });
+      const bad = [...hit.entries()].filter(([, v]) => v.length > 1);
+      if (!bad.length) return;
+      push('warn', 'V34',
+        `模式「${m.name}」里 ${bad.map(([i, v]) => `「${Z[i].name}」(第 ${v.join('、')} 条绑定)`).join('、')} ` +
+        `被多条绑定同时覆盖 —— 固件只跑先出现的那条`,
+        [], { pane: 'mode', mode: mi });
     });
   }
 
   /* 重名：导出的 C 注释、模式摘要都靠名字认人，同名会分不出谁是谁（只提示，不挡导出） */
   {
-    const dupes = (list, label, code) => {
+    const dupes = (list, label, code, jumpOf) => {
       const seen = new Map();
       list.forEach((x, i) => {
         const k = (x.name || '').trim(); if (!k) return;
@@ -1163,16 +1189,20 @@ function validate(state) {
       seen.forEach((idx, k) => {
         if (idx.length < 2) return;
         push('info', code,
-          `${idx.length} 个${label}都叫「${k}」（第 ${idx.map(i => i + 1).join('、')} 条）—— 导出的注释和模式摘要会分不出谁是谁`);
+          `${idx.length} 个${label}都叫「${k}」（第 ${idx.map(i => i + 1).join('、')} 条）—— 导出的注释和模式摘要会分不出谁是谁`,
+          [], jumpOf(idx[0]));
       });
     };
-    dupes(EFFS, '效果', 'V35');
-    dupes((state.modes && state.modes.list) || [], '模式', 'V36');
+    dupes(EFFS, '效果', 'V35', i => ({ pane: 'fx', fx: i }));
+    dupes((state.modes && state.modes.list) || [], '模式', 'V36', i => ({ pane: 'mode', mode: i }));
   }
 
   if (state.meta.ringSize > 127)
     push('err', 'V26', `RING_SIZE ${state.meta.ringSize} > 127：pos 是 int16，会溢出`);
-  state.zones.forEach(z => { if (z.count > 127) push('err', 'V26', `分区「${z.name}」长度 ${z.count} > 127：pos 是 int16，会溢出`); });
+  state.zones.forEach((z, zi) => {
+    if (z.count > 127)
+      push('err', 'V26', `分区「${z.name}」长度 ${z.count} > 127：pos 是 int16，会溢出`, [], { pane: 'zones', zone: zi });
+  });
   EFFS.forEach((e, i) => {
     if (!e.enabled) push('warn', 'V28', `模式 ${i} 的「${e.name}」被停用了，导出时该行回退成内建默认`);
   });
@@ -3728,7 +3758,14 @@ function renderIssues() {
     const d = document.createElement('div');
     d.className = 'iss ' + it.level;
     d.textContent = `[${it.code}] ${it.msg}`;
-    if (it.leds.length) d.onclick = () => { flash = { leds: it.leds }; sel = new Set(it.leds); render(); setTimeout(() => { flash = null; render(); }, 900); };
+    /* C1：能定位的问题点一下就跳过去（顺带选中）；涉及编号的仍然闪一下那些灯 */
+    if (it.jump || it.leds.length) {
+      tip(d, jumpTip(it));
+      d.onclick = () => {
+        if (it.jump) jumpToIssue(it.jump);
+        if (it.leds.length) { flash = { leds: it.leds }; sel = new Set(it.leds); render(); setTimeout(() => { flash = null; render(); }, 900); }
+      };
+    }
     box.appendChild(d);
   }
   if (!box.children.length) box.innerHTML = '<div class="iss ok">✓ 全部检查通过</div>';
@@ -3737,6 +3774,55 @@ function renderIssues() {
     s.className = 'hint';
     s.textContent = `错误 ${cnt.err} · 警告 ${cnt.warn}`;
     box.insertBefore(s, box.firstChild);
+  }
+}
+
+/* 校验条目上的一句话提示：告诉用户点它能跳到哪 */
+function jumpTip(it) {
+  const where = it.jump
+    ? (it.jump.pane === 'zones' ? '「分区」页' : it.jump.pane === 'fx' ? '「效果」页' : '「模式」页')
+    : '';
+  const parts = [];
+  if (where) parts.push(`点一下跳到${where}`);
+  if (it.leds.length) parts.push('并在图里闪一下涉及的灯');
+  return parts.join('，') + '。';
+}
+
+/* C1：点校验页的问题条目 → 跳到该动的地方（分区 / 效果 / 模式）并把那一条选中。
+ * jump 是 validate() 附在条目上的定位信息：{pane, zone|fx|mode}。 */
+function jumpToIssue(j) {
+  if (!j || !state) return;
+  if (j.pane === 'fx') {
+    if (j.fx !== undefined && fxList()[j.fx]) {
+      selFx = j.fx;
+      state.anim.effectId = fxList()[j.fx].id;
+      tab('fx');
+      renderFxList(); syncFxEdit();
+      status(`已跳到效果「${fxList()[selFx].name}」`);
+      return;
+    }
+    tab('fx');
+    return;
+  }
+  if (j.pane === 'mode') {
+    tab('mode');
+    if (j.mode !== undefined && mdList()[j.mode]) {
+      selMd = j.mode;
+      state.anim.modeId = mdList()[j.mode].id;
+      resetSim();
+      renderMdList(); syncMdEdit(); fillPresetSelect();
+      status(`已跳到模式「${mdList()[j.mode].name}」`);
+    }
+    return;
+  }
+  if (j.pane === 'zones') {
+    tab('zones');
+    if (j.zone !== undefined && state.zones[j.zone]) {
+      selZone = j.zone;
+      renderZoneList(); syncZoneEdit(); highlightZone(state.zones[j.zone]);
+      status(`已跳到分区「${state.zones[j.zone].name}」`);
+    }
+    return;
   }
 }
 
@@ -5224,10 +5310,25 @@ function genParams() {
            dir: $('#gDir').value, k: +$('#gK').value, first: state.zones[selZone] ? state.zones[selZone].start : 0,
            count: state.zones[selZone] ? state.zones[selZone].count : 8 };
 }
+/* G1：铺灯是「先删掉这个号段上已有的灯、再重铺」—— 手工微调过的编号会被覆盖。
+ * 数一下该号段上现存的灯，先问一句（有快照，能撤销）。 */
+function ledsInRange(z) {
+  if (!z) return 0;
+  const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
+  return state.leds.filter(l => nums.has(l.n)).length;
+}
+function confirmOverwrite(z) {
+  const hit = ledsInRange(z);
+  if (!hit) return true;
+  return confirm(`「${z.name}」号段 ${z.start}..${z.start + z.count - 1} 上已经有 ${hit} 颗灯，` +
+                 `铺灯会先删掉它们再重铺。\n继续？（可以撤销）`);
+}
 function genInfo() {
   const p = genParams(), P = GEN.rectPath(p.W, p.H, p.dir).length;
+  const z = state.zones[selZone], hit = ledsInRange(z);
   $('#gInfo').innerHTML = `周长 ${P} 格，本分区 ${p.count} 颗` +
-    (p.count === P ? '（正好一圈）' : p.count < P ? `（不足一圈，空 ${P - p.count} 格）` : `（<span style="color:var(--err)">超过一圈 ${p.count - P} 格</span>）`);
+    (p.count === P ? '（正好一圈）' : p.count < P ? `（不足一圈，空 ${P - p.count} 格）` : `（<span style="color:var(--err)">超过一圈 ${p.count - P} 格</span>）`) +
+    (hit ? `　<span style="color:var(--warn)">该号段已有 ${hit} 颗，铺灯会覆盖</span>` : '');
 }
 ['#gX0','#gY0','#gW','#gH','#gDir','#gK'].forEach(s => $(s).oninput = genInfo);
 $('#gApply').onclick = () => {
@@ -5236,6 +5337,7 @@ $('#gApply').onclick = () => {
   p.first = z.start; p.count = z.count;
   const P = GEN.rectPath(p.W, p.H, p.dir).length;
   if (p.count > P) { status(`本分区 ${p.count} 颗 > 周长 ${P} 格，放不下`, 'err'); return; }
+  if (!confirmOverwrite(z)) { status('已取消：这个样子没动', 'warn'); return; }
   snapshot();
   const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
   state.leds = state.leds.filter(l => !nums.has(l.n));
@@ -5247,6 +5349,7 @@ $('#gApply').onclick = () => {
 };
 $('#cApply').onclick = () => {
   const z = state.zones[selZone]; if (!z) { status('请先选中分区', 'warn'); return; }
+  if (!confirmOverwrite(z)) { status('已取消：这个样子没动', 'warn'); return; }
   snapshot();
   const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
   state.leds = state.leds.filter(l => !nums.has(l.n));
@@ -5260,6 +5363,7 @@ $('#cApply').onclick = () => {
 $('#qApply').onclick = () => {
   const z = state.zones[selZone]; if (!z) { status('请先选中分区', 'warn'); return; }
   const p = genParams(); p.first = z.start; p.count = z.count; p.dir = $('#qDir').value;
+  if (!confirmOverwrite(z)) { status('已取消：这个样子没动', 'warn'); return; }
   snapshot();
   const nums = new Set(); for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
   state.leds = state.leds.filter(l => !nums.has(l.n));

@@ -93,6 +93,58 @@ v35.forEach(i=>console.log('  ' + i.msg));
   ok(iss2.filter(i=>i.code==='V36').length===1, '模式重名被点出 1 组');
 }
 
+/* ---- C1) 校验条目自带定位信息（jump）：点一下就跳到该动的地方 ---- */
+{
+  /* 分区超界 → 「分区」页里那一条 */
+  const b = JSON.parse(JSON.stringify(st));
+  b.zones[2].start = 100; b.zones[2].count = 20;
+  const v9 = validate(b).filter(i => i.code === 'V9');
+  ok(v9.length === 1 && v9[0].jump && v9[0].jump.pane === 'zones' && v9[0].jump.zone === 2,
+     `V9 指向「分区」页第 3 条: ${JSON.stringify(v9[0] && v9[0].jump)}`);
+
+  /* 自定义效果图层越界 → 「效果」页那一条 */
+  const c = JSON.parse(JSON.stringify(st));
+  c.effects.list.push({ id: 'fx_bad', name: '越界测试', kind: 'custom',
+    layers: [{ kind: 'spot', en: 1, count: 99, width: 4, falloff: 'cos', pulse_period: 0 }] });
+  const v23 = validate(c).filter(i => i.code === 'V23');
+  ok(v23.length === 1 && v23[0].jump && v23[0].jump.pane === 'fx' && v23[0].jump.fx === c.effects.list.length - 1,
+     `V23 指向「效果」页新加的那条: ${JSON.stringify(v23[0] && v23[0].jump)}`);
+
+  /* 重名效果 → 「效果」页第一条重名的 */
+  ok(v35[0].jump && v35[0].jump.pane === 'fx' && typeof v35[0].jump.fx === 'number',
+     `V35 重名效果带 jump: ${JSON.stringify(v35[0] && v35[0].jump)}`);
+
+  /* 只涉及编号的问题不跳页（点一下只闪灯） */
+  const a = JSON.parse(JSON.stringify(st));
+  a.leds[1].n = 0;                                  /* 0 号出现两次 */
+  const v1 = validate(a).filter(i => i.code === 'V1');
+  ok(v1.length === 1 && /0 号出现 2 次/.test(v1[0].msg) && v1[0].leds.join() === '0' && !v1[0].jump,
+     'V1（编号重复）只带编号、没有 jump —— 没有哪个页面能跳过去');
+}
+
+/* ---- M1) V34：同一分区被同一模式的多条绑定同时覆盖 ---- */
+{
+  const eid = st.effects.list[0].id, eid2 = st.effects.list[1].id;
+  const mk = binds => {
+    const s = JSON.parse(JSON.stringify(st));
+    s.modes = { version: 1, list: [{ id: 'mx', name: '交叠检查', latin: 'MX', enabled: true, binds }] };
+    return s;
+  };
+
+  const s1 = mk([{ effect: eid, zones: [] }, { effect: eid2, zones: [1, 2] }]);   /* 不勾分区 = 全部分区 */
+  const v34 = validate(s1).filter(i => i.code === 'V34');
+  ok(v34.length === 1 && v34[0].level === 'warn' && v34[0].jump && v34[0].jump.mode === 0,
+     `两条绑定抢同一分区 → V34 警告并指向该模式: ${v34[0] && v34[0].msg}`);
+  ok(v34[0].msg.includes(s1.zones[1].name) && /被多条绑定同时覆盖/.test(v34[0].msg),
+     '提示里点出了被覆盖的分区名（固件只跑先出现的那条）');
+
+  const s2 = mk([{ effect: eid, zones: [0, 1] }, { effect: eid2, zones: [2] }]);  /* 正常：互不重叠 */
+  ok(validate(s2).filter(i => i.code === 'V34').length === 0, '分区互不重叠 → 不报 V34（正常配置不受打扰）');
+
+  const s3 = mk([{ effect: eid, zones: [] }, { effect: eid2, zones: [] }]);       /* 两条都不勾 */
+  ok(validate(s3).filter(i => i.code === 'V34').length === 1, '两条绑定都不勾分区（各 = 全部分区）也要报 V34');
+}
+
 console.log('\n--- C 导出 ---');
 const code = exportC(st,{variant:'table',comment:'ascii',nominal:'cw'});
 console.log(code.split('\n').map(l=>'  '+l).join('\n'));

@@ -180,6 +180,25 @@ ok(st3.modes.list[0].binds.length === 5, `拆开后变成 ${st3.modes.list[0].bi
 ok(st3.modes.list[0].binds.every((b, i) => b.zones.length === 1 && b.zones[0] === i),
    '每条绑定只覆盖一个分区，且按序');
 
+/* ---- 6b) M1) 同一分区被同一模式的多条绑定同时覆盖 → V34（校验页能跳回这个模式） ---- */
+{
+  const md9i = st1.modes.list.findIndex(m => m.id === md9.id);
+  const ow = JSON.parse(JSON.stringify(st1));
+  ow.modes.list[md9i].binds[0].zones = [];       /* 第 1 条改成「全部分区」→ 与后面两条重叠 */
+  const v34 = CORE.validate(ow).filter(i => i.code === 'V34');
+  ok(v34.length === 1 && v34[0].level === 'warn',
+     `多条绑定覆盖同一分区 → 1 条 V34 警告: ${v34[0] && v34[0].msg}`);
+  ok(v34[0].jump && v34[0].jump.pane === 'mode' && v34[0].jump.mode === md9i,
+     `V34 指向「模式」页第 ${md9i + 1} 条: ${JSON.stringify(v34[0] && v34[0].jump)}`);
+  ok(/被多条绑定同时覆盖/.test(v34[0].msg) && v34[0].msg.includes(ow.zones[2].name),
+     '提示里点明了是哪些分区被覆盖、第几条绑定抢的');
+
+  const ow2 = JSON.parse(JSON.stringify(st1));
+  ow2.modes.list[md9i].binds[0].zones = [0, 1];
+  ok(CORE.validate(ow2).filter(i => i.code === 'V34').length === 0,
+     '分区不重叠 → 不报 V34（正常配置不受打扰）');
+}
+
 /* ---- 7) 持久化 ---- */
 install(); boot(); await new Promise(r => setTimeout(r, 700));
 const st4 = projState(0);

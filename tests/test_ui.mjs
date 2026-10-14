@@ -63,7 +63,8 @@ globalThis.FileReader = class { readAsText(){} readAsDataURL(){ this.result = 'd
 globalThis.Blob = class {}; globalThis.URL = { createObjectURL:()=>'blob:x', revokeObjectURL(){} };
 try { Object.defineProperty(globalThis,'navigator',{value:{clipboard:{writeText:()=>Promise.resolve()}},configurable:true}); } catch(e){}
 globalThis.alert = m => { console.log('   [alert] '+m); };
-globalThis.confirm = () => true;
+const confirmCalls = [];                         /* 记下确认框问了什么（G1 / F4 断言用） */
+globalThis.confirm = m => { confirmCalls.push(m); return true; };
 globalThis.prompt = (m,d) => d || 'X';
 
 function q(sel){
@@ -299,6 +300,89 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const s3 = iss();
   ok(s3 !== s2 && /\[V3\]/.test(s3),
      `切回校验页才重算，并出现新问题: "${s3.replace(/<[^>]+>/g, ' ').slice(0, 90)}"`);
+}
+
+/* ---- 14) C1) 校验页点条目 → 跳到该动的地方（并把那一条选中） ---- */
+{
+  const tabs = document.querySelectorAll('#tabs button');
+  const go = n => tabs.find(b => b.dataset.tab === n).onclick();
+  const rows = () => (byId.get('zoneTbl') || {}).children || [];
+  const issueRows = () => (byId.get('issues') || {}).children || [];
+  const findIssue = code => issueRows().find(d => (d.textContent || '').indexOf('[' + code + ']') >= 0);
+
+  /* 把第 1 个分区的起点挪到远超灯总数处 → V9（分区类问题，带跳转信息） */
+  go('zones');
+  rows()[0].onclick();
+  const zs = byId.get('zStart');
+  zs.value = '115'; zs.oninput({ target: zs });
+  await new Promise(r => setTimeout(r, 700));
+  rows()[3].onclick();                       /* 先选中别的分区，验证点问题会把选中挪回来 */
+  ok(byId.get('zStart').value !== '115',
+     `已切到第 4 个分区（起点输入框 = ${byId.get('zStart').value}）`);
+
+  go('check');
+  const v9 = findIssue('V9');
+  ok(!!v9, '校验页出现 V9（分区超界）');
+  v9.onclick();
+  ok(tabs.find(b => b.dataset.tab === 'zones').classList.contains('on'), '点 V9 → 自动切到「分区」页');
+  ok(byId.get('zStart').value === '115',
+     `并把出问题的分区选中了（起点输入框 = ${byId.get('zStart').value}）`);
+  ok(/已跳到分区/.test(byId.get('status').textContent),
+     `状态栏说明了跳到哪: "${byId.get('status').textContent}"`);
+
+  /* 只涉及编号的问题不跳页（点一下只闪灯） */
+  go('check');
+  const v2 = findIssue('V2') || findIssue('V3');
+  if (v2) {
+    v2.onclick();
+    ok(tabs.find(b => b.dataset.tab === 'check').classList.contains('on'),
+       '没有跳转信息的条目点一下不换页（只在图里闪涉及的灯）');
+  }
+}
+
+/* ---- 15) G1) 铺灯会覆盖号段上已有的编号时先问一句（可取消 / 号段空着就不打扰） ---- */
+{
+  const leds = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state.leds.length;
+  const tabs = document.querySelectorAll('#tabs button');
+  const go = n => tabs.find(b => b.dataset.tab === n).onclick();
+  const rows = () => (byId.get('zoneTbl') || {}).children || [];
+  /* 周长放宽，确保拦截点只在「覆盖确认」这一处 */
+  const gw = byId.get('gW'), gh = byId.get('gH');
+  gw.value = '20'; gw.oninput({ target: gw });
+  gh.value = '20'; gh.oninput({ target: gh });
+
+  go('zones');
+  rows()[3].onclick();                       /* 环 A：号段上还有原排布留下的灯 */
+  const before = leds();
+
+  confirmCalls.length = 0;
+  globalThis.confirm = m => { confirmCalls.push(m); return false; };
+  byId.get('gApply').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  ok(confirmCalls.length === 1 && /已经有 \d+ 颗灯/.test(confirmCalls[0]),
+     `铺灯前先把「要覆盖多少颗」问清楚: "${String(confirmCalls[0]).split('\n')[0]}"`);
+  ok(/重铺/.test(confirmCalls[0]) && /撤销/.test(confirmCalls[0]),
+     '确认框说明了会发生什么、能不能撤销');
+  ok(leds() === before, `点「取消」一颗灯都不动（仍 ${leds()} 颗）`);
+  ok(/已取消/.test(byId.get('status').textContent),
+     `状态栏说明已取消: "${byId.get('status').textContent}"`);
+
+  globalThis.confirm = m => { confirmCalls.push(m); return true; };
+  byId.get('gApply').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  ok(confirmCalls.length === 2, '再点一次仍然先问（每次都问，不设「别再问了」）');
+  ok(/已铺设/.test(byId.get('status').textContent),
+     `确认之后才真铺: "${byId.get('status').textContent}"`);
+
+  /* 号段上没有灯 → 直接铺，不打扰 */
+  confirmCalls.length = 0;
+  rows()[0].onclick();                       /* 第 1 个分区已挪到 115.. 上，没有灯 */
+  byId.get('gApply').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  ok(confirmCalls.length === 0, '号段上本来没有灯 → 不弹确认框，直接铺');
+  ok(/已铺设/.test(byId.get('status').textContent),
+     `直接铺成功: "${byId.get('status').textContent}"`);
+  globalThis.confirm = () => true;
 }
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
