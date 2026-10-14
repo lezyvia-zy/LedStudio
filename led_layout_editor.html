@@ -4320,7 +4320,7 @@ function buildFxPanel() {
     selFx = j;
     syncSlots();
     resetSim(); fxStruct();
-    status('模式顺序已调整');
+    status('效果顺序已调整');                 /* F3：这里调的是效果顺序，别再说成「模式」 */
   };
   $('#fxUp').onclick   = () => moveFx(-1);
   $('#fxDown').onclick = () => moveFx(1);
@@ -4352,10 +4352,21 @@ function buildFxPanel() {
   $('#fxDel').onclick = () => {
     const e = selEffect(); if (!e) return;
     if (fxList().length <= 1) { status('至少要保留一个效果', 'err'); return; }
-    if (!confirm('删除效果「' + e.name + '」？')) return;
+    /* F4：删掉被模式引用的效果，那些绑定会静默变成「（空）」—— 先把引用它的模式列出来 */
+    const refs = [];
+    mdList().forEach(m => {
+      const n = (m.binds || []).filter(b => b.effect === e.id).length;
+      if (n) refs.push(`${m.name}（${n} 条绑定）`);
+    });
+    const warn = refs.length
+      ? `\n\n注意：${refs.length} 个模式正在用它 —— ${refs.join('、')}\n删掉后这些绑定会变成「（空）」。`
+      : '';
+    if (!confirm(`删除效果「${e.name}」？${warn}`)) return;
     state.effects.list.splice(selFx, 1);
     if (state.anim.effectId === e.id) state.anim.effectId = fxList()[0].id;
     resetSim(); fxStruct();
+    if (refs.length) status(`已删除效果「${e.name}」：${refs.length} 个模式的绑定变成了「（空）」，记得重新选效果`, 'warn');
+    else status(`已删除效果「${e.name}」`, 'ok');
   };
   /* 「播放」就地播编辑台，不跳页 */
   $('#fxTest').onclick = () => {

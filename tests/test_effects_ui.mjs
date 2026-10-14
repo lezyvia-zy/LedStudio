@@ -200,6 +200,54 @@ ok(projState(0).anim.effectId === e0d.id, '重开后选中的还是同一个效�
   ok(cp8 && cp8.disabled === true, '满 8 层时「复制」按钮禁用');
 }
 
+/* ---- 6b) F3) 「上移 / 下移」调的是效果顺序，提示别再说成「模式顺序」 ---- */
+{
+  tabBtn('fx').onclick();
+  const before = fxListOf(0).map(e => e.id);
+  byId.get('fxTbl').children[0].onclick();
+  click('fxDown');
+  await new Promise(r => setTimeout(r, 700));
+  const after = fxListOf(0).map(e => e.id);
+  ok(after[0] === before[1] && after[1] === before[0], '「下移」把前两条效果换了个位');
+  ok(/效果顺序已调整/.test(byId.get('status').textContent),
+     `提示说的是「效果顺序」: "${byId.get('status').textContent}"`);
+  ok(!/模式顺序/.test(byId.get('status').textContent), '不再嘴瓢说成「模式顺序已调整」（F3）');
+  click('fxUp');                                  /* 换回原顺序，后面的断言照旧 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0).map(e => e.id).join() === before.join(), '「上移」换回原顺序');
+}
+
+/* ---- 6c) F4) 删掉被模式引用的效果：先把「谁在用」列清楚，取消就一条不删 ---- */
+{
+  const st = projState(0);
+  const target = st.effects.list[1];
+  const users = st.modes.list.filter(m => (m.binds || []).some(b => b.effect === target.id));
+  ok(users.length >= 1, `前置：有 ${users.length} 个模式在用「${target.name}」`);
+
+  const calls = [];
+  globalThis.confirm = m => { calls.push(m); return false; };
+  tabBtn('fx').onclick();
+  byId.get('fxTbl').children[1].onclick();
+  click('fxDel');
+  await new Promise(r => setTimeout(r, 50));
+  ok(calls.length === 1 && calls[0].includes(target.name),
+     `删除前先问了一句: "${String(calls[0]).split('\n')[0]}"`);
+  ok(users.every(m => calls[0].includes(m.name)),
+     `确认框列出了引用它的模式名: ${users.map(m => m.name).join('、')}`);
+  ok(/（空）/.test(calls[0]),
+     '确认框说明了那些绑定会变成「（空）」（不再是静默丢引用）');
+  ok(fxListOf(0).length === 9, `点「取消」时效果一条没少（仍 ${fxListOf(0).length} 条）`);
+
+  globalThis.confirm = m => { calls.push(m); return true; };
+  click('fxDel');
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0).length === 8, `确认后删掉 1 条（剩 ${fxListOf(0).length} 条）`);
+  ok(/已删除效果/.test(byId.get('status').textContent),
+     `状态栏给了反馈: "${byId.get('status').textContent.slice(0, 40)}"`);
+  ok(/lv-warn/.test(byId.get('status').className), '被人引用的效果被删掉时提示是 warn 级（要留意，不是普通提示）');
+  globalThis.confirm = () => true;
+}
+
 /* ---- 7) 老存档迁移：只有 anim.preset、没有 effects ---- */
 const oldProj = {
   format: 'ledboard', version: 1,
