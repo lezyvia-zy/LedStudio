@@ -74,7 +74,27 @@ function mkEl(tag='div', id=''){
   };
   return el;
 }
-const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k] = ()=>{})) , set:(t,k,v)=>{ t[k]=v; return true; } });
+/* 记录型 2D 上下文：记下每一次 setTransform（render 真正用的变换）与每一次 arc。
+ * 测试里的「世界坐标 → 客户端坐标」直接拿这个变换算 —— 精确，不用再从「拖个框反推 zoom」
+ * （反推出来带半格误差，点灯那几条断言就会飘）。 */
+function mkCtx(){
+  const st = { m:[1,0,0,1,0,0] }, stack = [];
+  const api = {
+    arcs:[], transforms:[],
+    setTransform(a,b,c,d,e,f){ st.m = (a && a.length === 6) ? a.slice() : [a,b,c,d,e,f]; this.transforms.push(st.m.slice()); },
+    save(){ stack.push(st.m.slice()); }, restore(){ if (stack.length) st.m = stack.pop(); },
+    translate(x,y){ const m = st.m; st.m = [m[0],m[1],m[2],m[3], m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]]; },
+    scale(x,y){ st.m = [st.m[0]*x, st.m[1]*y, st.m[2]*x, st.m[3]*y, st.m[4], st.m[5]]; },
+    arc(x,y,r){ this.arcs.push({ x, y, r, m: st.m.slice() }); },
+    measureText(t){ return { width: String(t).length * 6 }; },
+    createLinearGradient(){ return { addColorStop(){} }; },
+  };
+  return new Proxy(api, { get:(t,k)=> (k in t ? t[k] : (k==='then' ? undefined : (t[k] = ()=>{ }))),
+                          set:(t,k,v)=>{ t[k]=v; return true; } });
+}
+const CTX = mkCtx();
+/* render() 最后一帧用的世界变换：[a,b,c,d,e,f]（a=zoom，e/f=pan） */
+const ctxM = () => CTX.transforms[CTX.transforms.length - 1] || [1,0,0,1,0,0];
 
 const store = new Map();
 const byId = new Map();
@@ -106,7 +126,7 @@ function q(sel){
 }
 const staticBoxes = { '#tabs button': [...html.matchAll(/data-tab="([a-z]+)"/g)].map(m=>m[1]),
                       '#left button[data-mode]': [], '.pane': [...html.matchAll(/data-pane="([a-z]+)"/g)].map(m=>m[1]),
-                      '#shGallery button': ['line', 'circle', 'rrect'] };
+                      '#shGallery button': ['rect', 'rrect', 'circle', 'poly', 'line'] };
 globalThis.document = {
   documentElement:{attrs:{},setAttribute(k,v){this.attrs[k]=v;},getAttribute(k){return this.attrs[k]||null;}},
   querySelector:q,
@@ -430,9 +450,9 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const pu = (listeners['cv:pointerup'] || [])[0];
   const move = (x, y) => pm({ clientX: x, clientY: y });
 
-  ok(gal().length === 3, `形状选择框有 ${gal().length} 个形状（直线/圆环/圆角矩形）`);
-  ok(['line', 'circle', 'rrect'].every(k => gal().some(b => b.dataset.kind === k)),
-     '三种形状 data-kind 齐全');
+  ok(gal().length === 5, `形状选择框有 ${gal().length} 个形状（矩形/圆角矩形/圆环/多边形/直线）`);
+  ok(['rect', 'rrect', 'circle', 'poly', 'line'].every(k => gal().some(b => b.dataset.kind === k)),
+     '五种形状 data-kind 齐全（与「形状类型」下拉同一套）');
 
   /* 空白项目：加一个分区，再点「直线」进画形状模式（添加态） */
   projRows()[1].onclick();
@@ -683,6 +703,496 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const cs = codes(prj(0)).filter(c => c !== 'OK');
   ok(!cs.some(c => ['V1', 'V2', 'V3', 'V3b', 'V12'].includes(c)),
      `Z4：补齐后 validate 无 V1/V2/V3/V3b/V12（补号不压坐标）（剩下: ${cs.join(', ') || '无'}）`);
+}
+
+/* ---- 17) 用户反馈（批 2 追加）：分区页灰底说明瘦身 / 挑形状补齐 5 种 / 点灯选灯 /
+ *      手动挪出去的灯跟着形状走（相对位置不变，拖回原位附近自动对齐） ---- */
+{
+  /* 17.1 分区页：静态灰底说明只剩几条短句（大段手势说明撤到帮助页 / 悬浮说明里） */
+  {
+    const i = html.indexOf('<div class="pane on" data-pane="zones">');
+    const pane = html.slice(i, html.indexOf('<div class="pane" data-pane="check">', i));
+    ok(pane.length > 500, '拿得到「分区」页的 HTML 片段');
+    const prose = [...pane.matchAll(/<div class="hint"(?![^>]*id=)[^>]*>([\s\S]*?)<\/div>/g)]
+      .map(m => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+    ok(prose.length === 5, `分区页静态灰底说明只剩 ${prose.length} 条（≤ 5）`);
+    const longest = prose.reduce((a, b) => (b.length > a.length ? b : a), '');
+    ok(longest.length <= 100, `最长的一条 ${longest.length} 字（≤ 100）：「${longest.slice(0, 26)}…」`);
+    ok(!/拖四角小方块改大小、拖框里挪动/.test(pane), '「①②③」那一大段手势说明已从页面上撤掉');
+  }
+
+  /* 17.2 挑形状补齐 5 种，与「形状类型」下拉一一对应 */
+  {
+    const CORE3 = new Function(coreSrc + '; return CORE;')();
+    const kinds = [...html.match(/<select id="shKind">([\s\S]*?)<\/select>/)[1]
+      .matchAll(/value="([a-z]+)"/g)].map(m => m[1]);
+    const tools = CORE3.SHAPE.TOOLS.slice();
+    const names = k => (CORE3.SHAPE.TOOL_NAMES || {})[k] || k;
+    const galHtml = [...html.matchAll(/id="shGal\w+" data-kind="([a-z]+)"/g)].map(m => m[1]);
+    ok(tools.join(',') === 'rect,rrect,circle,poly,line',
+       `挑形状补齐成 5 种（${tools.map(names).join(' / ')}）`);
+    ok(tools.join(',') === kinds.join(','),
+       `缩略图与「形状类型」下拉同一套、同一顺序（${kinds.map(names).join(' / ')}）`);
+    ok(galHtml.join(',') === tools.join(','), `HTML 里 ${galHtml.length} 个缩略图按钮的 data-kind 与之一致`);
+    ok(CORE3.SHAPE.TOOLS.join(',') === CORE3.SHAPE.KINDS.join(','),
+       'core：TOOLS 与 KINDS 一一对应（以后加类型不会漏掉缩略图按钮）');
+  }
+}
+
+/* ---- 17b) 画布上：点灯选灯 / 挪出去的灯跟着形状走 ---- */
+{
+  const CORE4 = new Function(coreSrc + '; return CORE;')();
+  const CELL = 40;
+  const curSt = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state;
+  const shapes = () => curSt().shapes || [];
+  const plan = sh => CORE4.SHAPE.plan(sh, CELL).pts;
+  const gal = () => document.querySelectorAll('#shGallery button');
+  const pd = (listeners['cv:pointerdown'] || [])[0];
+  const pm = (listeners['cv:pointermove'] || [])[0];
+  const pu = (listeners['cv:pointerup'] || [])[0];
+  const move = (x, y) => pm({ clientX: x, clientY: y });
+  const esc = () => (listeners['window:keydown'] || [])[0]({ key: 'Escape', target: { tagName: 'DIV' }, preventDefault() {} });
+  const modeBtn = m => (byId.get('left').children || []).find(b => b.dataset.mode === m);
+  const wait = () => new Promise(r => setTimeout(r, 700));
+  let cal = null;
+  const clickAt = (x, y) => {
+    if (!cal) return;                                       /* 校准失败时不要在测试里炸栈，让断言去报错 */
+    const c = cal.c(x, y);
+    pd({ pointerId: 1, button: 0, clientX: c[0], clientY: c[1] });
+    pu({});
+  };
+  const dragAt = (x0, y0, x1, y1) => {
+    if (!cal) return;
+    const a = cal.c(x0, y0), b = cal.c(x1, y1);
+    pd({ pointerId: 1, button: 0, clientX: a[0], clientY: a[1] });
+    move(b[0], b[1]);
+    pu({});
+  };
+
+  projRows()[0].onclick();
+  globalThis.confirm = () => true;
+  byId.get('btnNew').onclick();                  /* 干净的 SP-3122D 预设：104 颗 / 5 个分区 / 5 个形状 */
+  await wait();
+
+  /* 画布映射：render() 最后一帧的世界变换直接给出来（世界 → 客户端），
+   * 不用「拖个框反推 zoom」—— 反推的起点带半格误差，点灯就会点到旁边那颗；
+   * 而且试错的拖拽会落进已有形状里，把工程本身改掉（挪形状 = 重铺该区）。 */
+  cal = { get zoom() { return ctxM()[0]; },
+          c: (x, y) => { const m = ctxM(); return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; } };
+  ok(cal.zoom > 0.05 && cal.zoom < 6, `画布映射拿到了（render 变换 zoom=${cal.zoom.toFixed(3)}）`);
+
+  /* 校准用的矩形：**算一个一定空白的世界点**（躲开所有形状的包围盒与每一颗灯），
+   * 在那里拖一个框 —— 顺带验证「还没铺的形状不动任何一颗灯」。 */
+  {
+    const boxes = shapes().map(s => CORE4.SHAPE.boxOf(s));
+    const led0 = curSt().leds.map(l => [l.x, l.y]);
+    const blank = [];
+    for (let x = -1500; x <= 2500; x += 100)
+      for (let y = -600; y <= 2200; y += 100) {
+        const pad = 200;
+        if (boxes.some(b => x > b.x0 - pad && x < b.x1 + pad && y > b.y0 - pad && y < b.y1 + pad)) continue;
+        if (led0.some(l => Math.abs(l.x - x) < 60 && Math.abs(l.y - y) < 60)) continue;
+        blank.push([x, y]);
+      }
+    const w0 = blank[Math.floor(blank.length / 2)] || [0, 0];
+    const a = cal.c(w0[0], w0[1]), d = cal.c(w0[0] + 140 / cal.zoom, w0[1] + 100 / cal.zoom);
+    const n0 = shapes().length, leds0 = curSt().leds.length;
+    esc();
+    gal().find(b => b.dataset.kind === 'rect').onclick();      /* 挑形状 = 进添加态 */
+    pd({ pointerId: 1, button: 0, clientX: a[0], clientY: a[1] });
+    move(d[0], d[1]);
+    pu({});
+    await wait();
+    const drew = shapes().length === n0 + 1;
+    ok(drew, `在空白处拖出了矩形（世界 ${w0[0]},${w0[1]} 起，拖 140×100 屏幕 px）`);
+    if (drew) {
+      const b = CORE4.SHAPE.boxOf(shapes()[n0]);
+      ok(Math.abs((b.x1 - b.x0) * cal.zoom - 140) < 2 && Math.abs((b.y1 - b.y0) * cal.zoom - 100) < 2,
+         `世界 → 屏幕这一趟对得上（拖 140×100 屏幕 px = ${Math.round(b.x1 - b.x0)}×${Math.round(b.y1 - b.y0)} 世界 px，zoom=${cal.zoom.toFixed(3)}）`);
+      ok(curSt().leds.length === leds0 && shapes()[n0].laid !== true,
+         `画一个还没铺的形状，一颗灯都没动（仍 ${curSt().leds.length} 颗）`);
+      byId.get('shDel').onclick();                           /* 校准用的形状擦掉（没画出来就别删了） */
+      await wait();
+      ok(shapes().length === n0, `校准用的形状已删掉（回到 ${shapes().length} 个形状）`);
+    }
+    esc();
+  }
+
+  /* 靶子：挑「已铺」里外框最大的那个形状（内部空间大，好找「离灯够远」的点），取它中间那颗灯 */
+  const shBox = sh => CORE4.SHAPE.boxOf(sh);
+  const area = sh => { const b = shBox(sh); return (b.x1 - b.x0) * (b.y1 - b.y0); };
+  const tgt = shapes().filter(s => s.laid && plan(s).length >= 4).sort((a, b) => area(b) - area(a))[0];
+  ok(!!tgt, `预设里有已铺的形状可当靶子（${tgt ? plan(tgt).length : 0} 颗，外框 ${tgt ? Math.round(shBox(tgt).x1 - shBox(tgt).x0) + '×' + Math.round(shBox(tgt).y1 - shBox(tgt).y0) : '?'}）`);
+  const tp = plan(tgt)[Math.floor(plan(tgt).length / 2)];
+
+  /* 17.3 点灯选灯：选择模式下点在灯上 = 选中那颗灯（不再被形状抢走） */
+  clickAt(tp.x, tp.y);
+  ok(byId.get('selInfo').textContent === `已选 1 颗：${tp.n}`,
+     `点灯上选中的就是那颗灯（"${byId.get('selInfo').textContent}"）`);
+  ok(!modeBtn('shape').classList.contains('on'), '点灯没被形状抢走（还在「选择/编辑」模式）');
+
+  /* 17.3b 点形状的框内空白处 = 照样能进「画形状」编辑态 */
+  const spot = (() => {
+    const b = CORE4.SHAPE.boxOf(tgt), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    const hs = [[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1],
+                [cx, b.y0], [b.x1, cy], [cx, b.y1], [b.x0, cy]];
+    const out = [];
+    for (let t = 0.12; t <= 0.89; t += 0.11) for (let u = 0.12; u <= 0.89; u += 0.11) {
+      const x = b.x0 + (b.x1 - b.x0) * t, y = b.y0 + (b.y1 - b.y0) * u;
+      if (hs.some(h => Math.hypot(h[0] - x, h[1] - y) < 30)) continue;            /* 避开手柄 */
+      if (!curSt().leds.every(l => Math.hypot(l.x - x, l.y - y) > 26)) continue;  /* 避开灯 */
+      out.push([x, y]);
+    }
+    out.sort((p, q) => Math.hypot(p[0] - cx, p[1] - cy) - Math.hypot(q[0] - cx, q[1] - cy));
+    return out[0] || null;
+  })();
+  ok(!!spot, `找得到一个「在形状里、但离每颗灯都超过半格」的点（${spot && Math.round(spot[0])},${spot && Math.round(spot[1])}）`);
+  if (spot) clickAt(spot[0], spot[1]);
+  const esi = +byId.get('shList').value;
+  ok(modeBtn('shape').classList.contains('on') && Number.isInteger(esi) && !!shapes()[esi],
+     `点形状框内的空白处 → 进「画形状」编辑态并选中形状 ${esi}`);
+  esc();
+  ok(!modeBtn('shape').classList.contains('on'), 'Esc 释放形状编辑，回到「选择/编辑」');
+
+  /* 17.4 把形状里的一颗灯拖出去 → 挪形状时它保持相对位置 → 拖回原位附近自动对齐 */
+  {
+    const sh = shapes()[esi], pts = plan(sh || {}), k = Math.floor(pts.length / 2);
+    const p0 = pts[k] || { x: 0, y: 0, n: -1 }, n = p0.n;
+    const det = () => (shapes()[esi] || {}).det || {};
+    ok(!!(sh && sh.laid && p0.n >= 0), `形状 ${esi} 是「已铺」的，瞄准中间那颗落点（#${n} @ ${p0.x},${p0.y}）`);
+
+    dragAt(p0.x, p0.y, p0.x + 120, p0.y + 80);      /* 手动拖出去（吸附会把它落到格心上） */
+    await wait();
+    let led = curSt().leds.find(l => l.n === n);
+    ok(!!det()[k], `拖出去的灯记下「相对形状原位」的偏移（det[${k}]=${JSON.stringify(det()[k])}）`);
+    ok(!!led && Math.hypot(led.x - p0.x, led.y - p0.y) > CELL * 0.75,
+       `那颗灯确实挪出去了（离原位 ${led ? Math.round(Math.hypot(led.x - p0.x, led.y - p0.y)) : '?'}px）`);
+
+    if (spot) {                                     /* 再进编辑态，把形状往右挪 80px */
+      clickAt(spot[0], spot[1]);
+      dragAt(spot[0], spot[1], spot[0] + 80, spot[1]);
+    }
+    await wait();
+    const p2 = plan(shapes()[esi])[k], d = det()[k] || [NaN, NaN];
+    led = curSt().leds.find(l => l.n === n);
+    ok(!!det()[k] && !!p2 && Math.abs(p2.x - p0.x - 80) < 21,
+       `形状自己挪了 80px（落点 #${k}：${Math.round(p0.x)} → ${p2 ? Math.round(p2.x) : '?'}）`);
+    ok(!!led && !!p2 && Math.abs(led.x - p2.x - d[0]) < 1.5 && Math.abs(led.y - p2.y - d[1]) < 1.5,
+       `挪形状后那颗灯保持相对位置（形状原位 ${p2 ? Math.round(p2.x) + ',' + Math.round(p2.y) : '?'}；灯 ${led ? led.x + ',' + led.y : '?'}）`);
+    ok(!!led && !!p2 && Math.hypot(led.x - p2.x, led.y - p2.y) > CELL * 0.75, '没有被形状拽回去');
+
+    esc();
+    if (led && p2) dragAt(led.x, led.y, p2.x, p2.y);   /* 拖回原位附近 */
+    await wait();
+    led = curSt().leds.find(l => l.n === n);
+    ok(!det()[k], `拖回原位附近后偏移被清掉（det=${JSON.stringify(det())}）`);
+    ok(!!led && !!p2 && Math.abs(led.x - p2.x) < 0.01 && Math.abs(led.y - p2.y) < 0.01,
+       `那颗灯自动对齐回形状的原位（${led ? led.x + ',' + led.y : '?'}）`);
+  }
+
+  /* 17.5 面板诊断行：只留「形状跟分区对不对得上」—— 周长 / 每边落点 / 排得开 不再显示 */
+  {
+    const sel = byId.get('shList');
+    sel.value = String(esi); sel.onchange({ target: sel });     /* 把诊断行刷成这个形状的 */
+    esc();                                                      /* 下拉选形状会进编辑态，这里只要诊断行 */
+    const info = (byId.get('shInfo') || {}).innerHTML || '';
+    const plain = info.replace(/<br>/g, ' | ');
+    ok(!/周长/.test(info) && !/每边落点/.test(info) && !/排得开/.test(info),
+       `诊断行不再报周长/每边落点/排得开（"${plain.slice(0, 56)}…"）`);
+    ok(/号段/.test(info), `诊断行仍报「形状与分区号段」的对照（"${plain.slice(0, 56)}…"）`);
+  }
+
+  /* 17.6 换类型 = 画布上看得见的变化（矩形 → 多边形给正六边形），多边形还有「边数」参数 */
+  {
+    const kEl = byId.get('shKind');
+    const b0 = shBox(shapes()[esi]), cnt0 = plan(shapes()[esi]).length;
+    kEl.value = 'poly'; kEl.oninput({ target: kEl });
+    await wait();
+    const p1 = shapes()[esi], b1 = shBox(p1);
+    ok(p1.kind === 'poly' && p1.pts.length === 6 && Math.round(+p1.n) === 6,
+       `矩形换成多边形 → 顶点变成 ${p1.pts.length} 个正多边形顶点（不再跟矩形长得一样）`);
+    ok(Math.abs(b1.x0 - b0.x0) < 1e-6 && Math.abs(b1.x1 - b0.x1) < 1e-6 &&
+       Math.abs(b1.y0 - b0.y0) < 1e-6 && Math.abs(b1.y1 - b0.y1) < 1e-6,
+       '换多边形外框不动（还是原来那个框）');
+    ok(!byId.get('shPolyNRow').classList.contains('hide'),
+       '多边形时面板露出「边数」这一行（别的形状藏起来）');
+    ok(byId.get('shPolyN').value === '6', `「边数」框里填的是当前值（${byId.get('shPolyN').value}）`);
+    ok(plan(p1).length === cnt0, `多边形上照样铺 ${plan(p1).length} 颗（没因为换类型丢灯）`);
+
+    const nEl = byId.get('shPolyN');
+    nEl.value = '5'; nEl.oninput({ target: nEl });
+    await wait();
+    const p2 = shapes()[esi], b2 = shBox(p2);
+    ok(p2.pts.length === 5 && Math.round(+p2.n) === 5, `改「边数」= 5 → 顶点 ${p2.pts.length} 个（正五边形）`);
+    ok(Math.abs(b2.x0 - b1.x0) < 1e-6 && Math.abs(b2.x1 - b1.x1) < 1e-6 &&
+       Math.abs(b2.y0 - b1.y0) < 1e-6 && Math.abs(b2.y1 - b1.y1) < 1e-6,
+       '改边数时外框不动（手柄不会跳）');
+    ok(plan(p2).length === cnt0, `五边形上也照铺 ${plan(p2).length} 颗`);
+
+    kEl.value = 'rect'; kEl.oninput({ target: kEl });
+    await wait();
+    ok(byId.get('shPolyNRow').classList.contains('hide'), '换回矩形后「边数」又藏起来');
+  }
+
+  /* 17.7 换类型时「手动挪出去的灯」一律归位（旧偏移在新几何上没有意义） */
+  {
+    const pts = plan(shapes()[esi]), k = Math.floor(pts.length / 2), p0 = pts[k];
+    dragAt(p0.x, p0.y, p0.x + 140, p0.y + 100);            /* 先把中间那颗拖出去 */
+    await wait();
+    ok(!!(((shapes()[esi] || {}).det) || {})[k], `前置：拖出去的灯记下了偏移（det[${k}] 有值）`);
+
+    const kEl = byId.get('shKind');
+    kEl.value = 'circle'; kEl.oninput({ target: kEl });
+    await wait();
+    const sh2 = shapes()[esi], det2 = sh2.det || {};
+    ok(sh2.kind === 'circle' && Object.keys(det2).length === 0,
+       `换类型后偏移清空 = 灯归位（det=${JSON.stringify(det2)}）`);
+    ok(/归位/.test(byId.get('status').textContent),
+       `状态栏说清了「挪出去的灯已归位」（"${byId.get('status').textContent.slice(0, 46)}…"）`);
+    const led = curSt().leds.find(l => l.n === p0.n), on = plan(sh2).find(q => q.n === p0.n);
+    ok(!!led && !!on && Math.hypot(led.x - on.x, led.y - on.y) <= 1,
+       `那颗灯回到新形状的落点上（灯 ${led ? led.x + ',' + led.y : '?'} ≈ 落点 ${on ? on.x.toFixed(1) + ',' + on.y.toFixed(1) : '?'}；` +
+       '圆的顶点不是整数格，存盘时按整数取整）');
+    kEl.value = 'rect'; kEl.oninput({ target: kEl });
+    await wait();
+    ok(shapes()[esi].kind === 'rect' && !Object.keys(shapes()[esi].det || {}).length, '换回矩形收尾（仍无偏移）');
+  }
+
+  /* 17.8 「新增空白形状」：落在眼前（画布正中）+ 直接进编辑态，手柄立即可抓 */
+  {
+    esc();
+    const zRows = (byId.get('zoneTbl') || {}).children || [];
+    zRows[0].onclick();                                    /* 选一个分区 */
+    const zs = byId.get('zStart'), zc = byId.get('zCount');
+    zs.value = '1000'; zs.oninput({ target: zs });         /* 把它挪到没有灯的号段上 → 起「空白形状」 */
+    zc.value = '6'; zc.oninput({ target: zc });
+    await wait();
+    const n0 = shapes().length;
+    byId.get('shAdd').onclick();
+    await wait();
+    ok(shapes().length === n0 + 1, `「新增空白形状」加出来一个（${n0} → ${shapes().length}）`);
+    ok(modeBtn('shape').classList.contains('on'), '新增后直接进「画形状」编辑态（8 个手柄立刻看得见、抓得住）');
+    const nb = shapes()[shapes().length - 1], b = shBox(nb);
+    ok((b.x1 - b.x0) >= 6 * CELL - 1e-6 && (b.y1 - b.y0) >= 5 * CELL - 1e-6 &&
+       (b.x1 - b.x0) % CELL < 1e-6 && (b.y1 - b.y0) % CELL < 1e-6,
+       `新形状不小于 6×5 格、且按格对齐（${Math.round(b.x1 - b.x0)}×${Math.round(b.y1 - b.y0)}px = ` +
+       `${(b.x1 - b.x0) / CELL}×${(b.y1 - b.y0) / CELL} 格 —— 缩得小时按屏幕尺寸兜底放大）`);
+    const a = cal.c(b.x0, b.y0), d = cal.c(b.x1, b.y1);
+    ok(cal && a[0] >= 0 && a[1] >= 0 && d[0] <= 1200 && d[1] <= 900,
+       `新形状整个落在画布可视范围内（客户端 ${Math.round(a[0])},${Math.round(a[1])} → ${Math.round(d[0])},${Math.round(d[1])}）`);
+    ok(nb.laid !== true, '新形状还没铺（只画预览 + 轮廓）');
+    const sw0 = (b.x1 - b.x0) * cal.zoom, sh0 = (b.y1 - b.y0) * cal.zoom;
+    ok(sw0 >= 109 && sh0 >= 89,
+       `新形状在屏幕上至少有 110×90px（实际 ${Math.round(sw0)}×${Math.round(sh0)}，当前缩放 ${cal.zoom.toFixed(2)}）—— 点得中`);
+  }
+
+  /* 17.9 改「边数」= 立刻重铺（不用先挪一下形状），挪出去的灯归位 */
+  {
+    const selL = byId.get('shList');
+    selL.value = String(esi); selL.onchange({ target: selL });
+    await wait();
+    ok(Number(selL.value) === esi && modeBtn('shape').classList.contains('on'),
+       '面板「形状」下拉里挑一个 = 选中它并直接进编辑态（手柄立刻可抓）');
+    esc();
+
+    const kEl2 = byId.get('shKind');
+    kEl2.value = 'poly'; kEl2.oninput({ target: kEl2 });
+    await wait();
+    const sh0 = shapes()[esi];
+    ok(sh0.kind === 'poly' && sh0.pts.length === Math.max(3, Math.round(+sh0.n)),
+       `前置：${esi} 号形状是正 ${sh0.n} 边形（顶点 ${sh0.pts.length} 个）`);
+
+    const p0 = plan(sh0)[Math.floor(plan(sh0).length / 2)];
+    dragAt(p0.x, p0.y, p0.x + 160, p0.y + 120);          /* 先手动挪出去一颗，验证改边数会归位 */
+    await wait();
+    const kOff = plan(sh0).findIndex(p => p.n === p0.n);
+    ok(!!((shapes()[esi].det || {})[kOff]), `前置：拖出去的灯记下偏移（det[${kOff}]）`);
+
+    const before = curSt().leds.map(l => l.n + '@' + l.x + ',' + l.y).join(';');
+    const nEl2 = byId.get('shPolyN');
+    nEl2.value = '12'; nEl2.oninput({ target: nEl2 });
+    await wait();
+    const sh1 = shapes()[esi], pts1 = plan(sh1);
+    ok(sh1.pts.length === 12 && Math.round(+sh1.n) === 12, `边数改成 12（顶点 ${sh1.pts.length} 个）`);
+    ok(curSt().leds.map(l => l.n + '@' + l.x + ',' + l.y).join(';') !== before,
+       '改完边数灯位就重排了 —— 不用先挪一下形状（这是用户实测的那条）');
+    ok(pts1.every(p => { const l = curSt().leds.find(k => k.n === p.n);
+                         return !!l && Math.hypot(l.x - p.x, l.y - p.y) <= 1; }),
+       `这一区的 ${pts1.length} 颗灯全部落在新几何的落点上`);
+    ok(!Object.keys(shapes()[esi].det || {}).length, `挪出去的那颗也归位了（det 清空）`);
+    ok(/已跟着重铺/.test(byId.get('status').textContent),
+       `状态栏说清了「已跟着重铺」（"${byId.get('status').textContent.slice(0, 40)}…"）`);
+    kEl2.value = 'rect'; kEl2.oninput({ target: kEl2 });
+    await wait();
+  }
+
+  /* 17.10 铺上灯之后怎么进形状编辑（这是用户实测「点不中形状」的那条路）：
+   *   单击边框上的灯 = 选那颗灯（刻意保留）；双击**落在灯点上**也不算 —— 连点两颗灯只是选灯，
+   *   绝不该悄悄把工具换成形状编辑态（换了之后每次点灯都在挪形状，看着就像「点灯有偏差」）。
+   *   真正进编辑态的是：双击形状里的空白处 / 面板「形状」下拉 / 旁边的「编辑」按钮。 */
+  {
+    esc();
+    const dbl = (listeners['cv:dblclick'] || [])[0];
+    ok(typeof dbl === 'function', '画布上绑了 dblclick');
+    const pts = plan(shapes()[esi]), p = pts[2] || pts[0];
+    clickAt(p.x, p.y);
+    ok(!modeBtn('shape').classList.contains('on'),
+       `单击边框上的灯仍优先「选那颗灯」（#${p.n}）—— 点灯这件事不会被形状抢走`);
+    const c = cal.c(p.x, p.y);
+    dbl({ clientX: c[0], clientY: c[1] });
+    ok(!modeBtn('shape').classList.contains('on'),
+       '双击落在灯点上**不**换成形状编辑态（连点两颗灯 = 仍然只是选灯，不会偷偷换工具）');
+
+    const spot2 = (() => {
+      const b = shBox(shapes()[esi]);
+      for (let t = 0.2; t <= 0.8; t += 0.1) for (let u = 0.2; u <= 0.8; u += 0.1) {
+        const x = b.x0 + (b.x1 - b.x0) * t, y = b.y0 + (b.y1 - b.y0) * u;
+        if (curSt().leds.every(l => Math.hypot(l.x - x, l.y - y) > CELL)) return [x, y];
+      }
+      return null;
+    })();
+    ok(!!spot2, `找得到形状里「离每颗灯都超过一格」的空白点（${spot2 && Math.round(spot2[0]) + ',' + Math.round(spot2[1])}）`);
+    if (spot2) {
+      const c2 = cal.c(spot2[0], spot2[1]);
+      dbl({ clientX: c2[0], clientY: c2[1] });
+      ok(modeBtn('shape').classList.contains('on') && Number(byId.get('shList').value) === esi,
+         `双击形状里的空白处 → 进 ${esi} 号形状的编辑态（8 个手柄立即可抓）`);
+      esc();
+    }
+    /* 面板「编辑」按钮：不管画布上点得中点不中，这条一定进得去 */
+    ok(!!(byId.get('shEdit') || {}).onclick, '面板「形状」旁边有「编辑」按钮（#shEdit）');
+    byId.get('shList').value = String(esi);
+    byId.get('shEdit').onclick();
+    ok(modeBtn('shape').classList.contains('on') && Number(byId.get('shList').value) === esi,
+       `点面板「编辑」→ 进 ${esi} 号形状的编辑态`);
+    esc();
+  }
+
+  /* 17.11 新增的空白形状：手柄真的抓得住（在左上角手柄上拖一下 = 改大了） */
+  {
+    esc();
+    const i0 = shapes().length;
+    byId.get('shAdd').onclick();
+    await wait();
+    const i = i0, b = shBox(shapes()[i]);
+    ok(shapes().length === i0 + 1 && modeBtn('shape').classList.contains('on'),
+       '「新增空白形状」直接进编辑态（不用先点中它）');
+    dragAt(b.x0 + 0.5, b.y0 + 0.5, b.x0 - 70, b.y0 - 50);      /* 抓「左上」手柄往外拖 */
+    await wait();
+    const b2 = shBox(shapes()[i]);
+    ok(b2.x0 < b.x0 - 20 && b2.y0 < b.y0 - 10,
+       `抓左上角手柄拖一下就把形状改大了（${Math.round(b.x1 - b.x0)}×${Math.round(b.y1 - b.y0)} → ` +
+       `${Math.round(b2.x1 - b2.x0)}×${Math.round(b2.y1 - b2.y0)}px）`);
+    esc();
+  }
+
+  /* 17.12 用户实测的原始现场：**真正的空白画布**（0 灯 0 分区）上新增一个形状 ——
+   * 得看得见、手柄抓得住（老毛病：形状只有几十屏幕 px / 手柄没画出来，根本点不中）。 */
+  {
+    esc();
+    byId.get('btnProjNew').onclick();                      /* 空白项目（追加在末尾，并切过去） */
+    await wait();
+    const db = () => JSON.parse(store.get('led_layout_editor.v1'));
+    const actSt = () => { const d = db(); return (d.projects.find(p => p.id === d.current) || d.projects[0]).state; };
+    const actShapes = () => actSt().shapes || [];
+    ok((actSt().leds || []).length === 0 && (actSt().zones || []).length === 0,
+       `新项目是空的（${(actSt().leds || []).length} 灯 / ${(actSt().zones || []).length} 分区）—— 这就是「空白画布」`);
+
+    /* 空白项目的 zoom / pan 变了：先拖一个矩形反推出这个项目的映射（同 17b 的办法） */
+    gal().find(b => b.dataset.kind === 'rect').onclick();
+    pd({ pointerId: 1, button: 0, clientX: 200, clientY: 200 });
+    move(320, 300);
+    pu({});
+    await wait();
+    const cbx = shBox(actShapes()[actShapes().length - 1]);
+    const z2 = 120 / (cbx.x1 - cbx.x0);
+    const c2 = (x, y) => [x * z2 + (200 - cbx.x0 * z2), y * z2 + (200 - cbx.y0 * z2)];
+    const drag2 = (x0, y0, x1, y1) => {
+      const a = c2(x0, y0), c = c2(x1, y1);
+      pd({ pointerId: 1, button: 0, clientX: a[0], clientY: a[1] });
+      move(c[0], c[1]);
+      pu({});
+    };
+    ok(Math.abs((cbx.y1 - cbx.y0) * z2 - 100) < 2,
+       `空白项目的画布映射校准好了（zoom=${z2.toFixed(3)}）`);
+    byId.get('shDel').onclick();                            /* 校准用的擦掉 */
+    await wait();                                           /* 等存盘落定（自动保存是防抖的） */
+    ok(actShapes().length === 0, '校准用的形状已删掉，回到真正的空白画布');
+    esc();
+
+    const n0 = actShapes().length;
+    byId.get('shAdd').onclick();
+    await wait();
+    const i = actShapes().length - 1, b = shBox(actShapes()[i]);
+    ok(actShapes().length === n0 + 1 && modeBtn('shape').classList.contains('on'),
+       `空白画布上「新增空白形状」：加出来了（${n0} → ${actShapes().length}），并直接进编辑态`);
+    const a2 = c2(b.x0, b.y0), d2 = c2(b.x1, b.y1);
+    ok(a2[0] >= 0 && a2[1] >= 0 && d2[0] <= 1200 && d2[1] <= 900,
+       `新形状整个落在画布可视范围内（客户端 ${Math.round(a2[0])},${Math.round(a2[1])} → ` +
+       `${Math.round(d2[0])},${Math.round(d2[1])}）—— 看得见`);
+    const sw = (b.x1 - b.x0) * z2, shh = (b.y1 - b.y0) * z2;
+    ok(sw >= 109 && shh >= 89,
+       `新形状在屏幕上至少 110×90px（实际 ${Math.round(sw)}×${Math.round(shh)}）—— 手柄点得中`);
+    drag2(b.x0 + 0.5, b.y0 + 0.5, b.x0 + 0.5 - 50 / z2, b.y0 + 0.5 - 40 / z2);   /* 抓左上角手柄往外拖 */
+    await wait();
+    const b3 = shBox(actShapes()[i]);
+    ok(b3.x0 < b.x0 - 15 && b3.y0 < b.y0 - 10,
+       `抓左上角手柄就把它改大了（${Math.round(b.x1 - b.x0)}×${Math.round(b.y1 - b.y0)} → ` +
+       `${Math.round(b3.x1 - b3.x0)}×${Math.round(b3.y1 - b3.y0)}px）—— 摸得着`);
+    esc();
+  }
+
+  /* 17.13 用户实测的另一半：形状放一会儿再回来调大小 —— 选择模式下手柄也一直画着，
+   * 按住它一次手势就能拖（老毛病：手柄只在编辑态画，选择模式看不见也抓不住）。 */
+  {
+    esc();
+    ok(!modeBtn('shape').classList.contains('on'), '前置：已释放形状编辑（回到选择模式）');
+    const d0 = JSON.parse(store.get('led_layout_editor.v1'));
+    const cur0 = () => { const d = JSON.parse(store.get('led_layout_editor.v1'));
+                         return (d.projects.find(p => p.id === d.current) || d.projects[0]).state; };
+    const i = (cur0().shapes || []).length - 1;
+    ok(i >= 0, `空白画布上那个形状还在（第 ${i + 1} 个）`);
+    const b = shBox(cur0().shapes[i]);
+    const hE = cal.c(b.x1, (b.y0 + b.y1) / 2);            /* 右边中间那个手柄在屏幕上的位置 */
+    pd({ pointerId: 1, button: 0, clientX: hE[0], clientY: hE[1] });
+    move(hE[0] + 60, hE[1]);
+    pu({});
+    await wait();
+    const b2 = shBox(cur0().shapes[i]);
+    ok(b2.x1 > b.x1 + 10 && Math.abs(b2.x0 - b.x0) < 1,
+       `选择模式下按住手柄拖一下就把形状改宽了（右边 ${Math.round(b.x1)} → ${Math.round(b2.x1)}，左边没动）`);
+    esc();
+  }
+
+  /* 17.14 缩得很小时点灯：命中半径有「至少 9 屏幕 px」的下限 ——
+   * 老写法固定 0.42 格（世界 px），缩到 0.3 倍只剩 5 屏幕 px，点灯得靠亚像素精度。 */
+  {
+    projRows()[0].onclick();                               /* 回到 104 颗的预设项目 */
+    await wait();
+    esc();
+    const wh = (listeners['cv:wheel'] || [])[0];
+    for (let k = 0; k < 60 && cal.zoom > 0.28; k++)
+      wh({ clientX: 600, clientY: 400, deltaY: 60, preventDefault() {} });
+    const z = cal.zoom;
+    ok(z < 0.45, `把画布缩到很小（zoom=${z.toFixed(3)}）`);
+    const l = curSt().leds.find(k => k.n === 36) || curSt().leds[0];
+    const c3 = cal.c(l.x, l.y);
+    const wOff = CELL * 0.44;                                             /* 17.6 世界 px */
+    pd({ pointerId: 1, button: 0, clientX: c3[0] + wOff * z, clientY: c3[1] });   /* 往邻灯那边偏一点点 */
+    pu({});
+    ok(byId.get('selInfo').textContent === `已选 1 颗：${l.n}`,
+       `缩到 ${z.toFixed(2)} 倍、点偏 0.44 格（${(wOff * z).toFixed(1)} 屏幕 px）仍然选中那一颗` +
+       `（老规则 0.42 格刚好漏掉；现在"${byId.get('selInfo').textContent}"）`);
+    const probeX = l.x + CELL * 0.56;
+    const nb = curSt().leds.map(k => ({ n: k.n, d: Math.hypot(k.x - probeX, k.y - l.y) }))
+                           .sort((a, b) => a.d - b.d)[0];
+    pd({ pointerId: 1, button: 0, clientX: c3[0] + CELL * 0.56 * z, clientY: c3[1] });   /* 偏过中点 */
+    pu({});
+    ok(byId.get('selInfo').textContent === `已选 1 颗：${nb.n}`,
+       `偏过两颗之间的中点就选更近的那颗（#${l.n} → #${nb.n}）—— 命中取的是最近的一颗，不是第一颗`);
+    esc();
+  }
+
 }
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');

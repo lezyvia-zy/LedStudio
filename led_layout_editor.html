@@ -270,7 +270,7 @@
         <legend>板级参数（每个项目独立）</legend>
         <label class="row"><span>项目名</span><input type="text" id="mName"></label>
         <label class="row"><span>灯总数</span><input type="number" id="mLedCount" min="1" max="1000"></label>
-        <div class="hint">把「灯总数」改小之后，多出来的编号要点下面这个按钮清掉（校验页会一直报 V3/V2）。</div>
+        <div class="hint">改小「灯总数」后，点下面的按钮清掉多出来的编号。</div>
         <div class="row"><span></span><button id="mLedTrim" data-tip="删掉编号 ≥ 灯总数的灯。-&#10;改小灯总数后用它收尾；这一步可 Ctrl+Z 撤销。">裁剪超出灯总数的编号</button></div>
         <div class="hint" id="mBoardInfo"></div>
       </fieldset>
@@ -278,7 +278,7 @@
       <div style="margin:4px 0"><button id="btnZoneAdd" data-tip="在编号末尾新起一个分区（start 接在现有分区之后）。可 Ctrl+Z 撤销。">新增分区</button>
         <button id="btnZoneDup" data-tip="把选中分区原样复制一份（名字加「副本」、别名加 _CP）。start 优先排在源分区后面，那儿被占就退到编号末尾 —— 做多个同长度分区（比如 5 个 8 颗旋钮）时不用手填。可 Ctrl+Z 撤销。">复制分区</button>
         <button id="btnZoneDel" data-tip="删掉选中分区；它区间内的灯编号会保留（不会跟着消失）。可 Ctrl+Z 撤销。">删除分区</button></div>
-      <div class="hint">点击分区选中；编号按 <b>start</b> 起连续 <b>count</b> 颗，与固件 <code>{start,count}</code> 一致。</div>
+      <div class="hint">点分区行选中；编号 = <b>start</b> 起的连续 <b>count</b> 颗。</div>
       <fieldset id="zoneEdit">
         <legend>选中分区</legend>
         <label class="row"><span>名称</span><input type="text" id="zName"></label>
@@ -298,22 +298,21 @@
         <button id="btnCompact" data-tip="把现有编号按大小重排成 0..N-1（0,1,3,5 → 0,1,2,3）来收拾缺号，灯的位置原样不动 —— 校验页 V2「缺号」的收尾动作。可 Ctrl+Z 撤销。">压缩编号 0..N-1</button>
         <button id="btnFillGap" data-tip="补上最小的那个缺号，位置放在相邻两颗灯之间（拖一下就能挪走）；缺几个就点几次。可 Ctrl+Z 撤销。">补一个缺号</button>
       </fieldset>
-      <div class="hint">以下是<b>铺灯</b>：选一个分区，用<b>形状</b>给它铺编号（形状是<b>编辑期</b>概念 ——
-        顶点/坐标不进固件导出，所以想怎么摆都行）。<b>底图</b>照实物照片描图用。</div>
+      <div class="hint">以下是<b>铺灯</b>：给选中分区用<b>形状</b>铺编号（形状只活在工具里，不进固件导出）。</div>
       <fieldset>
         <legend>铺灯 · 形状</legend>
-        <div class="hint"><b>①</b> 挑形状　<b>②</b> 到画布上拖出来（灯跟着边框<b>等间距</b>排开；一颗挨不下就
-          重叠着，把框拉大到灯距 ≥ 一格，画完自动松开鼠标）　<b>③</b> 点这个形状进入编辑（点空白或 <span class="kbd">Esc</span> 释放；
-          拖四角小方块改大小、拖框里挪动、点其它形状切换），再点「在画布上定头尾」，在形状上点两下：
-          先点<b>头</b>、再点<b>尾</b>定方向。左侧 <span class="kbd">S</span> 键也能进「画形状」。</div>
+        <div class="hint"><b>①</b> 挑形状　<b>②</b> 到画布上拖出来　<b>③</b> 点它进编辑，
+          再点「在画布上定头尾」点头 / 尾定方向（左侧 <span class="kbd">S</span> 键也能进）。</div>
         <div id="shGallery">
-          <button id="shGalLine" data-kind="line" data-tip="直线：在画布上拖一条线出来，这一段的灯沿它等间距排（开环，不闭回来）。"><svg viewBox="0 0 30 26"><line x1="4" y1="21" x2="26" y2="5"/></svg><span>直线</span></button>
-          <button id="shGalCircle" data-kind="circle" data-tip="圆环：拖一个框出来，灯沿椭圆环等间距排（拖成正方形就是正圆；纵半轴留空 = 正圆）。"><svg viewBox="0 0 30 26"><ellipse cx="15" cy="13" rx="11" ry="9"/></svg><span>圆环</span></button>
+          <button id="shGalRect" data-kind="rect" data-tip="矩形：拖一个框出来，灯沿四边等间距排（直角，最常规的一圈）。"><svg viewBox="0 0 30 26"><rect x="4" y="4" width="22" height="18"/></svg><span>矩形</span></button>
           <button id="shGalRRect" data-kind="rrect" data-tip="圆角矩形：拖一个框出来，四角带圆角，灯沿边框等间距排（最像实物灯箱的走线）。"><svg viewBox="0 0 30 26"><rect x="4" y="4" width="22" height="18" rx="6"/></svg><span>圆角矩形</span></button>
+          <button id="shGalCircle" data-kind="circle" data-tip="圆环：拖一个框出来，灯沿椭圆环等间距排（拖成正方形就是正圆；纵半轴留空 = 正圆）。"><svg viewBox="0 0 30 26"><ellipse cx="15" cy="13" rx="11" ry="9"/></svg><span>圆环</span></button>
+          <button id="shGalPoly" data-kind="poly" data-tip="多边形：拖一个框出来，默认是正六边形；边数在面板「边数」里改（3~64，按当前外框重画，框不变）。"><svg viewBox="0 0 30 26"><polygon points="15,3 24.5,8 24.5,18 15,23 5.5,18 5.5,8"/></svg><span>多边形</span></button>
+          <button id="shGalLine" data-kind="line" data-tip="直线：在画布上拖一条线出来，这一段的灯沿它等间距排（开环，不闭回来）。"><svg viewBox="0 0 30 26"><line x1="4" y1="21" x2="26" y2="5"/></svg><span>直线</span></button>
         </div>
         <div class="hint" id="shTool"></div>
-        <label class="row"><span>形状</span><select id="shList"></select></label>
-        <div class="row" style="margin:2px 0 4px"><span></span><button id="shAdd">新增空白形状</button><button id="shDel">删除形状</button><button id="shFromZone" data-tip="把选中分区现有的灯位包围盒反推成一个矩形形状（整数格上能重现旧排布时自动用「格点」档），老工程迁过来第一件事。">由分区反推</button></div>
+        <label class="row"><span>形状</span><select id="shList" data-tip="板上所有形状的清单（编号 · 类型 · 归属分区）。选一个 = 选中它并直接进入编辑态：8 个手柄立刻出来，抓角上的小方块就能改大小 —— 铺过灯的形状在画布上被灯点盖住，从这里选最省事。"></select><button id="shEdit" data-tip="进选中形状的编辑态：8 个手柄立刻出来，抓角上的小方块改大小、拖形状内部挪动、点空白释放。铺过灯的形状在画布上被灯点盖住时，这是最明确的那条入口（画布上双击形状、抓手柄也都能进）。">编辑</button></label>
+        <div class="row" style="margin:2px 0 4px"><span></span><button id="shAdd" data-tip="在画布正中起一个空白形状（6×5 格；画布缩得小时按屏幕尺寸放大，至少约 110×90 屏幕 px），并直接进入编辑态 —— 8 个手柄立刻出来，抓一个拖一下就能改大小；归属分区取左侧选中的那个。">新增空白形状</button><button id="shDel">删除形状</button><button id="shFromZone" data-tip="把选中分区现有的灯位包围盒反推成一个矩形形状（整数格上能重现旧排布时自动用「格点」档），老工程迁过来第一件事。">由分区反推</button></div>
         <label class="row"><span>归属分区</span><select id="shZone" data-tip="形状跟着这个分区走：头/颗数默认取分区的 start/count。「(只当参考线)」= 不铺灯，只画出来给自己看。"></select></label>
         <label class="row"><span>形状类型</span><select id="shKind"><option value="rect">矩形</option><option value="rrect">圆角矩形</option><option value="circle">圆环 / 圆弧</option><option value="poly">多边形</option><option value="line">直线</option></select></label>
         <label class="row" id="shRectRow"><span>左上格</span><input type="number" id="shX0" step="0.5"><input type="number" id="shY0" step="0.5"></label>
@@ -323,6 +322,7 @@
         <label class="row" id="shRyRow"><span>纵半轴 ry</span><input type="number" id="shRy" step="5" min="1" data-tip="留空 = 正圆；填了就是椭圆（在画布上拖成竖着的框，这里会自动填上）。"></label>
         <label class="row" id="shArcRow"><span>起始角 / 张角</span><input type="number" id="shA0" step="5"><input type="number" id="shSweep" step="5" min="1" max="360"></label>
         <label class="row" id="shPtsRow"><span>顶点 px</span><input type="text" id="shPts" placeholder="20,20; 220,20; 220,240; 20,240"></label>
+        <label class="row" id="shPolyNRow"><span>边数</span><input type="number" id="shPolyN" min="3" max="64" step="1" data-tip="多边形的边数（3~64）：改这里就按当前外框重画一个正多边形（外框不变），已铺的灯当场跟着重新排布 —— 改完不用再挪一下形状；挪出去的灯会归位（换几何了，旧偏移没有意义）。在画布上拖手柄改的是外框大小。"></label>
         <label class="row" id="shDistRow"><span>分布</span><select id="shDist" data-tip="每边颗数：四边分别填 6,5,6,4 这类，最贴实物灯带（各边灯距会不一样）。&#10;等分弧长：任意颗数沿形状均匀铺满，闭环连缝一起均匀（画形状拖出来的默认就是它）。&#10;等灯距：按灯距撒点，闭环时告诉你差多少才回得到起点。&#10;格点：旧的「矩形环绕圈」整数格行为，老工程原样重现用。">
           <option value="sides">每边颗数</option><option value="even">等分弧长</option>
           <option value="pitch">等灯距</option><option value="cells">格点（旧行为）</option></select></label>
@@ -348,7 +348,7 @@
         <label class="row"><span>X/Y</span><input type="number" id="bgX" value="0"><input type="number" id="bgY" value="0"></label>
         <button id="bgAlign" data-tip="把底图的 X/Y 对齐到半个格（格边长的一半）—— 描照片时让底图和画布网格对整齐，灯位更好点。">对齐到格</button>
         <button id="bgClear">移除底图</button>
-        <div class="hint">底图只影响画布上看到的参照（不进固件导出）：把透明度调低一点，照着照片上的实际灯位铺灯最省事。</div>
+        <div class="hint">底图只是参照，不进固件导出 —— 调低透明度照着照片铺灯最省事。</div>
       </fieldset>
     </div>
 
@@ -544,7 +544,7 @@
         <p><b>先有效果，再出代码。</b>工具里把排布和灯效都做出来，导出 C 贴进固件。</p>
         <ol>
           <li><b>分区</b> —— 告诉工具「板子分成几块、每块从几号灯到几号灯」。SP-3122D 预设里已经填好。<br>
-            这一页还管着<b>板级参数</b>（项目名 / 灯总数）、<b>按形状铺灯</b>（矩形 / 圆环 / 多边形，
+            这一页还管着<b>板级参数</b>（项目名 / 灯总数）、<b>按形状铺灯</b>（矩形 / 圆角矩形 / 圆环 / 多边形 / 直线，
             见下面「按形状铺灯」那一节）和<b>底图</b>（选一张实物照片当参照，照着它描灯位最省事）——
             换一块板从头做，全在这一页里走完。</li>
           <li><b>效果</b> —— 做素材：一个效果 = 一套图层 + 配色 + 速度。效果是<b>素材库</b>，可以被任意多个模式、任意多个分区复用。</li>
@@ -578,18 +578,33 @@
           所以形状、顶点、灯距怎么调都不会动到固件 —— 它是给你自己看着铺、照着核对的。</div>
         <p><b>三步走</b>：</p>
         <ul>
-          <li><b>① 挑形状</b>：在「铺灯 · 形状」的形状选择框里点一个 —— <b>直线 / 圆环 / 圆角矩形</b>（左侧 <span class="kbd">S</span> 键进「画形状」模式）。</li>
+          <li><b>① 挑形状</b>：在「铺灯 · 形状」的形状选择框里点一个 —— <b>矩形 / 圆角矩形 / 圆环 / 多边形 / 直线</b>（跟面板「<b>形状类型</b>」下拉是同一套五选一；<b>多边形</b>拖出来默认是正六边形，边数在面板「<b>边数</b>」里改 —— 改完按当前外框重画，外框不变。左侧 <span class="kbd">S</span> 键进「画形状」模式）。</li>
           <li><b>② 拖出来</b>：到画布上按住一拖，灯沿边框<b>等间距</b>依次排开（这时候<b>不带编号</b>，只报「N 颗 · 灯距 x px」）。
             排不下就重叠着 —— 把框拖大到「灯距 ≥ 一格」就排开了；拖形状内部 = 挪动，拖四角/四边的小方块 = 改大小。<b>画完自动松开鼠标</b>。</li>
-          <li><b>③ 点形状进编辑、定头尾</b>：点一下刚画好的形状（轮廓，没铺的连内部也算）就进入编辑态；抓四角小方块改大小、拖框里挪动、
-            <b>点空白或 Esc 释放</b>、<b>点其它形状随时切换选中</b>。要定方向就点「<b>在画布上定头尾</b>」，然后在形状上点两下 ——
+          <li><b>③ 点形状进编辑、定头尾</b>：点一下刚画好的形状（轮廓，没铺的连内部也算）就进入编辑态，<b>而且按住那一下就能直接拖</b>
+            —— 抓四角/四边的小方块 = 改大小，按在框里 = 挪动，不用「先点中、松手、再按第二下」。
+            <b>点空白或 Esc 释放</b>、<b>点其它形状随时切换选中</b>。铺过灯的形状被灯点盖着不好点？三条不用挑位置的入口：
+            面板「<b>形状</b>」下拉里挑一个、它右边的「<b>编辑</b>」按钮、或者在画布上<b>双击</b>它
+            （双击点<b>不落在灯点上</b>时才算 —— 连点两颗灯仍然只是选灯，不会被悄悄换成形状编辑态）。
+            手柄画在所有灯之上，<b>任何模式下抓住都算改大小</b>；手差点没抓准也没关系：小方块外那一圈（1.6 倍容差）
+            同样算改大小，<b>不会把整块形状连灯一起挪走</b>。
+            要定方向就点「<b>在画布上定头尾</b>」，然后在形状上点两下 ——
             第一下是<b>头</b>（这一段从哪儿开始），第二下是<b>尾</b>（编号顺着短的那边走），两点定完自动铺进编号。</li>
         </ul>
+        <p><b>微调单颗灯</b>：选择模式下<b>点在灯上</b>就选中那颗灯（要动形状就点形状的框内空白处，或从面板「形状」下拉里选它）。
+          把形状里的某几颗灯拖到别处也没关系 —— 它们会<b>记着自己相对形状的位置</b>，之后挪动 / 改大小形状时跟着一起走；
+          拖回原位附近（约一格内）就自动<b>吸附回形状上</b>。（偏移跟着工程存盘，Ctrl+Z 一样能撤销。）</p>
+        <p><b>换形状类型 / 新增空白形状</b>：面板「形状类型」下拉或形状选择框点另一种，形状会<b>按那种类型重画</b>（外框不动，
+          所以「矩形 → 多边形」一眼看出变化）；<b>换类型、改多边形「边数」都会让挪出去的灯归位并<b>立刻重铺</b></b> ——
+          它俩换的是整套几何，旧的相对偏移没有意义（只想挪动 / 改大小时它们照旧跟着走）。
+          面板「<b>新增空白形状</b>」会在<b>画布正中</b>起一个 6×5 格的形状（画布缩得小时按屏幕尺寸放大，
+          至少约 110×90 屏幕 px —— 再小就点不中手柄了），并<b>直接进入编辑态</b>：
+          四个角 / 四条边的 8 个小方块立刻画出来，按住一个就能改大小（那小方块外一圈也算，手不用那么准）。</p>
         <p>下面是四种<b>分布</b>（拖出来的新形状默认「等分弧长」；接老工程 / 贴实物灯带再换别的）：</p>
         <table>
           <tr><th>分布</th><th>什么时候用</th></tr>
           <tr><td><b>每边颗数</b></td><td>实物就是「上面 6 颗、右面 5 颗…」这么焊的。填 <code>6,5,6,4</code> 就行，
-            最贴真实灯带（各边灯距因此会不一样，诊断行会写出来）。</td></tr>
+            最贴真实灯带（各边灯距因此会不一样，属正常 —— 想核对就临时切「等灯距」看灯距那一行）。</td></tr>
           <tr><td><b>等分弧长</b></td><td>只想让这 N 颗沿形状均匀铺满，不关心每边几颗。闭环时连最后的缝一起均匀。</td></tr>
           <tr><td><b>等灯距</b></td><td>按真实<b>灯距</b>撒点（最像走线）。闭环时诊断行会告诉你「周长 ÷ 灯距 = 21.00 颗 → 正好闭环 ✓」，
             差一点就写「差 40px 才回得到起点」，照着把形状尺寸调一格就行。</td></tr>
@@ -1055,9 +1070,10 @@ const SHAPE = {
   /* 形状类型：rect 直角矩形 / rrect 圆角矩形 / circle 圆环(可椭圆) / poly 多边形 / line 直线(开环) */
   KINDS: ['rect', 'rrect', 'circle', 'poly', 'line'],
   KIND_NAMES: { rect: '矩形', rrect: '圆角矩形', circle: '圆环 / 圆弧', poly: '多边形', line: '直线' },
-  /* 形状选择框里那三种「拖出来就能用」的形状（顺序就是画布/面板里的顺序） */
-  TOOLS: ['line', 'circle', 'rrect'],
-  TOOL_NAMES: { line: '直线', circle: '圆环', rrect: '圆角矩形' },
+  /* 形状选择框里那五种「拖出来就能用」的形状：与「形状类型」下拉（KINDS）同一套、同一顺序，
+   * 面板下拉里加一种类型，这里就得跟着补一个缩略图按钮（test_ui 会盯着这两处一致）。 */
+  TOOLS: ['rect', 'rrect', 'circle', 'poly', 'line'],
+  TOOL_NAMES: { rect: '矩形', rrect: '圆角矩形', circle: '圆环', poly: '多边形', line: '直线' },
 
   /* 一个空形状的默认参数（各字段含义见文档 / 面板提示） */
   blank(over) {
@@ -1068,6 +1084,7 @@ const SHAPE = {
       cx: 200, cy: 200, r: 160, a0: 90, sweep: 360,        /* kind=circle：圆芯 / 横半轴 / 起始角 / 张角 */
       ry: null,                     /* kind=circle：纵半轴（null = 正圆） */
       rc: 30,                       /* kind=rrect：圆角半径 px */
+      n: 6,                         /* kind=poly：正多边形的边数（3~64） */
       closed: true,
       zone: null,                   /* 归属分区 id；null = 只当参考线，不铺灯 */
       first: 0, count: 8,           /* 头（起始编号）、颗数 */
@@ -1110,6 +1127,26 @@ const SHAPE = {
     corner(xb - r, yb - r, 0, 90);                        /* 右下 */
     corner(xa + r, yb - r, 90, 180);                      /* 左下 */
     return out;
+  },
+  /* 正 n 边形顶点（n / 圆心 / 横半轴 / 纵半轴 / 起始角°，默认顶点朝上）。
+   * 先按单位圆算顶点，再把包围盒整体缩放到 2rx × 2ry —— 这样「拖一个框画多边形」出来，
+   * 多边形的外框正好等于拖的那个框（之后抓手柄改大小才不会有跳一下的感觉）。 */
+  regularPts(n, cx, cy, rx, ry, a0) {
+    const k = Math.max(3, Math.round(+n || 3));
+    const a = (a0 == null ? -90 : +a0) * Math.PI / 180;
+    const raw = [];
+    for (let i = 0; i < k; i++) {
+      const th = a + i * 2 * Math.PI / k;
+      raw.push([Math.cos(th), Math.sin(th)]);
+    }
+    const xs = raw.map(p => p[0]), ys = raw.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const hw = Math.abs(+rx > 0 ? +rx : 1);
+    const hh = Math.abs(+ry > 0 ? +ry : (+rx > 0 ? +rx : 1));
+    const sx = (x1 - x0) > 1e-9 ? (2 * hw) / (x1 - x0) : 1;
+    const sy = (y1 - y0) > 1e-9 ? (2 * hh) / (y1 - y0) : 1;
+    return raw.map(p => [cx - hw + (p[0] - x0) * sx, cy - hh + (p[1] - y0) * sy]);
   },
   newRect(p, cell) {
     const c = Math.max(1, +cell || 40);
@@ -1250,16 +1287,26 @@ const SHAPE = {
 
   /* 把一个拖出来的框「画」成指定类型的形状（只改几何，其它参数不动）。
    * 拖画新形状 / 抓手柄改大小 / 面板改 W-H / 换形状类型 都走这里，四个入口结果一致。
-   * 多边形：原顶点按包围盒整体缩放（保持形状的相似变换）。 */
-  fromBox(sh, kind, box) {
+   * reset=true（新建形状 / 换类型）：按类型生成**标准形**，忽略旧顶点；
+   * 否则多边形按包围盒整体缩放（保持形状的相似变换，拖手柄改大小不会变形）。 */
+  fromBox(sh, kind, box, reset) {
     const x0 = Math.min(box.x0, box.x1), x1 = Math.max(box.x0, box.x1);
     const y0 = Math.min(box.y0, box.y1), y1 = Math.max(box.y0, box.y1);
     const k = SHAPE.KINDS.indexOf(kind) >= 0 ? kind : 'rect';
     if (k === 'poly') {
-      const b = SHAPE.boxOf(Object.assign({}, sh, { kind: 'poly' }));
-      const sx = (b.x1 - b.x0) > 1e-9 ? (x1 - x0) / (b.x1 - b.x0) : 1;
-      const sy = (b.y1 - b.y0) > 1e-9 ? (y1 - y0) / (b.y1 - b.y0) : 1;
-      sh.pts = ((sh && sh.pts) || []).map(p => [x0 + (p[0] - b.x0) * sx, y0 + (p[1] - b.y0) * sy]);
+      const n = Math.max(3, Math.min(64, Math.round(+sh.n || 6)));
+      const cur = Array.isArray(sh.pts) ? sh.pts : [];
+      /* 从别的类型换过来（或画一个全新的）：给一个真正的正 n 边形 —— 否则 pts 还是那个矩形，
+       * 「矩形 → 多边形」点下去看不出任何变化。 */
+      if (reset || sh.kind !== 'poly' || cur.length < 3) {
+        sh.pts = SHAPE.regularPts(n, (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, (y1 - y0) / 2, -90);
+      } else {
+        const b = SHAPE.boxOf(Object.assign({}, sh, { kind: 'poly', pts: cur }));
+        const sx = (b.x1 - b.x0) > 1e-9 ? (x1 - x0) / (b.x1 - b.x0) : 1;
+        const sy = (b.y1 - b.y0) > 1e-9 ? (y1 - y0) / (b.y1 - b.y0) : 1;
+        sh.pts = cur.map(p => [x0 + (p[0] - b.x0) * sx, y0 + (p[1] - b.y0) * sy]);
+      }
+      sh.closed = true;                     /* 多边形一定闭合（从直线换过来时得把那条闭边补上） */
     } else if (k === 'circle') {
       sh.cx = (x0 + x1) / 2; sh.cy = (y0 + y1) / 2;
       sh.r  = Math.max(0.5, (x1 - x0) / 2);
@@ -3752,6 +3799,7 @@ function normalizeShapes() {
     if (SHAPE.KINDS.indexOf(sh.kind) < 0) sh.kind = 'rect';
     if (sh.kind === 'line') sh.closed = false;                  /* 直线是开环的，闭环没意义 */
     sh.rc     = Math.max(0, sh.rc == null ? 30 : (+sh.rc || 0));
+    sh.n      = Math.max(3, Math.min(64, Math.round(+sh.n || 6)));   /* kind=poly：正多边形的边数 */
     if (sh.ry == null || !(+sh.ry > 0)) delete sh.ry; else sh.ry = +sh.ry;   /* 纵半轴：没有 = 正圆 */
     sh.laid   = !!sh.laid;                                      /* 这形状描述的是不是板上已铺出来的灯 */
     sh.count  = Math.max(1, Math.round(+sh.count || 1));
@@ -3763,6 +3811,20 @@ function normalizeShapes() {
     if (sh.corner !== 'out') sh.corner = 'in';
     sh.closed = sh.closed !== false;
     if (typeof sh.zone !== 'string' || !state.zones.some(z => z.id === sh.zone)) sh.zone = null;
+    /* 手动挪出去的灯（落点序号 → [dx, dy]）：坏数据丢掉；一个都不剩就把字段删掉 */
+    if (sh.det != null) {
+      const d = {};
+      if (typeof sh.det === 'object' && !Array.isArray(sh.det)) {
+        for (const k in sh.det) {
+          const v = sh.det[k];
+          if (!/^\d+$/.test(k) || !Array.isArray(v) || v.length !== 2) continue;
+          const dx = +v[0], dy = +v[1];
+          if (!isFinite(dx) || !isFinite(dy) || (dx === 0 && dy === 0)) continue;
+          d[k] = [dx, dy];
+        }
+      }
+      if (Object.keys(d).length) sh.det = d; else delete sh.det;
+    }
   });
   return list;
 }
@@ -3833,10 +3895,36 @@ function initSplitter() {
 /* ---------- 绘制 ---------- */
 function resizeCanvas() {
   const r = cv.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return;         /* 还没布局出来：保持原位图，别设成 1×1 */
   const dpr = window.devicePixelRatio || 1;
   cv.width = Math.max(1, Math.round(r.width * dpr));
   cv.height = Math.max(1, Math.round(r.height * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+/* 位图大小 ↔ CSS 盒子 x dpr 对不上账了？（对不上就必须重设，见 render() 开头） */
+function canvasStale() {
+  const r = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  return cv.width  !== Math.max(1, Math.round(r.width  * dpr))
+      || cv.height !== Math.max(1, Math.round(r.height * dpr));
+}
+/* 布局一变就重算位图 + 重画。**只挂 window.resize 会漏**：画布是 flex 子元素，
+ * 右栏宽度、面板内容高低（页签切换 / 形状行显隐）、滚动条有无、窗口在不同 DPI 的显示器
+ * 之间移动、浏览器缩放导致 dpr 变化……都能改它的大小，而它们都不发 resize 事件。 */
+function initCanvasWatch() {
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(() => { resizeCanvas(); render(); });
+    ro.observe(cv);
+  }
+  watchDpr();
+}
+function watchDpr() {
+  if (typeof matchMedia !== 'function') return;
+  const dpr = window.devicePixelRatio || 1;
+  const mq = matchMedia('(resolution: ' + dpr + 'dppx)');
+  const fire = () => { resizeCanvas(); render(); watchDpr(); };   /* dpr 变了：按新值重新登记 */
+  if (mq.addEventListener) mq.addEventListener('change', fire, { once: true });
+  else if (mq.addListener) mq.addListener(fire);
 }
 function zbounds(z) { return { cw: z.start, ccw: z.start + z.count - 1, d: deriveZoneDir(state, z) }; }
 
@@ -3936,6 +4024,12 @@ function renderStage() {
 }
 
 function render() {
+  /* 每帧先对账：位图大小必须与 CSS 盒子 x dpr 一致。
+   * 浏览器是把**位图**拉伸到 CSS 盒子上显示的，而命中测试（s2w）按 CSS px 算 ——
+   * 位图一旦过期（布局变了 / dpr 变了却没走 resize），整块画布就按比例偏，
+   * 越靠边偏得越多：点灯点到旁边那颗、形状手柄抓不住。这里补上，任何一次重画都能自愈。 */
+  if (cv.clientWidth < 1 || cv.clientHeight < 1) return;
+  if (canvasStale()) resizeCanvas();
   const W = cv.clientWidth, H = cv.clientHeight;
   /* 效果页画「基础排布」编辑台，其它页画真实灯板 */
   if (stageView) { renderStage(); return; }
@@ -4034,6 +4128,19 @@ function render() {
         ctx.textAlign = tx >= 0 ? 'left' : 'right';
         ctx.fillText('尾 ' + tail.n, tail.x + tx * GEN.CELL * 0.55, tail.y + ty * GEN.CELL * 0.55);
       }
+    }
+    /* 手动挪出去的灯：从形状上的原位拉一条虚线连到它 —— 一眼看出「这颗还跟着这个形状走」 */
+    const det = shapeDet(sh);
+    if (det && sh.laid) {
+      ctx.save();
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 1 / view.zoom; ctx.setLineDash([3 / view.zoom, 3 / view.zoom]);
+      for (const kk in det) {
+        const p = pl.pts[+kk]; if (!p) continue;
+        const L = state.leds.find(l => l.n === p.n); if (!L) continue;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(L.x, L.y); ctx.stroke();
+      }
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -4156,9 +4263,13 @@ function render() {
     }
   }
 
-  /* 手柄（当前选中的形状）：画在所有灯之上，别被灯点盖住 */
-  if (shapeCur) {
-    const sh = shapeCur;
+  /* 手柄：画在所有灯之上（别被灯点盖住）。
+   * 编辑态画当前形状；选择模式下「你选过的那一个」也一直留着 —— 手柄看得见，
+   * 用户就不会卡在「先点中形状、再抓一次」这一步上（实测「拖不动大小」就是被它劝退的）。
+   * 只在这两个模式画：放置 / 擦除模式不画手柄，也就不存在「看得见却抓不住」。 */
+  const handleSh = shapeCur || (shapePicked && mode === 'select' ? curShape() : null);
+  if (handleSh) {
+    const sh = handleSh;
     ctx.save();
     for (const hh of shHandles(sh)) {
       const hx = hh[1], hy = hh[2], s = 4 / view.zoom;
@@ -4180,8 +4291,17 @@ function render() {
 }
 
 /* ---------- 命中 ---------- */
-function hit(wx, wy) {
-  const R = GEN.CELL * 0.42;
+/* 灯的命中半径：屏幕上至少 9 屏幕 px（世界 px 里至少 0.42 格）。
+ * 老写法固定 0.42 格（世界 px），缩到 0.3 倍时只剩 2~3 屏幕 px，点灯要靠亚像素精度 ——
+ * 用户实测「点灯有偏差」就是这么来的。命中取的是**最近的那颗**（不是第一颗），
+ * 所以放宽容差不会把点击判给旁边的灯；再远就什么都不中（不抢空白处的框选 / 形状）。
+ * 想进形状编辑而不想碰灯：面板「形状」下拉 / 「编辑」按钮 / 双击形状内部（不落在灯点上）。 */
+function hitTol() {
+  return Math.max(GEN.CELL * 0.42, 9 / Math.max(0.05, view.zoom));
+}
+/* 命中灯：tol 默认 = 上面那条规则（点在圆盘上就算中）；传更小的 tol 用来区分「点灯」还是「点形状」。 */
+function hit(wx, wy, tol) {
+  const R = tol == null ? hitTol() : tol;
   let best = null, bd = R * R;
   for (const L of state.leds) {
     const d = (L.x - wx) ** 2 + (L.y - wy) ** 2;
@@ -4226,6 +4346,9 @@ cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId);
   const r = cv.getBoundingClientRect();
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
+  /* 上一笔没收到 pointerup（切了窗口 / 触控被系统取消）时先把它收干净 ——
+   * 挂着 shDraft 会让后面每次按下都被它吃掉、手柄也抓不住。 */
+  if (shDraft) shDrop();
   const L = hit(wx, wy);
 
   /* 右键（或中键 / 空格+左键）= 平移画布 */
@@ -4235,6 +4358,22 @@ cv.addEventListener('pointerdown', e => {
     return;
   }
   if (e.button !== 0) return;
+  /* 形状手柄最优先：抓到手柄 = 一次按住就能改大小（不必先点中形状、松手、再按第二遍）。
+   * 选择模式下「点在灯上 = 选那颗灯」的承诺不能破，所以按下点落在灯上时手柄让位；
+   * 而且选择模式只认「当前那个形状」的手柄 —— 只有画出来的手柄才允许抢点击。 */
+  if (!shDraft && !(mode === 'select' && L)) {
+    /* ① 手柄：只有「画着的」手柄才允许抢按下 —— shape 编辑态全认；
+     *    选择模式认「你选过的那个形状」（它的手柄一直画着）。 */
+    if (mode === 'shape' || (mode === 'select' && shapePicked)) {
+      const hh = handleAnyAt(wx, wy, mode === 'shape');
+      if (hh) { beginShapeDrag(hh.i, 'resize', hh.h); return; }
+    }
+    /* ② 选择模式按住形状内部（轮廓 / 包围盒内，无论已铺与否）= 选中它并立刻能拖去挪动 */
+    if (mode === 'select') {
+      const si = hitShapeAny(wx, wy);
+      if (si >= 0 && beginShapeDrag(si, 'move', null, wx, wy)) return;
+    }
+  }
   if (mode === 'shape') { shDown(wx, wy); return; }
   if (mode === 'place') {
     snapshot();
@@ -4255,14 +4394,9 @@ cv.addEventListener('pointerdown', e => {
     return;
   }
 
-  /* select：点形状（轮廓或包围盒内，无论已铺与否）= 选中并进「画形状」编辑态。
-   * 形状优先于选灯 —— 想微调单个灯用框选或「擦除/放置」模式。 */
-  if (mode === 'select') {
-    const si = hitShapeAny(wx, wy);
-    if (si >= 0) { enterShapeEdit(si); return; }
-  }
-
-  /* select */
+  /* select：点在灯上 = 选中那颗灯（微调单颗灯是最常用的动作，灯优先）。
+   * 没点中灯的那一下在上面已经交给形状了（手柄 → 改大小；形状内部 → 进编辑 + 立刻可挪动）；
+   * 落到这里说明这一下既不在灯上、也不在任何形状上 → 空白处，框选 / 清空选择。 */
   if (!L) {
     if (!e.shiftKey) sel.clear();
     drag = { kind: 'marquee', x0: wx, y0: wy, x1: wx, y1: wy };
@@ -4279,7 +4413,14 @@ cv.addEventListener('pointermove', e => {
   const r = cv.getBoundingClientRect();
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
   if (shDraft) { shDragMove(wx, wy); return; }                  /* 画形状：拖框 / 拖手柄 / 挪形状 */
-  if (!drag) { if (mode === 'shape') shHover(wx, wy); return; }
+  if (!drag) {
+    if (mode === 'shape') shHover(wx, wy);
+    else if (mode === 'select') {
+      /* 光标先告诉你这一下会点到谁：灯 → 能拖着挪；形状 → 进「画形状」编辑 */
+      cv.style.cursor = hit(wx, wy) ? 'move' : (hitShapeAny(wx, wy) >= 0 ? 'pointer' : 'default');
+    }
+    return;
+  }
   if (drag.kind === 'pan') { view.panX = drag.px + (e.clientX - drag.sx); view.panY = drag.py + (e.clientY - drag.sy); render(); return; }
   if (drag.kind === 'marquee') { drag.x1 = wx; drag.y1 = wy; render(); return; }
   if (drag.kind === 'move') {
@@ -4305,8 +4446,33 @@ cv.addEventListener('pointerup', e => {
       if (L.x >= x0 && L.x <= x1 && L.y >= y0 && L.y <= y1) sel.add(L.n);
   }
   const moved = drag.kind === 'move' && drag.moved;
+  const movedLeds = moved ? drag.start.map(s => s.k) : null;
   drag = null;
-  if (moved) afterChange(); else { render(); renderZoneList(); syncZoneEdit(); }
+  if (moved) {
+    /* 手动挪完的灯回填「相对形状的偏移」：记着偏移的灯以后跟着形状走（相对位置不变），
+     * 拖回原位附近则对齐回形状上。 */
+    const off = syncShapeDet(movedLeds);
+    afterChange();
+    if (off) status(`已把 ${off} 颗灯挪出形状 —— 之后挪动 / 改大小形状时它们跟着一起走（相对位置不变）；` +
+                    '拖回原位附近会自动对齐回形状上', 'ok');
+  } else { render(); renderZoneList(); syncZoneEdit(); }
+});
+
+/* 指针被系统取消（切窗口 / 触控手势 / 笔离开）：跟 Esc 一样把这一笔撤掉 ——
+ * 不然 shDraft / drag 会一直挂着，之后的手势全乱。 */
+cv.addEventListener('pointercancel', () => { drag = null; cancelShapeDraft(); });
+
+/* 双击形状（轮廓 / 包围盒内）= 直接进它的编辑态（铺过灯的形状被灯点盖住时，这是那条不用挑位置的入口）。
+ * **但双击落在灯点上时不算**：那是用户在连点那颗灯（选中 / 微调），
+ * 悄悄换成形状编辑态之后，接下来每次点灯都在挪形状 —— 看着就像「点灯有偏差」。 */
+cv.addEventListener('dblclick', e => {
+  if (mode !== 'select' && mode !== 'shape') return;
+  const r = cv.getBoundingClientRect();
+  const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
+  if (hit(wx, wy)) return;
+  const si = hitShapeAny(wx, wy);
+  if (si < 0) return;
+  enterShapeEdit(si);
 });
 
 cv.addEventListener('wheel', e => {
@@ -4322,18 +4488,24 @@ cv.addEventListener('wheel', e => {
 }, { passive: false });
 
 /* ---------- 键盘 ---------- */
+/* 这一笔拖动作废（Esc / 指针被系统取消）：没铺过的形状直接重画，铺过的撤回到拖动前。
+ * 「按了一下但没真拖」的 draft 不算一笔操作：不撤销、也不拦住 Esc —— 否则点一下形状之后
+ * Esc 就失灵了（它只会吃掉那个空 draft）。 */
+function cancelShapeDraft() {
+  if (!shDraft) return false;
+  const wasNew = shDraft.kind === 'box', moved = !!shDraft.moved;
+  shDraft = null; shPickStep = 0;
+  if (!wasNew && moved) undo(); else render();
+  syncShapeTool();
+  if (!wasNew && !moved) return false;
+  status(wasNew ? '已取消这次拖画' : '已取消这次拖动（恢复原样）', 'ok');
+  return true;
+}
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && exportIsOpen()) { closeExport(); e.preventDefault(); return; }   /* Esc 关导出窗口 */
   if (/input|textarea|select/i.test(e.target.tagName)) return;
   if (e.key === 'Escape') {
-    if (shDraft) {
-      const wasNew = shDraft.kind === 'box';
-      shDraft = null; shPickStep = 0;
-      if (!wasNew) undo(); else render();
-      syncShapeTool();
-      status(wasNew ? '已取消这次拖画' : '已取消这次拖动（恢复原样）', 'ok');
-      return;
-    }
+    if (cancelShapeDraft()) return;
     if (shPickStep) { shPickStep = 0; render(); syncShapeTool(); status('已取消定头尾（形状没动）', 'ok'); return; }
     if (mode === 'shape') { shPickStep = 0; setMode('select'); status('已退出形状编辑（Esc）', 'ok'); return; }
   }
@@ -4382,6 +4554,10 @@ function setMode(m) {
            erase: '擦除：点击删除该编号',
            shape: '画形状：拖空白 = 新建；拖形状里 = 挪动；拖小方块 = 改大小；在形状上点两下 = 定头尾' }[m]);
   if (typeof syncShapeTool === 'function') syncShapeTool();
+  /* 模式决定画布上画什么（手柄 / 框选 / 光标）：切模式当场重画。
+   * 不重画的话会留下一屏过期的手柄 —— 看得见却抓不住，正是用户实测抱怨的那类坑。
+   * boot 早期（项目还没装进 state）没有可画的东西，跳过。 */
+  if (state) render();
 }
 function buildLeft() {
   const box = $('#left');
@@ -5918,6 +6094,7 @@ function bindProject() {
     state.anim.effectId = (state.effects.list[0] || {}).id || '';
   if (state.canvas.background && state.canvas.background.href) loadBgImage(state.canvas.background);
   sel.clear(); selZone = 0; flash = null;
+  shapePicked = false;                   /* 换了项目：手柄别从上一个项目跟过来 */
   editBinding = null;                    /* 别把上一个项目的「微调中」带过来 */
   stagePlaying = false; stageInst = null; stageEffectId = null;
   undoStack.length = 0; redoStack.length = 0;
@@ -5955,6 +6132,7 @@ function boot() {
   tipInit();
   initSplitter();
   resizeCanvas();
+  initCanvasWatch();
   bindProject();
   if (!r.lsOK) setSaveFlag('本地存储不可用，请用「保存工程」');
   status('');
@@ -6107,6 +6285,11 @@ $('#btnMirror').onclick = () => {
   const xs = state.leds.map(l => l.x);
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
   state.leds.forEach(l => { l.x = 2 * cx - l.x; });
+  /* 手动挪出去的灯的偏移也得一起镜像，否则下次挪形状时它们会跳回镜子那边 */
+  for (const sh of shapeList()) {
+    const det = shapeDet(sh);
+    if (det) for (const k in det) det[k] = [-det[k][0], det[k][1]];
+  }
   afterChange();
   status('已左右镜像 —— 所有分区的绕行方向随之翻转，可用来核对实物正/反面');
 };
@@ -6208,10 +6391,7 @@ function resyncZoneCount(z) {
   /* 只删旧号段的灯，再把新颗数铺进去（不碰别的分区） */
   state.leds = state.leds.filter(l => !oldNums.has(l.n));
   for (const sh of laid) {
-    const pl = SHAPE.plan(sh, GEN.CELL);
-    const byN = new Map(state.leds.map(l => [l.n, l]));
-    pl.pts.forEach(p => byN.set(p.n, { n: p.n, x: p.x, y: p.y }));
-    state.leds = [...byN.values()];
+    ptsToLeds(sh, SHAPE.plan(sh, GEN.CELL).pts);       /* 挪出去的灯照旧保持相对位置 */
     sh.laid = true;
   }
 }
@@ -6251,6 +6431,9 @@ $('#btnFillGap').onclick = () => {
 
 /* ---------- 铺灯 · 形状（面板 ⇄ SHAPE 引擎） ---------- */
 let selShape = 0;
+/* 用户是否已经「选过某个形状」：选过之后手柄就一直画着（选择模式下也算可见），
+ * 看得见的东西才允许抢按下 —— 这也正是「手柄抓不住」的一半原因。 */
+let shapePicked = false;
 function shapeList() { return Array.isArray(state.shapes) ? state.shapes : (state.shapes = []); }
 function curShape() { return shapeList()[selShape] || null; }
 /* "20,20; 220,20; …" ⇄ 顶点表（px） */
@@ -6291,10 +6474,14 @@ function readShapePanel(sh) {
     else sh.ry = Math.max(1, +rv || sh.r);
     sh.a0 = num('shA0', sh.a0);
     sh.sweep = Math.min(360, num('shSweep', sh.sweep, 1));
-  } else if (sh.kind === 'poly' || sh.kind === 'line') {
+  } else if (sh.kind === 'poly') {
+    /* 多边形的顶点由「边数 + 外框」决定：在画布上拖手柄改外框、面板改边数。
+     * 那个藏着不显示的「顶点 px」不参与读入 —— 否则刚按边数重画出来的正多边形会被旧文本覆盖回去。 */
+    sh.n = Math.max(3, Math.min(64, Math.round(+sh.n || 6)));
+  } else if (sh.kind === 'line') {
     const pts = parsePts($('#shPts').value);
-    if (pts.length >= 2) sh.pts = sh.kind === 'line' ? pts.slice(0, 2) : pts;
-    if (sh.kind === 'line') sh.closed = false;
+    if (pts.length >= 2) sh.pts = pts.slice(0, 2);
+    sh.closed = false;
   } else {
     /* 矩形 / 圆角矩形：四格都填了才重算顶点，否则保留原几何（fillShapeFields 下一步会把空格补上） */
     const raw = ['shX0', 'shY0', 'shW', 'shH'].map(id => $('#' + id).value);
@@ -6334,8 +6521,8 @@ function syncShapeEdit() {
   }
   const on = !!sh;
   ['shZone', 'shKind', 'shX0', 'shY0', 'shW', 'shH', 'shRc', 'shCx', 'shCy', 'shR', 'shRy',
-   'shA0', 'shSweep', 'shPts', 'shDist', 'shSides', 'shPitch', 'shCorner', 'shFirst', 'shCount',
-   'shDir', 'shClosed', 'shEntry', 'shApply', 'shPick', 'shFlip', 'shKeep', 'shDel', 'shFromZone']
+   'shA0', 'shSweep', 'shPts', 'shPolyN', 'shDist', 'shSides', 'shPitch', 'shCorner', 'shFirst', 'shCount',
+   'shDir', 'shClosed', 'shEntry', 'shApply', 'shPick', 'shFlip', 'shKeep', 'shDel', 'shFromZone', 'shEdit']
     .forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
   shapeRows(sh);
   syncShapeTool();
@@ -6380,6 +6567,7 @@ function fillShapeFields(sh, onlyEmpty) {
     else set('shRy', sh.ry == null ? '' : Round2(sh.ry));
   } else if (sh.kind === 'poly' || sh.kind === 'line') {
     set('shPts', ptsText(sh));
+    if (sh.kind === 'poly') set('shPolyN', Math.max(3, Math.min(64, Math.round(+sh.n || 6))));
   } else {
     set('shX0', Round2((box.x0 - c / 2) / c));
     set('shY0', Round2((box.y0 - c / 2) / c));
@@ -6391,7 +6579,7 @@ function fillShapeFields(sh, onlyEmpty) {
 /* 按类型 / 分布只留该露的几行（几何字段与分布参数各自成组）。
  * 左上格 / 宽高 / 圆角px / 起点偏移 一律不显示 —— 几何在画布上拖出来、用四角四边小方块改，
  * 起点在形状上点两下（头/尾）定；圆芯/半径/张角、顶点 px、闭环也都不显示 ——
- * 面板只留真正要手填的：分区 / 类型 / 起始编号 / 颗数 / 方向。 */
+ * 面板只留真正要手填的：分区 / 类型 / 起始编号 / 颗数 / 方向（多边形多一行「边数」）。 */
 function shapeRows(sh) {
   $('#shRectRow').classList.add('hide');
   $('#shSizeRow').classList.add('hide');
@@ -6405,20 +6593,23 @@ function shapeRows(sh) {
   $('#shRyRow').classList.add('hide');
   $('#shArcRow').classList.add('hide');
   $('#shPtsRow').classList.add('hide');
+  $('#shPolyNRow').classList.add('hide');
   $('#shClosedRow').classList.add('hide');
+  /* 只有多边形才露出「边数」—— 这是它唯一的形状特征参数（改它 = 按当前外框重画正 n 边形） */
+  if (sh && sh.kind === 'poly') $('#shPolyNRow').classList.remove('hide');
 }
 
 /* 诊断行：SHAPE.info 的几条 + 与分区号段的对照 */
 function shapeInfoText(sh) {
   if (!sh) return '还没有形状 —— 在上面挑一个形状到画布上拖出来，或点「新增空白形状」/「由分区反推」。';
   const info = SHAPE.info(sh, GEN.CELL);
-  const out = info.notes.slice();
+  /* 面板只留「这个形状跟分区对不对得上」：周长 / 沿路径灯距 / 每边落点这些过程指标不再显示
+   * （引擎 SHAPE.info().notes 里还留着，test_shape 直接断言它，调试时也还能拿到）。 */
+  const out = info.notes.filter(t => !/^周长 \d/.test(t) && !/^每边落点 /.test(t));
   /* 关键反馈：灯距 < 灯径（一格）时这一段的灯会重叠 —— 把形状拉大（或调小颗数）直到排开 */
-  if (info.spacing.min < GEN.CELL - 0.5)
+  if (info.spacing.min > 0 && info.spacing.min < GEN.CELL - 0.5)
     out.push(`排不开：灯距最小 ${info.spacing.min.toFixed(1)}px < 灯径 ${GEN.CELL}px，灯会重叠 —— ` +
              `把形状拉大（或把颗数调小）直到 ≥ ${GEN.CELL}px`);
-  else if (info.spacing.min > 0)
-    out.push(`排得开：灯距最小 ${info.spacing.min.toFixed(1)}px ≥ 灯径 ${GEN.CELL}px，不会重叠 ✓`);
   const z = state.zones.find(k => k.id === sh.zone);
   if (z) {
     const hit = ledsInRange(z);
@@ -6454,11 +6645,13 @@ function shapeTouched() {
   const kindNow = $('#shKind').value || sh.kind;
   if (kindNow !== sh.kind) {                       /* 换类型：外框不动地换（跟形状选择框点一下同路），别读还没填的新字段 */
     snapshot();
+    const hadOff = !!(sh.det && Object.keys(sh.det).length);
     shSetKind(sh, kindNow);
     if (SHAPE.TOOLS.indexOf(kindNow) >= 0) shapeTool = kindNow;   /* 高亮跟着切到这种 */
     /* 已铺的形状换类型后灯要跟着重铺，别等下一次拖动才重置 */
-    if (!shRelay(sh, '换成了' + (SHAPE.KIND_NAMES[kindNow] || kindNow)))
-      status('形状已换成「' + (SHAPE.KIND_NAMES[kindNow] || kindNow) + '」', 'ok');
+    if (!shRelay(sh, '换成了' + (SHAPE.KIND_NAMES[kindNow] || kindNow) + (hadOff ? '（挪出去的灯已归位）' : '')))
+      status('形状已换成「' + (SHAPE.KIND_NAMES[kindNow] || kindNow) + '」' +
+             (hadOff ? ' —— 之前挪出去的灯已归位（换类型换的是整套几何）' : ''), 'ok');
     afterChange();
     return;
   }
@@ -6466,11 +6659,46 @@ function shapeTouched() {
   shSyncPanel(true);
   render(); saveStore();
 }
+/* 面板改「边数」= 改多边形的形状特征：按当前外框重画一个正 n 边形（外框不变，手柄不跳），
+ * 然后**立刻**把这一区的灯按新几何重铺 —— 改边数和「换类型」一样是**整套几何**换了：
+ * 顶点全变，旧偏移（sh.det）没有意义 → 挪出去的灯一律归位，别等下一次拖动才重新排布。 */
+function shapeTouchedPolyN() {
+  const sh = curShape();
+  if (!sh || sh.kind !== 'poly') return;
+  const el = $('#shPolyN');
+  const raw = +(el && el.value);
+  if (!(raw >= 3)) return;                       /* 打字中间态（想接着打 "12" 的手误 "1"）先别动形状 */
+  const want = Math.max(3, Math.min(64, Math.round(raw)));
+  if (want === Math.max(3, Math.round(+sh.n || 0)) && Array.isArray(sh.pts) && sh.pts.length === want) return;
+  snapshot();
+  const hadOff = !!(sh.det && Object.keys(sh.det).length);
+  shSetPolyN(sh, want);
+  delete sh.det;                                 /* 顶点全换 → 挪出去的灯归位（同「换类型」） */
+  const pts = $('#shPts'); if (pts) pts.value = ptsText(sh);   /* 藏着的那一格也跟上 */
+  readShapePanel(sh);
+  shSyncPanel(true);
+  /* 已铺的直接重铺（改完边数灯就跟着重新排布，不用先挪一下形状） */
+  const n = shRelay(sh, `${want} 边形（外框没动）` + (hadOff ? '，挪出去的灯已归位' : ''));
+  render(); saveStore();
+  if (!n) status(`多边形改成 ${want} 边形（外框没动` + (hadOff ? '，挪出去的灯已归位' : '') + '；Ctrl+Z 可撤销）', 'ok');
+}
 ['#shKind', '#shZone', '#shDist', '#shDir', '#shClosed', '#shCorner', '#shSides', '#shPitch', '#shEntry',
  '#shFirst', '#shCount', '#shX0', '#shY0', '#shW', '#shH', '#shRc',
  '#shCx', '#shCy', '#shR', '#shRy', '#shA0', '#shSweep', '#shPts']
   .forEach(s => { const el = $(s); if (el) el.oninput = shapeTouched; });
-$('#shList').onchange = () => { selShape = +$('#shList').value || 0; syncShapeEdit(); render(); };
+$('#shPolyN').oninput = shapeTouchedPolyN;
+/* 面板里挑一个形状 = 选中它并**直接进编辑态**（8 个手柄立刻出来，抓一下就能改大小）。
+ * 铺过灯的形状在画布上被灯点盖住 —— 单击会被「点灯选灯」优先掉，所以这是最稳的那条入口。 */
+$('#shList').onchange = () => {
+  selShape = +$('#shList').value || 0;
+  if (shapeList().length) enterShapeEdit(selShape);
+  else { syncShapeEdit(); render(); }
+};
+/* 「编辑」按钮：面板里那条最明确的入口 —— 铺过灯的形状在画布上被灯点盖住、点不中它时用这个。 */
+$('#shEdit').onclick = () => {
+  if (!shapeList().length) { status('还没有形状 —— 先「新增空白形状」或「由分区反推」', 'warn'); return; }
+  enterShapeEdit(selShape);
+};
 
 /* 形状选择框：高亮永远跟着 `shapeTool`（点哪个亮哪个）。
  * `shapeTool` 由三处显式更新：① gallery 点击；② enterShapeEdit 选中形状时同步到该形状类型；
@@ -6509,10 +6737,12 @@ function buildShapeGallery() {
         /* 正在编辑一个形状：点形状选择框 = 把它换成这种（外框不动，立即生效），保持编辑态 */
         if (sh.kind !== kind) {
           snapshot();
+          const hadOff = !!(sh.det && Object.keys(sh.det).length);
           shSetKind(sh, kind);
           /* 已铺的形状换类型后灯要跟着重铺，别等下一次拖动才重置 */
-          if (!shRelay(sh, '换成了' + SHAPE.TOOL_NAMES[kind]))
-            status('形状已换成「' + SHAPE.TOOL_NAMES[kind] + '」（外框没动；Ctrl+Z 可撤销）', 'ok');
+          if (!shRelay(sh, '换成了' + SHAPE.TOOL_NAMES[kind] + (hadOff ? '（挪出去的灯已归位）' : '')))
+            status('形状已换成「' + SHAPE.TOOL_NAMES[kind] + '」（外框没动' +
+                   (hadOff ? '；之前挪出去的灯已归位' : '') + '；Ctrl+Z 可撤销）', 'ok');
           afterChange();
         } else {
           status('当前就是这个形状「' + SHAPE.TOOL_NAMES[kind] + '」', 'ok');
@@ -6543,21 +6773,46 @@ function buildShapeGallery() {
  * 全程按「沿边框等间距」把灯撒出来给用户看（**不带编号**，只报这一段的总颗数），
  * 所以他拖大拖小能一眼看出「排不下 → 重叠」还是「刚好排开」。
  * 形状做好后点两下：先点「头」（起点偏移），再点「尾」（决定编号往哪边走）。 */
-function shGrabTol() { return Math.max(6, 10 / view.zoom); }     /* 手柄抓取半径（世界 px；大一点好抓） */
-function shNearTol() { return Math.max(8, 12 / view.zoom); }    /* 轮廓抓取半径 */
+function shGrabTol() { return Math.max(8, 12 / view.zoom); }     /* 手柄抓取半径（世界 px ≈ 12 屏幕 px；大一点好抓） */
+function shNearTol() { return Math.max(8, 10 / view.zoom); }     /* 轮廓抓取半径（≈ 10 屏幕 px） */
 function shHandles(sh) {
   const b = SHAPE.boxOf(sh), mx = (b.x0 + b.x1) / 2, my = (b.y0 + b.y1) / 2;
   return [['nw', b.x0, b.y0], ['n', mx, b.y0], ['ne', b.x1, b.y0], ['e', b.x1, my],
           ['se', b.x1, b.y1], ['s', mx, b.y1], ['sw', b.x0, b.y1], ['w', b.x0, my]];
 }
-function shHandleAt(sh, wx, wy) {
+/* 离得最近的那个手柄（tol 可放宽，见 shHandleRing） */
+function shHandleNear(sh, wx, wy, tol) {
   if (!sh) return null;
+  const t = tol == null ? shGrabTol() : tol;
   let best = null;
   for (const [h, x, y] of shHandles(sh)) {
     const d = Math.hypot(wx - x, wy - y);
-    if (d <= shGrabTol() && (!best || d < best.d)) best = { h, d };
+    if (d <= t && (!best || d < best.d)) best = { h, d };
   }
-  return best ? best.h : null;
+  return best;
+}
+function shHandleAt(sh, wx, wy) { const b = shHandleNear(sh, wx, wy); return b ? b.h : null; }
+/* 手柄外那一圈（1.6 倍容差）也算「改大小」：用户瞄着角上那个小方块按下去，
+ * 差几个像素就落进「拖形状内部 = 整块挪动」，形状连灯一起跑 —— 那是最气人的一种错。 */
+function shHandleRing(sh, wx, wy) {
+  const b = shHandleNear(sh, wx, wy, shGrabTol() * 1.6);
+  return b ? b.h : null;
+}
+/* 画布上任意形状的手柄（当前选中的形状优先）。
+ * shape 编辑态：认**所有**形状的手柄（它们都画着）；选择模式：只认「当前那个」——
+ * 别的形状选择模式下没画手柄，看不见的东西不该抢点击。 */
+function handleAnyAt(wx, wy, all) {
+  const list = shapeList();
+  const h0 = shHandleNear(list[selShape], wx, wy);
+  if (h0) return { i: selShape, h: h0.h };
+  if (!all) return null;
+  let best = null;
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (i === selShape) continue;
+    const b = shHandleNear(list[i], wx, wy);
+    if (b && (!best || b.d < best.d)) best = { i, h: b.h, d: b.d };
+  }
+  return best ? { i: best.i, h: best.h } : null;
 }
 function shResizeBox(b0, h, wx, wy) {
   const b = { x0: b0.x0, y0: b0.y0, x1: b0.x1, y1: b0.y1 };
@@ -6574,7 +6829,10 @@ function shNewShape(kind, box) {
     kind, dist: 'even', closed: kind !== 'line', sides: [1, 1, 1, 1], pitch: GEN.CELL,
     zone: z ? z.id : null, first: z ? z.start : 0, count: z ? Math.max(1, z.count) : 12,
   });
-  return SHAPE.fromBox(sh, kind, box);
+  /* 全新形状：按类型生成标准形（多边形 = 正 n 边形，n 取 blank 的默认 6）——
+   * 别拿 blank 里那组默认矩形顶点去缩放，那样「多边形」画出来跟「矩形」一模一样。 */
+  SHAPE.fromBox(sh, kind, box, true);
+  return sh;
 }
 function shDraftShape() {
   if (!shDraft || shDraft.kind !== 'box') return null;
@@ -6614,14 +6872,26 @@ function shPickStep2(sh, s) {
   status('已按形状铺「' + z.name + '」' + n + ' 颗：' + (sh.dir === 'ccw' ? '逆' : '顺') +
          '时针走（Ctrl+Z 可撤销）', 'ok');
 }
-/* 换类型：只换「皮」，外框不动 —— 画成矩形了想改圆环/圆角矩形，点一下就换，不用重画。 */
+/* 换类型：只换「皮」，外框不动 —— 画成矩形了想改圆环/圆角矩形，点一下就换，不用重画。
+ * 换类型 = 换了一整套几何：之前「手动挪出去的灯」的相对位置不再有意义 —— **一律归位**
+ * （清掉 sh.det），免得旧偏移把新形状上的灯拉得到处都是；想再挪出去重新拖一遍即可。 */
 function shSetKind(sh, kind) {
   if (!sh) return false;
   const box = SHAPE.boxOf(sh), was = sh.kind;
   if (kind === 'rrect' && !(+sh.rc > 0))
     sh.rc = Math.round(Math.max(8, Math.min(box.x1 - box.x0, box.y1 - box.y0) * 0.18)) || 30;
-  SHAPE.fromBox(sh, kind, box);
+  delete sh.det;
+  SHAPE.fromBox(sh, kind, box, true);        /* reset：多边形按边数重画正 n 边形，别拿旧顶点缩放 */
   return was !== kind;
+}
+/* 多边形改边数：按当前外框重画一个正 n 边形 —— 外框不变（手柄位置不会跳），形状跟着边数变。 */
+function shSetPolyN(sh, n) {
+  if (!sh) return 0;
+  const k = Math.max(3, Math.min(64, Math.round(+n || 6)));
+  const b = SHAPE.boxOf(sh);
+  sh.n = k;
+  sh.pts = SHAPE.regularPts(k, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2, -90);
+  return k;
 }
 function shSyncPanel(onlyEmpty) {
   const sh = curShape();
@@ -6632,12 +6902,34 @@ function shSyncPanel(onlyEmpty) {
   if ($('#shInfo')) $('#shInfo').innerHTML = shapeInfoText(sh);
 }
 /* ---------- 按下 / 移动 / 抬起 / 悬停 ---------- */
+/* 画布上按住手柄 / 形状内部：选中它并**立刻**开始拖（一次手势到位）。
+ * kind='resize' 带手柄名；kind='move' 带按下点。没真正动过就不记撤销、不重铺。 */
+function beginShapeDrag(i, kind, h, wx, wy) {
+  const tgt = shapeList()[i];
+  if (!tgt) return false;
+  if (i !== selShape || mode !== 'shape') enterShapeEdit(i);
+  const box0 = SHAPE.boxOf(tgt);
+  shDraft = kind === 'resize'
+    ? { kind: 'resize', h: h, box0, moved: false }
+    : { kind: 'move', box0, ox: wx, oy: wy, box1: box0, moved: false };
+  render();
+  return true;
+}
 function shDown(wx, wy) {
   const sh = curShape();
 
-  /* 1) 抓手柄 = 改大小（永远最优先，点头尾态里也照常） */
+  /* 1) 抓手柄 = 改大小（永远最优先，点头尾态里也照常）。
+   *    正常情况下这一条在 cv.pointerdown 里就拦下了（那里连**别的形状**的手柄也认），
+   *    这里是兜底，别让 shDown 单独被调用时少了这条路。 */
   const h = shHandleAt(sh, wx, wy);
   if (h) { snapshot(); shDraft = { kind: 'resize', h, box0: SHAPE.boxOf(sh) }; return; }
+
+  /* 1b) 手柄外那一圈（1.6 倍容差）= 也算改大小。
+   *     这一条得排在「包围盒内才算形状」之前：用户瞄着角上那个小方块按下去，差几个像素就是
+   *     两个气人结果 —— ① 落进「拖形状内部 = 整块挪动」（形状连灯一起跑）；② 掉到包围盒外，
+   *     被当成「点空白」直接**退出编辑态**（手柄瞬间消失，看着就像「手柄抓不住」）。 */
+  const rh = shHandleRing(sh, wx, wy);
+  if (rh) { snapshot(); shDraft = { kind: 'resize', h: rh, box0: SHAPE.boxOf(sh) }; return; }
 
   /* 2) 点其它形状 = 切换选中（宽命中：轮廓或包围盒内，无论已铺与否）—— 随时能改选形状，
    *    放在「拖当前形状挪动」之前，避免别的形状叠在当前形状上时点不动它。 */
@@ -6676,6 +6968,8 @@ function shDown(wx, wy) {
 }
 function shDragMove(wx, wy) {
   const d = shDraft;
+  /* 第一次真正动起来才记撤销（点一下没挪没改的话，别在撤销栈里留一条空记录） */
+  if (!d.moved && d.kind !== 'box') { snapshot(); d.moved = true; }
   if (d.kind === 'box') { d.x1 = wx; d.y1 = wy; d.temp = null; }
   else if (d.kind === 'move') {
     d.box1 = { x0: d.box0.x0 + wx - d.ox, y0: d.box0.y0 + wy - d.oy,
@@ -6710,6 +7004,7 @@ function shDrop() {
            ' 颗还没编号）—— 点它进入编辑；改好大小后点「在画布上定头尾」定起点方向', 'ok');
     return;
   }
+  if (!d.moved) { render(); return; }        /* 只是点了一下（没挪没改）：别重铺、也别报「挪好了/改好大小了」 */
   shRelay(curShape(), d.kind === 'move' ? '挪好了' : '改好大小了');
   afterChange();
 }
@@ -6742,6 +7037,7 @@ function hitShapeAny(wx, wy) {
 function enterShapeEdit(i) {
   if (i < 0 || i >= shapeList().length) return;
   selShape = i;
+  shapePicked = true;
   shAdding = false;
   shPickStep = 0;
   const sh = curShape();
@@ -6753,19 +7049,88 @@ function enterShapeEdit(i) {
     ? '已选中这个形状 —— 抓小方块改大小 / 拖它挪动；点空白释放；点「在画布上定头尾」定起点方向'
     : '已选中这个形状 —— 拖它改大小 / 挪动，点空白释放；点「在画布上定头尾」重新定方向', 'ok');
 }
+/* ---------- 手动挪出去的灯：跟着形状走（相对位置不变） ----------
+ * sh.det = { '<第几个落点>': [dx, dy] }：键用「落点序号」而不是编号 —— 编号会被压缩编号 /
+ * 反向编号重排，序号跟着几何走，改编号不会把偏移串到别的灯上。
+ * 记着偏移的灯：形状挪动 / 改大小时跟着一起走；拖回原位（半格内）就丢掉偏移、对齐回形状上。 */
+function shapeDet(sh) { return (sh && sh.det && typeof sh.det === 'object') ? sh.det : null; }
+/* 规划落点 → 写进 state.leds（带上 sh.det 里的偏移） */
+function ptsToLeds(sh, pts) {
+  const det = shapeDet(sh);
+  const byN = new Map(state.leds.map(l => [l.n, l]));
+  pts.forEach((p, i) => {
+    const d = det ? det[i] : null;
+    byN.set(p.n, { n: p.n, x: p.x + (d ? +d[0] || 0 : 0), y: p.y + (d ? +d[1] || 0 : 0) });
+  });
+  state.leds = [...byN.values()];
+}
+/* 手动拖完灯之后回填偏移：离形状上的原位「约一格内」= 还没走远，吸附对齐回去；更远 = 挪出去了。
+ * （开着吸附时落点会吸到格心，而形状落点可能在格角上，差 0.71 格，所以容差得比半格宽一点。） */
+function syncShapeDet(moved) {
+  if (!moved || !moved.length) return 0;
+  const plans = [];
+  for (const sh of shapeList()) {
+    if (!sh.laid) continue;
+    plans.push({ sh, pts: SHAPE.plan(sh, GEN.CELL).pts });
+  }
+  if (!plans.length) return 0;
+  const tol = GEN.CELL * 0.75;
+  let off = 0;
+  for (const L of moved) {
+    for (const pl of plans) {
+      const i = pl.pts.findIndex(p => p.n === L.n);
+      if (i < 0) continue;
+      const p = pl.pts[i], dx = L.x - p.x, dy = L.y - p.y;
+      if (Math.hypot(dx, dy) <= tol) {                  /* 回到原位附近：吸附对齐 + 忘掉偏移 */
+        if (shapeDet(pl.sh)) delete shapeDet(pl.sh)[i];
+        L.x = p.x; L.y = p.y;
+      } else {
+        (pl.sh.det || (pl.sh.det = {}))[i] = [Math.round(dx * 100) / 100, Math.round(dy * 100) / 100];
+        off++;
+      }
+      break;                                            /* 一颗灯只属于一个形状 */
+    }
+  }
+  return off;
+}
 function layShape(sh, z) {
   const nums = new Set();
   for (let n = z.start; n < z.start + z.count; n++) nums.add(n);
   const pl = SHAPE.plan(sh, GEN.CELL);
   pl.pts.forEach(p => nums.add(p.n));
   state.leds = state.leds.filter(l => !nums.has(l.n));
-  const byN = new Map(state.leds.map(l => [l.n, l]));
-  pl.pts.forEach(p => byN.set(p.n, { n: p.n, x: p.x, y: p.y }));
-  state.leds = [...byN.values()];
+  ptsToLeds(sh, pl.pts);            /* 手动挪出去的灯按 sh.det 保持相对位置，不归位 */
   if (sh) sh.laid = true;
   return pl.count;
 }
 
+/* 「新增空白形状」放在哪：画布正中央往外找一圈「看得见、又不压在别的形状上」的位置 ——
+ * 别再丢到世界坐标左上角（用户找不到它）、也别正好叠在已有形状上（叠着很难点中想要的那个）。 */
+function blankBox() {
+  const g = GEN.CELL, snap = v => Math.max(g, Math.round(v / g) * g);
+  const W = Math.max(1, cv.clientWidth), H = Math.max(1, cv.clientHeight);
+  const z = Math.max(0.05, view.zoom);
+  /* 尺寸默认 6×5 格；画布缩得小时按**屏幕尺寸**兜底（至少约 110×90 屏幕 px）——
+   * 缩到 0.3 倍时 6×5 格只有 36×30 屏幕 px，虚线框和手柄都点不中（用户实测就是这么栽的）。
+   * 上限取可视区的六成，保证整个形状连同 8 个手柄都在眼前。 */
+  const w = snap(Math.min(Math.max(g * 6, 110 / z), (W / z) * 0.6));
+  const h = snap(Math.min(Math.max(g * 5,  90 / z), (H / z) * 0.6));
+  const [wx0, wy0] = s2w(W / 2, H / 2);
+  const bx = snap(wx0 - w / 2), by = snap(wy0 - h / 2);
+  const boxes = shapeList().map(s => SHAPE.boxOf(s));
+  const clash = (x, y) => boxes.some(k => x < k.x1 + g && x + w > k.x0 - g && y < k.y1 + g && y + h > k.y0 - g);
+  const cand = [[0, 0]];
+  for (let r = 1; r <= 8; r++)
+    cand.push([r * g * 2, 0], [-r * g * 2, 0], [0, r * g * 2], [0, -r * g * 2],
+              [r * g, r * g], [-r * g, r * g], [r * g, -r * g], [-r * g, -r * g]);
+  for (const [dx, dy] of cand) {
+    const x = bx + dx, y = by + dy;
+    const sx = x * view.zoom + view.panX, sy = y * view.zoom + view.panY;   /* 整体得落在可见区域里 */
+    if (sx < 0 || sy < 0 || sx + w * view.zoom > W || sy + h * view.zoom > H) continue;
+    if (!clash(x, y)) return { x0: x, y0: y, x1: x + w, y1: y + h };
+  }
+  return { x0: bx, y0: by, x1: bx + w, y1: by + h };   /* 实在挤不下：放正中（它画在最上层，点得到） */
+}
 $('#shAdd').onclick = () => {
   const z = state.zones[selZone];
   const leds = z ? state.leds.filter(l => l.n >= z.start && l.n < z.start + z.count) : [];
@@ -6773,16 +7138,19 @@ $('#shAdd').onclick = () => {
   let sh;
   if (leds.length && z) sh = SHAPE.fromLeds(leds, GEN.CELL, z.id, z.start, z.count);
   if (!sh) {
-    sh = SHAPE.blank({ count: z ? z.count : 12, dist: 'even', sides: [1, 1, 1, 1], pitch: GEN.CELL });
-    SHAPE.fromBox(sh, shapeTool, SHAPE.boxOf(sh));
+    sh = SHAPE.blank({ kind: shapeTool, count: z ? z.count : 12, dist: 'even', sides: [1, 1, 1, 1], pitch: GEN.CELL });
+    SHAPE.fromBox(sh, shapeTool, blankBox(), true);
   }
   sh.id = 's' + Date.now().toString(36);
   if (z) Object.assign(sh, { zone: z.id, first: z.start, count: sh.count || z.count });
   shapeList().push(sh);
   selShape = shapeList().length - 1;
   afterChange();
-  status(z ? `按「${z.name}」起了个「${SHAPE.KIND_NAMES[sh.kind] || sh.kind}」空形状 —— 到画布上拖一下定大小` 
-           : '新增了一个空形状 —— 到画布上拖出来，再给它选个归属分区', 'ok');
+  /* 建完直接进「画形状」编辑态：8 个手柄马上画出来，拖一下就能改大小 ——
+   * 否则新形状只是一圈虚线，还要先点中它才能调，很难点。 */
+  enterShapeEdit(selShape);
+  status(z ? `按「${z.name}」起了个「${SHAPE.KIND_NAMES[sh.kind] || sh.kind}」形状 —— 抓小方块改大小 / 拖它挪动`
+           : '新增了一个空形状（画布正中）—— 抓小方块改大小 / 拖它挪动；再给它选个归属分区', 'ok');
 };
 $('#shPick').onclick = () => {
   const sh = curShape();
@@ -6799,6 +7167,7 @@ $('#shDel').onclick = () => {
   snapshot();
   shapeList().splice(selShape, 1);
   selShape = Math.max(0, selShape - 1);
+  shapePicked = false;      /* 选中的形状没了：选择模式别再替下一个形状画手柄（用户没选过它） */
   afterChange();
   status('形状已删除（灯位没动）', 'ok');
 };

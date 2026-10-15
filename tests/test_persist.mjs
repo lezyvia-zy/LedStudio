@@ -170,6 +170,21 @@ ok(ledCountB() === 1, `撤销两次后回到 1 颗灯（实际 ${ledCountB()}）
   kind.value = 'rect'; kind.oninput({ target: kind });
   await new Promise(r=>setTimeout(r,700));
   ok(decode().projects[0].state.shapes[1].pts.length === 4, '切回矩形：顶点还在（4 个）');
+  /* 多边形边数这个参数（批 7-D 反馈）也要跟着项目存 —— 换回矩形时不能丢 */
+  kind.value = 'poly'; kind.oninput({ target: kind });
+  await new Promise(r=>setTimeout(r,700));
+  {
+    const nEl = byId.get('shPolyN');
+    ok(!!nEl && !!nEl.oninput, '多边形面板有独立的「边数」输入框');
+    nEl.value = '5'; nEl.oninput({ target: nEl });
+    await new Promise(r=>setTimeout(r,700));
+    const s3 = decode().projects[0].state.shapes[1];
+    ok(s3.kind === 'poly' && Math.round(+s3.n) === 5 && s3.pts.length === 5,
+       `多边形边数已存盘（kind=${s3.kind} n=${s3.n} 顶点 ${s3.pts.length} 个）`);
+  }
+  kind.value = 'rect'; kind.oninput({ target: kind });
+  await new Promise(r=>setTimeout(r,700));
+  ok(Math.round(+decode().projects[0].state.shapes[1].n) === 5, '换回矩形：边数这个参数还留着（换回去不丢）');
   /* 收尾：切回刚才那个空白项目，后面的断言仍按「当前 = 项目 1」走 */
   projRows()[1].onclick();
   await new Promise(r=>setTimeout(r,700));

@@ -194,7 +194,65 @@ console.log('\n--- H) 画形状拖出来的三种：圆角矩形 / 直线 / 椭�
      'rect → circle 外框不变（拖出来之后想换形状，点一下就行）');
 }
 
-console.log('\n--- I) 轮廓最近点（定头尾 / 抓轮廓用）---');
+console.log('\n--- I) 多边形：边数 / 换类型看得见的变化 / 拖手柄只缩放（批 7-D 反馈）---');
+{
+  const box = { x0: 0, y0: 0, x1: 400, y1: 300 };
+  /* 换类型（reset=true）：顶点不能还是原来那个矩形，否则「矩形 → 多边形」点下去看不出变化 */
+  const sh = SHAPE.blank({ kind: 'rect', dist: 'even', count: 21, first: 0 });
+  ok(sh.n === 6, `blank 默认边数 n=${sh.n}`);
+  SHAPE.fromBox(sh, 'rect', box, true);
+  const b0 = SHAPE.boxOf(sh);
+  SHAPE.fromBox(sh, 'poly', b0, true);
+  ok(sh.kind === 'poly' && sh.pts.length === 6,
+     `矩形换多边形 → ${sh.pts.length} 个顶点（正六边形，不再是个 4 点矩形）`);
+  const b1 = SHAPE.boxOf(sh);
+  ok(near(b1.x0, b0.x0, 1e-6) && near(b1.x1, b0.x1, 1e-6) && near(b1.y0, b0.y0, 1e-6) && near(b1.y1, b0.y1, 1e-6),
+     '换多边形外框不动（还是那个框）');
+  ok(SHAPE.segs(sh).length === 6 && SHAPE.pathLen(sh) < 2 * (400 + 300) - 1,
+     `六边形 6 条边、周长 ${SHAPE.pathLen(sh).toFixed(0)}px（比同框矩形 ${2 * (400 + 300)}px 短 → 肉眼看得见）`);
+  ok(SHAPE.plan(sh, 40).count === 21, `多边形上照铺 21 颗`);
+
+  /* 圆 / 圆角矩形 / 直线换多边形：也一样给正经的多边形（别把旧顶点缩放一下就交差） */
+  const ell = SHAPE.blank({ kind: 'circle', dist: 'even', count: 12, first: 0 });
+  SHAPE.fromBox(ell, 'circle', { x0: 0, y0: 0, x1: 300, y1: 200 });
+  SHAPE.fromBox(ell, 'poly', { x0: 0, y0: 0, x1: 300, y1: 200 }, true);
+  ok(SHAPE.ptsOf(ell).length === 6 && SHAPE.segs(ell).length === 6, '椭圆换多边形 → 也是 6 边形');
+  const eb = SHAPE.boxOf(ell);
+  ok(near(eb.x0, 0, 1e-6) && near(eb.x1, 300, 1e-6) && near(eb.y0, 0, 1e-6) && near(eb.y1, 200, 1e-6),
+     '椭圆换多边形外框不变');
+
+  /* 边数参数：blank 里给的 n 生效；≤2 归到 3 */
+  const p5 = SHAPE.blank({ kind: 'poly', n: 5, dist: 'even', count: 15, first: 0 });
+  SHAPE.fromBox(p5, 'poly', { x0: 0, y0: 0, x1: 200, y1: 200 }, true);
+  ok(p5.pts.length === 5 && p5.n === 5, `blank 里给的边数被认（${p5.pts.length} 边形）`);
+  ok(SHAPE.regularPts(2, 100, 100, 50, 50, -90).length === 3, '边数 < 3 归到 3（三角形）');
+  const rp = SHAPE.regularPts(8, 200, 200, 100, 60, -90);
+  const rx = rp.map(p => p[0]), ry = rp.map(p => p[1]);
+  ok(near(Math.min(...rx), 100, 1e-6) && near(Math.max(...rx), 300, 1e-6) &&
+     near(Math.min(...ry), 140, 1e-6) && near(Math.max(...ry), 260, 1e-6),
+     '正 8 边形顶点正好填满给定外框（拖手柄改大小不会跳）');
+
+  /* 拖手柄改大小（不带 reset）：顶点个数不变，形状只按包围盒缩放 */
+  SHAPE.fromBox(p5, 'poly', { x0: 100, y0: 50, x1: 500, y1: 350 });
+  const q = SHAPE.boxOf(p5);
+  ok(p5.pts.length === 5, '拖手柄改大小：还是 5 个顶点（不会自己变成 6 个）');
+  ok(near(q.x0, 100, 1e-6) && near(q.x1, 500, 1e-6) && near(q.y0, 50, 1e-6) && near(q.y1, 350, 1e-6),
+     '缩放后外框 = 拖出来的新框');
+  ok(SHAPE.plan(p5, 40).count === 15, `五边形铺 15 颗（${SHAPE.plan(p5, 40).count} 颗）`);
+
+  /* 手画的自定义多边形：只要不改边数，顶点表原样留着（不该被「正多边形」覆盖） */
+  const custom = SHAPE.blank({ kind: 'poly', n: 5, pts: [[10, 10], [200, 10], [200, 180], [120, 260], [10, 180]],
+                              dist: 'even', count: 9 });
+  ok(custom.pts[3][0] === 120 && custom.pts[3][1] === 260, '自定义多边形顶点原样保留');
+
+  /* 直线（开环）换多边形：闭边得补上，不然「六边形」只有 5 条边 */
+  const ln = SHAPE.blank({ kind: 'line', dist: 'even', count: 5, first: 0 });
+  SHAPE.fromBox(ln, 'line', { x0: 0, y0: 0, x1: 200, y1: 200 });
+  SHAPE.fromBox(ln, 'poly', { x0: 0, y0: 0, x1: 200, y1: 200 }, true);
+  ok(ln.closed === true && SHAPE.segs(ln).length === 6, `直线换多边形 → 闭合、${SHAPE.segs(ln).length} 条边（闭边补上了）`);
+}
+
+console.log('\n--- J) 轮廓最近点（定头尾 / 抓轮廓用）---');
 {
   const rect = SHAPE.blank({ kind: 'rect', dist: 'even', count: 10, first: 0 });
   SHAPE.fromBox(rect, 'rect', { x0: 0, y0: 0, x1: 200, y1: 200 });
