@@ -74,7 +74,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-22 个套件、832 项断言。四类：
+22 个套件、855 项断言。四类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -112,7 +112,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、832 项断言全绿（`node tests/run_all.mjs` 实测 22 套件 / 832 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、855 项断言全绿（`node tests/run_all.mjs` 实测 22 套件 / 855 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。
