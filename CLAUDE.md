@@ -60,11 +60,12 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 效果编辑台
 
-效果页的中央画布是**编辑台**（`stageView`），不是真实灯板：一条可设颗数的直线 + 一个可设颗数的圆环 + 可选的 8/24/40 多长度对比。设置存在 `state.stage`。
+效果页的中央画布是**编辑台**（`stageView`），不是真实灯板：一条可设颗数的直线 + 一个可设颗数的圆环 + 可选的「多长度对比」。**对比条画的是板子上真实的几条长度**（`stageCompareRows()` 从 `state.zones` 取 `count`，去重后 1–3 条、标签写真实分区名、多了取最短 / 中位 / 最长；**板上一段分区都没有才**回落 8 / 24 / 40）。设置存在 `state.stage`。
 
 - 渲染走 `renderZoneMaskTo(inst, mask, hue, len, pos)` —— **缓冲由调用方给**，所以长度不受 `ZONE_MAX_LEN` 限制。
 - **编辑台的播放状态是独立的**（`stagePlaying`），与动画页的灯板预览（`A().playing`）互不影响。播放循环 `loop()` 按当前页决定推进谁。
 - 效果页改参数只把模式预览**标脏**（`simDirty`），不当场 `resetSim()` —— 否则会重置灯板动画的相位。
+- 效果列表上方那个**「过滤」框是纯显示层**（`fxFilterTxt` / `fxFilterHit()` / `fxFilterClear()`）：只决定 `renderFxList()` 画哪几行（真下标照旧 —— 点过滤后剩下的那一行，选中的仍是它真实的槽位），**不写进 `state`、不进存档、不动 `slot` 与模式绑定**；「新建 / 复制 / 转为自定义」之后自动清掉，免得刚建好却看不见。以后再添这类「只影响显示」的输入框，照这个来。
 
 ## 文件结构（详见 HANDOFF §1）
 
@@ -74,7 +75,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-23 个套件、1121 项断言。五类：
+23 个套件、1153 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -122,7 +123,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、1121 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1121 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1153 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1153 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。
