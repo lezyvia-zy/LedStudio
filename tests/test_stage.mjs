@@ -267,5 +267,111 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
      '帮助页「效果编辑台」那节同步改口（不再写死 8 / 24 / 40）');
 }
 
+/* ---- 10) 「播放」独立成一条常驻播放条：播放 / 暂停、步进、倍率、上一条 / 下一条效果 ---- */
+{
+  /* 10.1 结构与位置：贴在这一页的「下方」（最后一组控件之后），CSS 用 sticky 常驻 */
+  const paneFx = html.slice(html.indexOf('data-pane="fx"'), html.indexOf('data-pane="exp"'));
+  const barAt = paneFx.indexOf('id="fxPlayBar"');
+  ok(barAt > 0, '效果页里有独立的播放条 #fxPlayBar');
+  ['fxPrev','fxNext','fxPlayName','fxPlayPos','fxTest','fxStep','fxZero','fxShowReal','fxRate']
+    .forEach(id => ok(paneFx.includes('id="' + id + '"'), `播放条里的控件 ${id} 在效果页`));
+  ok(!/id="fxEdit"|id="fxBuiltin"|id="fxCustom"/.test(paneFx.slice(barAt)),
+     '播放条排在最后一组控件之后（＝固定在效果模块的下方）');
+  const listRow = paneFx.slice(paneFx.indexOf('id="fxAdd"'), paneFx.indexOf('id="fxUp"'));
+  ok(!/id="fxTest"/.test(listRow), '「播放」不再挤在列表按钮那行里（独立出来了）');
+  const barCss = (html.match(/\.fxbar\{[^}]*\}/) || [''])[0].replace(/\s+/g, ' ');
+  ok(/position:\s*sticky/.test(barCss) && /bottom:/.test(barCss), `.fxbar 用 sticky 贴住这一页底部: ${barCss}`);
+  const rateAt = html.indexOf('id="fxRate"');
+  const rateHtml = html.slice(rateAt, html.indexOf('</select>', rateAt));
+  ok((rateHtml.match(/<option/g) || []).length === 6, '倍率 6 档（0.25× ~ 8×，与动画页同一套）');
+  ok(/value="1" selected/.test(rateHtml), '倍率默认 1× 固件节拍(20ms)');
+
+  tabBtn('fx').onclick();
+  await new Promise(r => setTimeout(r, 50));
+  ok(byId.get('fxRate').value === '1', `进效果页时倍率显示的是 ${byId.get('fxRate').value}×`);
+  ok(/fxPlayBar/.test(html) && /sticky/.test(barCss), '播放条常驻（滚动效果页时也贴着底部）');
+
+  /* 10.2 调速：写在 stage.rate 上，只改编辑台的节奏，不动「动画」页那个倍率 */
+  byId.get('fxRate').value = '4'; byId.get('fxRate').onchange({ target: byId.get('fxRate') });
+  await new Promise(r => setTimeout(r, 700));
+  ok(projState(0).stage.rate === 4, `播放条的倍率写进了工程 stage.rate = ${projState(0).stage.rate}`);
+  ok(projState(0).anim.rate === 1, `没有顺手改掉「动画」页的倍率（仍是 ${projState(0).anim.rate}×）`);
+  ok(/const tickMs = 20 \/ stageRate\(\)/.test(html), '编辑台按自己的 stageRate() 走（与灯板的累加器分开）');
+  ok(/function stageRate\(\)/.test(html) && /rate: 1 \}/.test(html),
+     'stageRate() 读 stage.rate，老工程没有这个字段时兜底 1×');
+
+  /* 10.3 步进：暂停着一格一格往前走 —— 位置真的动，而且不会把播放打开 */
+  const posLine = () => (texts.filter(t => /位置 \d+\/\d+ 颗/.test(t)).pop() || '');
+  texts.length = 0; byId.get('stCompare').onchange({ target: byId.get('stCompare') });
+  const p0 = posLine();
+  for (let i = 0; i < 3; i++) byId.get('fxStep').onclick();
+  const p1 = posLine();
+  ok(byId.get('fxTest').textContent === '播放', '步进之后仍是暂停状态（步进就是停下来看）');
+  ok(p0 !== '' && p1 !== '' && p0 !== p1, `步进让编辑台真的往前走了: "${p0}" → "${p1}"`);
+  ok(/步进/.test(byId.get('status').textContent),
+     `状态栏报了这一步走了几个固件节拍: "${byId.get('status').textContent}"`);
+
+  /* 10.4 归零：回到起始相位（两条效果从同一起点比） */
+  texts.length = 0;
+  byId.get('fxZero').onclick();
+  const pz = posLine();
+  ok(/位置 0\//.test(pz), `归零回到起始相位: "${pz}"`);
+  ok(/归零/.test(byId.get('status').textContent), `状态栏说了归零: "${byId.get('status').textContent}"`);
+}
+
+/* ---- 11) 播放条：上一条 / 下一条巡览（只换「现在看哪一条」）+ 播放中切换不打断 ---- */
+{
+  const ids = () => projState(0).effects.list.map(e => e.id);
+  const all = () => projState(0).effects.list;
+  const beforeIds = ids();
+  const N = beforeIds.length;
+  const pos = () => byId.get('fxPlayPos').textContent;
+  tabBtn('fx').onclick();
+  await new Promise(r => setTimeout(r, 50));
+
+  byId.get('fxTbl').children[0].onclick();            /* 从第 1 条开始巡 */
+  await new Promise(r => setTimeout(r, 60));
+  ok(pos() === `第 1 / ${N} 条`, `播放条报出「现在看第几条 / 共几条」: ${pos()}`);
+  ok(byId.get('fxPlayName').textContent === all()[0].name,
+     `显示的名字就是这一条: ${byId.get('fxPlayName').textContent}`);
+
+  const title = () => (texts.filter(t => /^效果编辑台 · /.test(t)).pop() || '');
+  texts.length = 0; byId.get('stCompare').onchange({ target: byId.get('stCompare') });
+  const t0 = title();
+  byId.get('fxNext').onclick();
+  await new Promise(r => setTimeout(r, 60));
+  ok(pos() === `第 2 / ${N} 条`, `「下一条」往后走: ${pos()}`);
+  ok(byId.get('fxPlayName').textContent === all()[1].name, '播放条上的名字跟着换');
+  ok(byId.get('fName').textContent === byId.get('fxPlayName').textContent,
+     '右栏「名称」与播放条说的是同一条效果');
+  const t1 = title();
+  ok(t0 && t1 && t0 !== t1, `编辑台换到了新效果: "${t0}" → "${t1}"`);
+
+  for (let i = 0; i < N; i++) byId.get('fxNext').onclick();     /* 连点一圈 */
+  ok(pos() === `第 2 / ${N} 条`, `到头绕回第一条（点满一圈回到原处: ${pos()}）`);
+  byId.get('fxPrev').onclick();
+  ok(pos() === `第 1 / ${N} 条`, `「上一条」往回走: ${pos()}`);
+  byId.get('fxPrev').onclick();
+  ok(pos() === `第 ${N} / ${N} 条`, `在第 1 条按「上一条」绕回最后一条: ${pos()}`);
+  await new Promise(r => setTimeout(r, 700));
+  ok(ids().join() === beforeIds.join(), '巡览只换选中项：效果库的顺序一条没动');
+  ok(projState(0).anim.effectId === beforeIds[N - 1], '选中的那条记进了工程（重开还看这条）');
+
+  /* 播放中换下一条：不打断播放；步进会先暂停 */
+  byId.get('fxTest').onclick();
+  await new Promise(r => setTimeout(r, 60));
+  ok(byId.get('fxTest').textContent === '暂停', '播放条上按播放 → 变成「暂停」');
+  byId.get('fxNext').onclick();
+  ok(byId.get('fxTest').textContent === '暂停', '播放中换下一条不打断播放');
+  ok(/正在播/.test(byId.get('status').textContent),
+     `状态栏也说了正在播: "${byId.get('status').textContent}"`);
+  ok(projState(0).anim.playing === false, '播放条的播放只作用在编辑台，动画页的灯板仍是停的');
+  byId.get('fxStep').onclick();
+  ok(byId.get('fxTest').textContent === '播放', '步进会先把播放停掉（停下来一格一格看）');
+  ok(/上一条/.test(html) && /下一条/.test(html) && /巡览/.test(html),
+     '播放条上写明了「上一条 / 下一条」是巡览用（不动库里的顺序）');
+  byId.get('fxRate').value = '1'; byId.get('fxRate').onchange({ target: byId.get('fxRate') });
+}
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

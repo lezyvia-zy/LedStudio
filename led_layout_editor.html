@@ -70,6 +70,14 @@
   #tabs button.on{color:var(--fg); border-bottom-color:var(--accent)}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
   .pane.on{display:block}
+  /* 效果页的「播放」条：常驻贴在这一页底部（翻多长都看得见）——
+     播放 / 暂停、步进、归零、倍率、上一条 / 下一条效果都在这里。
+     bottom:-8px 抵消 .pane 的下内边距，贴住可视区底边。 */
+  .fxbar{
+    position:sticky; bottom:-8px; z-index:5;
+    background:var(--panel); border-color:var(--accent);
+    box-shadow:0 -8px 14px rgba(0,0,0,.28);
+  }
   button,select,input[type=number],input[type=text]{
     background:var(--panel2); color:var(--fg); border:1px solid var(--line);
     border-radius:4px; padding:3px 7px; font:inherit; font-size:12px;
@@ -447,8 +455,7 @@
         <button id="fxConv" data-tip="把选中的内建效果就地改成自定义动效 —— 模式号、配色、速度都保留，只把内建动画换成一个起始光点图层。&#10;9 个效果都用满时，这是加自定义效果的路子。">转为自定义</button>
         <button id="fxCopy" data-tip="复制选中效果（含图层），方便做「看起来一样但错开相位」的变体。">复制</button>
         <button id="fxDel" data-tip="删除选中效果。">删除</button>
-        <button id="fxTest" class="pri" data-tip="就地播放/暂停中央那个编辑台 —— 不用跳页，在这里改参数、在这里看结果。">播放</button>
-        <button id="fxShowReal" data-tip="把当前效果铺到真实灯板的所有分区上看（切到「动画」页）。编辑台看的是基础排布，这里看的是你现在这块板子。">在灯板上看</button>
+        <!-- 「播放 / 在灯板上看」搬到了这一页底部的常驻播放条（#fxPlayBar），不再挤在这一行 -->
       </div>
       <div style="margin:4px 0">
         <button id="fxUp" data-tip="在效果库列表里往前挪一位（只影响编号，不影响哪个模式用哪个效果）。">上移</button>
@@ -517,6 +524,33 @@
         <label class="row"><span>随位置前进</span><input type="checkbox" id="fMoves" data-tip="勾上 = 这个效果随时间自己跑（追逐、摆动）。&#10;不勾 = 位置不动（呼吸、靠色相旋转的彩虹）。" checked></label>
         <div class="hint">图层是逐点「取较大值」叠在一起的。<br>
           光点 = 沿环跑的光斑；填充 = 整环同亮（配脉动就是呼吸）；随机闪 = 与位置无关的随机闪烁。</div>
+      </fieldset>
+
+      <!-- 播放（常驻）：独立成一条贴在这一页底部，改完效果随手就能播、步进、换下一条巡览 -->
+      <fieldset id="fxPlayBar" class="fxbar">
+        <legend>播放（常驻）</legend>
+        <div class="row" style="margin:0">
+          <button id="fxPrev" data-tip="上一条效果：把选中的效果换成列表里的前一条（到头绕回最后一条），编辑台立刻切过去、从头放 —— 播放中也能切，不打断播放。&#10;注意：这只改「现在看的是哪一条」，不动库里的顺序；要挪顺序用上面的「上移 / 下移」。">◀ 上一条</button>
+          <button id="fxNext" data-tip="下一条效果：换成列表里的后一条（到头绕回第一条）。用来把做完的效果从头到尾巡一遍。">下一条 ▶</button>
+          <button id="fxShowReal" data-tip="把当前效果铺到真实灯板的所有分区上看（切到「动画」页）。编辑台看的是基础排布，这里看的是你现在这块板子。">在灯板上看</button>
+        </div>
+        <div class="row" style="margin:0"><span>现在看</span>
+          <b id="fxPlayName" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</b>
+          <span class="hint" id="fxPlayPos" style="flex:none;margin:0">—</span></div>
+        <div class="row" style="margin:0">
+          <button id="fxTest" class="pri" data-tip="就地播放 / 暂停中央那个编辑台 —— 不用跳页，在这里改参数、在这里看结果。&#10;播放状态是编辑台自己的：在动画页按播放不会把它带起来，反过来也一样。">播放</button>
+          <button id="fxStep" data-tip="步进播放：往前走一个灯位（固件里每 speed_cur 个 20ms 节拍走一格），一帧一帧看接缝。&#10;正在播时按它会先暂停 —— 步进就是要停下来看。">步进</button>
+          <button id="fxZero" data-tip="归零：回到起始相位，方便两条效果从同一个起点比。">归零</button>
+        </div>
+        <label class="row"><span>倍率</span><select id="fxRate" data-tip="编辑台的播放倍率（0.25× 慢动作 ~ 8×）：只改这个编辑台走得快慢，不动「动画」页那边的倍率，也不改导出参数。">
+          <option value="0.25">0.25× 慢动作</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1× 固件节拍(20ms)</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+          <option value="8">8×</option>
+        </select></label>
+        <div class="hint" id="fxPlayHint">这条播放条一直贴在效果页底部：改完一条随手就能播 / 步进 / 换下一条 —— 巡览只改「现在看哪一条」，库里的顺序与模式绑定都不动。</div>
       </fieldset>
     </div>
 
@@ -654,7 +688,11 @@
           <li><b>圆环</b>：颗数可自定义。用来看环形效果"绕回来"时的接缝。</li>
           <li><b>多长度对比</b>：同时画几条 —— 取你板子上真实的分区长度（去重后最多 3 条：最短 / 中间 / 最长），板上一段分区都没有时才回落到 8 / 24 / 40。</li>
         </ul>
-        <div class="hint">编辑台上方的 <b>「播放」</b>就地播放/暂停这个基础排布，改参数时结果立刻跟着变。
+        <div class="hint">效果页<b>底部的播放条</b>（常驻：翻多长都贴在下面）就地控制这个编辑台 ——
+          <b>播放 / 暂停</b>、<b>步进</b>（一格一格往前看）、<b>归零</b>（回到起始相位，方便两条效果从同一起点比）、
+          <b>倍率</b> 0.25×~8×，还有 <b>上一条 / 下一条</b>：把做完的效果<b>从头到尾巡一遍</b>。<br>
+          巡览只换「现在看哪一条」，<b>不动效果库里的顺序</b>（挪顺序是上面那对「上移 / 下移」），也不动模式绑定；
+          正在播时换下一条接着播，步进会先暂停。<br>
           还有一个 <b>「在灯板上看」</b>：把当前效果铺到真实灯板的所有分区上（会切到「动画」页）。</div>
         <div class="hint"><b>为什么需要「多长度对比」？</b>因为效果在各分区上是<b>等比缩放</b>的 ——
           张角相同、点亮的颗数不同。同一个光宽 10 的效果：<br>
@@ -3905,7 +3943,11 @@ let view  = { zoom: 1, panX: 40, panY: 20 };
 let mode  = 'select';
 let sel   = new Set();
 let undoStack = [], redoStack = [];
-let acc = 0, lastT = 0;
+/* 两个累加器：acc 给「动画」页的真实灯板，accS 给效果页的编辑台 ——
+ * 两处各按自己的倍率走（A().rate / stage.rate），谁也不拖累谁。
+ * 「从头开始计时」一律走 resetClock()。 */
+let acc = 0, accS = 0, lastT = 0;
+function resetClock() { lastT = performance.now(); acc = 0; accS = 0; }
 const sims = new Map();        /* 每个项目一份动画运行时状态，键 = 项目 id */
 
 /* 当前项目的动画设置（老存档没有 anim 字段，这里兜底补上） */
@@ -4250,9 +4292,13 @@ function renderStage() {
   ctx.font = '13px "Microsoft YaHei",sans-serif';
   ctx.fillText('效果编辑台 · ' + e.name, 24, 24);
   ctx.font = '12px "Microsoft YaHei",sans-serif';
+  /* 第几颗：stageZpos 的单位是 1/256 颗，除下来才是颗号（不然会显示「位置 512/24 颗」这种） */
+  const zIdx = Math.round(stageZpos(pos, st.ringN) / 256) % st.ringN;
   ctx.fillText((stagePlaying ? '播放中' : '已暂停') +
-    ` · 位置 ${stageZpos(pos, st.ringN)}/${st.ringN} 颗` +
-    ` · ${inst.speed_cur} 拍走 1 格（快档 ${inst.speed_fast} / 慢档 ${inst.speed_slow}）`, 24, 44);
+    ` · 位置 ${zIdx}/${st.ringN} 颗` +
+    ` · ${inst.speed_cur} 拍走 1 格（快档 ${inst.speed_fast} / 慢档 ${inst.speed_slow}）` +
+    ` · 倍率 ${stageRate()}×` +
+    ` · 第 ${selFx + 1}/${fxList().length} 条`, 24, 44);
   ctx.fillStyle = TC.dim || TC.label;
   ctx.fillText('基础排布，与真实灯板无关；调完参数去「模式」页分配分区', 24, 64);
 
@@ -4954,8 +5000,8 @@ function tab(name) {
   stageView = (name === 'fx');
   if (state) {
     resizeCanvas(); render();
-    /* 编辑台本来在播、刚切回来 → 重新起循环 */
-    if (stageView && stagePlaying && stageInst) { lastT = performance.now(); acc = 0; requestAnimationFrame(loop); }
+    /* 编辑台本来在播、刚切回来 → 重新起循环（计时从这一刻算起，别补放切页那段时间） */
+    if (stageView && stagePlaying && stageInst) { resetClock(); requestAnimationFrame(loop); }
   }
   if (name === 'mode') { renderMdList(); syncMdEdit(); }
   if (name === 'help') { const d = $('#helpDoc');
@@ -5274,7 +5320,7 @@ function playToggle(on) {
   a.playing = on;
   $('#aPlay').textContent = a.playing ? '暂停' : '播放';
   $('#aPlay').classList.toggle('on', a.playing);
-  if (on) { lastT = performance.now(); acc = 0; requestAnimationFrame(loop); }
+  if (on) { resetClock(); requestAnimationFrame(loop); }
   else applyFrame();
   syncStagePlayBtn();
 }
@@ -5315,20 +5361,25 @@ function fixDiag() {
 }
 
 function loop(t) {
-  /* 两处预览各跑各的：灯板看 A().playing，编辑台看 stagePlaying。
+  /* 两处预览各跑各的：灯板看 A().playing + A().rate，编辑台看 stagePlaying + stage.rate。
    * 都停了就退出循环；切到别的项目时也会自然停。 */
   const boardOn = !!A().playing;
   const stageOn = stageView && stagePlaying && !!stageInst;
-  if (!boardOn && !stageOn) return;
-  const dt = t - lastT; lastT = t;
-  acc += Math.min(dt, 200);                    /* 标签页切回来时不要疯狂追帧 */
-  const tickMs = 20 / (A().rate || 1);
-  let guard = 0;
-  while (acc >= tickMs && guard++ < 500) {
-    acc -= tickMs;
-    if (boardOn) simTick(S(), state, fixOn());
-    if (stageOn) instTick(stageInst);
-  }
+  if (!boardOn && !stageOn) { acc = 0; accS = 0; return; }
+  const dt = Math.min(t - lastT, 200);         /* 标签页切回来时不要疯狂追帧 */
+  lastT = t;
+  if (boardOn) {
+    acc += dt;
+    const tickMs = 20 / (A().rate || 1);
+    let guard = 0;
+    while (acc >= tickMs && guard++ < 500) { acc -= tickMs; simTick(S(), state, fixOn()); }
+  } else acc = 0;                              /* 停着的那边别攒时间 */
+  if (stageOn) {
+    accS += dt;
+    const tickMs = 20 / stageRate();
+    let guard = 0;
+    while (accS >= tickMs && guard++ < 500) { accS -= tickMs; instTick(stageInst); }
+  } else accS = 0;
   render();
   maybeFixDiag();
   requestAnimationFrame(loop);
@@ -5389,9 +5440,12 @@ let stagePlaying = false;
 let simDirty = false;
 let stageMask = null, stageHue = null;
 function stageParams() {
-  if (!state.stage) state.stage = { ringN: 24, stripN: 24, compare: false };
+  if (!state.stage) state.stage = { ringN: 24, stripN: 24, compare: false, rate: 1 };
   return state.stage;
 }
+/* 编辑台的播放倍率（老工程里的 stage 没有 rate，兜底 1× = 固件节拍 20ms）。
+ * 它与「动画」页的 A().rate 分开算：播放条上调倍率不该把灯板预览也带快。 */
+function stageRate() { return +stageParams().rate || 1; }
 /* 按当前选中的效果重建编辑台实例；换效果才重置进度，改参数则保留 */
 function stageSync(force) {
   const e = curEffect();
@@ -5495,9 +5549,12 @@ function fxSyncName() {
 }
 /* 只把自动名字写到右栏那一格（不重建 DOM —— 正在拖的数值框 / 色块不能失焦） */
 function syncFxName() {
-  const el = $('#fName'); if (!el) return;
+  const el = $('#fName');
   const e = editTarget();
-  el.textContent = e ? e.name : '—';
+  if (el) el.textContent = e ? e.name : '—';
+  /* 播放条上「现在看」那格也跟着（名字是算出来的，别处不会再刷它） */
+  const nm = $('#fxPlayName');
+  if (nm) nm.textContent = (selEffect() || {}).name || '—';
 }
 
 /* 改参数：重算并重画（不重建 DOM，避免输入框失焦） */
@@ -5707,7 +5764,7 @@ function syncFxEdit() {
   ids.forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
   $('#fxBuiltin').style.display = (on && e.kind !== 'custom') ? '' : 'none';
   $('#fxCustom').style.display  = (on && e.kind === 'custom') ? '' : 'none';
-  if (!on) { $('#fKind').textContent = '—'; return; }
+  if (!on) { $('#fKind').textContent = '—'; syncStagePlayBtn(); return; }
 
   $('#fMode').textContent = selFx + '（共 ' + fxList().length + ' 条）';
 
@@ -5722,6 +5779,8 @@ function syncFxEdit() {
   $('#fOffset').value = e.offset | 0;
   if (e.kind === 'custom') { $('#fMoves').checked = !!e.moves; renderLayers(); }
   else { $('#fAnim').value = e.anim; $('#fWidth').value = e.width; $('#fGap').value = e.gap; }
+  /* 播放条上的「现在看 XXX · 第 x / n 条」跟着走 —— 换效果、增删效果都会进这里 */
+  syncStagePlayBtn();
 }
 
 /* 「正在微调某条绑定的覆盖」时，顶部显示横条 + 返回按钮 */
@@ -5751,12 +5810,65 @@ function syncFxTargetBar() {
   el.appendChild(txt); el.appendChild(back);
 }
 
-/* 效果页那个播放按钮的文字要跟着播放状态走（在动画页按了播放，切回来也该显示「暂停」） */
+/* 播放条的状态同步：按钮文字 + 「现在看哪一条」的名字与序号。
+ * 切页 / 换效果 / 切项目都走它 —— 别处就不必知道播放条的细节了。 */
 function syncStagePlayBtn() {
   const b = $('#fxTest');
-  if (!b) return;
-  b.textContent = stagePlaying ? '暂停' : '播放';
-  b.classList.toggle('on', stagePlaying);
+  if (b) { b.textContent = stagePlaying ? '暂停' : '播放'; b.classList.toggle('on', stagePlaying); }
+  const nm = $('#fxPlayName'), pos = $('#fxPlayPos');
+  const n = fxList().length;
+  if (nm) nm.textContent = (selEffect() || {}).name || '—';
+  if (pos) pos.textContent = n ? ('第 ' + (selFx + 1) + ' / ' + n + ' 条') : '—';
+}
+
+/* 播放 / 暂停编辑台。播放状态是编辑台自己的：动画页那边按播放不会把它带起来。
+ * restart=true 表示这一下要「从头放」（播放条上点播放的语义）。 */
+function stageToggle(on, restart) {
+  if (on && (restart || !stageInst)) stageSync(true);
+  stagePlaying = !!on;
+  if (stagePlaying) { resetClock(); requestAnimationFrame(loop); }
+  syncStagePlayBtn();
+  render();
+}
+
+/* 步进播放：往前走一个灯位（固件里每 speed_cur 个 20ms 节拍走一格）。
+ * 正在播时先暂停 —— 步进就是用来看清一格一格的。 */
+function stageStep() {
+  if (!stageInst) stageSync(true);
+  if (!stageInst) return 0;
+  if (stagePlaying) stageToggle(false);
+  const n = Math.max(1, stageInst.speed_cur || 8);
+  for (let i = 0; i < n; i++) instTick(stageInst);
+  render();
+  status(`编辑台步进：前进 ${n} 个固件节拍（一个灯位）`);
+  return n;
+}
+
+/* 归零：回到起始相位（重新建一份实例），方便两条效果从同一个起点比 */
+function stageZero() {
+  stageSync(true);
+  render();
+  status('编辑台已归零到起始相位');
+}
+
+/* 播放条上的「上一条 / 下一条」= 换「现在看哪一条效果」（到头绕回）。
+ * 只改选中项与 state.anim.effectId，**不动库里的顺序**（那是上面「上移 / 下移」的事），
+ * 也不动模式绑定；正在播就接着播（新效果从头开始，方便把做完的效果连续巡一遍）。 */
+function fxSelMove(d) {
+  const n = fxList().length;
+  if (n < 1) return;
+  if (editBinding) { editBinding = null; syncFxTargetBar(); }   /* 正微调某条绑定 → 先回效果库 */
+  selFx = ((selFx + d) % n + n) % n;
+  const e = selEffect(); if (!e) return;
+  state.anim.effectId = e.id;
+  fxFilterClear();                       /* 巡览时「现在看的那条」必须看得见 */
+  renderFxList(); syncFxEdit();
+  stageSync(true);                       /* 编辑台换到新效果、从头放 */
+  if (stagePlaying) { resetClock(); requestAnimationFrame(loop); }
+  syncStagePlayBtn();
+  render();
+  saveStore();
+  status(`现在看第 ${selFx + 1} / ${n} 条：${e.name}` + (stagePlaying ? '（正在播）' : ''));
 }
 
 function syncStageControls() {
@@ -5764,6 +5876,7 @@ function syncStageControls() {
   if ($('#stStrip')) $('#stStrip').value = p.stripN;
   if ($('#stRing'))  $('#stRing').value  = p.ringN;
   if ($('#stCompare')) $('#stCompare').checked = !!p.compare;
+  if ($('#fxRate')) $('#fxRate').value = String(stageRate());   /* 播放条上的倍率（老工程兜底 1×） */
 }
 function buildStageControls() {
   const bind = (id, fn, ev) => { const el = $('#' + id); if (el) el[(ev || 'oninput')] = fn; };
@@ -5860,18 +5973,17 @@ function buildFxPanel() {
     if (refs.length) status(`已删除效果「${e.name}」：${refs.length} 个模式的绑定变成了「（空）」，记得重新选效果`, 'warn');
     else status(`已删除效果「${e.name}」`, 'ok');
   };
-  /* 「播放」就地播编辑台，不跳页 */
-  $('#fxTest').onclick = () => {
+  /* ---- 播放（常驻）条：播放 / 暂停、步进、归零、倍率、上一条 / 下一条 ----
+   * 全部就地作用在中央那个编辑台上，不跳页。 */
+  $('#fxTest').onclick = () => {          /* 播放 / 暂停（开播都从头放） */
     const e = curEffect(); if (!e) return;
-    stagePlaying = !stagePlaying;
-    if (stagePlaying) {
-      stageSync(true);                 /* 从头播 */
-      lastT = performance.now(); acc = 0;
-      requestAnimationFrame(loop);
-    }
-    syncStagePlayBtn();
-    render();
+    stageToggle(!stagePlaying, true);
   };
+  $('#fxStep').onclick  = () => { stageStep(); };
+  $('#fxZero').onclick  = () => { stageZero(); };
+  $('#fxPrev').onclick  = () => { fxSelMove(-1); };
+  $('#fxNext').onclick  = () => { fxSelMove(1); };
+  $('#fxRate').onchange = () => { stageParams().rate = +$('#fxRate').value || 1; saveStore(); };
   /* 「在灯板上看」= 把当前效果铺到真实分区上（原来的试播行为），明确摆出来 */
   $('#fxShowReal').onclick = () => {
     const e = curEffect(); if (!e) return;
@@ -6493,7 +6605,7 @@ function bindProject() {
   syncAnimPanel();
   fitView(); afterChange();
   /* 本项目上次是播放状态就接着放；不是就停下（循环里会自行退出） */
-  if (state.anim.playing) { lastT = performance.now(); acc = 0; requestAnimationFrame(loop); }
+  if (state.anim.playing) { resetClock(); requestAnimationFrame(loop); }
 }
 
 function addProject(st, name) {

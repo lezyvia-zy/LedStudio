@@ -64,6 +64,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 - 渲染走 `renderZoneMaskTo(inst, mask, hue, len, pos)` —— **缓冲由调用方给**，所以长度不受 `ZONE_MAX_LEN` 限制。
 - **编辑台的播放状态是独立的**（`stagePlaying`），与动画页的灯板预览（`A().playing`）互不影响。播放循环 `loop()` 按当前页决定推进谁。
+- **效果页底部有一条常驻播放条**（`#fxPlayBar` + CSS `.fxbar` = `position:sticky; bottom:-8px`，排在这一页**最后一个**控件的位置）：播放 / 暂停、**步进**（一个灯位 = `speed_cur` 个 20ms 节拍，播着会先暂停）、归零、**倍率**（存 `state.stage.rate`，`stageRate()` 读、老工程兜底 1×）与**上一条 / 下一条**（`fxSelMove(±1)`：只换 `selFx` + `state.anim.effectId`，**不动库顺序、不动绑定**，播放中切换不打断）。`loop()` 里两个累加器分开：`acc` 看 `A().rate`（灯板）、`accS` 看 `stageRate()`（编辑台）；「从头计时」统一走 `resetClock()`。
 - 效果页改参数只把模式预览**标脏**（`simDirty`），不当场 `resetSim()` —— 否则会重置灯板动画的相位。
 - 效果列表上方那个**「过滤」框是纯显示层**（`fxFilterTxt` / `fxFilterHit()` / `fxFilterClear()`）：只决定 `renderFxList()` 画哪几行（真下标照旧 —— 点过滤后剩下的那一行，选中的仍是它真实的槽位），**不写进 `state`、不进存档、不动 `slot` 与模式绑定**；「新建 / 复制 / 转为自定义」之后自动清掉，免得刚建好却看不见。以后再添这类「只影响显示」的输入框，照这个来。
 
@@ -75,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-23 个套件、1185 项断言。五类：
+23 个套件、1228 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -123,9 +124,15 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 25. **效果名是「算出来」的，不是「存下来」的**（2026-10-16，用户要求「名称改为自动生成，用现有的【模板+配色】规则」）：名字的唯一来源是 core 的 `fxEffectName(e)` = `模板 / 配色` —— 内建的「模板」= `FW.ANIM_NAME[anim]`（如「单点追逐」），自定义的 = `e.tpl`（**最近一次套用的预置模板名**，`applyPreset()` 写入；缺省 = 「自定义」），配色取 `FW.COLOR_NAME[color]`。`defaultEffects()` 也走它（内建 9 条的默认名与从前逐字相同）。界面侧：`#fName` 是**只读** `<b>`（`syncFxEdit()` 写 `textContent`），**没有** `bind('fName')`；改参数后由 `fxLive()` / `fxStruct()` 里的 `fxSyncName()` 重算。两条别踩：① **只算 `selEffect()`** —— 「正在微调某条绑定的覆盖」那份 `editBinding.override` 的名字由模式页给出（带「覆盖」），`test_override` 断言它，别被顺手改掉；② `fxLive()` 里**不能**整体调 `syncFxEdit()`：它会 `renderLayers()` 重建图层卡 DOM，正在拖的数值框当场失焦 —— 这里只用 `syncFxName()` 刷 `#fName` 那一格 + `renderFxList()`。名字**只进导出的 C 注释**（中文注释写 `name`、ASCII 注释写 latin 别名），不进固件数据，所以导出物 / 契约账本 / C 模板都不受影响。
 
 
+26. **效果页的「播放」是编辑台自己的，别跟动画页的灯板混起来**（2026-10-16，用户要求「把【播放】独立出来，常驻在效果模块下方，加暂停 / 调速 / 步进 / 上下效果切换」）：
+    ① **两套时钟**：`loop()` 里 `acc` 给灯板（`A().rate`）、`accS` 给编辑台（`stageRate()` = `state.stage.rate`，兜底 1×）—— 播放条上调倍率**不许**改 `A().rate`（那会把动画页的灯板预览也带快）；「从头计时」一律走 `resetClock()`（同时清两个累加器），别再手写 `lastT = performance.now(); acc = 0;`（原有四处已换掉）。
+    ② **两个播放状态**：编辑台 `stagePlaying`、灯板 `A().playing` 互不影响（`test_solo` 守着）；`#fxTest` 的 onclick 只走 `stageToggle(on, restart)`，restart=true = 从头放。
+    ③ **「上一条 / 下一条」= 只换「现在看哪一条」**（`fxSelMove`）：动 `selFx` + `state.anim.effectId`（顺手清过滤、落库），**绝不动库里的顺序**（那是「上移 / 下移」`moveFx` 的事），也不动模式绑定；播放中切换**不打断**播放。
+    ④ 播放条**必须排在效果页最后一个控件的位置**（`#fxPlayBar` + CSS `.fxbar`：`position:sticky; bottom:-8px` 常驻贴底），`test_stage` §10 数着它的位置与控制件 —— 以后往效果页加控件，**加在播放条之前**，别把它挤到中间。
+
 ## 当前状态与接下来的事
 
-工具本体功能完整、1185 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1185 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1228 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1228 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

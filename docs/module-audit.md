@@ -22,7 +22,7 @@
 | 模块 | 页签 | HTML 标记 | 界面代码 | 核心逻辑 | 主要测试 |
 |---|---|---|---|---|---|
 | **分区** | `zones` | 251–320（板级参数 / 分区表 / **铺灯 · 形状** / 底图 —— 批 5-A 起全在这一页；批 7-A/B 起铺灯 = 形状） | 4209–4280（表 / 高亮 / 配色 / 编辑）、5879–6075（形状面板 ⇄ `SHAPE`：`readShapePanel` / `syncShapeEdit` / `shapeRows` / `shapeInfoText` / `shapeTouched` / `layShape` / `#shApply`/`#shFlip`/`#shKeep`/`#shAdd`/`#shDel`/`#shFromZone`）、3830–3862（画布上的形状参考层：虚线 + 头尾标记）、3590–3600（`normalizeShapes`） | `SHAPE` 1008–1305（形状引擎：四档分布 / 头尾 / 诊断）、`deriveZoneDir` 1308–1326、`GEN` 914–991、`validate` 1372–1545 | `test_ui` `test_struct` `test_core` `test_map` `test_shape` `test_persist` |
-| **效果** | `fx` | 317–393 | 3714–3941（列表/图层）、3943–3982（预置）、3998–4185（窗体接线） | `instApplyPreset` 1690–1721、`instNew`/`instTick` 1131–1641 | `test_effects_core` `test_effects_c` `test_effects_ui` `test_fx_presets` `test_stage` `test_solo` `test_override` `test_split` `test_effects_c_exec` |
+| **效果** | `fx` | 450–555（列表 / 过滤 / **编辑台设置** / 预置 / 选中效果 / 图层 / 底部**常驻播放条** `#fxPlayBar`） | 3714–3941（列表/图层）、3943–3982（预置）、3998–4185（窗体接线）、`syncStagePlayBtn`/`stageToggle`/`stageStep`/`stageZero`/`fxSelMove`（播放条；`stageRate()` 读 `state.stage.rate`，`loop()` 里 `accS` 独立累加） | `instApplyPreset` 1690–1721、`instNew`/`instTick` 1131–1641 | `test_effects_core` `test_effects_c` `test_effects_ui` `test_fx_presets` `test_stage` `test_solo` `test_override` `test_split` `test_effects_c_exec` |
 | **模式** | `mode` | 284–315 | 4187–4416 | `resolveEffect`/`bindKey`/`bindZones` 1642–1688 | `test_modes` `test_override` `test_split` |
 | **动画** | `anim` | 237–282 | 3542–3711（接线/播放）、3586–3639（下拉/同步） | `sim*` 1131–1641、`ringIsFast`/`instSpeedFromRing`/`simSyncSpeed` 1531–1546 | `test_anim` `test_anim2` `test_effects_c_exec` |
 | **校验** | `check` | 233–236 | `renderIssues` 3505–3526 | `validate` 872–1030 | `test_core` `test_struct` |
@@ -171,7 +171,7 @@
 
 **通用铁律**
 
-- 改完跑 `node tests/run_all.mjs`，目标 **23 套件 / 1185+ 项 / 0 FAIL**（新增条目会让总数上升）。
+- 改完跑 `node tests/run_all.mjs`，目标 **23 套件 / 1228+ 项 / 0 FAIL**（新增条目会让总数上升）。
 - 动 **core**（`CORE = { … }` 之前的部分）→ 同步末尾导出清单（坑 13），否则新符号在测试里是 `undefined`。
 - 动 **C 模板 / 图层原语 / `led_gen_tick`** → 必须跑 `test_effects_c_exec`（真编译 + 逐字节比对）。
 - 动 **帮助文案或 `data-tip`** → 先读 `tests/test_help.mjs`（坑 14），文案与断言一起改。
