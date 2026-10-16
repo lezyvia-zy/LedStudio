@@ -1501,5 +1501,33 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
      '收尾：预设已复原（5 分区 / 104 灯，编号与位置照旧）');
 }
 
+/* ---- 20) 用户实测（播放条二刷之后）：勾选框的方块要紧贴自己的功能文字 ----
+ *     老毛病：`label.row` 那条「控件列吃掉剩余宽度」把勾选框也一起撑开了 —— 方块被画在被撑宽的框里，
+ *     离左边的功能文字多远全看这一行有多宽（各页各行还不一样，看着就像没对齐）；图层卡的「启用」
+ *     还被标题的 `flex:1` 顶到了复制 / ↑ / ↓ / × 那一头。 ---- */
+{
+  /* 20.1 方块自己不吃弹性宽度 */
+  ok(/label\.row>input\[type=checkbox\]\{[^}]*flex:0 0 auto\}/.test(html),
+     '勾选框不吃弹性宽度（flex:0 0 auto —— 方块保持原大小，不再被撑成整行宽）');
+  ok(/input\[type=checkbox\]\{margin:0\}/.test(html),
+     '勾选框的 UA 外边距（3px / 4px）已归零（方块不再被从文字旁边推开一点）');
+  /* 20.2 每个勾选框行都带 .ck：标签列不留 56px 空档，方块跟着文字走 */
+  const ckRows = [...html.matchAll(/<label class="row([^"]*)"[^>]*>(?:(?!<\/label>)[\s\S])*?<input type="checkbox" id="([^"]+)"/g)]
+    .map(m => ({ cls: m[1], id: m[2] }));
+  ok(ckRows.length >= 12, `静态勾选框行数得出来 ${ckRows.length} 处：${ckRows.map(r => r.id).join(' / ')}`);
+  const noCk = ckRows.filter(r => !/\bck\b/.test(r.cls)).map(r => r.id);
+  ok(noCk.length === 0, noCk.length
+    ? `这些勾选框行漏了 .ck（方块会被 56px 的标签列推远）: ${noCk.join(', ')}`
+    : `${ckRows.length} 个勾选框行的方块都紧贴自己的文字（都标了 .ck）`);
+  ok(/label\.row\.ck\{[^}]*gap:/.test(html)
+     && /label\.row\.ck>span:first-child\{[^}]*min-width:0[^}]*max-width:none/.test(html),
+     '.ck 行：标签列不再留 56px 空档、行内间距也收窄（方块跟着文字走）');
+  /* 20.3 图层卡的「启用」跟在标题后面，小键仍靠右 */
+  ok(/\.cardHead \.layOn\{[^}]*margin:0 auto 0/.test(html),
+     '图层卡「启用」用 margin-right:auto 吃掉中间空档 —— 贴在标题后面，复制 / ↑ / ↓ / × 仍靠右');
+  ok(!/lab\.style\.flex = '1'/.test(uiSrc),
+     '图层卡标题不再 flex:1（那是把方块顶到小键那一头的元凶）');
+}
+
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

@@ -156,6 +156,11 @@ ok(projState(0).anim.effectId === e0d.id, '重开后选中的还是同一个效�
   const head0 = headOf(box.children[0]);
   const cbs = (head0.children || []).filter(c => c.tagName === 'INPUT' && c.type === 'checkbox');
   ok(cbs.length === 1 && cbs[0].checked === true, '第 1 层有「启用」勾选框，默认勾上');
+  /* 勾选框紧贴卡片标题：标题不再 flex:1 把方块顶到复制 / ↑ / ↓ / × 那一头（用户实测反馈） */
+  ok((head0.children || []).indexOf(cbs[0]) === 1,
+     '「启用」方块紧跟标题（卡片头第 2 位），不再贴着小键那一边');
+  ok((head0.children || [])[0].tagName === 'B',
+     '卡片头顺序没变：标题 → 勾选 → 小键（标题仍是第一个）');
 
   const off = cbs[0];
   off.checked = false; off.onchange();

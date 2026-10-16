@@ -133,9 +133,15 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
     ⑥ **效果页的灰字规矩跟「分区」页一样**（静态灰底说明 ≤ 5 条、每条 ≤ 100 字，`test_stage` §12 数着）：新说明优先写进控件的 `data-tip` 或帮助页，别再往页面上堆 `.hint`；按钮行一律用 `.btnrow`（`flex + gap:4px`，行内标签加 `.lb` 与 `label.row` 的 56px 标签列对齐），**别再写 `style="margin:4px 0"`** —— 那样每个子块各排各的，宽窄不齐。**悬浮说明也要短**（播放条那六个图标键各一条，压在一行内 ≤ 30 字，`test_stage` §10.1b 数着）。
     ⑦ **步进是「拨相位」，不是「多跑几拍」**（2026-10-16 第二轮，用户要「前一帧 / 后一帧两种」）：`stageStep(dir)`（dir=+1 后一帧、-1 前一帧）先把 `inst.anim.position.target` 往目标方向挪 256（位置单位是 1/256 颗，256 = 一个灯位；取模 `RING_SIZE*256`），用 `ringSetPosition(…, speed_cur, OUT_QUAD)` 起插值，**再跑同样多的 `instTick` 把这段插值走满** —— 一次按键正好落在一格上（老写法只是干跑 `speed_cur` 拍，落点停在这一格插值的半路上，前后也没法对称）。跑之前把 `inst.step_cnt` 设成 `-n`，免得 `instTick` 里那条自动前进又叠一格；跑完设回 0（＝固件自己走完一格后的状态）。**走不走位置先问 core 的 `instAdvances(inst)`**（`instTick` 与它**共用同一份判断**：位置型动画 CHASE_SINGLE / CHASE_DUAL / SWING 或 `moves`）—— 不走位置的效果（呼吸 / 闪烁）只把那几拍的账走掉、相位不动，状态栏也照实说，别假装它动了。
 
+27. **勾选框（方块）要贴着自己的功能文字，别让「控件列」或别的元素把它顶远**（2026-10-16，用户实测「几个勾选的方块 UI 有偏差，和对应的功能文字离得有点远了」）：四条 ——
+    ① `label.row>input[type=checkbox]{flex:0 0 auto}`：**别让上面那条 `label.row>input{flex:1 1 auto}`（「控件列吃掉剩余宽度」）把方块也一起撑开** —— 撑开后浏览器把方块画在被撑宽的框里，**方块离文字多远全看这一行有多宽**，同一个页面里各行还不一样（看着像没对齐）。
+    ② `input[type=checkbox]{margin:0}`：浏览器 UA 样式给勾选框自带 `3px 3px 3px 4px` 外边距，会把方块从旁边文字推开一点（而且各处推的量看着不一样）；行里已经有 `gap` 了，归零。
+    ③ **勾选框行的 `label` 要加 `.ck`**（`class="row ck"`，全工具 12 处）：`label.row.ck{gap:5px}` + `label.row.ck>span:first-child{min-width:0; max-width:none}` —— 标签列不再为「对齐控件列」留 56px 空档，**方块紧贴自己的文字**。`test_ui` §20 数着「每个含 checkbox 的 `label.row` 都得带 `.ck`」，新增勾选框行照抄就行。
+    ④ 图层卡那枚「启用」方块：卡片标题**不能** `flex:1`（那是把它顶到复制 / ↑ / ↓ / × 那一头的元凶）—— 标题改 `nowrap + ellipsis`，方块靠 `.cardHead .layOn{flex:0 0 auto; margin:0 auto 0 2px}`（`margin-right:auto` 吃掉中间空档：方块跟在标题后面，小键仍靠右）；`test_effects_ui` §6b 数着「方块排在卡片头第 2 位、标题仍是第 1 位」。**纯 CSS / 类名 / 一处 inline style 的改动，导出物、`state`、图层原语都没动。**
+
 ## 当前状态与接下来的事
 
-工具本体功能完整、1279 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1279 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1288 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1288 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。
