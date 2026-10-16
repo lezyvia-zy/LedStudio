@@ -427,16 +427,43 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   ok(/已按形状铺/.test(byId.get('status').textContent),
      `确认之后才真铺: "${byId.get('status').textContent}"`);
 
-  /* 号段上没有灯 → 直接铺，不打扰 */
+  /* 号段上没有灯 → 直接铺，不打扰；顺带看「铺到灯位」的蓝灯只在「还有东西要铺」时亮
+   * （用户第 1 条实测：老写法把 class="pri" 写死在 HTML 上，它永远蓝着，反而看不出哪一步该点） */
+  ok(!/id="shApply"[^>]*class="pri"/.test(html), 'HTML 里没把「铺到灯位」写死成蓝色的（高亮按状态算）');
   confirmCalls.length = 0;
   rows()[0].onclick();                       /* 第 1 个分区已挪到 115.. 上，没有灯 */
   byId.get('shAdd').onclick();               /* 该号段空着 → 起一个「等分弧长」的矩形形状 */
   await new Promise(r => setTimeout(r, 700));
+  ok(byId.get('shApply').classList.contains('pri'),
+     '还没铺过的形状：「铺到灯位」亮着（亮着 = 照现在的形状铺下去就是这一步该做的）');
   byId.get('shApply').onclick();
   await new Promise(r => setTimeout(r, 700));
   ok(confirmCalls.length === 0, '号段上本来没有灯 → 不弹确认框，直接铺');
   ok(/已按形状铺/.test(byId.get('status').textContent),
      `直接铺成功: "${byId.get('status').textContent}"`);
+  ok(!byId.get('shApply').classList.contains('pri'),
+     '铺完蓝灯就灭（一眼看出「这个形状已经铺下去了」，不用再点）');
+
+  /* ---- 15b) 反向编号：已铺过的形状不再弹确认框（用户第 4 条实测） ---- */
+  {
+    const st0 = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state;
+    const sh0 = () => { const ss = st0().shapes || []; return ss[ss.length - 1]; };
+    const z = st0().zones[0];
+    const pos = () => st0().leds.filter(l => l.n >= z.start && l.n < z.start + z.count)
+                                 .map(l => [l.n, Math.round(l.x), Math.round(l.y)]);
+    const beforeP = pos(), dir0 = sh0().dir;
+    confirmCalls.length = 0;
+    byId.get('shFlip').onclick();
+    await new Promise(r => setTimeout(r, 700));
+    ok(confirmCalls.length === 0,
+       '点「反向编号」不再弹确认框 —— 已铺过的形状：几何一点没动，点错了 Ctrl+Z 就够（用户第 4 条）');
+    ok(/已反向编号/.test(byId.get('status').textContent),
+       `状态栏照实说做了什么: "${byId.get('status').textContent}"`);
+    const afterP = pos();
+    ok(sh0().dir !== dir0 && afterP.length === beforeP.length &&
+       afterP.some((a, i) => a[1] !== beforeP[i][1] || a[2] !== beforeP[i][2]),
+       `编号顺序真倒过来了（${dir0} → ${sh0().dir}，灯位跟着换号 ${afterP.filter((a, i) => a[1] !== beforeP[i][1] || a[2] !== beforeP[i][2]).length} 颗）`);
+  }
   globalThis.confirm = () => true;
 }
 
@@ -510,6 +537,14 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
     ok(s1.laid === true, '定完「尾」自动铺进编号（laid=true）');
     ok(onZone.length === z.count, `号段铺满 ${onZone.length} 颗（分区 ${z.count} 颗）`);
   }
+
+  /* 定头尾**不是**形状编辑（用户第六轮第 2 条）：两步走完回到「选择/编辑」，手柄也不留在画布上。
+   * 下面还要抓手柄 / 换类型，先按面板「编辑」重新进编辑态（跟用户的手一模一样）。 */
+  ok(selectBtn.classList.contains('on') && !shapeBtn.classList.contains('on'),
+     '定完头尾回到「选择/编辑」模式（定头尾只改编号，不进形状编辑）');
+  ok(byId.get('shPick').textContent === '在画布上定头尾', '「在画布上定头尾」按钮两步走完自己改回名字');
+  byId.get('shEdit').onclick();
+  ok(shapeBtn.classList.contains('on'), '面板「编辑」重新进编辑态（下面的手柄 / 换类型照旧）');
 
   /* 改分区灯数 → 已铺形状自动增删灯（自适应颗数，不再留一个灰的多余灯） */
   {
@@ -1142,25 +1177,37 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
     esc();
   }
 
-  /* 17.13 用户实测的另一半：形状放一会儿再回来调大小 —— 选择模式下手柄也一直画着，
-   * 按住它一次手势就能拖（老毛病：手柄只在编辑态画，选择模式看不见也抓不住）。 */
+  /* 17.13 用户第五轮实测：选择模式下那 8 个蓝方块**不该还在画布上**（「没进形状编辑就不该看见手柄」）。
+   * 按住形状边那一下按「挪动」处理（不再偷偷改大小）；要改大小先按住它进编辑态，手柄那时才画出来。 */
   {
     esc();
     ok(!modeBtn('shape').classList.contains('on'), '前置：已释放形状编辑（回到选择模式）');
-    const d0 = JSON.parse(store.get('led_layout_editor.v1'));
     const cur0 = () => { const d = JSON.parse(store.get('led_layout_editor.v1'));
                          return (d.projects.find(p => p.id === d.current) || d.projects[0]).state; };
     const i = (cur0().shapes || []).length - 1;
     ok(i >= 0, `空白画布上那个形状还在（第 ${i + 1} 个）`);
     const b = shBox(cur0().shapes[i]);
-    const hE = cal.c(b.x1, (b.y0 + b.y1) / 2);            /* 右边中间那个手柄在屏幕上的位置 */
+    const hE = cal.c(b.x1, (b.y0 + b.y1) / 2);            /* 原来那个手柄在屏幕上的位置 */
     pd({ pointerId: 1, button: 0, clientX: hE[0], clientY: hE[1] });
     move(hE[0] + 60, hE[1]);
     pu({});
     await wait();
     const b2 = shBox(cur0().shapes[i]);
-    ok(b2.x1 > b.x1 + 10 && Math.abs(b2.x0 - b.x0) < 1,
-       `选择模式下按住手柄拖一下就把形状改宽了（右边 ${Math.round(b.x1)} → ${Math.round(b2.x1)}，左边没动）`);
+    ok(b2.x0 > b.x0 + 10 && Math.abs((b2.x1 - b2.x0) - (b.x1 - b.x0)) < 1,
+       `选择模式按住「原来手柄的位置」= 整块挪动，不是改大小（宽 ${Math.round(b.x1 - b.x0)} → ` +
+       `${Math.round(b2.x1 - b2.x0)}px；左边 ${Math.round(b.x0)} → ${Math.round(b2.x0)}）`);
+    ok(modeBtn('shape').classList.contains('on'), '而且按下去当场进编辑态（手柄这时候才画出来）');
+
+    /* 进了编辑态，手柄才是「看得见也抓得住」的：按住同一个手柄一次手势就改大小 */
+    const b3 = shBox(cur0().shapes[i]);
+    const hE3 = cal.c(b3.x1, (b3.y0 + b3.y1) / 2);
+    pd({ pointerId: 1, button: 0, clientX: hE3[0], clientY: hE3[1] });
+    move(hE3[0] + 60, hE3[1]);
+    pu({});
+    await wait();
+    const b4 = shBox(cur0().shapes[i]);
+    ok(b4.x1 > b3.x1 + 10 && Math.abs(b4.x0 - b3.x0) < 1,
+       `编辑态下按住同一个手柄就改宽了（右边 ${Math.round(b3.x1)} → ${Math.round(b4.x1)}，左边没动）`);
     esc();
   }
 

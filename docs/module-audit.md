@@ -179,7 +179,7 @@
 | ~~生成~~ `gen`（批 5-A 起并入 `zones`） | `test_map` `test_struct` `test_ui` | G1：已有灯位时 `confirm` 被调用（假 DOM 里计数）；G2：对齐网格后坐标是 `CELL/2` 的整数倍；G3：底图参数改完 700ms 后进存档 |
 | 导出 `exp` | `test_map` `test_effects_c` `test_wrap` `test_core` `test_export` `test_gen_independence` | E1：`V5` 存在时输出区被标记；E2 ✓：页面里不再出现「第 4 节」；E4 ✓：复制只剩一个 `copyExport()`；E6/H9：窗口启动时关着、四个页签各自生成、「另存为」建议名与类型过滤器、回退下载的文件名、取消不写不下载、拖动 / 边界夹紧 / Esc、存档里的超大右栏宽度被夹紧；**契约**：`led_gen_hal.h` 零平台符号 / 文档双向一致 / 附录 A 账本不变多 / 真编译版本守卫（正反两例） |
 | 帮助 `help` | `test_help` | P1：10 个 `<h3>` 都有 `id` 且目录链接数一致；P2：搜索框存在（新增 `data-tip`） |
-| 横向 | `test_persist` `test_ui` `test_canvas_map` `test_solo` | H2：`#chkSnap` 状态进 `state.view.snap` 并在切项目后回填；H4：`status(msg,'err')` 不被 3.2s 计时器覆盖；**画布映射（批 7-D-4）**：位图与「CSS 盒子 × dpr」必须一直一致（`render()` 自愈 + `ResizeObserver` + `matchMedia` 盯 dpr）—— 布局变了、dpr 变了之后，点屏幕上那个灯点仍然选中那一颗；命中半径有 9 屏幕 px 下限且取最近的一颗；只有画出来的手柄才允许抢按下 |
+| 横向 | `test_persist` `test_ui` `test_canvas_map` `test_solo` | H2：`#chkSnap` 状态进 `state.view.snap` 并在切项目后回填；H4：`status(msg,'err')` 不被 3.2s 计时器覆盖；**画布映射（批 7-D-4）**：位图与「CSS 盒子 × dpr」必须一直一致（`render()` 自愈 + `ResizeObserver` + `matchMedia` 盯 dpr）—— 布局变了、dpr 变了之后，点屏幕上那个灯点仍然选中那一颗；命中半径有 9 屏幕 px 下限且取最近的一颗；**只有画出来的手柄才允许抢按下**，而手柄只在「画形状」编辑态画（批 7-D-5 起选择模式一个都不画）—— 切模式 / 切项目后不会留一屏过期手柄 |
 
 ## 13. 有意为之，不要「顺手改」（改这些等于改产品语义）
 

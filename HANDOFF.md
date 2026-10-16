@@ -158,7 +158,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 | 从固件源码重抽查表 | `tools/extract_fw_tables.py` |
 | **契约 v1：工具 → 平台唯一接口** | core `LED_GEN_HAL` / `exportHalC`；导出窗口「HAL 接口」页签；契约文档 `docs/firmware-contract.md`；守边界的是 `test_gen_independence`（零平台符号 + 文档一致 + 真编译版本守卫） |
 
-### 测试覆盖（23 套件、984 项断言）
+### 测试覆盖（23 套件、1066 项断言）
 
 | 类型 | 套件 | 验什么 |
 |---|---|---|
@@ -175,7 +175,7 @@ core 脚本末尾有一份**手写的导出清单** `const CORE = { FW, GEN, res
 
 ## 5. 进行中 / 未完成的功能（及当前思路）
 
-工具本体**功能完整、984 项断言全绿**（23 套件 / 0 FAIL）。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
+工具本体**功能完整、1066 项断言全绿**（23 套件 / 0 FAIL）。以下是已知待办（原样摘自 CLAUDE.md「当前状态与接下来的事」）：
 
 1. **抽公共测试驾具**：20 个套件现在**各自抄了一份假 DOM**（`install()` / `mkEl()` / `querySelector` 桩，其中 8 个文件直白地各写了一份），改一处要改 20 处。应该抽成 `tests/_harness.mjs`。
    - **注意**：测试里 `ctxDraw` 是可变全局，抽取时要用 getter/setter 包装。

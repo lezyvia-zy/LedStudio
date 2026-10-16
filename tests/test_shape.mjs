@@ -263,3 +263,74 @@ console.log('\n--- J) 轮廓最近点（定头尾 / 抓轮廓用）---');
 }
 
 
+console.log('\n--- K) 定头尾：两次点击 → 「头」落在你点的那一颗上（第 2 下只定方向，头不再动）---');
+{
+  const C = GEN.CELL;
+  const mk = o => SHAPE.blank(Object.assign(SHAPE.newRect({ x0: 0, y0: 0, W: 6, H: 6.5 }, C), o));
+  const bases = {
+    cells: mk({ dist: 'cells', count: 26 }),
+    even:  mk({ dist: 'even',  count: 26 }),
+    sides: mk({ dist: 'sides', sides: '6,7,6,7' }),
+    pitch: mk({ dist: 'pitch', pitch: C }),
+  };
+  const dist = (p, q) => Math.hypot(p.x - q[0], p.y - q[1]);
+  /* ① 点在某颗灯上 → 那颗灯必须成为第 1 号（点哪儿 = 头在哪儿） */
+  const badA = [];
+  for (const [nm, base] of Object.entries(bases)) {
+    for (const d0 of ['cw', 'ccw']) {
+      const b0 = Object.assign({}, base, { dir: d0 });
+      SHAPE.plan(b0, C).pts.forEach((node, j) => {
+        const s = SHAPE.arcAt(b0, [node.x, node.y]);
+        if (s == null) return;                              /* 这一颗不在轮廓上（cells 档的内侧行）：UI 里点不到它 */
+        const sh = Object.assign({}, b0);
+        sh.entry = Math.round(SHAPE.entryForHead(sh, s, d0, C) * 10) / 10;
+        const head = SHAPE.plan(sh, C).pts[0], d = dist(head, [node.x, node.y]);
+        if (d > 0.06) badA.push(`${nm}/${d0} 第 ${j} 颗：头差 ${d.toFixed(2)}px`);
+      });
+    }
+  }
+  ok(!badA.length, '第 1 下点在哪一颗上，那一颗就是 1 号（4 种分布 × 2 个初始方向，逐颗验；差 ≤0.06px）' +
+     (badA.length ? ' → ' + badA.slice(0, 4).join('；') : ''));
+  /* ② 第 2 下只定方向：点「头」另一侧的尾 → 方向翻过去，头**原地不动** */
+  const badB = [], D = [];
+  for (const [nm, base] of Object.entries(bases)) {
+    for (const d0 of ['cw', 'ccw']) {
+      const b0 = Object.assign({}, base, { dir: d0 });
+      const p0 = SHAPE.plan(b0, C).pts;
+      const sH = SHAPE.arcAt(b0, [p0[6].x, p0[6].y]);        /* 用户点的那一颗（头） */
+      const step = SHAPE.pathLen(b0) / SHAPE.count(b0);
+      /* 尾点在同一条路上：顺/逆各点一次 —— 期望「离头近的那边走」 */
+      [[sH - step, 'ccw'], [sH + step, 'cw']].forEach(([sT, want]) => {
+        const sh = Object.assign({}, b0);
+        const r = SHAPE.setHeadTail(sh, sH, sT, C);
+        const d = dist(SHAPE.plan(sh, C).pts[0], [p0[6].x, p0[6].y]);
+        D.push(`${nm}/${d0}→${sh.dir}`);
+        if (!r.dirSet || sh.dir !== want || d > 0.06)
+          badB.push(`${nm}/${d0} 尾在${sT < sH ? '前' : '后'}：dir=${sh.dir}(期望 ${want}) 头差 ${d.toFixed(2)}px`);
+      });
+    }
+  }
+  ok(!badB.length, '第 2 下点「尾」= 编号往离头近的那边走（头仍在第 1 下那一颗上，没被挪走）' +
+     (badB.length ? ' → ' + badB.join('；') : ''));
+  /* ③ 两点重合 / 开环往回点：定不出方向 —— 但方向不瞎改、头也不动 */
+  {
+    const b0 = Object.assign({}, bases.even, { dir: 'cw' });
+    const p0 = SHAPE.plan(b0, C).pts, sH = SHAPE.arcAt(b0, [p0[6].x, p0[6].y]);
+    const sh = Object.assign({}, b0);
+    const r = SHAPE.setHeadTail(sh, sH, sH, C);
+    ok(!r.dirSet && sh.dir === 'cw' && dist(SHAPE.plan(sh, C).pts[0], [p0[6].x, p0[6].y]) <= 0.06,
+       '「尾」点回「头」身上：方向照旧（不瞎翻），头仍在点的那一颗上');
+    const ln = SHAPE.blank({ kind: 'line', closed: false, dist: 'even', count: 12, pts: [[100, 100], [500, 100]] });
+    const r2 = SHAPE.setHeadTail(ln, 200, 100, C);          /* 尾点在头的来路上 */
+    ok(!r2.dirSet && r2.open && ln.dir === 'cw' && ln.entry === 200 && SHAPE.plan(ln, C).pts[0].x === 300,
+       '开环（直线）往回点「尾」：定不出方向，但头照样落在点的那一颗上（编号只能往末端铺）');
+    /* 格点档同一个格点再点一次：一样定不出方向，且方向不许瞎翻（格点档单独一条道） */
+    const bc = Object.assign({}, bases.cells, { dir: 'ccw' });
+    const pc = SHAPE.plan(bc, C).pts, sc = SHAPE.arcAt(bc, [pc[6].x, pc[6].y]);
+    const shc = Object.assign({}, bc);
+    const rc = SHAPE.setHeadTail(shc, sc, sc, C);
+    ok(!rc.dirSet && shc.dir === 'ccw' && dist(SHAPE.plan(shc, C).pts[0], [pc[6].x, pc[6].y]) <= 0.06,
+       '格点档「尾」点回「头」自己那颗：方向照旧（不瞎翻），头仍在点的那一颗上');
+  }
+}
+

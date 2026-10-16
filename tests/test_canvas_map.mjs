@@ -305,8 +305,8 @@ cvBox.w = 1200; cvBox.h = 900;                     /* 收尾：回到初始尺�
 fireRO();
 ok(clickLed(103) && selTxt() === '已选 1 颗：103', `尺寸换回来以后点灯仍然准（「${selTxt()}」）`);
 
-/* ---------- ⑤ 手柄：选择模式也要「一次按住就能改大小」 ---------- */
-console.log('\n--- ⑤ 成形的手柄：选择模式按下去就直接改大小 ---');
+/* ---------- ⑤ 手柄：只在「画形状」编辑态画，抓一下就直接改大小 ---------- */
+console.log('\n--- ⑤ 成形的手柄：编辑态按下去就直接改大小 ---');
 const shBoxOf = i => CORE.SHAPE.boxOf(curSt().shapes[i]);
 /* 面板下拉挑形状要**派发 onchange**：应用里的 selShape 是跟着 change 事件走的，
  * 只改 .value 不会同步（那会变成「点的是 A、动的是 B」这种测试自己制造的怪事）。 */
@@ -314,9 +314,7 @@ const pickShape = i => { const s = byId.get('shList'); s.value = String(i); s.on
 {
   pickShape(2);
   ok((modeOn('shape') || {}).contains('on') && byId.get('shList').value === '2',
-     '面板「形状」下拉挑 2 号 = 选中它并进编辑态');
-  esc();
-  ok(!(modeOn('shape') || {}).contains('on'), 'Esc 释放编辑态（回到选择/编辑）');
+     '面板「形状」下拉挑 2 号 = 选中它并进编辑态（手柄出来了）');
 
   const b0 = shBoxOf(2);
   const hE = worldToClient(b0.x1, (b0.y0 + b0.y1) / 2);    /* 右边中间那个手柄，屏幕上它在哪 */
@@ -326,6 +324,7 @@ const pickShape = i => { const s = byId.get('shList'); s.value = String(i); s.on
   ok(b1.x1 > b0.x1 + 20 && Math.abs(b1.x0 - b0.x0) < 1,
      `按住手柄拖一下就把形状改宽了（${Math.round(b0.x1 - b0.x0)} → ${Math.round(b1.x1 - b1.x0)} 世界 px；左边没动）`);
   esc();
+  ok(!(modeOn('shape') || {}).contains('on'), 'Esc 释放编辑态（回到选择/编辑）');
 }
 
 /* ---------- ⑥ 瞄着手柄按下去、手差一点：仍然算「改大小」，不许整块挪走 ---------- */
@@ -345,8 +344,8 @@ console.log('\n--- ⑥ 手柄外那一圈（1.6 倍容差）---');
   esc();
 }
 
-/* ---------- ⑥b 只有「画出来的」手柄才允许抢按下：放置 / 擦除模式不画手柄 ---------- */
-console.log('\n--- ⑥b 看不见的手柄不存在（放置 / 擦除模式不画手柄）---');
+/* ---------- ⑥b 只有「画出来的」手柄才允许抢按下：手柄只属于「画形状」编辑态 ---------- */
+console.log('\n--- ⑥b 看不见的手柄不存在（编辑态之外一个都不画）---');
 {
   const modeBtn = m => (byId.get('left').children || []).find(b => b.dataset.mode === m);
   const lastFrame = () => { CTX.rects.length = 0; fireRO(); return CTX.rects.slice(); };
@@ -357,20 +356,246 @@ console.log('\n--- ⑥b 看不见的手柄不存在（放置 / 擦除模式不�
       && [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]]
            .some(([hx, hy]) => Math.abs(r.x - (hx - s)) < 1e-6 && Math.abs(r.y - (hy - s)) < 1e-6));
   };
-  pickShape(2); esc();                              /* 选过 2 号 → Esc 回选择模式 */
-  ok(modeOn('select').contains('on'), 'Esc 之后回到选择/编辑模式');
+  pickShape(2);
   const b = shBoxOf(2);
-  ok(hasHandle(b), '选择模式下「你选过的那一个」手柄一直画着（看得见，所以抓得住）');
+  ok(hasHandle(b), '编辑态：8 个手柄画着（看得见，所以抓得住）');
+  esc();
+  ok(modeOn('select').contains('on') && !hasHandle(b),
+     'Esc 回选择/编辑：手柄不再画 —— 铺灯时不会再被那 8 个蓝方块抢走点击（用户第五轮实测）');
+
+  /* 选择模式按住「原来那个手柄的位置」（形状边上）：那一下不再算改大小，而是整块挪动 ——
+   * 没画出来的手柄不抢点击，这正是用户抱怨的「铺灯时很容易变成边形状」。 */
+  const p = worldToClient(b.x1 - 1 / appZoom(), (b.y0 + b.y1) / 2);
+  dragClient(p, [p[0] + 60, p[1]]);
+  await wait();
+  const b2 = shBoxOf(2);
+  ok(modeOn('shape').contains('on'), '按住形状边 → 进编辑态（一次手势到位，不用先点中再抓）');
+  ok(Math.abs((b2.x1 - b2.x0) - (b.x1 - b.x0)) < 1 && b2.x0 > b.x0 + 10,
+     `那一下算「挪动整块形状」而不是改大小（宽 ${Math.round(b.x1 - b.x0)} → ${Math.round(b2.x1 - b2.x0)}）`);
+
   modeBtn('place').onclick();
-  ok(modeOn('place').contains('on') && !hasHandle(b), '切到「放置编号」：手柄不再画（画不出来就不许抢按下）');
+  ok(modeOn('place').contains('on') && !hasHandle(shBoxOf(2)), '切到「放置编号」：手柄不画（画不出来就不许抢按下）');
   modeBtn('erase').onclick();
-  ok(modeOn('erase').contains('on') && !hasHandle(b), '切到「擦除」同样不画手柄');
+  ok(modeOn('erase').contains('on') && !hasHandle(shBoxOf(2)), '切到「擦除」同样不画手柄');
   modeBtn('select').onclick();
-  ok(hasHandle(b), '切回选择模式：手柄回来了（一次手势就能改大小）');
+  ok(!hasHandle(shBoxOf(2)), '切回选择/编辑也不画（手柄只属于「画形状」编辑态）');
+  byId.get('shEdit').onclick();
+  ok(modeOn('shape').contains('on') && hasHandle(shBoxOf(2)),
+     '点面板「编辑」进编辑态：手柄回来（一次手势就能改大小）');
   esc();
 }
 
-/* ---------- ⑦ 源码里的硬规矩（改了就会被这里拦住） ---------- */
+/* ---------- ⑥c 定头尾（用户第六轮实测）：只改选中分区的编号 · 编号先藏 · 可再点一次取消 ---------- */
+console.log('\n--- ⑥c 在画布上定头尾：针对选中的分区、编号先藏后亮、点两次按钮能退出 ---');
+{
+  const zRows = () => (byId.get('zoneTbl') || {}).children || [];
+  /* 分区表每渲染一次就往后追加一批行（假 DOM 的 appendChild 只往后推），只有最后一批指向当前 state */
+  const zoneRow = i => { const r = zRows(), n = curSt().zones.length; return r[r.length - n + i]; };
+  const zoneAt  = i => curSt().zones[i];
+  const shOfZone = id => shapes().findIndex(s => s.zone === id);
+  const zone2 = () => { const sh = shapes()[2]; return curSt().zones.find(k => k.id === sh.zone); };
+  const zoneLeds = () => { const z = zone2(); return curSt().leds.filter(l => l.n >= z.start && l.n < z.start + z.count); };
+  const chk = (id, cls) => { const el = byId.get(id); return !!(el && el.classList && el.classList.contains(cls || 'on')); };
+  const btnTxt = id => (byId.get(id) || {}).textContent;
+  const every = () => { CTX.texts.length = 0; fireRO(); return CTX.texts.slice(); };
+  /* 「头 N」是几号 / 离点击点最近的那一颗灯（定头尾的「头」应该正好在它上面） */
+  const headNumOf = sh => (CORE.SHAPE.plan(sh, CELL).pts[0] || {}).n;
+  const ledNear = (x, y) => zoneLeds().map(l => ({ l, d: Math.hypot(l.x - x, l.y - y) }))
+                                    .sort((a, b) => a.d - b.d)[0];
+  /* 状态栏里那份「尾落在哪儿」的说法：第 2 下只定方向、不把「尾」定在点的那一颗上 ——
+   * 用户第九轮的原话「我理解的是第二次点击的『尾』指的是最末尾的编号应该在的位置」，
+   * 所以状态栏必须点名「尾」是第几颗；点的那一颗不是尾时还得说清「你点的那一颗是第几颗」。 */
+  const tailSaid = (txt, tailN, clkN) =>
+    (new RegExp('「尾」（第 ' + tailN + ' 颗）').test(txt) || /「尾」正好就是你点的那一颗/.test(txt)) &&
+    (clkN === tailN || new RegExp('你点的那一颗是第 ' + clkN + ' 颗').test(txt));
+  /* 画布上那行「① 点头 / ② 点方向」提示画在客户端的哪儿（世界坐标按最后一帧的变换换算） */
+  const bannerPos = () => {
+    const o = every().find(o => /^[①②] /.test(o.t));   /* 措辞会变，只认开头的圈码 */
+    if (!o) return null;
+    const m = o.m;
+    return toClient(m[0] * o.x + m[2] * o.y + m[4], m[1] * o.x + m[3] * o.y + m[5]);
+  };
+  /* 编号文字 = render 里画在灯点上的那串纯数字（HUD 的「彩灯编号」是开着的） */
+  const numLabels = () => every().filter(o => /^\d+$/.test(o.t)).length;
+  /* 手柄小方块 = fillRect(角点 - s, 2s, 2s)，s = 4 / zoom */
+  const anyHandle = () => {
+    CTX.rects.length = 0; fireRO();
+    const s = 4 / appZoom();
+    return CTX.rects.some(r => Math.abs(r.w - s * 2) < 1e-6 && Math.abs(r.h - s * 2) < 1e-6);
+  };
+
+  const zi = curSt().zones.findIndex(z => z.id === (shapes()[2] || {}).zone);
+  pickShape(2);                                   /* 面板下拉挑 2 号 → 进「画形状」编辑态 */
+  zoneRow(zi).onclick();                          /* 分区表里点中它 = 定头尾针对的那个分区 */
+  ok(modeOn('shape').contains('on') && shapes()[2].laid === true,
+     `2 号形状归属「${zoneAt(zi).name}」而且已经铺过灯（下面看它「点一下头就当场重排」）`);
+  const before = zoneLeds().map(l => [l.n, Math.round(l.x), Math.round(l.y)]);
+
+  byId.get('shPick').onclick();
+  ok(chk('shPick'), '点「在画布上定头尾」→ 按钮点亮（正在等第 1 下：点头）');
+  ok(btnTxt('shPick') === '取消定头尾', '按钮当场改口叫「取消定头尾」（再点一次就能退出 —— 用户第六轮第 2 条）');
+  ok(modeOn('select').contains('on') && !modeOn('shape').contains('on'),
+     '左侧栏没有被切成「画形状」（定头尾只改编号，不是形状编辑 —— 第 2 条）');
+  ok(!anyHandle(), '编辑态那 8 个方块也没跟出来（点着头尾不会抓到手柄）');
+  ok(!chk('shApply', 'pri'), '「铺到灯位」的蓝灯已经灭了（这个形状早就铺下去了）');
+  {
+    const tx = every();
+    const banner = new RegExp('点一下定「' + zoneAt(zi).name + '」的「头」');
+    ok(tx.some(o => banner.test(o.t)), '画布上的提示写了这一步干嘛、改的是哪个分区');
+    ok(tx.length && banner.test(tx[tx.length - 1].t),
+       '提示框是**最后画**的（压在所有灯与手柄之上，不会被彩灯点 / 形状轮廓盖住 —— 第 1 条）');
+    ok(numLabels() === 0, '这一步先把全板编号藏起来（满屏数字看不清该点哪儿 —— 第 3 条）');
+  }
+  /* 第 1 下点「头」：点路径上离现在起点够远的一个点（手柄这会儿一个都没画，点哪儿都算数） */
+  const sh2 = shapes()[2];
+  const arcOf = p => (CORE.SHAPE.arcNear(sh2, [p.x, p.y], 1e9) || { s: 0 }).s;
+  const cand = CORE.SHAPE.plan(sh2, CELL).pts.find(p => arcOf(p) > CELL * 2);
+  ok(!!cand, `在路径上找得到「离现起点 >2 格」的点（${cand ? Math.round(cand.x) + ',' + Math.round(cand.y) : '—'}）`);
+
+  const c1 = worldToClient(cand.x, cand.y);
+  pd({ clientX: c1[0], clientY: c1[1] }); pu();               /* 第 1 下：定「头」 */
+  await wait();
+  const sh3 = shapes()[2];
+  ok(sh3.entry > CELL, `点「头」= 起点偏移挪到 ${Math.round(sh3.entry)}px（这一点就是这一段的第一号）`);
+  {
+    const tx = every();
+    ok(tx.some(o => new RegExp('再点一下点「' + zoneAt(zi).name + '」的方向').test(o.t)),
+       '画布上的提示跟着换到「② 点方向」—— 不再写「② 点尾」：那三个字让人以为「尾就定在这颗上」（用户第九轮）');
+    ok(tx.some(o => /^头 \d+$/.test(o.t)), '第 1 下点完就把「头 N」亮出来了（第 3 条）');
+    ok(numLabels() === 0, '但别的编号还藏着（第 2 下点完才全部回来）');
+  }
+  const after = zoneLeds().map(l => [l.n, Math.round(l.x), Math.round(l.y)]);
+  const moved = after.filter((a, i) => before[i] && (a[1] !== before[i][1] || a[2] !== before[i][2])).length;
+  ok(after.length === before.length && moved > 0,
+     `第 1 下就按新起点重排了 ${moved} 颗（老写法只改 entry、灯上一动不动，要等第 2 下才变）`);
+  ok(/重铺/.test(statTxt()), `状态栏照实说了发生了什么: "${statTxt()}"`);
+  {
+    const hl = ledNear(cand.x, cand.y);
+    ok(hl.l.n === headNumOf(sh3),
+       `「头 N」就标在第 1 下点的那一颗上（第 ${hl.l.n} 号，离点击点 ${hl.d.toFixed(1)}px）` +
+       ' —— 老写法把弧长直接当 entry，逆时针形状整排编号会错开一颗（看着像「静默重排」）');
+  }
+
+  /* 第 2 下点「尾」：点离「头」大半圈的地方，方向应该翻成逆时针 */
+  const L = CORE.SHAPE.pathLen(shapes()[2]);
+  const e0 = +shapes()[2].entry || 0;
+  const tp = CORE.SHAPE.plan(shapes()[2], CELL).pts.map(p => {
+    const f = (((arcOf(p) - e0) % L) + L) % L;
+    return { p, f };
+  }).filter(o => o.f > L * 0.5 && o.f < L * 0.92).sort((a, b) => b.f - a.f).map(o => o.p)[0];
+  ok(!!tp, `在路径上找得到「尾」的落点（弧长 ${tp ? Math.round((((arcOf(tp) - e0) % L) + L) % L) : '—'}/${Math.round(L)}）`);
+  const c2 = worldToClient(tp.x, tp.y);
+  const dir0 = shapes()[2].dir;
+  pd({ clientX: c2[0], clientY: c2[1] }); pu();
+  await wait();
+  const sh4 = shapes()[2];
+  ok(sh4.dir === 'ccw' && dir0 !== 'ccw', `点「尾」定方向：${dir0} → ${sh4.dir}（编号往短的那边走）`);
+  ok(/已按新头尾重排/.test(statTxt()), `两点定完自动铺进编号: "${statTxt()}"`);
+  {
+    const tl = CORE.SHAPE.plan(sh4, CELL).pts.slice(-1)[0];
+    const clk = ledNear(tp.x, tp.y);
+    ok(tailSaid(statTxt(), tl.n, clk.l.n),
+       `状态栏把「尾」落在哪儿说清楚了（尾 = 第 ${tl.n} 颗，点的那一颗 = 第 ${clk.l.n} 颗）—— ` +
+       '第 2 下只定方向，用户第九轮就是以为「我点的这一颗就是尾」' + `: "${statTxt()}"`);
+  }
+  {
+    const hl = ledNear(cand.x, cand.y);
+    ok(hl.l.n === headNumOf(sh4),
+       '第 2 下**只定方向**：头还停在第 1 下点的那一颗上 —— 老写法在这儿照着第 1 下的弧长重设一次 entry，' +
+       '方向一翻（plan 把落点表倒过来）头就跳到旁边那颗，用户看到的「头尾正好反了」就是这么来的');
+  }
+  /* 再来一轮（走两遍）：第 2 下点在「头」**隔壁那一颗**上 —— 编号第 2 颗必须落在「点的那一侧」，
+   * 头一步都不许动；点「顺着当前编号方向」那一颗时方向该保持，点另一侧那颗时该掉头。
+   * 判定只用**用户看得见的东西**（计划落点 + 顶点顺序弧长），不镜像内部算法：
+   * 这样它既能抓住「点反了」，也不管实现内部拿弧长还是格点序号比方向。 */
+  const arcOfPt = (sh, p) => (CORE.SHAPE.arcNear(sh, [p.x, p.y], 1e9) || { s: 0 }).s;
+  const sideOf = (sh, from, to) => {                 /* 「尾」在「头」的哪一侧（顶点顺序：0..L） */
+    const L = CORE.SHAPE.pathLen(sh);
+    const d = (((arcOfPt(sh, to) - arcOfPt(sh, from)) % L) + L) % L;
+    return d < L / 2 ? '前' : '后';                   /* 两头一样近（≈半圈）时按「后」—— 这种点测试里不选 */
+  };
+  for (const wantKeep of [true, false]) {
+    byId.get('shPick').onclick();                   /* 这一轮从头来：① 头 ② 隔壁那一颗 */
+    const c3 = worldToClient(cand.x, cand.y);
+    pd({ clientX: c3[0], clientY: c3[1] }); pu();
+    await wait();
+    const sh5 = shapes()[2], dir1 = sh5.dir, n5 = headNumOf(sh5), hl5 = ledNear(cand.x, cand.y);
+    const pts5 = CORE.SHAPE.plan(sh5, CELL).pts;
+    ok(hl5.l.n === n5 && Math.hypot(pts5[0].x - cand.x, pts5[0].y - cand.y) <= 1,
+       `起点方向是「${dir1}」时，第 1 下点完头照样落在点的那一颗上（第 ${n5} 号 / 离点击点 ${hl5.d.toFixed(1)}px）`);
+    const tgt = wantKeep ? pts5[1] : pts5[pts5.length - 1];   /* 顺着编号那颗 / 另一侧那颗（都贴着「头」） */
+    const c4 = worldToClient(tgt.x, tgt.y);
+    pd({ clientX: c4[0], clientY: c4[1] }); pu();
+    await wait();
+    const sh6 = shapes()[2], pts6 = CORE.SHAPE.plan(sh6, CELL).pts, hl6 = ledNear(cand.x, cand.y);
+    ok(hl6.l.n === n5 && hl6.l.n === headNumOf(sh6) &&
+       Math.hypot(pts6[0].x - cand.x, pts6[0].y - cand.y) <= 1,
+       `头一动不动：还是第 ${n5} 号、还停在点的那一颗上（离点击点 ${hl6.d.toFixed(1)}px）`);
+    ok(sideOf(sh6, pts6[0], pts6[1]) === sideOf(sh6, pts6[0], tgt),
+       `编号第 2 颗落在点的「尾」同一侧（第 2 颗 @${Math.round(pts6[1].x)},${Math.round(pts6[1].y)}` +
+       `，「尾」@${Math.round(tgt.x)},${Math.round(tgt.y)}）—— 用户眼里的「方向对了」`);
+    ok(wantKeep ? sh6.dir === dir1 : sh6.dir !== dir1,
+       `点${wantKeep ? '顺着编号方向' : '另一侧'}那颗 → 方向该${wantKeep ? '保持' : '掉头'}：${dir1} → ${sh6.dir}`);
+    {
+      const clk6 = ledNear(tgt.x, tgt.y), tl6 = pts6[pts6.length - 1];
+      ok(tailSaid(statTxt(), tl6.n, clk6.l.n),
+         `状态栏报出「尾」是第 ${tl6.n} 颗、你点的那一颗是第 ${clk6.l.n} 颗 —— ` +
+         `第 2 下只定方向，谁点完都不用猜「尾怎么不在我点的那颗上」: "${statTxt()}"`);
+    }
+    esc();                                          /* 收尾，回干净状态 */
+  }
+  ok(!chk('shPick') && btnTxt('shPick') === '在画布上定头尾', '两步走完「定头尾」自己熄灭、按钮名字改回来');
+  ok(numLabels() > 0, '第 2 下点完所有编号立刻回来（第 3 条）');
+
+  /* 再点一次按钮 = 取消（第 2 条：以前点了就退不出来，只能去按 Esc） */
+  const sLed = JSON.stringify(curSt().leds);
+  byId.get('shPick').onclick();
+  ok(chk('shPick') && btnTxt('shPick') === '取消定头尾', '再进一次定头尾（按钮亮着、写着「取消定头尾」）');
+  ok(numLabels() === 0, '编号又先藏起来（每一步都一样）');
+  byId.get('shPick').onclick();
+  ok(!chk('shPick') && /已取消定头尾/.test(statTxt()), `再点一次这个按钮就退出了: "${statTxt()}"`);
+  ok(JSON.stringify(curSt().leds) === sLed, '取消时灯位一点没动');
+  ok(numLabels() > 0, '取消后编号立刻回来');
+
+  /* 点歪了不退出（第五轮第 2 条的老承诺，这一版不能丢） */
+  const bb = CORE.SHAPE.boxOf(shapes()[2]);
+  byId.get('shPick').onclick();
+  const far = worldToClient(bb.x0 - 400, bb.y0 - 400);
+  pd({ clientX: far[0], clientY: far[1] }); pu();
+  ok(chk('shPick') && /没点在「/.test(statTxt()), `点歪了只提醒一句、不退出: "${statTxt()}"`);
+  esc();
+  ok(!chk('shPick'), 'Esc 也能退出定头尾');
+
+  /* 第 4 条：改的是分区表里**选中的那个分区**（换成第 1 个分区，目标就跟着换） */
+  const z0 = zoneAt(0);
+  /* 画布上那行提示**钉在画布窗口左上角**（不跟着形状跑）：缩一下，形状动了它也不许动。
+   * 老写法把提示挂在形状上方 / 塞进形状里面，形状一挪一放大就得满屏找它。 */
+  {
+    byId.get('shPick').onclick();
+    const b1 = bannerPos(), s1 = worldToClient(CORE.SHAPE.boxOf(shapes()[2]).x0, CORE.SHAPE.boxOf(shapes()[2]).y0);
+    ok(!!b1 && Math.abs(b1[0] - (cvBox.left + 19)) <= 4 && Math.abs(b1[1] - (cvBox.top + 21)) <= 4,
+       `提示框贴在画布窗口左上角（客户端 ${b1 ? Math.round(b1[0]) + ',' + Math.round(b1[1]) : '?'}，` +
+       `画布左上角 ${cvBox.left},${cvBox.top}）`);
+    wheel(cvBox.left + cvBox.w / 2, cvBox.top + cvBox.h / 2, -120);      /* 缩小一档：整张图的比例全变了 */
+    const b2 = bannerPos(), s2 = worldToClient(CORE.SHAPE.boxOf(shapes()[2]).x0, CORE.SHAPE.boxOf(shapes()[2]).y0);
+    ok(!!b2 && Math.hypot(b2[0] - b1[0], b2[1] - b1[1]) <= 1.5,
+       `缩放前后提示框一动不动（差 ${Math.round(Math.hypot(b2[0] - b1[0], b2[1] - b1[1]) * 10) / 10}px）`);
+    ok(Math.hypot(s2[0] - s1[0], s2[1] - s1[1]) > 5,
+       `（对照）同一次缩放下形状的角落挪了 ${Math.round(Math.hypot(s2[0] - s1[0], s2[1] - s1[1]))}px —— 提示框没跟着它跑`);
+    esc();
+  }
+  zoneRow(0).onclick();
+  ok(byId.get('zName').value === z0.name, `分区表里切到第 1 个分区（${z0.name}）`);
+  byId.get('shPick').onclick();
+  ok(new RegExp('定「' + z0.name + '」的头尾').test(statTxt()), `状态栏说的是选中分区: "${statTxt()}"`);
+  ok(byId.get('shList').value === String(shOfZone(z0.id)),
+     `面板「形状」也跟着切到那个分区的形状（#shList=${byId.get('shList').value}）`);
+  ok(new RegExp('点一下定「' + z0.name + '」的「头」').test(every().map(o => o.t).join(' | ')),
+     '画布上的提示跟着换成分区表里选中的那个分区');
+  esc();
+  ok(!chk('shPick'), '（收尾）退出定头尾');
+}
+
 console.log('\n--- ⑦ 源码规矩 ---');
 ok(/function canvasStale\(\)/.test(uiSrc) && /if \(canvasStale\(\)\) resizeCanvas\(\);/.test(uiSrc),
    'render() 开头会先对账：位图与 CSS 盒子/dpr 不一致就先 resizeCanvas()（自愈）');
@@ -384,12 +609,54 @@ ok(/id="shEdit"/.test(html) && /\$\('#shEdit'\)\.onclick/.test(uiSrc),
    '面板「形状」旁边有「编辑」按钮，点它直接进编辑态（铺过灯的形状点不中时的明确入口）');
 ok(/if \(hit\(wx, wy\)\) return;/.test(uiSrc),
    '双击落在灯点上不进形状编辑态（连点两颗灯不该偷偷换工具）');
-ok(/shapePicked && mode === 'select' \? curShape\(\) : null/.test(uiSrc),
-   '手柄只在「编辑态 / 选择模式 + 选过形状」时画（放置、擦除模式不画）');
+ok(/const handleSh = shapeCur;/.test(uiSrc),
+   '手柄只在「画形状」编辑态画（没有别的分支可能把手柄留在画布上）');
+ok(!/shapePicked/.test(uiSrc),
+   '不再有「选过形状就一直画手柄」那套标记（手柄的去留只由编辑态决定）');
+ok(/if \(mode === 'shape'\) \{\s*const hh = handleAnyAt\(wx, wy\);/.test(uiSrc),
+   '按下时只认「当前形状」的手柄，而且只在「画形状」编辑态认（别的模式一个手柄都没画）');
 ok(/function setMode\(m\)[\s\S]{0,1200}?render\(\);/.test(uiSrc),
    '切模式当场重画（不会留一屏过期的手柄）');
-ok(/shapePicked = false;\s*\/\* 选中的形状没了/.test(uiSrc),
-   '删掉形状后不再替下一个形状画手柄（用户没选过它）');
+ok(/\$\('#shApply'\)[\s\S]{0,200}?classList\.toggle\('pri',/.test(uiSrc),
+   '「铺到灯位」的蓝色高亮是按状态算的（有归属分区 + 还没铺过才亮），不是写死的');
+ok(/\$\('#shFlip'\)[\s\S]{0,1500}?!sh\.laid && !confirmOverwrite/.test(uiSrc),
+   '「反向编号」对已铺过的形状不再弹确认框（几何没动，Ctrl+Z 就够）');
+ok(/function shPickStep1\(sh, s\)[\s\S]{0,400}?sh\.laid && z[\s\S]{0,200}?layShape\(sh, z\)/.test(uiSrc),
+   '定头尾第 1 下（点「头」）就会按新起点重铺已铺过的形状 —— 不用等第 2 下才看出变化');
+
+/* 定头尾（第六轮）：独立小状态 · 改选中分区的编号 · 提示最后画 · 编号先藏 · 可取消 */
+ok(/function pickShape\(\)/.test(uiSrc) && /function shapeIndexOfZone\(z\)/.test(uiSrc),
+   '「定头尾」有自己的一套状态与目标（pickShape / shapeIndexOfZone），不再借用「画形状」编辑态');
+ok(/const pickSh   = pickShape\(\);/.test(uiSrc) && /const showLabel = showNum && view\.zoom > 0\.45 && !picking;/.test(uiSrc),
+   '定头尾那两步把全板编号藏起来（render 里 showLabel 挂上 !picking）');
+ok(/if \(shPickStep\) \{ shPickClick\(wx, wy\); return; \}/.test(uiSrc),
+   'pointerdown 里定头尾最先接走（不会被选灯 / 拖形状抢），点歪了也不退出（shPickClick）');
+ok(/\$\('#shPick'\)\.onclick[\s\S]{0,400}?if \(shPickStep\) \{/.test(uiSrc)
+   && /\$\('#shPick'\)\.onclick[\s\S]{0,1400}?shapeIndexOfZone\(z\)/.test(uiSrc),
+   '再点一次按钮 = 取消；开之前先在分区表里点中要重排的那个分区（第 2、4 条）');
+ok(!/\$\('#shPick'\)\.onclick[\s\S]{0,1600}?setMode\('shape'\)/.test(uiSrc),
+   '点「在画布上定头尾」**不**进「画形状」编辑态（定头尾只改编号，不碰几何 —— 第 2 条）');
+{
+  const iLed = uiSrc.indexOf('for (const L of state.leds)');
+  const iHnd = uiSrc.indexOf('const handleSh = shapeCur;');
+  const iBanner = uiSrc.indexOf('if (pickSh) {');
+  ok(iLed > 0 && iHnd > iLed && iBanner > iHnd,
+     `定头尾的提示框画在所有灯与手柄之后（灯 @${iLed} → 手柄 @${iHnd} → 提示 @${iBanner}）` +
+     '：最后画 = 压在最上面，不会被彩灯点 / 形状轮廓盖住（第 1 条）');
+}
+ok(/const bx = wx0 \+ 10 \/ view\.zoom, by = wy0 \+ 10 \/ view\.zoom;/.test(uiSrc)
+   && !/const above = b\.y0 - h - 8 \/ view\.zoom/.test(uiSrc),
+   '提示框的位置写死在画布窗口左上角（s2w(0,0)）—— 不再挂在形状上方，也不会被塞进形状里面（用户第八轮）');
+/* 措辞（用户第九轮）：第 2 下只定方向 —— 不许再写成「② 点尾」（那三个字让人以为「最末尾的编号
+ * 就在我点的这一颗上」，实测就是这么误会的）；点完必须把「尾落在第几颗」报到状态栏。 */
+ok(/② 再点一下点\$\{pickZ \? '「' \+ pickZ\.name \+ '」的' : ''\}方向/.test(uiSrc)
+   && !/② 再点一下定/.test(uiSrc),
+   '画布横幅写「② 点方向」而不是「② 点尾」（定头尾的提示就在画布左上角，措辞最显眼）');
+ok((html.match(/不是「把尾定在你点的那一颗上」/g) || []).length >= 2,
+   '「第 2 下不是把尾定在点的那一颗上」在面板 data-tip 与帮助页都写明了（免得下一个人又按字面理解）');
+ok(/function tailLanding\(sh, s\)[\s\S]{0,700}?SHAPE\.plan\(sh, GEN\.CELL\)/.test(uiSrc)
+   && /tailLandingTxt\(ti\)/.test(uiSrc),
+   '第 2 下点完把「尾落在第几颗 / 离点的那颗差几颗」算出来写进状态栏（tailLanding / tailLandingTxt）');
 
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');

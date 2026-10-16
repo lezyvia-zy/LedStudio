@@ -301,8 +301,7 @@
       <div class="hint">以下是<b>铺灯</b>：给选中分区用<b>形状</b>铺编号（形状只活在工具里，不进固件导出）。</div>
       <fieldset>
         <legend>铺灯 · 形状</legend>
-        <div class="hint"><b>①</b> 挑形状　<b>②</b> 到画布上拖出来　<b>③</b> 点它进编辑，
-          再点「在画布上定头尾」点头 / 尾定方向（左侧 <span class="kbd">S</span> 键也能进）。</div>
+        <div class="hint"><b>①</b> 挑形状　<b>②</b> 到画布上拖出来　<b>③</b> 点它进编辑，再点「在画布上定头尾」点头 / 尾定编号起点与方向（头落在点到的这一颗上，第 2 下只定方向；改的是选中分区的编号；<span class="kbd">S</span> 键也能进编辑）。</div>
         <div id="shGallery">
           <button id="shGalRect" data-kind="rect" data-tip="矩形：拖一个框出来，灯沿四边等间距排（直角，最常规的一圈）。"><svg viewBox="0 0 30 26"><rect x="4" y="4" width="22" height="18"/></svg><span>矩形</span></button>
           <button id="shGalRRect" data-kind="rrect" data-tip="圆角矩形：拖一个框出来，四角带圆角，灯沿边框等间距排（最像实物灯箱的走线）。"><svg viewBox="0 0 30 26"><rect x="4" y="4" width="22" height="18" rx="6"/></svg><span>圆角矩形</span></button>
@@ -335,9 +334,9 @@
         <label class="row" id="shClosedRow"><span></span><input type="checkbox" id="shClosed" checked>闭环</label>
         <label class="row" id="shEntryRow"><span>起点偏移</span><input type="number" id="shEntry" min="0" step="10"></label>
         <div class="hint" id="shInfo"></div>
-        <button id="shApply" class="pri">铺到灯位</button>
-        <button id="shPick" data-tip="到画布上点两下：第一下点「头」（这一段从哪儿开始），第二下点「尾」（往哪边走）。两点定完自动铺入编号。">在画布上定头尾</button>
-        <button id="shFlip" data-tip="几何不动，只把这一段的编号顺序倒过来 —— 头换到另一头、各分区绕行方向整体翻转。">反向编号</button>
+        <button id="shApply" data-tip="按当前形状把这一段编号铺下去（号段上原有灯会先问一句再覆盖，可 Ctrl+Z）。&#10;「没铺过这个形状」时它会亮成蓝色 —— 亮着就说明「照现在的形状铺下去」是这一步该做的，铺完就灭。">铺到灯位</button>
+        <button id="shPick" data-tip="到画布上点两下：第一下点「头」（这一段编号从哪儿开始，头就落在点到的这一颗上），第二下点方向（离头近的那边走）—— 第二下不是「把尾定在你点的那一颗上」：最后一颗编号落在哪儿由「颗数 / 分布」定，点完状态栏会告诉你「尾」是第几颗、离你点的那颗差几颗。&#10;改的是分区表里选中的那个分区的编号（形状只是它的轮廓），不动几何、也不是形状编辑。&#10;已经铺过灯时，第一下就把编号按新起点重排好给你看，不用等第二下；第二下只翻方向，头不会再挪。定头尾期间编号先藏起来，第 1 下点完只亮「头 N」，两下点完全部回来。&#10;画布左上角一直写着「① 点头 / ② 点方向」。再点一次这个按钮（或 Esc）取消。">在画布上定头尾</button>
+        <button id="shFlip" data-tip="几何不动，只把这一段的编号顺序倒过来 —— 头换到另一头、各分区绕行方向整体翻转。&#10;已经铺过灯的形状不再弹确认框（几何一点没动，点错了 Ctrl+Z 就退回去了）。">反向编号</button>
         <button id="shKeep" data-tip="只保存/画出这个形状当参考线，不动任何灯位。">只画不铺</button>
       </fieldset>
       <fieldset>
@@ -586,10 +585,22 @@
             <b>点空白或 Esc 释放</b>、<b>点其它形状随时切换选中</b>。铺过灯的形状被灯点盖着不好点？三条不用挑位置的入口：
             面板「<b>形状</b>」下拉里挑一个、它右边的「<b>编辑</b>」按钮、或者在画布上<b>双击</b>它
             （双击点<b>不落在灯点上</b>时才算 —— 连点两颗灯仍然只是选灯，不会被悄悄换成形状编辑态）。
-            手柄画在所有灯之上，<b>任何模式下抓住都算改大小</b>；手差点没抓准也没关系：小方块外那一圈（1.6 倍容差）
-            同样算改大小，<b>不会把整块形状连灯一起挪走</b>。
-            要定方向就点「<b>在画布上定头尾</b>」，然后在形状上点两下 ——
-            第一下是<b>头</b>（这一段从哪儿开始），第二下是<b>尾</b>（编号顺着短的那边走），两点定完自动铺进编号。</li>
+            <b>那 8 个蓝色小方块只在「画形状」编辑态里出现</b>：没进编辑态就是一个也看不见、也抓不到 ——
+            铺灯时不会再莫名其妙把形状拖大/拖走（这是上一版的毛病）。看得见的东西才抢点击。
+            手差点没抓准也没关系：小方块外那一圈（1.6 倍容差）同样算改大小，<b>不会把整块形状连灯一起挪走</b>。
+            <b>定头尾</b>是另一件事 —— <b>它只改这一段编号，不动形状几何，也不算形状编辑</b>（不会把左侧栏切成「画形状」，
+            那 8 个小方块也不会冒出来）。用法：先在<b>分区表里点中要重排的那个分区</b>，再点「<b>在画布上定头尾</b>」，
+            然后在画布上点两下 —— 第一下点是<b>头</b>（这一段编号从哪儿开始，<b>头就落在你点到的这一颗上</b>），
+            第二下点是<b>方向</b>（<b>只用来定编号往哪边走</b>：离头近的那边走），两点定完自动铺进编号。
+            <b>第二下不是「把尾定在你点的那一颗上」</b>：最后一颗编号落在哪儿由<b>颗数 / 分布</b>决定 ——
+            点完这一下<b>状态栏会告诉你「尾」是第几颗、离你点的那颗差几颗</b>（想让尾挪个位置，就改「颗数」或「分布」）。
+            点「头」那一下<b>已经铺过灯的形状会立刻按新起点重排</b>（能当场看到 1 号落在你点的那一颗上），
+            第二下<b>只翻方向、头不会再挪</b>（上一版第二下会连头一起挪走，看着像「头尾反了」）。
+            这两步里画布上的编号会<b>先藏起来</b>（省得满屏数字看不清该点哪儿），这一段自己的灯会被圈一圈好认；
+            <b>点完第 1 下只把「头 N」亮出来</b>，第 2 下点完<b>所有编号立刻回来</b>。
+            在<b>画布窗口的左上角</b>一直写着一行「① 点头 / ② 点方向」（固定在那儿，不跟着形状跑），
+            点歪了（没落在这个分区上）不会把你踢出这一步，只提醒一句；
+            <b>再点一次这个按钮（它这会儿写着「取消定头尾」）或按 Esc 就退出</b>，「头」已经挪过的那一下用 Ctrl+Z 退。</li>
         </ul>
         <p><b>微调单颗灯</b>：选择模式下<b>点在灯上</b>就选中那颗灯（要动形状就点形状的框内空白处，或从面板「形状」下拉里选它）。
           把形状里的某几颗灯拖到别处也没关系 —— 它们会<b>记着自己相对形状的位置</b>，之后挪动 / 改大小形状时跟着一起走；
@@ -612,10 +623,14 @@
         </table>
         <p><b>头 / 尾 / 方向</b>：<b>头</b>是这一段编号的第 1 颗（默认取分区 start），<b>方向</b>决定编号顺着形状顶点顺序走还是倒着走，
           <b>起点偏移</b>把头沿着路径挪一挪（想让它从某个角开始就填那个角对应的弧长）。画布上这条形状会标出<b>「头 N」</b>（实心点）和
-          <b>「尾 M」</b>（空心圈）—— 一看就知道编号从哪进、从哪出。</p>
+          <b>「尾 M」</b>（空心圈）—— 一看就知道编号从哪进、从哪出。
+          <b>正在定头尾时</b>（点了「在画布上定头尾」那两步）这两个点会先标成不带号的<b>「头」「尾」</b>，「头」还画大一圈；
+          点完第 1 下<b>「头」就亮出号</b>，第 2 下点完编号全部回来 —— 方向还没定的时候，写数字反而误导。</p>
         <ul>
-          <li><b>铺到灯位</b>：按当前形状把这一段编号铺下去（号段上原有灯会先问一句再覆盖，可 Ctrl+Z）。</li>
-          <li><b>反向编号</b>：几何一点不动，只把这一段的编号顺序倒过来 —— 头换到另一头，各分区绕行方向随之翻转。</li>
+          <li><b>铺到灯位</b>：按当前形状把这一段编号铺下去（号段上原有灯会先问一句再覆盖，可 Ctrl+Z）。
+            <b>「没铺过这个形状」时这个按钮是蓝色的</b> —— 亮着就说明「照现在的形状铺下去」是这一步该做的；铺完就灭了。</li>
+          <li><b>反向编号</b>：几何一点不动，只把这一段的编号顺序倒过来 —— 头换到另一头，各分区绕行方向随之翻转。
+            <b>已经铺过灯的形状不再弹确认框</b>（几何没动、点错了 Ctrl+Z 就退回去了）。</li>
           <li><b>只画不铺</b>：把形状存成参考线，不动任何灯位。</li>
           <li><b>由分区反推</b>：接手老工程时先点它 —— 按现有灯位的包围盒反推一个形状（整数格上能重现旧排布时自动用「格点」档），
             之后就能拖着改了。</li>
@@ -1379,12 +1394,13 @@ const SHAPE = {
     return out;
   },
 
-  /* 落点的弧长表（sides / even / pitch 三档都用它，最后统一交给 at() 取坐标） */
-  arcs(sh, dist) {
+  /* 落点的弧长表（sides / even / pitch 三档都用它，最后统一交给 at() 取坐标）。
+   * entry0 是给「按 entry=0 量一遍」用的（定头尾算「头在表的哪一头」，见 relArcs）。 */
+  arcs(sh, dist, entry0) {
     const mode = dist || sh.dist || 'even';
     const gs = SHAPE.segs(sh), acc = SHAPE.accs(sh), L = SHAPE.pathLen(sh);
     if (!gs.length || !(L > 0)) return [];
-    const entry = Math.max(0, +sh.entry || 0);
+    const entry = entry0 === undefined ? Math.max(0, +sh.entry || 0) : Math.max(0, +entry0 || 0);
     const out = [];
     if (mode === 'sides') {
       const sides = SHAPE.sidesOf(sh, gs.length);
@@ -1409,6 +1425,95 @@ const SHAPE = {
     const n = SHAPE.count(sh);                        /* even：等分弧长 */
     if (sh.closed) { for (let j = 0; j < n; j++) out.push(entry + L * j / n); return out; }
     for (let j = 0; j < n; j++) out.push(n > 1 ? entry + (L - entry) * j / (n - 1) : entry);
+    return out;
+  },
+
+  /* ---------- 定头尾：两次点击 → 形状参数 ----------------------------------
+   * 画布上那两下量到的都是**沿顶点顺序的弧长**（与 dir 无关），而形状参数（entry / dir）
+   * 才是 plan 认的东西 —— 换算集中在这里，UI 只管把两个弧长递进来。
+   * 老写法把「第 1 下的弧长」直接塞给 entry：闭环逆时针的形状会**错开一格**，用户实测
+   * 「点完第一次头就跑到旁边那颗、第二次再点整个反过来」，就是下面这条换算漏了。 */
+
+  /* 落点表里各点相对起点的弧长（entry 归零量一遍）——「头在表的哪一头」靠它 */
+  relArcs(sh, dist) { return SHAPE.arcs(sh, dist, 0); },
+
+  /* 「头」落在弧长 s → plan 认的起点偏移 entry。
+   *
+   * 不能直接 entry = s：「头」= 落点表的**第 1 个落点**，而 plan 在 dir='ccw' 时会把整张表
+   * 倒过来 —— 表的第 1 个落点于是成了表的**最后一个**，头就跑到最后一个落点去了。
+   * 想让头落在点的那一点，entry 得把这一个跨度补回来：entry = s - 表尾落点距起点的弧长。
+   * 格点档（cells）另算：它的方向由 GEN.rectPath 决定（plan 不倒表），entry 是**沿遍历顺序的
+   * 格点序号 × 格边长**，所以直接把头对到离点击点最近的那个格点上。 */
+  /* 弧长 s 处（轮廓上的那一点）最近的那个格点在遍历顺序 path 里排第几。
+   * 格点档定方向靠它：灯是沿**格点环**铺的、编号也按环上的序号走，而弧长量的是轮廓顶点顺序 ——
+   * 顶点顺序是工程里存着的（起点/绕向都可能跟环不一样），照弧长比会点反方向。 */
+  cellsIdxAt(sh, r, c, path, s) {
+    const t = SHAPE.at(sh, +s || 0);
+    let k = 0, bd = Infinity;
+    path.forEach((cp, j) => {
+      const dd = Math.hypot((r.x0 + cp[0]) * c + c / 2 - t[0], (r.y0 + cp[1]) * c + c / 2 - t[1]);
+      if (dd < bd) { bd = dd; k = j; }
+    });
+    return k;
+  },
+
+  entryForHead(sh, s, dir, cell) {
+    const c = Math.max(1, +cell || GEN.CELL);
+    const L = SHAPE.pathLen(sh), d = dir || sh.dir;
+    if (!(L > 0)) return Math.max(0, +sh.entry || 0);
+    let mode = SHAPE.DISTS.indexOf(sh.dist) >= 0 ? sh.dist : 'even';
+    if (mode === 'cells') {
+      const r = SHAPE.asCells(sh, c);
+      if (r) {
+        const path = GEN.rectPath(r.W, r.H, d === 'ccw' ? 'ccw' : 'cw');
+        if (path.length) return SHAPE.cellsIdxAt(sh, r, c, path, s) * c;
+      }
+      mode = 'pitch';                     /* 与 plan 的降级保持一致（非整数格矩形） */
+    }
+    const rel = SHAPE.relArcs(sh, mode);
+    if (!rel.length) return Math.max(0, +s || 0);
+    const off = (d === 'ccw') ? rel[rel.length - 1] : 0;    /* 倒表后「表的第 1 个」原本在哪 */
+    const v = (+s || 0) - off;
+    return sh.closed === false ? Math.max(0, Math.min(L, v)) : ((v % L) + L) % L;
+  },
+
+  /* 定头尾：头 / 尾两次点击（沿顶点顺序量的弧长 px）→ 形状参数。
+   *   ① **头永远落在第 1 下点的那一点上** —— 第二下再也不会把编号挪走；
+   *   ② 第二下只决定「往哪边走」：离头近的那边走（两端一样近就不动方向）。
+   * 返回 { dir, head, tail, dirSet, open }：dirSet=false = 第二下没给出方向
+   * （两点几乎重合 / 开环形状往回点），UI 照实说一声就行。
+   * 格点档（cells）另算「往哪边走」：它的灯沿**格点环**铺、编号也按环上序号走，所以方向就比
+   * 格点序号（cellsIdxAt），不拿轮廓弧长比 —— 顶点顺序是工程里存的，起点/绕向都可能跟环不一致。
+   * 开环形状（直线 / 圆弧）：参数里只有「起点偏移」这一个旋钮，编号只能从「头」一路铺到末端，
+   * 所以一律 dir='cw' + entry=头 —— 往回点的那一下定不出方向，但**头照样不会动**。 */
+  setHeadTail(sh, sHead, sTail, cell) {
+    const c = Math.max(1, +cell || GEN.CELL);
+    const L = SHAPE.pathLen(sh);
+    const sH = Math.max(0, +sHead || 0), sT = Math.max(0, +sTail || 0);
+    const out = { head: sH, tail: sT, open: sh.closed === false, dirSet: true };
+    if (sh.closed === false) {
+      sh.dir = 'cw';
+      sh.entry = Math.round(Math.max(0, Math.min(L, sH)) * 10) / 10;
+      out.dirSet = sT >= sH - 1e-9;
+      return out;
+    }
+    if ((SHAPE.DISTS.indexOf(sh.dist) >= 0 ? sh.dist : 'even') === 'cells') {
+      const r = SHAPE.asCells(sh, c);
+      const path = r && GEN.rectPath(r.W, r.H, sh.dir === 'ccw' ? 'ccw' : 'cw');
+      if (r && path.length) {
+        const P = path.length;
+        const kH = SHAPE.cellsIdxAt(sh, r, c, path, sH), kT = SHAPE.cellsIdxAt(sh, r, c, path, sT);
+        const f = (((kT - kH) % P) + P) % P;              /* 尾在「当前遍历顺序」上往前几步 */
+        if (Math.min(f, P - f) < 0.5) out.dirSet = false;             /* 同一颗：定不出方向 */
+        else if (f > P / 2) sh.dir = sh.dir === 'ccw' ? 'cw' : 'ccw'; /* 反着更近 → 掉头 */
+        sh.entry = Math.round(SHAPE.entryForHead(sh, sH, sh.dir, c) * 10) / 10;
+        return out;
+      }
+    }
+    const fwd = L > 0 ? (((sT - sH) % L) + L) % L : 0;
+    if (!(L > 0) || Math.min(fwd, L - fwd) < 0.5) out.dirSet = false;   /* 两点重合：方向定不出来 */
+    else sh.dir = fwd > L / 2 ? 'ccw' : 'cw';
+    sh.entry = Math.round(SHAPE.entryForHead(sh, sH, sh.dir, cell) * 10) / 10;
     return out;
   },
 
@@ -3746,7 +3851,12 @@ let drag = null;
 let spaceDown = false;     /* 空格按住 = 平移 */
 let shapeTool = 'rrect';   /* 形状选择框里挑中的那个（拖出来的新形状用它） */
 let shDraft = null;        /* 画布上正拖着的那一下：{kind:'box'|'resize'|'move', …} */
-let shPickStep = 0;        /* 定头尾：0=不做，1=等点头，2=等点尾 */
+let shPickStep = 0;        /* 定头尾：0=不做，1=等点头，2=等点方向 */
+let shPickRelayed = false; /* 定头尾的「头」那一下已经把灯重铺过了（Esc 取消时照实说） */
+let shPickH = null;        /* 定头尾：第 1 下点到的弧长（「头」的所在）——
+                            * 第 2 下**只读它、不动它**（老写法第 2 下又照着第 1 下的弧长重设 entry，
+                            * 方向一翻 plan 会把落点表倒过来，头就跟着跳到旁边那颗，用户实测「头尾正好反了」） */
+let shPickI = -1;          /* 定头尾针对的形状下标（= 分区表里选中的那个分区所属的形状） */
 let shAdding = false;      /* 画形状模式的来意：true=点形状选择框进来「添加」（点空白=新建），
                               false=点形状进来「编辑」（点空白=释放回到选择模式） */
 
@@ -4071,7 +4181,18 @@ function render() {
   const showArrow = A().showArrow;
   const showFrame = A().showFrame;
   const sim       = S();
-  const showLabel = showNum && view.zoom > 0.45;
+
+  /* 「定头尾」正在进行的那个形状（用户第六轮实测①②③）：
+   *   ① 它**不是形状编辑** —— 状态由 shPickStep / shPickI 单独算，跟 mode 无关，
+   *      所以在「选择/编辑」模式下也照样画（左侧栏不会再变成「画形状」）；
+   *   ② 这一步把**全板编号藏起来**（HUD 的「彩灯编号」开着也先不画）—— 用户实测
+   *      「编号全在，看不动头尾该点哪儿」；第 1 下点完只把「头 N」亮出来，第 2 下点完全部回来；
+   *   ③ 圈出「这一段」= 目标分区自己的灯（这个功能是**针对选中的分区**的，只改它的编号）。 */
+  const pickSh   = pickShape();
+  const picking  = !!pickSh;
+  const pickStep = picking ? shPickStep : 0;
+  const pickZ    = pickSh ? state.zones.find(k => k.id === pickSh.zone) : null;
+  const showLabel = showNum && view.zoom > 0.45 && !picking;
 
   /* 形状（编辑期参考层）：
    *   没铺过的形状 → 只画「沿边框等间距排开」的灯预览（**不带编号**）+ 轮廓
@@ -4081,14 +4202,16 @@ function render() {
   for (const sh of (state.shapes || [])) {
     const sp = SHAPE.ptsOf(sh);
     if (sp.length < 2) continue;
-    const isCur = sh === shapeCur;
+    const isCur = sh === shapeCur;              /* 「画形状」编辑态的那一个 */
+    const isPick = sh === pickSh;               /* 正在定头尾的那一个（也强调出来，一眼看出点哪儿） */
+    const hi = isCur || isPick;
     const z = state.zones.find(k => k.id === sh.zone);
     const col = z ? z.color : TC.accent;
     ctx.save();
     ctx.strokeStyle = col;
-    ctx.globalAlpha = isCur ? 1 : (z ? 0.72 : 0.45);
-    ctx.lineWidth = (isCur ? 2 : 1.5) / view.zoom;
-    if (!isCur) ctx.setLineDash([6 / view.zoom, 4 / view.zoom]);
+    ctx.globalAlpha = hi ? 1 : (z ? 0.72 : 0.45);
+    ctx.lineWidth = (hi ? 2 : 1.5) / view.zoom;
+    if (!hi) ctx.setLineDash([6 / view.zoom, 4 / view.zoom]);
     ctx.beginPath();
     sp.forEach((q, i) => { i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
     if (sh.closed) ctx.closePath();
@@ -4096,21 +4219,30 @@ function render() {
     ctx.setLineDash([]); ctx.globalAlpha = 1;
 
     const pl = SHAPE.plan(sh, GEN.CELL);
-    /* 灯预览：没铺过的形状（或正在画的那个）—— 只画点，不标编号（「就只有分区的总颗数」） */
-    if (!sh.laid || isCur) {
+    /* 灯预览：没铺过的形状（或正在画 / 正在定头尾的那个）—— 只画点，不标编号（「就只有分区的总颗数」） */
+    if (!sh.laid || hi) {
       ctx.fillStyle = col;
       ctx.globalAlpha = sh.laid ? 0.85 : 0.95;
       for (const p of pl.pts) { ctx.beginPath(); ctx.arc(p.x, p.y, GEN.CELL * 0.3, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
     }
-    if (sh.laid && pl.pts.length) {                    /* 铺过才标头/尾 + 编号 */
+    /* 头 / 尾：铺过的形状一定要标（一眼看出编号从哪进、从哪出）；
+     * 正在「定头尾」的那个形状**哪怕还没铺也要标** —— 用户马上要点的就是这两个点
+     * （第一下=头），标出来才知道「点在哪儿算数」；这一步还把「头」画大加个圈，
+     * 免得点完看不出变化（用户实测第 2 条）。 */
+    const pickHere = isPick && pickStep > 0;
+    if ((sh.laid || pickHere) && pl.pts.length) {
       const head = pl.pts[0], tail = pl.pts[pl.pts.length - 1];
       ctx.fillStyle = col;
-      ctx.beginPath(); ctx.arc(head.x, head.y, GEN.CELL * 0.22, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(head.x, head.y, GEN.CELL * (pickHere ? 0.34 : 0.22), 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = 2 / view.zoom;
+      if (pickHere) { ctx.beginPath(); ctx.arc(head.x, head.y, GEN.CELL * 0.62, 0, Math.PI * 2); ctx.stroke(); }
       ctx.beginPath(); ctx.arc(tail.x, tail.y, GEN.CELL * 0.32, 0, Math.PI * 2); ctx.stroke();
-      if (view.zoom > 0.45) {
-        /* 「头 N / 尾 M」放在小圆点的侧边、形状外侧（沿该点法向往外偏），别压在灯点上碍事 */
+      if (view.zoom > 0.45 || pickHere) {
+        /* 「头 N / 尾 M」放在小圆点的侧边、形状外侧（沿该点法向往外偏），别压在灯点上碍事。
+         * 定头尾过程中：① 还没点 → 只写「头」「尾」；② 点完第 1 下 → 亮出「头 N」（用户第六轮
+         * 第 3 条：第 1 下就要看见头号），「尾」等第 2 下点完（那一下会把全部编号放回来）。
+         * 别的形状在这一步只写「头/尾」不带号 —— 编号这会儿都藏着，别互相干扰。 */
         const outward = p => {
           const near = SHAPE.arcNear(sh, [p.x, p.y], 1e9);
           const t = near ? SHAPE.tangent(sh, near.s) : [1, 0];
@@ -4120,13 +4252,15 @@ function render() {
           if (nx * rx + ny * ry < 0) { nx = -nx; ny = -ny; }
           return [nx, ny];
         };
+        const hLab = pickHere ? (pickStep === 2 ? '头 ' + head.n : '头') : (picking ? '头' : '头 ' + head.n);
+        const tLab = pickHere ? '尾' : (picking ? '尾' : '尾 ' + tail.n);
         const [hx, hy] = outward(head), [tx, ty] = outward(tail);
         ctx.fillStyle = TC.label; ctx.textBaseline = 'middle';
         ctx.font = `${Math.round(11 / view.zoom)}px "Microsoft YaHei",monospace`;
         ctx.textAlign = hx >= 0 ? 'left' : 'right';
-        ctx.fillText('头 ' + head.n, head.x + hx * GEN.CELL * 0.5, head.y + hy * GEN.CELL * 0.5);
+        ctx.fillText(hLab, head.x + hx * GEN.CELL * 0.5, head.y + hy * GEN.CELL * 0.5);
         ctx.textAlign = tx >= 0 ? 'left' : 'right';
-        ctx.fillText('尾 ' + tail.n, tail.x + tx * GEN.CELL * 0.55, tail.y + ty * GEN.CELL * 0.55);
+        ctx.fillText(tLab, tail.x + tx * GEN.CELL * 0.55, tail.y + ty * GEN.CELL * 0.55);
       }
     }
     /* 手动挪出去的灯：从形状上的原位拉一条虚线连到它 —— 一眼看出「这颗还跟着这个形状走」 */
@@ -4144,6 +4278,8 @@ function render() {
     }
     ctx.restore();
   }
+
+  /* 「定头尾」当前该做什么 —— 一句话写在画布**窗口左上角**（见 render() 末尾那块，画在所有灯之上）。 */
 
   /* 正在拖的那个新形状：虚线框 + 灯预览 + 一行「N 颗 · 灯距 x px」（排不开就变红提示） */
   const draftSh = (mode === 'shape') ? shDraftShape() : null;
@@ -4223,6 +4359,12 @@ function render() {
       ctx.beginPath(); ctx.arc(L.x, L.y, R + 6, 0, Math.PI * 2);
       ctx.strokeStyle = '#ff5252'; ctx.lineWidth = 3 / view.zoom; ctx.stroke();
     }
+    /* 定头尾：把「这一段」圈出来 —— 这个功能只改**分区表里选中的那个分区**的编号（第六轮第 4 条），
+     * 而编号数字这会儿都藏起来了，圈一下才知道等会儿被重排的是哪几颗。 */
+    if (picking && pickZ && L.n >= pickZ.start && L.n < pickZ.start + pickZ.count) {
+      ctx.beginPath(); ctx.arc(L.x, L.y, R + 2.5 / view.zoom, 0, Math.PI * 2);
+      ctx.strokeStyle = pickZ.color; ctx.lineWidth = 2 / view.zoom; ctx.stroke();
+    }
     if (showLabel) {
       ctx.fillStyle = lit && (fr + fg + fb2 > 300) ? TC.labelLit : TC.label;
       ctx.font = `${Math.round(11 / view.zoom)}px "Microsoft YaHei",monospace`;
@@ -4263,11 +4405,13 @@ function render() {
     }
   }
 
-  /* 手柄：画在所有灯之上（别被灯点盖住）。
-   * 编辑态画当前形状；选择模式下「你选过的那一个」也一直留着 —— 手柄看得见，
-   * 用户就不会卡在「先点中形状、再抓一次」这一步上（实测「拖不动大小」就是被它劝退的）。
-   * 只在这两个模式画：放置 / 擦除模式不画手柄，也就不存在「看得见却抓不住」。 */
-  const handleSh = shapeCur || (shapePicked && mode === 'select' ? curShape() : null);
+  /* 手柄：画在所有灯之上（别被灯点盖住），**只在「画形状」编辑态画**。
+   * 用户实测（第五轮）：退出编辑之后那 8 个蓝方块还留在画布上，铺灯点着点着就抓到它、
+   * 把形状连灯一起拖走/改大了 —— 「没进形状编辑就不该看见手柄」。所以画与抢同源：
+   * 只有这一个模式画，也只有这一个模式认手柄（见 cv.pointerdown）。
+   * 想改大小/挪动：面板「形状」下拉、左边的「编辑」按钮、画布上双击形状、
+   * 选择模式下点形状的框内空白 —— 四条入口都能进编辑态，进来手柄就在。 */
+  const handleSh = shapeCur;
   if (handleSh) {
     const sh = handleSh;
     ctx.save();
@@ -4286,6 +4430,33 @@ function render() {
     ctx.setLineDash([4 / view.zoom, 3 / view.zoom]);
     ctx.strokeRect(drag.x0, drag.y0, drag.x1 - drag.x0, drag.y1 - drag.y0);
     ctx.setLineDash([]);
+  }
+
+  /* 「定头尾」当前该做什么 —— 直接写在画布上，而且是 render() 里**最后画**的东西（在所有灯、
+   * 形状、手柄之上）：老写法把它画在灯之前，于是被彩灯点和形状轮廓压住、看不清（用户第六轮第 1 条）。
+   * 面板那行提示在右栏、状态栏在屏幕最底下，都不在眼睛盯着的地方。
+   * 位置**固定在画布窗口的左上角**（用户第八轮）：老写法挂在形状上方，形状一挪、一放大，
+   * 提示就跟着跳，还可能被塞进形状里面 —— 眼睛得满屏找它；固定在左上角，回回都在同一处。
+   * 措辞也按第九轮改了：第 2 下写「② 点方向」，不再写「② 点尾」—— 那三个字让人以为
+   * 「最后一颗就定在我点的这一颗上」，其实这一下只定往哪边走（尾落在第几颗，点完状态栏会报）。 */
+  if (pickSh) {
+    const nm = pickZ ? '「' + pickZ.name + '」的' : '';
+    const txt = pickStep === 1
+      ? `① 点一下定${nm}「头」：这一段编号从这儿开始`
+      : `② 再点一下点${pickZ ? '「' + pickZ.name + '」的' : ''}方向（只定往哪边走 —— 尾落在第几颗，点完状态栏会说）`;
+    const fs = 12 / view.zoom, pad = 9 / view.zoom, h = fs * 1.9;
+    ctx.save();
+    ctx.font = `${Math.round(fs)}px "Microsoft YaHei",sans-serif`;
+    const tw = ctx.measureText(txt).width;
+    const [wx0, wy0] = s2w(0, 0);                  /* 画布窗口左上角（跟视口平移缩放无关的固定角落） */
+    const bx = wx0 + 10 / view.zoom, by = wy0 + 10 / view.zoom;
+    ctx.fillStyle = 'rgba(14,20,26,.92)';
+    ctx.strokeStyle = TC.accent; ctx.lineWidth = 1.5 / view.zoom;
+    ctx.beginPath(); ctx.rect(bx, by, tw + pad * 2, h);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(txt, bx + pad, by + h / 2);
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -4358,14 +4529,20 @@ cv.addEventListener('pointerdown', e => {
     return;
   }
   if (e.button !== 0) return;
+  /* 定头尾（在画布上点两下）：一个**独立的小状态**，不是「画形状」编辑态 —— 排在所有分支之前：
+   * 点过「在画布上定头尾」之后，每一下都用来定「头」/「尾」，不会被「选灯」「拖形状」抢走
+   * （用户第六轮第 2 条：定头尾只改这一段的编号，不碰形状几何）。 */
+  if (shPickStep) { shPickClick(wx, wy); return; }
   /* 形状手柄最优先：抓到手柄 = 一次按住就能改大小（不必先点中形状、松手、再按第二遍）。
    * 选择模式下「点在灯上 = 选那颗灯」的承诺不能破，所以按下点落在灯上时手柄让位；
-   * 而且选择模式只认「当前那个形状」的手柄 —— 只有画出来的手柄才允许抢点击。 */
+   * 而且手柄只在「画形状」编辑态画 —— 看不见的东西不许抢点击（第五轮用户实测：铺灯时
+   * 那些蓝方块还在，点着点着就把形状拖大了）。 */
   if (!shDraft && !(mode === 'select' && L)) {
-    /* ① 手柄：只有「画着的」手柄才允许抢按下 —— shape 编辑态全认；
-     *    选择模式认「你选过的那个形状」（它的手柄一直画着）。 */
-    if (mode === 'shape' || (mode === 'select' && shapePicked)) {
-      const hh = handleAnyAt(wx, wy, mode === 'shape');
+    /* ① 手柄：只有「画着的」手柄才允许抢按下 —— 手柄只在「画形状」编辑态画（见 render），
+     *    所以也只在这里认它。选择模式/放置/擦除模式下**一个手柄都没画**，那一下就走下面 ② ，
+     *    不会再出现「点着灯突然把形状拖大了」（用户实测的第五轮问题）。 */
+    if (mode === 'shape') {
+      const hh = handleAnyAt(wx, wy);
       if (hh) { beginShapeDrag(hh.i, 'resize', hh.h); return; }
     }
     /* ② 选择模式按住形状内部（轮廓 / 包围盒内，无论已铺与否）= 选中它并立刻能拖去挪动 */
@@ -4414,6 +4591,7 @@ cv.addEventListener('pointermove', e => {
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
   if (shDraft) { shDragMove(wx, wy); return; }                  /* 画形状：拖框 / 拖手柄 / 挪形状 */
   if (!drag) {
+    if (shPickStep) { cv.style.cursor = 'crosshair'; return; }   /* 定头尾：点哪儿都算「点头 / 点方向」 */
     if (mode === 'shape') shHover(wx, wy);
     else if (mode === 'select') {
       /* 光标先告诉你这一下会点到谁：灯 → 能拖着挪；形状 → 进「画形状」编辑 */
@@ -4494,7 +4672,7 @@ cv.addEventListener('wheel', e => {
 function cancelShapeDraft() {
   if (!shDraft) return false;
   const wasNew = shDraft.kind === 'box', moved = !!shDraft.moved;
-  shDraft = null; shPickStep = 0;
+  shDraft = null; shPickEnd();
   if (!wasNew && moved) undo(); else render();
   syncShapeTool();
   if (!wasNew && !moved) return false;
@@ -4506,7 +4684,13 @@ window.addEventListener('keydown', e => {
   if (/input|textarea|select/i.test(e.target.tagName)) return;
   if (e.key === 'Escape') {
     if (cancelShapeDraft()) return;
-    if (shPickStep) { shPickStep = 0; render(); syncShapeTool(); status('已取消定头尾（形状没动）', 'ok'); return; }
+    if (shPickStep) {
+      const had = shPickRelayed;
+      shPickEnd(); render(); syncShapeTool();
+      status(had ? '已取消定头尾 —— 不过「头」挪过的那一下已经把灯重铺了（Ctrl+Z 可以退回去）'
+                 : '已取消定头尾（形状没动）', had ? 'warn' : 'ok');
+      return;
+    }
     if (mode === 'shape') { shPickStep = 0; setMode('select'); status('已退出形状编辑（Esc）', 'ok'); return; }
   }
   if (e.code === 'Space') { spaceDown = true; cv.style.cursor = 'grab'; e.preventDefault(); return; }
@@ -4552,7 +4736,7 @@ function setMode(m) {
   status({ select: '选择/编辑：拖动改位置；Shift 多选；方向键微调；Del 删除',
            place: '放置编号：点空白放下一号；点已有灯把当前选中编号挪过去',
            erase: '擦除：点击删除该编号',
-           shape: '画形状：拖空白 = 新建；拖形状里 = 挪动；拖小方块 = 改大小；在形状上点两下 = 定头尾' }[m]);
+           shape: '画形状：拖空白 = 新建；拖形状里 = 挪动；拖小方块 = 改大小' }[m]);
   if (typeof syncShapeTool === 'function') syncShapeTool();
   /* 模式决定画布上画什么（手柄 / 框选 / 光标）：切模式当场重画。
    * 不重画的话会留下一屏过期的手柄 —— 看得见却抓不住，正是用户实测抱怨的那类坑。
@@ -6094,7 +6278,10 @@ function bindProject() {
     state.anim.effectId = (state.effects.list[0] || {}).id || '';
   if (state.canvas.background && state.canvas.background.href) loadBgImage(state.canvas.background);
   sel.clear(); selZone = 0; flash = null;
-  shapePicked = false;                   /* 换了项目：手柄别从上一个项目跟过来 */
+  /* 换了项目：别把上一个项目的形状编辑态带过来（现在手柄只在编辑态画，
+   * 编辑态跟着项目走才不会有「新项目的形状上冒出一圈手柄」这种怪事） */
+  shDraft = null; shPickEnd(); shPickI = -1; shAdding = false;
+  if (mode === 'shape') setMode('select');
   editBinding = null;                    /* 别把上一个项目的「微调中」带过来 */
   stagePlaying = false; stageInst = null; stageEffectId = null;
   undoStack.length = 0; redoStack.length = 0;
@@ -6431,9 +6618,8 @@ $('#btnFillGap').onclick = () => {
 
 /* ---------- 铺灯 · 形状（面板 ⇄ SHAPE 引擎） ---------- */
 let selShape = 0;
-/* 用户是否已经「选过某个形状」：选过之后手柄就一直画着（选择模式下也算可见），
- * 看得见的东西才允许抢按下 —— 这也正是「手柄抓不住」的一半原因。 */
-let shapePicked = false;
+/* 手柄只在「画形状」编辑态画 —— 所以这里不再需要「用户选过哪个形状」这个标记：
+ * 编辑态是唯一的判据（进编辑态的入口有四个：面板下拉 / 「编辑」按钮 / 双击形状 / 选择模式点形状内部）。 */
 function shapeList() { return Array.isArray(state.shapes) ? state.shapes : (state.shapes = []); }
 function curShape() { return shapeList()[selShape] || null; }
 /* "20,20; 220,20; …" ⇄ 顶点表（px） */
@@ -6710,17 +6896,36 @@ function syncShapeTool() {
     const k = (b.dataset && b.dataset.kind) || '';
     if (b.classList && b.classList.toggle) b.classList.toggle('on', k === shapeTool);
   });
+  /* 顺带同步两个按钮的「状态色」—— 都是「形状面板现在处于什么状态」这同一件事：
+   * ① #shApply：**只在「还有东西要铺」时亮**（形状有归属分区 + 还没铺过）。
+   *    老写法把 class="pri" 写死在 HTML 上，于是它永远蓝着，反而看不出哪一步该点（用户实测第 1 条）。
+   * ② #shPick：正在等点头/尾时亮着，一眼看出「现在是定头尾那两步」。 */
+  const zNow = sh ? state.zones.find(k => k.id === sh.zone) : null;
+  const applyEl = $('#shApply');
+  if (applyEl && applyEl.classList) applyEl.classList.toggle('pri', !!(sh && zNow && !sh.laid));
+  const pickEl = $('#shPick');
+  const psh = pickShape() || sh;
+  const pz  = psh ? state.zones.find(k => k.id === psh.zone) : null;
+  if (pickEl) {
+    if (pickEl.classList) pickEl.classList.toggle('on', shPickStep > 0);
+    /* 正在等点头/尾时按钮自己改口叫「取消定头尾」—— 「点了这个功能怎么退出去」一眼就有答案
+     * （用户第六轮第 2 条：点了按钮没办法取消）。 */
+    pickEl.textContent = shPickStep ? '取消定头尾' : '在画布上定头尾';
+  }
   const el = $('#shTool');
   if (!el) return;
   let t;
-  if (sh && shPickStep === 1) t = '现在：在形状上点一下定「<b>头</b>」（点哪边就从哪边开始）';
-  else if (sh && shPickStep === 2) t = '现在：再点一下定「<b>尾</b>」（编号顺着短的那边走）';
-  else {
+  if (shPickStep) {
+    const zn = pz ? '「<b>' + pz.name + '</b>」的' : '';
+    t = shPickStep === 1
+      ? '现在：在画布上点一下定' + zn + '「<b>头</b>」—— 这一段编号从那儿开始，头落在你点到的这一颗上（定头尾不是形状编辑，编号先藏起来了）'
+      : '现在：再点一下点' + zn + '<b>方向</b> —— 只定编号往哪边走（离头近的那边走），「头」不会再挪；点完编号就都回来了，状态栏会告诉你「尾」落在第几颗';
+  } else {
     const nm = SHAPE.TOOL_NAMES[shapeTool] || shapeTool;
     if (mode === 'shape') {
       t = shAdding
         ? '当前：<b>' + nm + '</b> —— 在画布上按住一拖就出来一个（点空白退出）'
-        : '编辑中：抓小方块改大小、拖形状挪动、点空白释放；点「在画布上定头尾」定方向';
+        : '编辑中：抓小方块改大小、拖形状挪动、点空白释放；要定这一段编号的头尾，用下面「在画布上定头尾」（它改的是分区表里选中的那个分区）';
     } else {
       t = '当前：<b>' + nm + '</b> —— 点它进「画形状」模式，或按 <span class="kbd">S</span>';
     }
@@ -6749,13 +6954,13 @@ function buildShapeGallery() {
         }
         shapeTool = kind;
         shAdding = false;
-        shPickStep = 0;
+        shPickEnd();
         setMode('shape');
       } else {
         /* 没在编辑形状（select 模式 / 添加态）：选类型进「添加态」，画布上拖出来 = 新建 */
         shapeTool = kind;
         shAdding = true;
-        shPickStep = 0;
+        shPickEnd();
         setMode('shape');
         status('已选「' + SHAPE.TOOL_NAMES[kind] + '」—— 在画布上按住一拖就出来一个（点空白退出；点已有形状则转编辑）', 'ok');
       }
@@ -6798,21 +7003,11 @@ function shHandleRing(sh, wx, wy) {
   const b = shHandleNear(sh, wx, wy, shGrabTol() * 1.6);
   return b ? b.h : null;
 }
-/* 画布上任意形状的手柄（当前选中的形状优先）。
- * shape 编辑态：认**所有**形状的手柄（它们都画着）；选择模式：只认「当前那个」——
- * 别的形状选择模式下没画手柄，看不见的东西不该抢点击。 */
-function handleAnyAt(wx, wy, all) {
-  const list = shapeList();
-  const h0 = shHandleNear(list[selShape], wx, wy);
-  if (h0) return { i: selShape, h: h0.h };
-  if (!all) return null;
-  let best = null;
-  for (let i = list.length - 1; i >= 0; i--) {
-    if (i === selShape) continue;
-    const b = shHandleNear(list[i], wx, wy);
-    if (b && (!best || b.d < best.d)) best = { i, h: b.h, d: b.d };
-  }
-  return best ? { i: best.i, h: best.h } : null;
+/* 画布上「当前这个形状」的手柄（别的形状的手柄不认：编辑态里也只画当前形状的 8 个方块，
+ * 看不见的东西不许抢点击；点到别的形状 = 切换选中，那条路在 shDown 里）。 */
+function handleAnyAt(wx, wy) {
+  const b = shHandleNear(shapeList()[selShape], wx, wy);
+  return b ? { i: selShape, h: b.h } : null;
 }
 function shResizeBox(b0, h, wx, wy) {
   const b = { x0: b0.x0, y0: b0.y0, x1: b0.x1, y1: b0.y1 };
@@ -6852,25 +7047,136 @@ function shRelay(sh, why) {
   return n;
 }
 
-function shPickStep1(sh, s) {
-  sh.entry = Math.round(s * 10) / 10;                    /* 头：这一点就是 0 号位（起点偏移） */
-  shPickStep = 2;
-  afterChange();
-  status('「头」就定在这里了 —— 再在形状上点一下定「尾」（编号顺着短的那边走）', 'ok');
+/* 定头尾针对的是**分区表里选中的那个分区**（用户第六轮第 4 条）：目标 = 这个分区的形状。
+ * 面板里选着的就是它 → 就用它；否则取这个分区最后画的那个形状（后画的在上层，直觉上也是它）。
+ * 一个都没有 → -1（按钮那边给一句「这个分区还没有形状」）。 */
+function shapeIndexOfZone(z) {
+  if (!z) return -1;
+  const list = shapeList(), cur = curShape();
+  if (cur && cur.zone === z.id) return selShape;
+  for (let i = list.length - 1; i >= 0; i--) if (list[i] && list[i].zone === z.id) return i;
+  return -1;
 }
-function shPickStep2(sh, s) {
-  const L = SHAPE.pathLen(sh);
-  const fwd = L > 0 ? (((s - (+sh.entry || 0)) % L) + L) % L : 0;
-  sh.dir = (L > 0 && fwd > L / 2) ? 'ccw' : 'cw';
-  shPickStep = 0;
+/* 正在「定头尾」的那个形状（与 mode 无关 —— 定头尾不是形状编辑，见 #shPick 与 render()）。 */
+function pickShape() { return shPickStep ? (shapeList()[shPickI] || null) : null; }
+/* 收起「定头尾」这个状态（形状还在，只是不再等点头/尾）。 */
+function shPickEnd() { shPickStep = 0; shPickRelayed = false; shPickH = null; }
+/* 定头尾时画布上点了一下：点形状本身（包围盒内 / 这一段自己的灯上）→ 投影到轮廓，取那一处的弧长。
+ * 点歪了**不取消**这个状态，只说一句 —— 老写法会顺手把状态清掉，用户得重新点一次按钮
+ * （第五轮第 2 条：点歪一下就整个退出去，很气人）。 */
+function shPickClick(wx, wy) {
+  const sh = pickShape();
+  if (!sh) { shPickEnd(); syncShapeTool(); render(); status('定头尾的目标形状不在了 —— 重新点「在画布上定头尾」', 'warn'); return; }
   const z = state.zones.find(k => k.id === sh.zone);
-  if (!z) { afterChange(); status('头/尾/方向都定了 —— 这个形状没有归属分区，只当参考线画着（选个分区再「铺到灯位」）', 'warn'); return; }
-  if (!confirmOverwrite(z)) { afterChange(); status('已取消：头/尾没铺到灯位（参数留着，点「铺到灯位」可补）', 'warn'); return; }
+  const b = SHAPE.boxOf(sh), pad = shGrabTol();
+  const boxHit = wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad;
+  /* 也认「点在这一段自己的灯上」：铺过灯以后轮廓与灯点基本重合，直接瞄灯点更自然；
+   * 别的分区的灯**不算数**（第 4 条：这个功能只针对选定的分区）。 */
+  const ledHit = !!z && state.leds.some(l => l.n >= z.start && l.n < z.start + z.count
+    && Math.hypot(l.x - wx, l.y - wy) <= hitTol());
+  if (!boxHit && !ledHit) {
+    status('这一下没点在' + (z ? '「' + z.name + '」' : '形状') +
+           '上 —— 点形状本身：第 1 下点哪儿就从哪儿开始，第 2 下只定往哪边走；再点一次按钮或 Esc 取消', 'warn');
+    return;
+  }
+  const near = SHAPE.arcNear(sh, [wx, wy], 1e9);
+  if (!near) return;
+  if (shPickStep === 1) shPickStep1(sh, near.s); else shPickStep2(sh, near.s);
+}
+
+/* 第 2 下只定方向，「尾」（最后一颗编号）落在哪儿是**按参数算出来的**、不是点出来的 ——
+ * 用户第九轮的一句话点破了这个落差：「我理解的是第二次点击的『尾』指的是最末尾的编号应该在的位置」。
+ * 点完发现尾在别处，就会以为点错了 / 头尾反了。所以点完把「尾是第几颗、离你点的那颗差几颗」
+ * 算出来交给状态栏说清楚 —— 语义一个字不改（第 2 下仍旧只写 dir），只把话说全。
+ * 返回 { n: 尾的编号, firstN: 这一段第一颗的编号, nearN: 离点击点最近那颗的编号,
+ *        gap: 从最近那颗到「尾」还差几颗, dd: 点击点离「尾」的落点多少 px, hit: 尾就在点击点那颗上 }；
+ * 落点表是空的（形状退化）时返回 null。 */
+function tailLanding(sh, s) {
+  const pl = sh ? SHAPE.plan(sh, GEN.CELL) : null;
+  if (!pl || !pl.pts.length) return null;
+  const first = pl.pts[0], last = pl.pts[pl.pts.length - 1];
+  const t = SHAPE.at(sh, +s || 0);                   /* 第 2 下点的那一处（轮廓上的那个点） */
+  let bd = Infinity, bi = 0;
+  pl.pts.forEach((p, i) => {
+    const d = Math.hypot(p.x - t[0], p.y - t[1]);
+    if (d < bd) { bd = d; bi = i; }
+  });
+  const dd = Math.hypot(last.x - t[0], last.y - t[1]);
+  return { n: last.n, firstN: first.n, nearN: pl.pts[bi].n, gap: (pl.pts.length - 1) - bi,
+           dd, hit: dd <= bd + 1e-6 };
+}
+/* 上面那份「尾落在哪儿」的说法（第 2 下的两种收尾都用它，话术保持一致） */
+function tailLandingTxt(ti) {
+  if (!ti) return '';
+  if (ti.hit) return `；「尾」正好就是你点的那一颗（第 ${ti.n} 颗）`;
+  return `；你点的那一颗是第 ${ti.nearN} 颗 —— 「尾」（第 ${ti.n} 颗）还在它后面 ${ti.gap} 颗（约 ${Math.round(ti.dd)}px ≈ ` +
+         `${(ti.dd / Math.max(1, GEN.CELL)).toFixed(1)} 格），想让尾挪个位置就改「颗数」或「分布」`;
+}
+/* 「头」落在弧长 s 上 → 写进形状参数（换算全在 CORE.SHAPE.entryForHead）。
+ * 老写法直接 entry = s：逆时针形状会**错开一格** —— plan 在 dir='ccw' 时把落点表倒过来，
+ * 表的第 1 个落点成了最后一个，点的那一颗因此自己跑到旁边去（用户实测）。 */
+function shPickHead(sh, s) {
+  if (sh.closed === false) {                     /* 开环（直线/圆弧）：编号只能从「头」往末端铺 */
+    sh.dir = 'cw';
+    sh.entry = Math.round(Math.max(0, Math.min(SHAPE.pathLen(sh), s)) * 10) / 10;
+    return;
+  }
+  sh.entry = Math.round(SHAPE.entryForHead(sh, s, sh.dir, GEN.CELL) * 10) / 10;
+}
+
+/* 定头尾第一步：点「头」= 这一点就是这一段的第一号 —— 头**永远落在这一下点的这一颗上**。
+ * 形状已经铺过灯时当场照着新起点重铺：老写法只改 entry、灯上的编号一动不动，
+ * 用户点完看不出来发生了什么（实测「点击新的位置也看不出变化」），要等第二下才变 ——
+ * 中间那一下像没生效。重铺有快照，Esc / Ctrl+Z 都退得回去。 */
+function shPickStep1(sh, s) {
+  shPickH = s;                                   /* 记下「头」：第 2 下只读它 */
+  shPickHead(sh, s);
+  shPickStep = 2;
+  const z = state.zones.find(k => k.id === sh.zone);
+  if (sh.laid && z) {
+    snapshot();
+    const n = layShape(sh, z);
+    shPickRelayed = true;
+    afterChange();
+    status(`「头」就定在这一颗上了 —— 已按新起点重铺「${z.name}」${n} 颗（Ctrl+Z 可撤销）。` +
+           '再点一下点方向：只定编号往哪边走（点的那一颗不是「尾」的落点 —— 尾在第几颗，点完告诉你）', 'ok');
+    return;
+  }
+  afterChange();
+  status('「头」就定在这一颗上了 —— 再在形状上点一下点方向（只定编号往哪边走；尾落在第几颗，点完告诉你）', 'ok');
+}
+/* 定头尾第二步：点方向 = 编号往哪边走（离头近的那边走）。
+ * **头不再动**：老写法在这儿照着第 1 下的弧长重设 entry，方向一翻（plan 在 ccw 时把落点表倒过来）
+ * 头就跟着跳到旁边那颗，用户实测「第二次点完头尾正好反了」—— 换算交给 CORE.SHAPE.setHeadTail。
+ * **这一下不把「尾」定在你点的那一颗上**（用户第九轮的原话：他以为第二次点击的「尾」= 最末尾编号
+ * 该在的位置）：尾落在第几颗由「颗数 / 分布」定，点完用 tailLanding 算出来写进状态栏说清楚，
+ * 免得好不容易头定对了、又被「尾怎么不在我点的那颗上」绕回去。
+ * 已经铺过的形状**不再弹确认框**（点「在画布上定头尾」按钮起就不用弹：用户实测
+ * 「已经铺好灯了，点反向编号/定头尾还弹个框」= 多余）；几何一点没动、倒的是这一段自己的编号，
+ * 就是这一下的本意，点错了 Ctrl+Z。 */
+function shPickStep2(sh, s) {
+  const sH = shPickH == null ? (+sh.entry || 0) : shPickH;    /* 头 = 第 1 下点的那一处 */
+  const r = SHAPE.setHeadTail(sh, sH, s, GEN.CELL);
+  shPickEnd();
+  const z = state.zones.find(k => k.id === sh.zone);
+  if (!z) { afterChange(); status('头/方向都定了 —— 这个形状没有归属分区，只当参考线画着（选个分区再「铺到灯位」）', 'warn'); return; }
+  if (!r.dirSet) {           /* 第 2 下没给出方向：两点几乎重合 / 开环往回点 —— 头照样没动 */
+    afterChange();
+    const ti0 = tailLanding(sh, s);
+    status((r.open
+      ? '「尾」点在「头」的来路上 —— 开环形状（直线/圆弧）的编号只能从「头」往末端走，' +
+        '「头」留在第 1 下点的那一颗上（想两头都收就勾「闭环」）'
+      : '「尾」和「头」几乎重合 —— 方向定不出来，编号还是原来的方向；「头」就是第 1 下点的那一颗') +
+      (ti0 ? `；编号是第 ${ti0.firstN}..${ti0.n} 颗，「尾」在第 ${ti0.n} 颗` : ''), 'warn');
+    return;
+  }
   snapshot();
   const n = layShape(sh, z);
+  const ti = tailLanding(sh, s);      /* 尾落在第几颗 = 用户点完最想问的那件事（第 2 下只定方向） */
   afterChange();
-  status('已按形状铺「' + z.name + '」' + n + ' 颗：' + (sh.dir === 'ccw' ? '逆' : '顺') +
-         '时针走（Ctrl+Z 可撤销）', 'ok');
+  status('已按新头尾重排「' + z.name + '」' + n + ' 颗：从「头」（第 1 下点的那一颗）往' +
+         (sh.dir === 'ccw' ? '逆' : '顺') + '时针那边走' + tailLandingTxt(ti) +
+         '（几何一点没动；Ctrl+Z 可撤销）', 'ok');
 }
 /* 换类型：只换「皮」，外框不动 —— 画成矩形了想改圆环/圆角矩形，点一下就换，不用重画。
  * 换类型 = 换了一整套几何：之前「手动挪出去的灯」的相对位置不再有意义 —— **一律归位**
@@ -6919,7 +7225,7 @@ function shDown(wx, wy) {
   const sh = curShape();
 
   /* 1) 抓手柄 = 改大小（永远最优先，点头尾态里也照常）。
-   *    正常情况下这一条在 cv.pointerdown 里就拦下了（那里连**别的形状**的手柄也认），
+   *    正常路径在 cv.pointerdown 里就拦下了（那里只认**当前形状**的手柄 —— 也只有它的 8 个方块画着），
    *    这里是兜底，别让 shDown 单独被调用时少了这条路。 */
   const h = shHandleAt(sh, wx, wy);
   if (h) { snapshot(); shDraft = { kind: 'resize', h, box0: SHAPE.boxOf(sh) }; return; }
@@ -6938,17 +7244,8 @@ function shDown(wx, wy) {
     if (si >= 0 && si !== selShape) { enterShapeEdit(si); return; }
   }
 
-  /* 3) 点头尾态：点当前形状（包围盒内，含轮廓）→ 投影到轮廓上点头/尾 */
-  if (sh && shPickStep) {
-    const b = SHAPE.boxOf(sh), pad = shGrabTol();
-    if (wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad) {
-      const near = SHAPE.arcNear(sh, [wx, wy], 1e9);      /* 点形状内任意处，取最近轮廓点 */
-      if (near) { if (shPickStep === 1) shPickStep1(sh, near.s); else shPickStep2(sh, near.s); return; }
-    }
-  }
-
-  /* 4) 编辑态：拖当前形状内部（含轮廓）= 挪动 */
-  if (sh && !shPickStep) {
+  /* 3) 编辑态：拖当前形状内部（含轮廓）= 挪动 */
+  if (sh) {
     const b = SHAPE.boxOf(sh), pad = shGrabTol();
     if (wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad) {
       snapshot(); shDraft = { kind: 'move', box0: b, ox: wx, oy: wy, box1: b };
@@ -6956,8 +7253,8 @@ function shDown(wx, wy) {
     }
   }
 
-  /* 5) 空白：添加态 = 新建；编辑态 = 释放（回到选择/编辑模式） */
-  shPickStep = 0;
+  /* 4) 空白：添加态 = 新建；编辑态 = 释放（回到选择/编辑）。
+   *    定头尾的状态在这一步之前就被 cv.pointerdown 接走了（它不是形状编辑，见上面的分支）。 */
   if (shAdding) {
     shDraft = { kind: 'box', x0: wx, y0: wy, x1: wx, y1: wy };
   } else {
@@ -6996,7 +7293,7 @@ function shDrop() {
     ns.id = 's' + Date.now().toString(36);
     shapeList().push(ns);
     selShape = shapeList().length - 1;
-    shPickStep = 0;
+    shPickEnd();
     shAdding = false;
     afterChange();
     setMode('select');                     /* 画完释放鼠标：回到选择模式，不再处于「画形状」 */
@@ -7013,7 +7310,6 @@ function shHover(wx, wy) {
   const h = shHandleAt(sh, wx, wy);
   if (h) { cv.style.cursor = (h === 'n' || h === 's') ? 'ns-resize' : (h === 'e' || h === 'w') ? 'ew-resize'
                      : (h === 'nw' || h === 'se') ? 'nwse-resize' : 'nesw-resize'; return; }
-  if (sh && shPickStep && SHAPE.arcNear(sh, [wx, wy], shNearTol())) { cv.style.cursor = 'pointer'; return; }
   if (sh) {
     const b = SHAPE.boxOf(sh), pad = shGrabTol();
     if (wx >= b.x0 - pad && wx <= b.x1 + pad && wy >= b.y0 - pad && wy <= b.y1 + pad) { cv.style.cursor = 'move'; return; }
@@ -7037,9 +7333,8 @@ function hitShapeAny(wx, wy) {
 function enterShapeEdit(i) {
   if (i < 0 || i >= shapeList().length) return;
   selShape = i;
-  shapePicked = true;
   shAdding = false;
-  shPickStep = 0;
+  shPickEnd();
   const sh = curShape();
   if (SHAPE.TOOLS.indexOf(sh.kind) >= 0) shapeTool = sh.kind;   /* 高亮跟着选中的形状类型走 */
   setMode('shape');
@@ -7153,23 +7448,51 @@ $('#shAdd').onclick = () => {
            : '新增了一个空形状（画布正中）—— 抓小方块改大小 / 拖它挪动；再给它选个归属分区', 'ok');
 };
 $('#shPick').onclick = () => {
+  /* 再点一次 = 取消（用户第六轮第 2 条：点了没办法退出）—— 按钮亮着就说明「正在等点头/尾」。 */
+  if (shPickStep) {
+    const had = shPickRelayed;
+    shPickEnd();
+    syncShapeTool(); render();
+    status(had ? '已取消定头尾 —— 不过「头」挪过的那一下已经把灯重铺了（Ctrl+Z 可以退回去）'
+               : '已取消定头尾（形状没动）', had ? 'warn' : 'ok');
+    return;
+  }
+  /* 针对**分区表里选中的那个分区**（第 4 条）：先在分区表点中要重排编号的分区，再点这个按钮。 */
+  const z = state.zones[selZone];
+  if (!z) { status('先在分区表里点中一个分区 —— 定头尾改的是这个分区的编号', 'warn'); return; }
+  const idx = shapeIndexOfZone(z);
+  if (idx < 0) { status(`「${z.name}」还没有形状 —— 先在画布上给它拖一个（或点「由分区反推」）`, 'warn'); return; }
+  /* **不**进「画形状」编辑态：定头尾只是改这一段编号，不碰几何（第 2 条）。
+   * 原先在编辑态里的话就退回选择模式 —— 那 8 个手柄也跟着收起来，免得点着头尾却抓到手柄。 */
+  if (mode === 'shape') setMode('select');
+  selShape = idx;
+  syncShapeEdit();                       /* 面板先换成这个形状，别把上一个形状的参数写进去 */
   const sh = curShape();
-  if (!sh) { status('还没有形状 —— 先挑一个形状到画布上拖出来', 'warn'); return; }
   readShapePanel(sh);
   shAdding = false;
+  shPickI = idx;
   shPickStep = 1;
-  setMode('shape');
+  shPickRelayed = false;
+  syncShapeEdit();                       /* 面板「起始编号」等字段跟着目标形状 */
   syncShapeTool(); render();
-  status('到画布上点这个形状：第一下是「头」，第二下是「尾」（定编号方向）；点空白取消', 'ok');
+  status(`定「${z.name}」的头尾（这一段是 ${z.start}..${z.start + z.count - 1}）：第 1 下点「头」= 编号从这一颗开始，头就落在你点的这一颗上；` +
+         '第 2 下点方向 = 只定编号往哪边走（离头近的那边走，头不再动）—— 它不是把「尾」定在你点的那一颗上，' +
+         '尾落在第几颗、点完状态栏会说。' +
+         (sh.laid ? '已经铺过灯：第 1 下就按新起点重排给你看。' : '') +
+         '画布左上角一直写着「① 点头 / ② 点方向」；再点一次这个按钮（或 Esc）取消', 'ok');
 };
 $('#shDel').onclick = () => {
   const sh = curShape(); if (!sh) return;
+  /* 删掉的正好是「定头尾」的目标 → 这个状态跟着一起收掉（不然按钮还亮着，却已经没形状了） */
+  const wasPick = shPickStep > 0 && shPickI === selShape;
   snapshot();
   shapeList().splice(selShape, 1);
+  if (shPickStep && shPickI > selShape) shPickI--;    /* 删的是它前面那个：目标往后挪一格 */
   selShape = Math.max(0, selShape - 1);
-  shapePicked = false;      /* 选中的形状没了：选择模式别再替下一个形状画手柄（用户没选过它） */
+  if (wasPick) shPickEnd();
+  /* 手柄只在编辑态画，删完不会再替「下一个」形状冒出一圈手柄 */
   afterChange();
-  status('形状已删除（灯位没动）', 'ok');
+  status(wasPick ? '形状已删除（灯位没动）—— 定头尾也一起取消了' : '形状已删除（灯位没动）', 'ok');
 };
 $('#shFromZone').onclick = () => {
   const sh = curShape(), z = state.zones[selZone];
@@ -7195,11 +7518,14 @@ $('#shFlip').onclick = () => {
   sh.dir = (sh.dir === 'ccw') ? 'cw' : 'ccw';
   const z = state.zones.find(k => k.id === sh.zone);
   if (!z) { afterChange(); status('形状方向已翻（没有归属分区，灯位没动）', 'ok'); return; }
-  if (!confirmOverwrite(z)) { status('已取消：方向没翻', 'warn'); return; }
+  /* 已经铺过的形状**不再弹确认框**：几何一点没动、翻的是这一段自己的编号，就是这一下的本意，
+   * 而且 Ctrl+Z 能退回去 —— 用户实测「已经铺好灯了，点反向编号还弹一个框」是多余的（第 4 条）。
+   * 没铺过的才问一句：那一下会凭空往号段里撒灯。 */
+  if (!sh.laid && !confirmOverwrite(z)) { status('已取消：方向没翻', 'warn'); return; }
   snapshot();
   const n = layShape(sh, z);
   afterChange();
-  status(`已反向编号：「${z.name}」这 ${n} 颗的编号顺序倒过来了（几何没动）`, 'ok');
+  status(`已反向编号：「${z.name}」这 ${n} 颗的编号顺序倒过来了（几何没动；Ctrl+Z 可撤销）`, 'ok');
 };
 $('#shApply').onclick = () => {
   const sh = curShape();
@@ -7207,11 +7533,13 @@ $('#shApply').onclick = () => {
   readShapePanel(sh);
   const z = state.zones.find(k => k.id === sh.zone);
   if (!z) { afterChange(); status('这个形状没有归属分区，只当参考线画着 —— 先在上面选个分区再铺', 'warn'); return; }
-  if (!confirmOverwrite(z)) { status('已取消：这个样子没动', 'warn'); return; }
+  /* 铺到灯位 = 会先删掉号段上原有的灯再铺 → **每次都问一句**（不设「别再问了」）：
+   * 这一下是真的会覆盖板上已有的编号。 */
+  if (!confirmOverwrite(z)) { status('已取消：灯位没动', 'warn'); return; }
   snapshot();
   const n = layShape(sh, z);
   afterChange();
-  status(`已按形状铺「${z.name}」${n} 颗（Ctrl+Z 可撤销）`, 'ok');
+  status(`已按形状铺「${z.name}」${n} 颗（Ctrl+Z 可撤销）—— 已经铺下去了，「铺到灯位」的蓝灯照例灭掉`, 'ok');
 };
 /* 底图 */
 $('#bgFile').onchange = e => {
