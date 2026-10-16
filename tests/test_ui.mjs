@@ -1343,5 +1343,163 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   globalThis.confirm = () => true;
 }
 
+/* ---- 19) 用户第十一轮实测：① 分区顺序能调（「上移 / 下移」= 相邻两段换位置：每段的灯数、形状原样不动，
+ *         编号自动按新顺序重排、灯跟着自己的分区换号）② 分区页的数字框能删干净再打新的
+ *         （老毛病：一清空就被 `+v || 1` 塞回一个「1」）。 ---- */
+{
+  const wait = () => new Promise(r => setTimeout(r, 750));
+  const cur = () => { const d = JSON.parse(store.get('led_layout_editor.v1'));
+                      return (d.projects.find(p => p.id === d.current) || d.projects[0]).state; };
+  const rows = () => (byId.get('zoneTbl') || {}).children || [];
+  const zRow = i => { const r = rows(); return r[r.length - cur().zones.length + i]; };
+  const ledKey = st => st.leds.map(l => l.n + ':' + l.x + ',' + l.y).sort().join('|');
+  const ident = (st, n) => { const l = st.leds.find(x => x.n === n); return l ? l.x + ',' + l.y : null; };
+  const CORE6 = new Function(coreSrc + '; return CORE;')();
+  const issues = st => CORE6.validate(st).filter(x => x.level !== 'info').map(x => x.code);
+  const key = e => (listeners['window:keydown'] || [])[0](
+    Object.assign({ target: { tagName: 'DIV' }, preventDefault() {} }, e));
+  const goTab = n => (document.querySelectorAll('#tabs button').find(b => b.dataset.tab === n) || {}).onclick();
+
+  projRows()[0].onclick();
+  byId.get('btnNew').onclick();                          /* 回到干净的 SP-3122D 满板 */
+  await wait();
+  const st0 = cur();
+  const z0 = st0.zones.map(z => ({ id: z.id, name: z.name, start: z.start, count: z.count }));
+  const sh0 = (st0.shapes || []).map(s => ({ id: s.id, zone: s.zone, first: s.first, count: s.count }));
+  const N0 = st0.leds.length, LC0 = st0.meta.ledCount, LEDK0 = ledKey(st0);
+  ok(z0.length === 5 && N0 === 104 && sh0.length === 5,
+     `前置：满板 ${N0} 灯 / ${z0.length} 分区 / ${sh0.length} 形状（灯总数 ${LC0}）`);
+
+  /* 19.1 两个按钮在，而且头 / 尾会灰掉（没法再挪） */
+  const tipUp = html.match(/<button id="btnZoneUp" data-tip="([^"]*)"/)[1];
+  const tipDown = html.match(/<button id="btnZoneDown" data-tip="([^"]*)"/)[1];
+  ok(/灯数/.test(tipUp) && /形状/.test(tipUp) && /编号/.test(tipUp) && /Ctrl\+Z/.test(tipUp),
+     `「上移」的悬停说明写明了「灯数 / 形状不动、只有编号重排」（"${tipUp.slice(0, 26)}…"）`);
+  ok(/往后挪一位/.test(tipDown) && /形状/.test(tipDown) && /Ctrl\+Z/.test(tipDown),
+     '「下移」同理（说明里也带着 Ctrl+Z）');
+  zRow(0).onclick();
+  ok(byId.get('btnZoneUp').disabled && !byId.get('btnZoneDown').disabled,
+     '选中第 1 个分区：上移灰着（没得往前挪）、下移可用');
+  zRow(z0.length - 1).onclick();
+  ok(!byId.get('btnZoneUp').disabled && byId.get('btnZoneDown').disabled,
+     '选中最后 1 个分区：下移灰着、上移可用');
+  const sBad = byId.get('status').textContent;
+  byId.get('btnZoneDown').onclick();                     /* 没得挪：不弹错，只给一句实话 */
+  ok(byId.get('status').textContent !== sBad && /最后一个分区/.test(byId.get('status').textContent),
+     `在末尾点下移：状态栏直说没法挪（"${byId.get('status').textContent}"）`);
+
+  /* 19.2 中间那一段上移一位：两段换位置，灯数 / 形状不动，编号重排 */
+  const k = 2, dz = z0[k], prev = z0[k - 1];
+  const issues0 = issues(cur());
+  zRow(k).onclick();
+  ok(byId.get('zCount').value === String(dz.count) && byId.get('zStart').value === String(dz.start),
+     `选中「${dz.name}」：面板显示 ${dz.start}..${dz.start + dz.count - 1}（${dz.count} 颗）`);
+  byId.get('btnZoneUp').onclick();
+  await wait();
+  const st1 = cur(), z1 = st1.zones;
+  const zk = k - 1;                                      /* 上移后它自己的新位置 */
+  ok(z1[zk].id === dz.id && z1[zk + 1].id === prev.id,
+     `两段换了位置：「${dz.name}」升到第 ${zk + 1} 位、「${prev.name}」退到第 ${zk + 2} 位`);
+  ok(z1[zk].count === dz.count && z1[zk + 1].count === prev.count,
+     `每段还是自己那几颗（${dz.count} 颗 / ${prev.count} 颗）—— 灯数没动`);
+  ok(z1[zk].start === prev.start && z1[zk + 1].start === prev.start + dz.count,
+     `号段整块互换：「${dz.name}」${dz.start}..${dz.start + dz.count - 1} → ` +
+     `${z1[zk].start}..${z1[zk].start + z1[zk].count - 1}`);
+  const sameLeds = [];
+  for (let j = 0; j < dz.count; j++) sameLeds.push(ident(st1, z1[zk].start + j) === ident(st0, dz.start + j));
+  ok(sameLeds.every(Boolean),
+     `原来那 ${dz.count} 颗灯的坐标一颗没动，只是编号从 ${dz.start}.. 挪到 ${z1[zk].start}..（编号自动重排）`);
+  const posKey = st => st.leds.map(l => l.x + ',' + l.y).sort().join('|');
+  ok(st1.leds.map(l => l.n).join() === st0.leds.map(l => l.n).join() && posKey(st1) === posKey(st0),
+     `整板还是 0..${LC0 - 1} 这一套编号（没重号 / 没缺号），灯位也一颗没多一颗没少（只是谁拿哪个号变了）`);
+  ok(z1.reduce((a, z) => a + z.count, 0) === LC0 &&
+     z1.every((z, i) => (i === 0 ? z.start === 0 : z.start === z1[i - 1].start + z1[i - 1].count)) &&
+     z1.every(z => st1.leds.filter(l => l.n >= z.start && l.n < z.start + z.count).length === z.count),
+     `5 段照样从头到尾铺满（各段 start ${z1.map(z => z.start).join(' / ')}），每段号段里的灯数还是它的 count`);
+  const others = z0.filter(z => z.id !== dz.id && z.id !== prev.id);
+  ok(others.every(z => (z1.find(o => o.id === z.id) || {}).start === z.start),
+     `另外 ${others.length} 个分区的 start 一点没动（${others.map(z => z.start).join(', ')}）`);
+  const sh1 = st1.shapes || [];
+  ok(sh1.length === sh0.length &&
+     sh1.every(s => sh0.some(o => o.id === s.id && o.zone === s.zone && o.count === s.count)),
+     `${sh1.length} 个形状一个没少、归属和颗数也没动（动的只是起始编号）`);
+  ok(sh1.every(s => { const z = z1.find(o => o.id === s.zone); return !z || s.first === z.start; }),
+     '每个形状的 first = 它所属分区的新 start（不会指着旧号段）');
+  const pairs = (CORE6.exportC(st1, { variant: 'table' }).match(/\{\s*\d+,\s*\d+,\s*\d+\s*\}/g) || [])
+    .map(s => s.match(/\d+/g).slice(0, 2).join(','));
+  ok(pairs.join('|') === z1.map(z => z.start + ',' + z.count).join('|'),
+     `导出 C 里 g_default_zones 也按新顺序排（板上的序号从这里来）: ${pairs.join('  ')}`);
+  const iss1 = issues(st1);
+  ok(iss1.filter(c => !issues0.includes(c)).length === 0,
+     `换顺序没让校验页多出新的告警/错误（换前 ${issues0.join(', ') || '无'}；换后 ${iss1.join(', ') || '无'}）`);
+  const sm1 = byId.get('status').textContent;
+  ok(new RegExp(`挪到第 ${zk + 1} 位`).test(sm1) && /灯数、形状都没动/.test(sm1),
+     `状态栏说清了挪到第几位、以及「灯数、形状都没动」（"${sm1.slice(0, 52)}…"）`);
+
+  /* 19.3 Ctrl+Z：顺序 / 编号 / 形状起始编号全回来；上移再下移 = 完全回到原样（可逆） */
+  key({ key: 'z', ctrlKey: true });
+  await wait();
+  const st2 = cur();
+  ok(st2.zones.map(z => z.id).join() === z0.map(z => z.id).join(), 'Ctrl+Z：分区顺序回到原样');
+  ok(ledKey(st2) === LEDK0, 'Ctrl+Z：每一颗灯的编号也回到原样');
+  ok((st2.shapes || []).every(s => s.first === (sh0.find(o => o.id === s.id) || {}).first),
+     'Ctrl+Z：形状的起始编号也回来');
+  zRow(k).onclick();
+  byId.get('btnZoneUp').onclick();   await wait();
+  byId.get('btnZoneDown').onclick(); await wait();
+  const st3 = cur();
+  ok(st3.zones.map(z => z.id + ':' + z.start).join('|') === z0.map(z => z.id + ':' + z.start).join('|') &&
+     ledKey(st3) === LEDK0 &&
+     (st3.shapes || []).every(s => s.first === (sh0.find(o => o.id === s.id) || {}).first),
+     '上移再下移 = 完全回到原样（这一步可逆，区段和编号都没留痕）');
+
+  /* 19.4 模式绑定里的分区是「序号」不是 id：换顺序时得跟着换，否则绑定会悄悄改指到别的分区去 */
+  const mdLast = st => ((st.modes || {}).list || []).slice(-1)[0] || { binds: [] };
+  const covOf  = st => (mdLast(st).binds || []).map(b => (b.zones || []).join('+')).join('|');
+  goTab('mode');
+  byId.get('mdAdd').onclick();                           /* 新建一个模式（当前就选中它） */
+  byId.get('mdAddBind').onclick();                       /* 先加一条覆盖全部分区的绑定 */
+  byId.get('mdAllZones').onclick();                      /* 再「按分区拆开」→ 5 条各管一个分区（序号是显式的） */
+  await wait();
+  ok(covOf(cur()) === '0|1|2|3|4', `新模式拆成 5 条绑定，各管一个分区（${covOf(cur())}）`);
+  goTab('zones');
+  zRow(k).onclick();
+  byId.get('btnZoneUp').onclick();
+  await wait();
+  ok(covOf(cur()) === '0|2|1|3|4',
+     `换顺序后绑定里的分区序号跟着换（${covOf(cur())}）—— 原先管「${dz.name}」的那条还管着它`);
+  byId.get('btnZoneDown').onclick();
+  await wait();
+  ok(covOf(cur()) === '0|1|2|3|4', `挪回来绑定也回来了（${covOf(cur())}）`);
+
+  /* 19.5 数字框能删干净再打新的（count / start / 灯总数 同一套手势） */
+  zRow(k).onclick();
+  const zc = byId.get('zCount'), zs = byId.get('zStart'), lc = byId.get('mLedCount');
+  const c0 = cur().zones[k].count, s0 = cur().zones[k].start, LC = cur().meta.ledCount;
+  zc.value = ''; zc.oninput({ target: zc });
+  zs.value = ''; zs.oninput({ target: zs });
+  lc.value = ''; lc.oninput({ target: lc });
+  await wait();
+  ok(zc.value === '' && zs.value === '' && lc.value === '',
+     '三个数字框全删空后都保持空的（不再被自动回填 1 / 0）');
+  const stc = cur();
+  ok(stc.zones[k].count === c0 && stc.zones[k].start === s0 && stc.meta.ledCount === LC,
+     `空着的时候数据一点没动（count ${c0}、start ${s0}、灯总数 ${LC}）`);
+  zc.value = '12'; zc.oninput({ target: zc });
+  await wait();
+  ok(zc.value === '12' && cur().zones[k].count === 12, `接着打「12」直接生效（颗数 ${cur().zones[k].count}）`);
+  zc.value = '40'; zc.oninput({ target: zc });
+  await wait();
+  ok(zc.value === '40' && cur().zones[k].count === 40, '打回 40 也照样生效');
+  zc.value = ''; zc.onchange({ target: zc });
+  ok(zc.value === '40' && cur().zones[k].count === 40, '空着离开输入框 = 这次没改，把原值写回来');
+
+  byId.get('btnNew').onclick();                          /* 收尾：恢复干净预设 */
+  await wait();
+  const stE = cur();
+  ok(stE.zones.length === 5 && stE.leds.length === 104 && ledKey(stE) === LEDK0,
+     '收尾：预设已复原（5 分区 / 104 灯，编号与位置照旧）');
+}
+
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

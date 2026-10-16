@@ -277,8 +277,10 @@
       <table id="zoneTbl"></table>
       <div style="margin:4px 0"><button id="btnZoneAdd" data-tip="在编号末尾新起一个分区（start 接在现有分区之后）。可 Ctrl+Z 撤销。">新增分区</button>
         <button id="btnZoneDup" data-tip="把选中分区原样复制一份（名字加「副本」、别名加 _CP）。start 优先排在源分区后面，那儿被占就退到编号末尾 —— 做多个同长度分区（比如 5 个 8 颗旋钮）时不用手填。可 Ctrl+Z 撤销。">复制分区</button>
-        <button id="btnZoneDel" data-tip="删掉选中分区，并把这一段从板上整段收走：号段里的灯、挂在这个分区上的形状一起删；后面的编号往前挪、灯总数跟着减（等效「删除 + 压缩编号」—— 删完不该冒出缺号/未归属那一串）。可 Ctrl+Z 撤销。">删除分区</button></div>
-      <div class="hint">点分区行选中；编号 = <b>start</b> 起的连续 <b>count</b> 颗。</div>
+        <button id="btnZoneDel" data-tip="删掉选中分区，并把这一段从板上整段收走：号段里的灯、挂在这个分区上的形状一起删；后面的编号往前挪、灯总数跟着减（等效「删除 + 压缩编号」—— 删完不该冒出缺号/未归属那一串）。可 Ctrl+Z 撤销。">删除分区</button>
+        <button id="btnZoneUp" data-tip="把选中分区往前挪一位（和上一个分区换位置）：两段各自的灯数、形状、名字都原样跟着走，只有编号按新顺序重排 —— 段里的灯跟着自己的分区换号、形状的起始编号跟着分区走。可 Ctrl+Z 撤销。">上移</button>
+        <button id="btnZoneDown" data-tip="把选中分区往后挪一位（和下一个分区换位置）：两段各自的灯数、形状、名字都原样跟着走，只有编号按新顺序重排 —— 段里的灯跟着自己的分区换号、形状的起始编号跟着分区走。可 Ctrl+Z 撤销。">下移</button></div>
+      <div class="hint">点分区行选中；编号 = <b>start</b> 起的连续 <b>count</b> 颗；<b>表的先后就是板上编号顺序</b>，换顺序用「上移 / 下移」。</div>
       <fieldset id="zoneEdit">
         <legend>选中分区</legend>
         <label class="row"><span>名称</span><input type="text" id="zName"></label>
@@ -557,7 +559,9 @@
         <h3 id="hs-concepts">三个概念，别搞混</h3>
         <table>
           <tr><th>概念</th><th>是什么</th><th>在哪编辑</th></tr>
-          <tr><td><b>分区</b></td><td>物理灯号的一段，比如 16–55 是顶环。一个分区一条 SPI 链上的连续编号。</td><td>分区页</td></tr>
+          <tr><td><b>分区</b></td><td>物理灯号的一段，比如 16–55 是顶环。一个分区一条 SPI 链上的连续编号。<br>
+            <b>表的先后就是板上编号顺序</b>（导出 C 里那张 <code>{start,count}</code> 表也按它排）——要换顺序用左侧「上移 / 下移」，
+            两段各自几颗灯、形状原样不动，只有编号按新顺序自动重排。</td><td>分区页</td></tr>
           <tr><td><b>效果</b></td><td>一种动态图案的做法，比如「单点追逐」「绕环彩虹」「呼吸」。与分区无关。</td><td>效果页</td></tr>
           <tr><td><b>模式</b></td><td>一整套「哪个分区跑哪个效果」的分配方案。按键切换的就是它。</td><td>模式页</td></tr>
         </table>
@@ -4890,6 +4894,9 @@ function syncZoneEdit() {
   const on = !!z;
   renderZPalette();                    /* 色块跟着选中分区重建（未选中也显示，点了不生效） */
   ['zName', 'zLatin', 'zStart', 'zCount', 'zColor', 'zEn'].forEach(id => { $('#' + id).disabled = !on; });
+  /* 上移 / 下移：已经在头 / 尾就没得挪（也顺带当「当前顺序」的提示） */
+  $('#btnZoneUp').disabled   = !on || selZone <= 0;
+  $('#btnZoneDown').disabled = !on || selZone >= state.zones.length - 1;
   renderZoneCheck();                   /* Z2：就地体检（没选中时顺手清掉上一次的提示与描红） */
   if (!on) { $('#zDir').textContent = '—'; return; }
   $('#zName').value = z.name;
@@ -6467,6 +6474,76 @@ $('#btnZoneDel').onclick = () => {
   zoneDelClean(selZone);
 };
 
+/* ---------- 分区顺序：上移 / 下移（用户第十一轮实测） ----------
+ * 「分区表的先后」就是板上的编号顺序（导出 C 里那张 {start,count} 表也按它排）——
+ * 所以换顺序不是单纯挪一行，而是把编号按新顺序重排一遍。用户要的正是这个：
+ * 「分区的灯数、形状都保持不变，但是灯的编号会自动重新排序」。
+ * 上移 / 下移只把相邻两段换个位置：两段各自「几颗灯、形状、名字」原样跟着走，动的是编号。 */
+function zoneMove(zi, dir) {
+  const zj = zi + dir;
+  if (!state.zones[zi] || !state.zones[zj]) return false;
+  /* 形状的 first 要按「它所属分区**挪之前**的 start」算段内偏移，所以先把旧起点按 id 记下来
+   * （换完位置后数组下标就跟旧值对不上了） */
+  const oldStartById = {};
+  state.zones.forEach(z => { oldStartById[z.id] = Math.max(0, Math.round(+z.start) || 0); });
+  snapshot();
+  const a = state.zones[zi];
+  state.zones[zi] = state.zones[zj];
+  state.zones[zj] = a;
+  zoneRelayNumbers(oldStartById);
+  zoneRelayBinds(zi, zj);
+  selZone = zj;
+  afterChange();
+  const z = state.zones[zj];
+  const zh = s => s.length > 16 ? s.slice(0, 16) + '…' : s;          /* 状态栏别被长名字撑爆 */
+  status(`已把「${zh(z.name)}」挪到第 ${zj + 1} 位（${z.start}..${z.start + z.count - 1}）：` +
+         `表顺序 ${state.zones.map(o => zh(o.name)).join(' → ')}，` +
+         `各段 start ${state.zones.map(o => o.start).join(' / ')} —— 每段的灯数、形状都没动；Ctrl+Z 可撤销`, 'ok');
+  return true;
+}
+/* 编号按「表顺序」重排：左边沿不动、每段长度不变、段内先后照旧。
+ * 灯跟着自己所属的分区换号；形状的 first 跟着自己分区的新 start 走（段内偏移不变，
+ * 定头尾挪过头的形状也不会跑出这一段）。oldStartById = 挪之前「各分区 id → 该段起始号」。 */
+function zoneRelayNumbers(oldStartById) {
+  const Z = state.zones;
+  const oldOf = z => (oldStartById[z.id] != null ? oldStartById[z.id] : (Math.round(+z.start) || 0));
+  const a0 = Z.length ? Math.min(...Z.map(oldOf)) : 0;
+  const map = new Map();                       /* 旧编号 → 新编号 */
+  let p = a0;
+  Z.forEach(z => {
+    const c = Math.max(1, Math.round(+z.count) || 1);
+    const o = oldOf(z);
+    for (let k = 0; k < c; k++) map.set(o + k, p + k);
+    z.start = p;
+    p += c;
+  });
+  for (const l of state.leds) if (map.has(l.n)) l.n = map.get(l.n);
+  for (const sh of shapeList()) {
+    if (oldStartById[sh.zone] == null) {                /* 参考线（没挂分区）：编号走哪跟哪 */
+      if (map.has(sh.first)) sh.first = map.get(sh.first);
+      continue;
+    }
+    const zi  = Z.findIndex(z => z.id === sh.zone);
+    const c   = Math.max(1, Math.round(+sh.count || 1));
+    const off = Math.max(0, Math.min(c - 1, Math.round(+sh.first || 0) - oldStartById[sh.zone]));
+    sh.first = Z[zi].start + off;
+  }
+  sel = new Set([...sel].map(n => (map.has(n) ? map.get(n) : n)));   /* 框选跟着换号 */
+  return { a0, end: p };
+}
+/* 模式绑定里的分区记的是「序号」不是 id：换顺序时得跟着换，
+ * 否则绑定会悄悄改指到别的分区上去（导出 C 的 {start,count} 也就跟着串了）。 */
+function zoneRelayBinds(zi, zj) {
+  for (const m of (state.modes && state.modes.list) || []) {
+    for (const b of (m.binds || [])) {
+      if (!Array.isArray(b.zones) || !b.zones.length) continue;      /* 空数组 = 全部分区，跟着新顺序走 */
+      b.zones = b.zones.map(i => (i === zi ? zj : i === zj ? zi : i)).sort((x, y) => x - y);
+    }
+  }
+}
+$('#btnZoneUp').onclick   = () => { if (!zoneMove(selZone, -1)) status('已经是第一个分区了，没法再上移', 'warn'); };
+$('#btnZoneDown').onclick = () => { if (!zoneMove(selZone,  1)) status('已经是最后一个分区了，没法再下移', 'warn'); };
+
 /* ---------- 项目设置 ---------- */
 function syncMeta() {
   const m = state.meta;
@@ -6486,12 +6563,16 @@ function syncBgPanel() {
   $('#bgY').value = bg ? bg.y : 0;
 }
 $('#mName').oninput      = e => { state.meta.name = e.target.value; curProj().name = e.target.value; renderProjList(); $('#headInfo').textContent = `${state.meta.name} · ${state.leds.length}/${state.meta.ledCount} 灯 · RING_SIZE ${state.meta.ringSize}`; saveStore(); };
-$('#mLedCount').oninput  = e => {
-  state.meta.ledCount = Math.max(1, +e.target.value || 1);
-  afterChange();
-  const over = state.leds.filter(l => l.n >= state.meta.ledCount).length;
-  if (over) status(`灯总数已改成 ${state.meta.ledCount}，还有 ${over} 颗编号超出 → 点「裁剪超出灯总数的编号」收尾`, 'warn');
-};
+bindNumField('mLedCount', {
+  get: () => state.meta.ledCount,
+  set: v => {
+    state.meta.ledCount = v;
+    afterChange();
+    const over = state.leds.filter(l => l.n >= v).length;
+    if (over) status(`灯总数已改成 ${v}，还有 ${over} 颗编号超出 → 点「裁剪超出灯总数的编号」收尾`, 'warn');
+  },
+  min: 1,
+});
 /* 灯总数调小后多出来的编号没有主人：给一个明确的收尾动作（否则校验页会一直报 V3/V2） */
 $('#mLedTrim').onclick = () => {
   const M = state.meta;
@@ -6608,14 +6689,35 @@ document.querySelectorAll('#helpDoc [data-go]').forEach(b => b.onclick = () => {
 /* 分区名/别名/颜色/使能都是工程数据：改完必须存盘（只 render 不存 = 刷新或切项目就丢） */
 $('#zName').oninput  = e => { const z = state.zones[selZone]; if (z) { z.name = e.target.value; renderZoneList(); saveStore(); } };
 $('#zLatin').oninput = e => { const z = state.zones[selZone]; if (z) { z.latin = e.target.value.replace(/[^\x20-\x7E]/g, ''); saveStore(); } };
-$('#zStart').oninput = e => { const z = state.zones[selZone]; if (z) { z.start = Math.max(0, +e.target.value || 0); afterChange(); } };
-$('#zCount').oninput = e => {
-  const z = state.zones[selZone];
-  if (!z) return;
-  z.count = Math.max(1, +e.target.value || 1);
-  resyncZoneCount(z);
-  afterChange();
-};
+/* 数字输入框的公共手势（用户第十一轮实测）：
+ * 老写法 `Math.max(1, +el.value || 1)` 一空就把「1」塞回去 —— 框里的旧数字删不干净、新数字打不进去。
+ * 现在：input 时只在「确实打出了一个数」才落状态（空着 / 只打了个负号先不管，框里就一直保持空的），
+ * change（离开输入框）才定稿 —— 空着离开 = 没改过，把原值写回去。 */
+function bindNumField(id, o) {                     /* o = { get, set, min, max } */
+  const el = $('#' + id);
+  if (!el) return;
+  const clamp = v => Math.max(o.min != null ? o.min : 0,
+                              Math.min(o.max != null ? o.max : Infinity, Math.round(v)));
+  const commit = () => {
+    const raw = el.value.trim();
+    if (raw === '' || !isFinite(+raw)) { el.value = o.get(); return; }   /* 空着 / 半截 → 当没改过 */
+    const v = clamp(+raw);
+    if (v !== o.get()) o.set(v);
+    else if (String(v) !== raw) el.value = String(v);
+  };
+  el.oninput  = () => { const raw = el.value.trim(); if (raw !== '' && isFinite(+raw)) commit(); };
+  el.onchange = () => commit();
+}
+bindNumField('zStart', {
+  get: () => { const z = state.zones[selZone]; return z ? z.start : 0; },
+  set: v => { const z = state.zones[selZone]; if (z) { z.start = v; afterChange(); } },
+  min: 0,
+});
+bindNumField('zCount', {
+  get: () => { const z = state.zones[selZone]; return z ? z.count : 1; },
+  set: v => { const z = state.zones[selZone]; if (z) { z.count = v; resyncZoneCount(z); afterChange(); } },
+  min: 1,
+});
 /* 分区「颗数」变了：跟着这个分区的形状同步颗数，并重铺已铺过的（自动增删灯）。
  * 只在号段还落在这块板内（start+count ≤ ledCount）时才动灯 —— 填成 999 那种超界情况
  * 交给校验报 V9，别自动铺一堆越界灯、也别误删别的分区的灯。 */
