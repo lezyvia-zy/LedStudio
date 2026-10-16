@@ -277,7 +277,7 @@
       <table id="zoneTbl"></table>
       <div style="margin:4px 0"><button id="btnZoneAdd" data-tip="在编号末尾新起一个分区（start 接在现有分区之后）。可 Ctrl+Z 撤销。">新增分区</button>
         <button id="btnZoneDup" data-tip="把选中分区原样复制一份（名字加「副本」、别名加 _CP）。start 优先排在源分区后面，那儿被占就退到编号末尾 —— 做多个同长度分区（比如 5 个 8 颗旋钮）时不用手填。可 Ctrl+Z 撤销。">复制分区</button>
-        <button id="btnZoneDel" data-tip="删掉选中分区；它区间内的灯编号会保留（不会跟着消失）。可 Ctrl+Z 撤销。">删除分区</button></div>
+        <button id="btnZoneDel" data-tip="删掉选中分区，并把这一段从板上整段收走：号段里的灯、挂在这个分区上的形状一起删；后面的编号往前挪、灯总数跟着减（等效「删除 + 压缩编号」—— 删完不该冒出缺号/未归属那一串）。可 Ctrl+Z 撤销。">删除分区</button></div>
       <div class="hint">点分区行选中；编号 = <b>start</b> 起的连续 <b>count</b> 颗。</div>
       <fieldset id="zoneEdit">
         <legend>选中分区</legend>
@@ -6398,14 +6398,73 @@ $('#btnZoneDup').onclick = () => {
   afterChange();
   status(`已复制「${z.name}」→「${z.name} 副本」（start=${start}, count=${len}），可 Ctrl+Z 撤销`, 'ok');
 };
+/* ---------- 删分区：连它的灯和形状一起收走，编号往前收拢（用户第十轮实测） ----------
+ * 老写法只把 zone 从表里 splice 掉：它号段里的灯原地留下 → 校验页满屏 V4「不属于任何分区」，
+ * 挂在它身上的形状掉成「参考线」—— 用户看到的正是「删不干净」。
+ * 新语义 = 把这一段从板上整段拿掉（号段长度按 count 算 —— 这一段还没铺灯也一样要腾出号来）：
+ *   1) 号段 [start, start+count) 里的灯删掉；
+ *   2) 挂在这个分区上的形状删掉（归属没了的形状只剩参考线，留着就是残渣）；
+ *   3) 后面的编号往前挪 count 位：灯号、其它分区的 start、形状记的 first、灯总数一起减
+ *      —— 等效「删除 + 压缩编号 + 改小灯总数」，删完校验页不冒 V2/V3/V4 那一串。
+ * 回来：snapshot 在动手之前拍，Ctrl+Z 连编号一起回来。 */
+function zoneDelClean(zi) {
+  const z = state.zones[zi];
+  if (!z) return null;
+  const len = Math.max(1, Math.round(+z.count) || 1);
+  const a0 = Math.max(0, Math.round(+z.start) || 0), a1 = a0 + len;
+  const oldTotal = Math.max(1, Math.round(+state.meta.ledCount) || 1);
+  const hitLeds = state.leds.filter(l => l.n >= a0 && l.n < a1).length;
+  const gone = shapeList().map((sh, i) => (sh.zone === z.id ? i : -1)).filter(i => i >= 0);
+  const pickLost = shPickStep > 0 && gone.indexOf(shPickI) >= 0;    /* 定头尾的目标就在里面 */
+  const before = gone.filter(i => i < selShape).length;             /* 选中项前面删掉几个 */
+
+  snapshot();
+  state.zones.splice(zi, 1);
+  state.leds = state.leds.filter(l => l.n < a0 || l.n >= a1);
+  for (const l of state.leds) if (l.n >= a1) l.n -= len;
+  state.shapes = shapeList().filter(sh => {
+    if (sh.zone === z.id) return false;
+    if (sh.first >= a1) sh.first -= len;      /* 形状记住的分区起始编号跟着挪 */
+    return true;
+  });
+  const total = Math.max(1, oldTotal - len);
+  for (const o of state.zones) {
+    if (o.start >= a1) o.start -= len;                 /* 整段在后面的：往前挪 */
+    o.start = Math.max(0, Math.min(o.start, total - 1));  /* 与这一段重叠的坏数据夹回区间里 */
+    if (o.start + o.count > total) o.count = Math.max(1, total - o.start);
+  }
+  state.meta.ledCount = total;
+
+  /* 选中态收尾：框选、形状编辑、定头尾都别指着已经不在的东西 */
+  sel.clear();
+  selZone = Math.max(0, Math.min(selZone, state.zones.length - 1));
+  selShape = Math.max(0, Math.min(selShape - before, shapeList().length - 1));
+  if (pickLost) shPickEnd();
+  else if (shPickStep) shPickI = Math.max(0, shPickI - before);
+
+  afterChange();
+  if (mode === 'shape' && !shapeList().length) setMode('select');   /* 没形状可编辑了，退回选择模式 */
+  status(`已删除「${z.name}」：它这一段（${a0}..${a1 - 1}）整段收走 —— ` +
+         `${hitLeds} 颗灯、${gone.length} 个形状一起删；后面的编号往前挪了 ${len} 位、` +
+         `灯总数 ${oldTotal} → ${total}` +
+         (pickLost ? '（定头尾也一起取消了）' : '') + '；Ctrl+Z 可撤销', 'ok');
+  return { len, a0, a1, hitLeds, shapes: gone.length, total };
+}
 $('#btnZoneDel').onclick = () => {
   if (!state.zones.length) return;
   const z = state.zones[selZone];
-  if (!confirm(`删除分区「${z.name}」？它区间内的灯编号会保留；这一步可用 Ctrl+Z 撤销。`)) return;
-  snapshot();
-  state.zones.splice(selZone, 1);
-  selZone = Math.max(0, selZone - 1);
-  afterChange();
+  if (!z) return;
+  const len = Math.max(1, Math.round(+z.count) || 1);
+  const a1 = z.start + len;
+  const nLed = state.leds.filter(l => l.n >= z.start && l.n < a1).length;
+  const nSh  = shapeList().filter(sh => sh.zone === z.id).length;
+  const to   = Math.max(1, state.meta.ledCount - len);
+  if (!confirm(`删除分区「${z.name}」？这一段（${z.start}..${a1 - 1}）会整段收走：\n` +
+               `· ${nLed} 颗灯一起删\n` +
+               `· 挂在这个分区上的 ${nSh} 个形状一起删\n` +
+               `· 后面的编号往前挪 ${len} 位，灯总数 ${state.meta.ledCount} → ${to}\n\n` +
+               '可用 Ctrl+Z 撤销。')) return;
+  zoneDelClean(selZone);
 };
 
 /* ---------- 项目设置 ---------- */

@@ -701,7 +701,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const added = codes(prj(1)).filter(c => !codesBefore.has(c));
   ok(!added.some(c => ['V1', 'V2', 'V3', 'V3b', 'V5'].includes(c)),
      `Z3：复制分区不引入编号类问题（validate 新增条目: ${added.join(', ') || '无'}）`);
-  byId.get('btnZoneDel').onclick();                     /* 收拾干净：删掉副本 */
+  byId.get('btnZoneDel').onclick();                     /* 收拾干净：删掉副本（这一段整段收走） */
   await new Promise(r => setTimeout(r, 700));
   ok(prj(1).zones.length === zsBefore, `Z3：删掉副本后回到 ${prj(1).zones.length} 个分区`);
 
@@ -1240,6 +1240,107 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
     esc();
   }
 
+}
+
+/* ---- 18) 用户第十轮实测：删分区要「删干净」—— 号段里的灯、挂在上面的形状一起走，
+ *         后面的编号往前收拢（等效「删除 + 压缩编号 + 改小灯总数」），Ctrl+Z 连编号一起回来。
+ *   老写法只把 zone 从表里 splice 掉：灯原地留下变成 V4「不属于任何分区」，形状掉成「参考线」。 ---- */
+{
+  const wait = () => new Promise(r => setTimeout(r, 750));
+  const cur = () => { const d = JSON.parse(store.get('led_layout_editor.v1'));
+                      return (d.projects.find(p => p.id === d.current) || d.projects[0]).state; };
+  const rows = () => (byId.get('zoneTbl') || {}).children || [];
+  const zRow = i => { const r = rows(); return r[r.length - cur().zones.length + i]; };
+  const nums = st => st.leds.map(l => l.n).sort((a, b) => a - b);
+  const CORE5 = new Function(coreSrc + '; return CORE;')();
+  const codes = st => CORE5.validate(st).map(x => x.code);
+  const issues = st => CORE5.validate(st).filter(x => x.level !== 'info').map(x => x.code);
+  const key = e => (listeners['window:keydown'] || [])[0](
+    Object.assign({ target: { tagName: 'DIV' }, preventDefault() {} }, e));
+
+  const tip = html.match(/<button id="btnZoneDel" data-tip="([^"]*)"/)[1];
+  ok(!/编号会保留/.test(tip) && /形状/.test(tip) && /灯总数/.test(tip),
+     `「删除分区」的悬停说明不再说「编号会保留」，改成连灯带形状一起收走（"${tip.slice(0, 32)}…"）`);
+
+  projRows()[0].onclick();
+  byId.get('btnNew').onclick();                          /* 回到干净的 SP-3122D 满板 */
+  await wait();
+  const z0 = cur().zones.map(z => ({ id: z.id, name: z.name, start: z.start, count: z.count }));
+  const n0 = nums(cur()).length, sh0 = (cur().shapes || []).length, lc0 = cur().meta.ledCount;
+  ok(n0 === 104 && z0.length === 5 && sh0 === 5 && lc0 === 104,
+     `前置：满板 ${n0} 灯 / ${z0.length} 分区 / ${sh0} 个形状 / 灯总数 ${lc0}`);
+  const issues0 = issues(cur());                        /* 删之前的告警/错误（下面比值） */
+
+  /* 挑中间那个分区 —— 它前后都有别的分区和形状，最能看出「收拢」与「没误伤」 */
+  const k = Math.floor(z0.length / 2), dz = z0[k], len = dz.count, a0 = dz.start, a1 = a0 + len;
+  const shGone = (cur().shapes || []).filter(sh => sh.zone === dz.id).length;
+  zRow(k).onclick();
+  ok(byId.get('zName').value === dz.name, `选中第 ${k + 1} 个分区「${dz.name}」（${a0}..${a1 - 1}，${len} 颗）`);
+  ok(shGone >= 1, `它身上挂着 ${shGone} 个形状（下面要跟着一起没了）`);
+
+  /* 17b 之后 confirm 换成了不记事的桩，这里要用真确认框的文案，先装回会记事的那种 */
+  globalThis.confirm = m => { confirmCalls.push(m); return true; };
+  confirmCalls.length = 0;
+  byId.get('btnZoneDel').onclick();
+  await wait();
+  const st1 = cur();
+  ok(confirmCalls.length === 1 && /颗灯一起删/.test(confirmCalls[0]) &&
+     /形状一起删/.test(confirmCalls[0]) && new RegExp(`灯总数 ${lc0} → ${lc0 - len}`).test(confirmCalls[0]),
+     `确认框先把后果说清楚（"${String(confirmCalls[0]).split('\n').slice(1, 3).join(' / ')}"）`);
+
+  /* 1) 分区没了 */
+  ok(st1.zones.length === z0.length - 1 && !st1.zones.some(z => z.id === dz.id),
+     `分区从 ${z0.length} 个减到 ${st1.zones.length} 个（被删的那个不在了）`);
+  /* 2) 灯跟着走，而且后面的编号往前收拢（不是留一排空号） */
+  const n1 = nums(st1);
+  ok(n1.length === n0 - len, `号段里的 ${len} 颗灯一起删（${n0} → ${n1.length} 颗）`);
+  ok(n1.every((n, i) => n === i), `剩下的编号是连续的 0..${n1.length - 1}（后面的往前挪了 ${len} 位）`);
+  ok(n1[n1.length - 1] === n0 - len - 1,
+     `原来的末尾编号 ${n0 - 1} 一路挪到 ${n1[n1.length - 1]}（这一段不是留空号，是把后面的填上来）`);
+  /* 3) 挂在这个分区上的形状一起删，别的形状还在 */
+  const sh1 = st1.shapes || [];
+  ok(sh1.length === sh0 - shGone && !sh1.some(s => s.zone === dz.id),
+     `挂在上面的 ${shGone} 个形状一起删（${sh0} → ${sh1.length} 个），没有掉成「参考线」的残渣`);
+  ok(sh1.every(s => !s.zone || st1.zones.some(z => z.id === s.zone)),
+     '剩下的形状归属都还有主（没有孤儿形状）');
+  ok(sh1.every(s => { const z = st1.zones.find(o => o.id === s.zone); return !z || s.first === z.start; }),
+     '形状记的「起始编号」跟着分区一起挪了（不会指着旧号）');
+  /* 4) 灯总数 / 别的分区 / 校验页 */
+  ok(st1.meta.ledCount === lc0 - len, `灯总数跟着减：${lc0} → ${st1.meta.ledCount}`);
+  const zBefore = z0.filter(z => z.start < a0), zAfter = z0.filter(z => z.start >= a1);
+  ok(zBefore.every(z => (st1.zones.find(o => o.id === z.id) || {}).start === z.start),
+     `删掉这一段前面的分区 start 一点没动（${zBefore.map(z => z.start).join(', ')}）`);
+  ok(zAfter.every(z => (st1.zones.find(o => o.id === z.id) || {}).start === z.start - len),
+     `后面的分区 start 一起往前挪 ${len} 位（${zAfter.map(z => z.start + '→' + (z.start - len)).join(', ')}）`);
+  ok(!st1.zones.some(o => o.start + o.count > st1.meta.ledCount) && st1.leds.length === st1.meta.ledCount,
+     '剩下的分区不越界、灯数与灯总数一致（校验页不会为这个红一屏）');
+  const cs1 = codes(st1).filter(c => c !== 'OK');
+  ok(!cs1.some(c => ['V1', 'V2', 'V3', 'V3b', 'V4', 'V5', 'V9'].includes(c)),
+     `删完不冒出缺号/未归属/重复那些（剩下: ${cs1.join(', ') || '无'}）`);
+  const added = issues(st1).filter(c => !issues0.includes(c));
+  ok(added.length === 0,
+     `删分区没让校验页多出新的告警/错误（删前 ${issues0.join(', ') || '无'}；删后 ${issues(st1).join(', ') || '无'}）`);
+  /* 5) 状态栏照实说（含「整段收走 / 挪了几位 / 灯总数」） */
+  const sm = byId.get('status').textContent;
+  ok(/整段收走/.test(sm) && new RegExp(`往前挪了 ${len} 位`).test(sm) && new RegExp(`灯总数 ${lc0} → ${lc0 - len}`).test(sm),
+     `状态栏说清了连带删了什么（"${sm.slice(0, 56)}…"）`);
+
+  /* 6) Ctrl+Z：灯 / 分区 / 形状 / 灯总数 全回来 */
+  key({ key: 'z', ctrlKey: true });
+  await wait();
+  const st2 = cur();
+  ok(st2.zones.length === z0.length && nums(st2).length === n0 && st2.meta.ledCount === lc0 &&
+     (st2.shapes || []).length === sh0,
+     `Ctrl+Z 撤销后：分区 ${st2.zones.length}、灯 ${nums(st2).length}、形状 ${(st2.shapes || []).length}、` +
+     `灯总数 ${st2.meta.ledCount}（全带回来了）`);
+  ok(st2.zones[k].id === dz.id && st2.zones[k].start === a0 && st2.zones[k].count === len,
+     '撤销后那个分区的 id / start / count 原样');
+  ok((st2.shapes || []).some(s => s.zone === dz.id), '撤销后挂在它身上的形状也回来了');
+
+  byId.get('btnNew').onclick();                          /* 收尾：恢复干净预设给后面的用例 */
+  await wait();
+  ok(cur().zones.length === 5 && nums(cur()).length === 104, '收尾：预设已复原（5 分区 / 104 灯）');
+  globalThis.confirm = () => true;
 }
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
