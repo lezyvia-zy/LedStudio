@@ -10,7 +10,8 @@ const listeners = {};
 const byId = new Map();
 let ctxDraw = 0;
 const texts = [];                       /* 记下 fillText 的文字，用来断言编辑台的状态行 */
-const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=(...a)=>{ctxDraw++; if(k==='fillText') texts.push(String(a[0]));})), set:(t,k,v)=>{t[k]=v;return true;} });
+let ctxArcs = 0;                        /* arc() 次数 = 画出来的灯珠数（断言对比条真的按这个长度画） */
+const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=(...a)=>{ctxDraw++; if(k==='fillText') texts.push(String(a[0])); if(k==='arc') ctxArcs++;})), set:(t,k,v)=>{t[k]=v;return true;} });
 const store = new Map();
 
 function mkEl(tag='div', id=''){ return {
@@ -188,6 +189,83 @@ install(); boot(); await new Promise(r => setTimeout(r, 700));
 ok(projState(0).stage.ringN === 24 && projState(0).stage.stripN === 7,
    `重开后编辑台设置还在（圆环 ${projState(0).stage.ringN} / 直线 ${projState(0).stage.stripN}）`);
 ok(projState(0).stage.compare === true, '对比开关也记得住');
+
+/* ---- 9) F1) 「多长度对比」画的是你板子上真实的几条长度（去重后最多 3 条），标签写实际分区名 ---- */
+{
+  const labels = () => texts.filter(t => /^\d+ 颗（/.test(t));
+  const baseZones = JSON.parse(store.get('led_layout_editor.v1')).projects[0].state.zones.slice();
+  /* 换一套分区长度 + 定好对比开关，再连跑一次界面层（等效于重开一次工具），最后强制重画一次对比条 */
+  const prep = async (counts, names) => {
+    const db = JSON.parse(store.get('led_layout_editor.v1'));
+    const st = db.projects[0].state;
+    st.zones = counts.map((c, i) => Object.assign({}, baseZones[i % baseZones.length],
+      { name: (names || [])[i] || baseZones[i % baseZones.length].name, count: c }));
+    st.stage = Object.assign({ ringN: 24, stripN: 24 }, st.stage, { compare: true });
+    store.set('led_layout_editor.v1', JSON.stringify(db));
+    install(); boot(); await new Promise(r => setTimeout(r, 700));
+    tabBtn('fx').onclick();
+    await new Promise(r => setTimeout(r, 50));
+    texts.length = 0; ctxArcs = 0;
+    byId.get('stCompare').checked = true;
+    byId.get('stCompare').onchange({ target: byId.get('stCompare') });
+  };
+
+  /* 9.1 四条分区、长度 6 / 12 / 12 / 20：去重成 3 条，同长度的分区名并在一行 */
+  await prep([6, 12, 12, 20], ['旋钮A', '中环', '中环B', '顶环']);
+  let L = labels();
+  ok(L.join(' | ') === '6 颗（旋钮A） | 12 颗（中环、中环B） | 20 颗（顶环）',
+     `对比条按板子真实长度画 3 条: ${L.join(' | ')}`);
+  ok(ctxArcs === 6 + 12 + 20, `画出的灯珠数 = 真实长度之和 ${6 + 12 + 20}（同长度的两条只画一次 12）: ${ctxArcs}`);
+  ok(!/40 颗/.test(texts.join()), '不再无条件冒出「40 颗」那类与实物无关的固定长度');
+
+  /* 9.2 5 个不同长度：只取最短 / 中位 / 最长 */
+  await prep([4, 8, 12, 20, 40]);
+  L = labels();
+  ok(L.length === 3 && /^4 颗（/.test(L[0]) && /^12 颗（/.test(L[1]) && /^40 颗（/.test(L[2]),
+     `5 种长度只画 3 条（最短 / 中位 / 最长）: ${L.join(' | ')}`);
+  ok(ctxArcs === 4 + 12 + 40, `画的就是这 3 条（灯珠 ${ctxArcs} = 4+12+40，不是全画 ${4 + 8 + 12 + 20 + 40}）`);
+
+  /* 9.3 只有两种长度 → 只画两条（有几条真实长度画几条，不补无关的固定长度） */
+  await prep([8, 24]);
+  L = labels();
+  ok(L.length === 2 && /^8 颗（/.test(L[0]) && /^24 颗（/.test(L[1]),
+     `板子上只有两种长度就只画两条: ${L.join(' | ')}`);
+  ok(ctxArcs === 8 + 24, `两条的灯珠数是 ${ctxArcs}（8 + 24）`);
+
+  /* 9.4 只有一种长度 → 只画一条 */
+  await prep([40]);
+  L = labels();
+  ok(L.length === 1 && /^40 颗（/.test(L[0]), `板子上只有一种长度就只画一条: ${L.join(' | ')}`);
+  ok(ctxArcs === 40, `一条的灯珠数是 ${ctxArcs}`);
+
+  /* 9.5 板上一段分区都没有 → 才回落到 8 / 24 / 40 老样子 */
+  await prep([]);
+  L = labels();
+  ok(L.join(' | ') === '8 颗（短段，比如旋钮） | 24 颗（中等环） | 40 颗（长段，比如顶环）',
+     `空板上回落到 8 / 24 / 40: ${L.join(' | ')}`);
+  ok(ctxArcs === 8 + 24 + 40, `回落那三条的灯珠数是 ${ctxArcs}`);
+
+  /* 9.6 默认工程 SP-3122D（8/8/40/24/24）去重后正好 8 / 24 / 40，与老观感一致 */
+  store.delete('led_layout_editor.v1');
+  install(); boot(); await new Promise(r => setTimeout(r, 700));
+  tabBtn('fx').onclick();
+  await new Promise(r => setTimeout(r, 50));
+  texts.length = 0; ctxArcs = 0;
+  byId.get('stCompare').checked = true;
+  byId.get('stCompare').onchange({ target: byId.get('stCompare') });
+  L = labels();
+  ok(L.length === 3 && /^8 颗（/.test(L[0]) && /^24 颗（/.test(L[1]) && /^40 颗（/.test(L[2]),
+     `默认工程去重后正好 8 / 24 / 40: ${L.join(' | ')}`);
+  ok(!/短段|中等环|长段/.test(L.join()), '这三条是按真实分区名写的标签，不是回落的那套固定文案');
+  ok(ctxArcs === 8 + 24 + 40, `默认工程三条的灯珠数是 ${ctxArcs}`);
+
+  /* 9.7 说明与帮助页同步改口（别再写死 8 / 24 / 40） */
+  const tipCmp = (html.match(/<input type="checkbox" id="stCompare" data-tip="([^"]*)"/) || [])[1] || '';
+  ok(/真实的分区长度/.test(tipCmp), `对比开关的说明写明了「取真实分区长度」: "${tipCmp.slice(0, 42)}…"`);
+  const hs = html.slice(html.indexOf('id="hs-stage"'), html.indexOf('id="hs-bind"'));
+  ok(/真实的分区长度/.test(hs) && !/同时画 8 \/ 24 \/ 40/.test(hs),
+     '帮助页「效果编辑台」那节同步改口（不再写死 8 / 24 / 40）');
+}
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

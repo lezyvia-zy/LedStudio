@@ -248,6 +248,65 @@ ok(projState(0).anim.effectId === e0d.id, '重开后选中的还是同一个效�
   globalThis.confirm = () => true;
 }
 
+/* ---- 6d) F2) 效果列表过滤：只影响显示，不动槽位 / 顺序 / 选中 ---- */
+{
+  tabBtn('fx').onclick();
+  await new Promise(r => setTimeout(r, 50));
+  const tbl = () => byId.get('fxTbl');
+  const infoOf = () => byId.get('fxFilterInfo').textContent;
+  const slotsNow = () => fxListOf(0).map(e => e.slot + ':' + e.id).join();
+  const filterTo = q => { byId.get('fxFilter').value = q; byId.get('fxFilter').oninput({ target: byId.get('fxFilter') }); };
+  const nAll = fxListOf(0).length;
+  const custom = fxListOf(0).find(e => e.kind === 'custom');
+  const nCustom = fxListOf(0).filter(e => e.kind === 'custom').length;
+
+  ok(!!byId.get('fxFilter'), '效果页有「过滤」输入框');
+  ok(/id="fxFilter"[^>]*data-tip="[^"]*只影响显示/.test(html), '过滤框带说明，写明「只影响显示」');
+  ok(nAll === 8 && nCustom === 1 && !!custom, `前置：库里 ${nAll} 条（自定义 ${nCustom} 条）`);
+
+  /* 6d-1 按类型过滤：只画自定义那一条；信息栏报数；槽位与顺序一条没动 */
+  const before = slotsNow();
+  let n0 = tbl().children.length;
+  filterTo('自定义');
+  ok(tbl().children.length - n0 === nCustom, `过滤「自定义」只画了 ${tbl().children.length - n0} 行（库里自定义 ${nCustom} 条）`);
+  ok(new RegExp('^显示 ' + nCustom + ' / 共 ' + nAll + ' 条').test(infoOf()), `信息栏报了「${infoOf()}」`);
+  ok(slotsNow() === before, '过滤只动显示：槽位与顺序一条没变');
+
+  /* 6d-2 点过滤后剩的那一行：选中的是它真实的槽位，不是「第几行」 */
+  tbl().children[n0].onclick();
+  await new Promise(r => setTimeout(r, 700));
+  ok(projState(0).anim.effectId === custom.id && byId.get('fName').value === custom.name,
+     `点过滤后的行选中的还是「${custom.name}」（真实槽位 ${custom.slot}）`);
+
+  /* 6d-3 选中的那条被滤掉：说一声，但选中 / 槽位都不动 */
+  n0 = tbl().children.length;
+  filterTo('内建');
+  ok(/被过滤隐藏/.test(infoOf()), `选中的那条被滤掉时提示了: "${infoOf()}"`);
+  ok(projState(0).anim.effectId === custom.id, '过滤不会顺手改选中（state 里还是那条自定义效果）');
+  ok(tbl().children.length - n0 === nAll - nCustom, `过滤「内建」画了 ${tbl().children.length - n0} 行`);
+  ok(slotsNow() === before, '过滤不碰槽位：和过滤前那一串一模一样');
+
+  /* 6d-4 一条都没匹配：仍给一行说明，别像空表 */
+  n0 = tbl().children.length;
+  filterTo('zzz没有这个');
+  ok(tbl().children.length - n0 === 1, '没匹配时补了一行说明');
+  ok(/^显示 0 \/ 共 8 条/.test(infoOf()), `信息栏报「${infoOf()}」`);
+
+  /* 6d-5 清空过滤：全回来，信息栏清掉 */
+  n0 = tbl().children.length;
+  filterTo('');
+  ok(tbl().children.length - n0 === nAll && infoOf() === '', `清空过滤后 ${nAll} 行都回来了，信息栏也清空（"${infoOf()}"）`);
+
+  /* 6d-6 过滤态下「新建」：过滤自动清空，刚建的效果看得见 */
+  filterTo('zzz没有这个');
+  click('fxAdd');
+  await new Promise(r => setTimeout(r, 700));
+  const n2 = fxListOf(0).length;
+  ok(byId.get('fxFilter').value === '' && n2 === nAll + 1,
+     `过滤态点「新建」→ 过滤自动清空，效果加到 ${n2} 条`);
+  ok(fxListOf(0).map(e => e.slot).join() === '0,1,2,3,4,5,6,7,8', '新建后槽位仍是 0..8 连号');
+}
+
 /* ---- 7) 老存档迁移：只有 anim.preset、没有 effects ---- */
 const oldProj = {
   format: 'ledboard', version: 1,

@@ -440,6 +440,7 @@
     </div>
 
     <div class="pane" data-pane="fx">
+      <label class="row"><span>过滤</span><input type="text" id="fxFilter" placeholder="名称 / 类型 / 槽号" data-tip="按名称、ASCII 别名、类型（自定义 / 内建）或槽号过滤下面的列表 —— 只影响显示：不改任何效果的槽位，也不动模式绑定。清空输入框就恢复全部。"><span class="hint" id="fxFilterInfo"></span></label>
       <table id="fxTbl"></table>
       <div style="margin:4px 0">
         <button id="fxAdd" data-tip="在列表末尾追加一个新的自定义效果。">新建</button>
@@ -460,7 +461,7 @@
         <legend>编辑台（基础排布）</legend>
         <label class="row"><span>直线颗数</span><input type="number" id="stStrip" min="2" max="200" data-tip="基础排布里那条直线有多少颗灯。看追逐的宽度、拖尾、衰减最清楚。"></label>
         <label class="row"><span>圆环颗数</span><input type="number" id="stRing" min="3" max="200" data-tip="基础排布里那个圆环有多少颗灯。用来看环形效果绕回来时的接缝。"></label>
-        <label class="row"><span>多长度对比</span><input type="checkbox" id="stCompare" data-tip="在中央画布上同时画 8 / 24 / 40 三条直线做对比 —— 调光宽时用，避免在一种长度上调好了、到别的长度上走样。"></label>
+        <label class="row"><span>多长度对比</span><input type="checkbox" id="stCompare" data-tip="在中央画布上同时画几条直线做对比：取你板子上真实的分区长度（去重后最多 3 条 —— 最短 / 中间 / 最长），板上一段分区都没有时回落到 8 / 24 / 40 —— 调光宽时用，避免在一种长度上调好了、到别的长度上走样。"></label>
         <div class="hint">编辑台只用一个<b>基础排布</b>（直线 + 圆环）来看效果本身，与真实灯板无关。
           在效果页时中央画布自动切到编辑台；切到别的页恢复成真实灯板。</div>
       </fieldset>
@@ -649,7 +650,7 @@
         <ul>
           <li><b>直线</b>：颗数可自定义。看追逐的宽度、拖尾、衰减最清楚。</li>
           <li><b>圆环</b>：颗数可自定义。用来看环形效果"绕回来"时的接缝。</li>
-          <li><b>多长度对比</b>：同时画 8 / 24 / 40 三条，调光宽时用。</li>
+          <li><b>多长度对比</b>：同时画几条 —— 取你板子上真实的分区长度（去重后最多 3 条：最短 / 中间 / 最长），板上一段分区都没有时才回落到 8 / 24 / 40。</li>
         </ul>
         <div class="hint">编辑台上方的 <b>「播放」</b>就地播放/暂停这个基础排布，改参数时结果立刻跟着变。
           还有一个 <b>「在灯板上看」</b>：把当前效果铺到真实灯板的所有分区上（会切到「动画」页）。</div>
@@ -4061,6 +4062,30 @@ function stageFill(inst, i, N, hue, mask) {
 }
 function stageLedR(spacing) { return Math.max(2, Math.min(10, spacing * 0.34)); }
 
+/* 对比条画哪些长度：取板子上分区真实的 count（去重后最多 3 条，多了取最短 / 中位 / 最长），
+   标签写实际分区名 —— 调光宽时看到的就是自己那几个分区，而不是与实物无关的固定长度。
+   板上一段分区都没有（或 count 全 < 1）时才回落到 8 / 24 / 40。 */
+function stageCompareRows() {
+  const byN = new Map();                 /* count -> { names: 这个长度的分区名, more: 还有更多同名分区 } */
+  (state.zones || []).forEach(z => {
+    const c = Math.round(+z.count) || 0;
+    if (c < 1) return;
+    if (!byN.has(c)) byN.set(c, { names: [], more: false });
+    const rec = byN.get(c);
+    if (rec.names.length < 3) rec.names.push(z.name || '(未命名)');
+    else rec.more = true;
+  });
+  let ns = [...byN.keys()].sort((a, b) => a - b);
+  if (ns.length > 3) ns = [ns[0], ns[(ns.length - 1) >> 1], ns[ns.length - 1]];
+  if (!ns.length)                        /* 板上一段分区都没有 → 才用 8 / 24 / 40 这三条老样子 */
+    return [[8, '短段，比如旋钮'], [24, '中等环'], [40, '长段，比如顶环']]
+      .map(([c, t]) => ({ n: c, label: c + ' 颗（' + t + '）' }));
+  return ns.map(c => {
+    const rec = byN.get(c);
+    return { n: c, label: c + ' 颗（' + rec.names.join('、') + (rec.more ? ' …' : '') + '）' };
+  });
+}
+
 function renderStage() {
   const dpr = window.devicePixelRatio || 1;
   const W = cv.clientWidth, H = cv.clientHeight;
@@ -4124,12 +4149,15 @@ function renderStage() {
 
   const top = 76;
   if (st.compare) {
-    /* 多长度对比：8 / 24 / 40 三条，看等比缩放的效果是否都合适 */
-    const [n1, n2, n3] = [8, 24, 40];
+    /* 多长度对比：按板子上真实的分区长度画（去重后最多 3 条），看等比缩放的效果是否都合适 */
+    const rowsC = stageCompareRows();
     const usable = H - top - 60;
-    row(n1, 60, W - 60, top + usable * 0.12, n1 + ' 颗（短段，比如旋钮）');
-    row(n2, 60, W - 60, top + usable * 0.45, n2 + ' 颗（中等环）');
-    row(n3, 60, W - 60, top + usable * 0.78, n3 + ' 颗（长段，比如顶环）');
+    rowsC.forEach((r, i) => {
+      /* 有几条画几条，竖直空间均分（只有 1 条时居中） */
+      const y = rowsC.length > 1 ? top + usable * (0.12 + 0.66 * (i / (rowsC.length - 1)))
+                                 : top + usable * 0.45;
+      row(r.n, 60, W - 60, y, r.label);
+    });
   } else {
     ring(st.ringN, W / 2, top + Math.min(H * 0.30, W * 0.22), Math.min(W * 0.30, H * 0.20),
          st.ringN + ' 颗圆环');
@@ -5298,11 +5326,35 @@ function mkLayer(kind) {
   return base;
 }
 
+/* 效果列表的过滤（F2）：纯显示层 —— 只决定「画哪几行」，不动 state.effects.list 的顺序与 slot，
+   也不进存档；清空输入框就恢复全部。 */
+let fxFilterTxt = '';
+function fxFilterHit(e) {
+  const q = fxFilterTxt.trim().toLowerCase();
+  if (!q) return true;
+  const kind = e.kind === 'custom' ? '自定义' : '内建';
+  return String(e.name || '').toLowerCase().includes(q)
+      || String(e.latin || '').toLowerCase().includes(q)
+      || kind.includes(q)
+      || String(e.slot).includes(q);
+}
+/* 新建 / 复制 / 转换之后要选中刚做出来的那条 —— 顺手把过滤清掉，免得「刚建好却看不见」 */
+function fxFilterClear() {
+  fxFilterTxt = '';
+  const el = $('#fxFilter');
+  if (el) el.value = '';
+}
+
 function renderFxList() {
   const t = $('#fxTbl');
   if (!t) return;
   t.innerHTML = '<tr><th></th><th>槽位</th><th>名称</th><th>类型</th></tr>';
-  fxList().forEach((e, i) => {
+  const all = fxList();
+  const q = fxFilterTxt.trim();
+  let shown = 0;
+  all.forEach((e, i) => {
+    if (!fxFilterHit(e)) return;          /* 过滤只决定这一行画不画；下标 i 仍是真实槽位 */
+    shown++;
     const tr = document.createElement('tr');
     if (i === selFx) tr.className = 'sel';
     const c = e.c1 || [255, 0, 0];
@@ -5320,6 +5372,18 @@ function renderFxList() {
     };
     t.appendChild(tr);
   });
+  /* 一条都没匹配：给一行说明，别让表格看着像空的 */
+  if (q && !shown) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="4" style="color:#888">没有匹配的效果（清空「过滤」看全部）</td>';
+    t.appendChild(tr);
+  }
+  /* 过滤信息：显示几条 / 共几条；选中的那条被滤掉时说一声（免得以为效果丢了） */
+  const info = $('#fxFilterInfo');
+  if (info) {
+    info.textContent = q ? ('显示 ' + shown + ' / 共 ' + all.length + ' 条') : '';
+    if (q && all[selFx] && !fxFilterHit(all[selFx])) info.textContent += '（当前选中的效果被过滤隐藏）';
+  }
 }
 
 /* 改参数：重算并重画（不重建 DOM，避免输入框失焦） */
@@ -5600,12 +5664,16 @@ function buildFxPanel() {
   FW.COLOR_NAME.forEach((n, i) => { const o = document.createElement('option'); o.value = i; o.textContent = n; sc.appendChild(o); });
 
   $('#fxTbl').onclick = null;
+  /* F2：列表过滤框 —— 只重画列表，不碰任何效果数据 */
+  const ff = $('#fxFilter');
+  if (ff) ff.oninput = e => { fxFilterTxt = e.target.value; renderFxList(); };
   $('#fxAdd').onclick = () => {
     if (fxList().length >= EFFECT_SLOTS) { status('效果条数已达上限 ' + EFFECT_SLOTS, 'err'); return; }
     const e = newCustomEffect(fxList().length, '自定义' + fxList().length);
     state.effects.list.push(e);
     selFx = state.effects.list.length - 1;
     state.anim.effectId = e.id;
+    fxFilterClear();                       /* F2：刚建好就要看得见 —— 过滤不挡新效果 */
     syncSlots();
     resetSim(); fxStruct();
     status('已在末尾追加自定义效果（模式 ' + e.slot + '）；在下面加图层');
@@ -5632,6 +5700,7 @@ function buildFxPanel() {
     e.layers = [{ kind: 'spot', count: 1, width: 8, phase: 0, falloff: 'cos',
                   pulse_period: 0, pulse_amp: 0, direction: 1 }];
     e.latin = (e.latin || 'FX' + e.slot).replace(/_?\d*$/, '') + '_CUSTOM';
+    fxFilterClear();                       /* F2：刚改完的那条要看得见 */
     resetSim(); fxStruct();
     status('已转为自定义动效，在下面加图层');
   };
@@ -5641,6 +5710,7 @@ function buildFxPanel() {
     c.id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     c.name = e.name + ' 副本'; c.latin = (e.latin || 'FX') + '_CP';
     state.effects.list.push(c);
+    fxFilterClear();                       /* F2：副本刚建好要看得见 */
     syncSlots();
     selFx = state.effects.list.length - 1;
     state.anim.effectId = c.id;
