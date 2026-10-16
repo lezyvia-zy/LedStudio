@@ -14,20 +14,62 @@ const SP = (m, h, len, pos, L, g, t) => genSpot(m, h, len, pos,
                   pulse_amp:0, wave:0, direction:1, bounce:0, cmode:0,
                   hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0, flags:1 }, L), g || 255, t || 0);
 
-/* ---- 1) SPOT(count=1, COS, 无脉动) 仍必须逐字节等于 chaseSingle ---- */
-console.log('--- SPOT 是 chaseSingle 的超集 ---');
+/* ---- 1) SPOT(count=1, 硬边, 无脉动) 仍必须逐字节等于 chaseSingle ----
+ * 内建「单点追逐」= 一条平顶光带（带内一律 255，带外 0，无边缘衰减），
+ * 等价于一个 count=1 / falloff='hard' 的光点层 —— 这条等式就是它的定义。 */
+console.log('--- SPOT(count=1, 硬边) == chaseSingle（平顶光带）---');
 let allEq = true, cases = 0;
 for (const len of [8, 24, 40]) for (const w of [1, 3, 10, 16, 40]) {
   const sw = zoneScaled(w, len, 1);
   for (let pos = 0; pos < len * 256; pos += 37) {
     const a = mk(len), b = mk(len);
     chaseSingle(a, len, pos, sw);
-    SP(b, hz(len), len, pos, { width: w });
+    SP(b, hz(len), len, pos, { width: w, falloff: FALL.HARD });
     cases++;
     for (let i = 0; i < len; i++) if (a[i] !== b[i]) allEq = false;
   }
 }
 ok(allEq, `全部 ${cases} 组 (len x width x pos) 与 chaseSingle 完全一致`);
+ok(CORE.chaseCosBand !== undefined, '旧余弦窗另有一份 chaseCosBand（双点/摆动的预览还用它）');
+
+/* ---- 1b) 平顶光带该有的样子：覆盖范围与旧余弦窗一样，带内一律满亮、没有中间值 ---- */
+console.log('--- 平顶光带语义 ---');
+{
+  const len = 24, w = 10, sw = zoneScaled(w, len, 1);
+  const m = mk(len), cos = mk(len);
+  chaseSingle(m, len, 0, sw);
+  CORE.chaseCosBand(cos, len, 0, sw);
+  let lit = 0, allMax = true, sameSupport = true;
+  for (let i = 0; i < len; i++) {
+    if (m[i] !== 0) lit++;
+    if (m[i] !== 0 && m[i] !== 255) allMax = false;      /* 不许出现中间亮度 */
+    if ((m[i] > 0) !== (cos[i] > 0)) sameSupport = false; /* 亮的那几颗不许变 */
+  }
+  ok(lit > 0 && allMax, `光宽 ${w} / ${len} 颗：${lit} 颗全亮 255，没有中间亮度（旧余弦窗 0..254 都有）`);
+  ok(sameSupport, '点亮的灯位与旧余弦窗完全一致（只提亮，不改变光带覆盖范围）');
+
+  /* 每推进一颗灯，光带整体挪一格（亮的灯位集合整体 +1） */
+  const s0 = [...m], s1 = mk(len);
+  chaseSingle(s1, len, 256, sw);
+  let okShift = true;
+  for (let i = 0; i < len; i++) if ((s1[i] > 0) !== (s0[(i - 1 + len) % len] > 0)) okShift = false;
+  const lastLit = a => { let r = -1; for (let i = 0; i < len; i++) if (a[i] > 0) r = i; return r; };
+  ok(okShift, `pos 加 256 → 亮的灯位整体 +1（末亮灯 ${lastLit(s0)} → ${lastLit(s1)}）`);
+
+  /* 回绕：光带跨过 0 号灯时不许断 */
+  const wr = mk(len);
+  chaseSingle(wr, len, 0, sw);
+  let wrapLit = 0;
+  for (let i = 0; i < len; i++) if (wr[i] > 0) wrapLit++;
+  ok(wrapLit === lit, `跨 0 号灯时光带不断（恒 ${lit} 颗）`);
+
+  /* 光带挪到别处时，环上其余灯位必须干干净净是 0 */
+  const far = mk(len);
+  chaseSingle(far, len, len * 128, sw);
+  let cnt = 0;
+  for (let i = 0; i < len; i++) if (far[i] > 0) cnt++;
+  ok(cnt === lit, `光带在环上任意位置都只有这 ${lit} 颗（带外全是 0，没有残留）`);
+}
 
 /* ---- 2) 波形 ---- */
 console.log('--- 脉动波形 ---');
@@ -295,6 +337,48 @@ console.log('--- 速度档（ring 级 → 实例）---');
   sim.speed_slow = 8; sim.speed_fast = 8; sim.speed_cur = 8;
   simSyncSpeed(sim);
   ok(sim.insts[0].speed_cur === 8, '参数退化（fast == slow）时按慢档走，不切档');
+}
+
+
+/* ---- 10) 效果名自动生成：「模板 / 配色」——name 不再由用户给 ---- */
+console.log('--- 效果名：模板 / 配色 ---');
+{
+  const { fxEffectName, defaultEffects, newCustomEffect, FW } = CORE;
+
+  /* 内建：模板那一半 = 固件动画名（FW.ANIM_NAME[anim]） */
+  const nB = fxEffectName({ kind: 'builtin', anim: 0, color: 0 });
+  ok(nB === FW.ANIM_NAME[0] + '/' + FW.COLOR_NAME[0], `内建：动画名 / 配色名 = ${nB}`);
+
+  /* 默认 9 条一条不落（名字必须走同一条规则，不能另有来路） */
+  const d = defaultEffects().list;
+  ok(d.every(e => e.name === FW.ANIM_NAME[e.anim] + '/' + FW.COLOR_NAME[e.color]),
+     `默认 9 条全按「动画名 / 配色名」命名（第 1 条：${d[0].name}）`);
+
+  /* 自定义：模板那一半 = 最近套用的预置模板名（e.tpl） */
+  const nC = fxEffectName({ kind: 'custom', tpl: '拖尾彗星', color: 1 });
+  ok(nC === '拖尾彗星/' + FW.COLOR_NAME[1], `自定义：套过模板 → ${nC}`);
+
+  /* 没套过模板（含旧存档缺 tpl 字段）→「自定义」 */
+  const nO = fxEffectName({ kind: 'custom', color: FW.COLOR.SOLID });
+  ok(nO === '自定义/' + FW.COLOR_NAME[FW.COLOR.SOLID], `自定义：没模板（旧存档缺 tpl）→ ${nO}`);
+
+  /* 新建的自定义效果自带自动名，模板那半记着「自定义」 */
+  const nc = newCustomEffect(7);
+  ok(nc.tpl === '自定义' && nc.name === '自定义/' + FW.COLOR_NAME[nc.color],
+     `新建：tpl=${nc.tpl} / name=${nc.name}`);
+
+  /* 只换模板名 → 名字跟着换，图层一个字段都不动 */
+  const nc2 = Object.assign({}, nc, { tpl: '呼吸' });
+  ok(fxEffectName(nc2) === '呼吸/' + FW.COLOR_NAME[nc.color] && nc2.layers === nc.layers,
+     `只换模板名 → ${fxEffectName(nc2)}（图层没被碰）`);
+
+  /* 名字只进注释：ASCII 注释走 latin 别名（自动名是中文，不进 C 数据、也不落进 GBK 乱码区） */
+  const st0 = CORE.projectFromPreset(CORE.PRESET_SP3122D);
+  const asciiOut = CORE.exportEffectsC(st0, { form: 'header', comment: 'ascii', eol: 'lf' });
+  ok(!/[^\x00-\x7F]/.test(asciiOut) && asciiOut.includes('EFFECT0'),
+     'ASCII 注释的整份导出仍是纯 ASCII（自动名走 latin 别名）');
+  const zhOut = CORE.exportEffectsC(st0, { form: 'header', comment: 'zh', eol: 'lf' });
+  ok(zhOut.includes(d[0].name), `中文注释里写的就是自动名：${d[0].name}`);
 }
 
 

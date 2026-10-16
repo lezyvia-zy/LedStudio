@@ -2,11 +2,12 @@ import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
 const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
 const {FW, GEN, projectFromPreset, PRESET_SP3122D, deriveZoneDir, validate, exportC,
-       simInit, simSetupPreset, simTick} = CORE;
+       simInit, simSetupPreset, simTick, litBandCenter} = CORE;
 let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fails++;};
 const st = projectFromPreset(PRESET_SP3122D);
 
-/* 亮灯追踪：返回每秒各分区最亮灯的物理编号序列 */
+/* 亮灯追踪：返回每秒各分区的光带中点（物理灯号）序列。
+ * 平顶光带里带内亮度全一样，「最亮的那颗」没有唯一解 —— 用中点定位。 */
 function trace(applyReverse){
   const sim = simInit();
   simSetupPreset(sim, st, FW.presets[0]);            // 0: CHASE_SINGLE + SPECTRUM
@@ -17,9 +18,10 @@ function trace(applyReverse){
     if(t%20===0){
       const rec={};
       for(const z of st.zones){
-        let bn=z.start, bb=-1;
-        for(let i=0;i<z.count;i++){ const v=sim.fb[(z.start+i)*3]; if(v>bb){bb=v;bn=z.start+i;} }
-        rec[z.name]={n:bn, lit:bb};
+        let bb=-1;
+        for(let i=0;i<z.count;i++){ const v=sim.fb[(z.start+i)*3]; if(v>bb) bb=v; }
+        const at = litBandCenter(sim.fb, z);
+        rec[z.name]={n: at === null ? z.start : at, lit:bb};
       }
       series.push(rec);
     }

@@ -275,7 +275,7 @@ ok(projState(0).anim.effectId === e0d.id, '重开后选中的还是同一个效�
   /* 6d-2 点过滤后剩的那一行：选中的是它真实的槽位，不是「第几行」 */
   tbl().children[n0].onclick();
   await new Promise(r => setTimeout(r, 700));
-  ok(projState(0).anim.effectId === custom.id && byId.get('fName').value === custom.name,
+  ok(projState(0).anim.effectId === custom.id && byId.get('fName').textContent === custom.name,
      `点过滤后的行选中的还是「${custom.name}」（真实槽位 ${custom.slot}）`);
 
   /* 6d-3 选中的那条被滤掉：说一声，但选中 / 槽位都不动 */
@@ -331,6 +331,69 @@ const effN  = (hdr2.match(/LED_GEN_EFFECT_COUNT\s+(\d+)/) || [])[1];
 ok(modeN === '9' && effN === '9', `迁移后仍是 9 个模式 / 9 个效果（实际 ${modeN}/${effN}）`);
 const eb2 = hdr2.slice(hdr2.indexOf('static const led_gen_effect_t'));
 ok((eb2.slice(0, eb2.indexOf('};')).match(/^    \{/gm) || []).length === 9, '效果表 9 行');
+
+/* ---- 8) 名称自动生成：界面不给改名，规则 =「模板 / 配色」 ---- */
+console.log('--- 名称自动生成（模板 / 配色）---');
+{
+  /* 8a 静态：名称那一格不再是输入框，也没有改名绑定 */
+  ok(/<span>名称<\/span><b id="fName"/.test(html) && !/<input[^>]*id="fName"/.test(html),
+     '名称这一行是只读展示（<b id="fName">），不再是输入框');
+  ok(!/bind\('fName'/.test(uiSrc) && !/\$\('#fName'\)\.value/.test(uiSrc),
+     '没有改名字的输入绑定，也没有往 #fName 写 value 的地方');
+  ok(/\$\('#fName'\)\.textContent = e\.name/.test(uiSrc), '#fName 的名字由 syncFxEdit 写 textContent');
+  ok(/fxEffectName/.test(uiSrc) && /e\.tpl = name/.test(uiSrc),
+     '套用模板时把模板名记进 e.tpl（名字的「模板」那一半）');
+
+  /* 8b 重开工具（存档里是上一段迁移出来的老工程：9 条内建） */
+  install(); boot(); await new Promise(r => setTimeout(r, 700));
+  tabBtn('fx').onclick();
+  const L = () => projState(0).effects.list;
+  const shown = () => byId.get('fName').textContent;
+  const CN = CORE.FW.COLOR_NAME;
+  byId.get('fxTbl').children[0].onclick();          /* 槽位 0 = 单点追逐 / 彩虹循环 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(shown() === L()[0].name && /^单点追逐\//.test(shown()),
+     `内建效果显示自动名（不是输入框里的旧值）：${shown()}`);
+
+  /* 8c 改配色 → 「配色」那一半跟着变 */
+  const col = byId.get('fColor');
+  col.value = String(CORE.FW.COLOR.SOLID);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  ok(L()[0].name === '单点追逐/' + CN[CORE.FW.COLOR.SOLID] && shown() === L()[0].name,
+     `改配色 → 名字立刻跟着变：${L()[0].name}`);
+
+  /* 8d 套用模板 → 「模板」那一半换成模板名 */
+  byId.get('fxPresetPick').value = '拖尾彗星';
+  click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(L()[0].name === '拖尾彗星/' + CN[CORE.FW.COLOR.SOLID] && shown() === L()[0].name,
+     `套「拖尾彗星」→ 名字：${L()[0].name}`);
+  ok(L()[0].tpl === '拖尾彗星', `模板名记在 tpl 上（改别的参数、重开工具都认）：${L()[0].tpl}`);
+
+  /* 8e 套完再微调图层参数：名字不跟着抖（「记住模板」的意思） */
+  const nums = [];
+  (function walk(n) { (n.children || []).forEach(c => {
+    if (c.tagName === 'INPUT' && c.type === 'number') nums.push(c); walk(c); }); })(byId.get('fLayers').children[0]);
+  nums[1].value = '31'; nums[1].oninput();          /* 光宽 */
+  await new Promise(r => setTimeout(r, 700));
+  ok(L()[0].layers[0].width === 31 && L()[0].name === '拖尾彗星/' + CN[CORE.FW.COLOR.SOLID],
+     `光宽改成 ${L()[0].layers[0].width}，名字仍是「${L()[0].name}」`);
+
+  /* 8f 再改配色 → 名字照样跟着走 */
+  col.value = String(CORE.FW.COLOR.SPECTRUM);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  ok(L()[0].name === '拖尾彗星/' + CN[CORE.FW.COLOR.SPECTRUM], `再改配色 → ${L()[0].name}`);
+
+  /* 8g 「新建」= 没套过模板 → 「自定义 / 配色名」 */
+  click('fxAdd');
+  await new Promise(r => setTimeout(r, 700));
+  const last = L()[L().length - 1];
+  ok(last.name === '自定义/' + CN[last.color] && shown() === last.name,
+     `新建的效果自动叫：${last.name}（模板那半 = 自定义）`);
+  ok(!L().some(e => /副本/.test(e.name)), '库里不再有「… 副本」这类手工名字');
+}
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

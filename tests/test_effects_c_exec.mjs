@@ -12,7 +12,7 @@ import path from 'node:path';
 
 const html = fs.readFileSync('led_layout_editor.html', 'utf8');
 const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
-const { FW, projectFromPreset, PRESET_SP3122D, newCustomEffect, exportEffectsC,
+const { FW, projectFromPreset, PRESET_SP3122D, newCustomEffect, defaultEffects, exportEffectsC,
         simInit, simApplyMode, simSetSpeed, simTick, genRender } = CORE;
 
 let fails = 0;
@@ -21,7 +21,7 @@ const CYG = 'C:/Andestech/AndeSight_RDS_v323/cygwin/bin';
 const GCC = CYG + '/gcc.exe';
 const ENV = Object.assign({}, process.env, { PATH: CYG + ';' + process.env.PATH });
 
-/* ---------- 1) 造工程：5 个分区，3 个模式，全是自定义效果 ---------- */
+/* ---------- 1) 造工程：5 个分区，4 个模式（3 个自定义 + 1 个内建） ---------- */
 const st = projectFromPreset(PRESET_SP3122D);
 const effs = [];
 function mkFx(i, layerSets) {
@@ -54,6 +54,15 @@ st.modes = { version: 1, list: [
     binds:[{ effect:C.id, zones:[0,1,2,3,4] }] },
 ] };
 
+/* 第 4 个模式绑**内建**单点追逐：光带由生成代码自画（平顶），平台那个
+ * anim_render_chase_single() 桩里被做成「一被调就 abort」——
+ * 下面那份逐字节比对同时也把「不再调平台原语」钉死。 */
+const builtin = JSON.parse(JSON.stringify(defaultEffects().list[0]));
+builtin.id = 'eB';
+effs.push(builtin);                       /* st.effects.list 就是 effs 本身 */
+st.modes.list.push({ id:'mD', name:'内建单点追逐', latin:'BUILTIN_CHASE', enabled:true,
+                     binds:[{ effect:builtin.id, zones:[] }] });
+
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build');
 fs.rmSync(dir, { recursive: true, force: true });
@@ -66,6 +75,8 @@ const stub = [
   '#include <stdint.h>',
   '#include <stdbool.h>',
   '#include <string.h>',
+  '#include <stdio.h>',
+  '#include <stdlib.h>',        /* abort()：桩里的平台原语被调用时立刻炸出来 */
   'typedef struct { uint8_t r, g, b; } rgb_t;',
   'typedef struct { uint8_t start, count, reverse; } led_zone_t;',
   'typedef struct { int16_t current, from, target; uint16_t duration, elapsed; uint8_t ease_type; bool running; } anim_t;',
@@ -121,7 +132,9 @@ const stub = [
   '  if (c->type == COLOR_GRADIENT) c->secondary = spectrum_tbl[(uint8_t)(c->phase.current + 85)]; }',
   'static void ring_set_position(ring_t *r, uint16_t pos, uint16_t dur, uint8_t ease)',
   '{ r->anim.position.target = (int16_t)(pos % (uint16_t)(RING_SIZE * 256)); anim_set(&r->anim.position, r->anim.position.target, dur, ease); }',
-  'static void anim_render_chase_single(uint8_t *m, uint8_t len, int16_t pos, uint8_t w) { (void)pos; (void)w; memset(m, 128, len); }',
+  'static void anim_render_chase_single(uint8_t *m, uint8_t len, int16_t pos, uint8_t w)',
+  '{ (void)m; (void)len; (void)pos; (void)w;',
+  '  fprintf(stderr, "PLATFORM anim_render_chase_single() CALLED\\n"); abort(); }',
   'static void anim_render_chase_dual(uint8_t *m, uint8_t len, int16_t pos, uint8_t w, uint8_t g) { (void)pos;(void)w;(void)g; memset(m, 128, len); }',
   'static void anim_render_swing(uint8_t *m, uint8_t len, int16_t pos, uint8_t w, bool d) { (void)pos;(void)w;(void)d; memset(m, 128, len); }',
   'static void anim_render_fill(uint8_t *m, uint8_t len, int16_t lvl, bool d) { (void)lvl;(void)d; memset(m, 128, len); }',
@@ -209,7 +222,15 @@ try {
 ok(compiled, compiled ? '生成的 C 用 gcc 编译通过（真编译器）' : '编译失败:\n    ' + msg);
 if (!compiled) { console.log('\n=== 中止 ==='); process.exit(1); }
 
-const out = execFileSync(path.join(dir, 'gen.exe'), { env: ENV, encoding: 'latin1' });
+let out = '';
+try {
+  out = execFileSync(path.join(dir, 'gen.exe'), { env: ENV, encoding: 'latin1' });
+} catch (e) {
+  ok(false, '生成的 C 跑崩了 —— 说明它调到了桩里那个「被调即 abort」的平台原语: '
+            + String(e.message).split('\n')[0]);
+  console.log('\n=== 中止 ===');
+  process.exit(1);
+}
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
 const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 2 段音量档场景 */
@@ -239,6 +260,23 @@ st.modes.list.forEach((mode, mi) => {
 ok(bad === 0, bad === 0
    ? `${st.modes.list.length} 个模式 × ${TICKS} 帧，整个 104 灯 fb 与 JS 预览逐字节一致`
    : `${bad}/${st.modes.list.length} 个模式不一致，首例: ${JSON.stringify(firstBad)}`);
+
+/* ---------- 4a) 内建单点追逐：真编译出来的 C 画的是平顶光带，且没调平台原语 ---------- */
+console.log('--- 内建单点追逐：生成代码自画（平顶、不调平台原语） ---');
+{
+  const genH = fs.readFileSync(path.join(dir, 'led_effects_gen.h'), 'utf8');
+  ok(!/^\s*anim_render_chase_single\s*\(/m.test(genH),
+     '生成代码里一处都没调平台 anim_render_chase_single()（桩里那个一被调就 abort，跑通即证明）');
+  /* 内建这条效果是单色实例（配色走 color_ctx 给一个全局色），所以 mask 平顶 ⇒
+   * 带内的灯像素值**完全一样**、带外全 0 —— 只有一种亮度值。跑的是旧余弦窗时，
+   * 这里会数出 5~9 种渐变值。 */
+  const bi = cModes[3] || [];
+  const uniq = new Set();
+  let litN = 0;
+  bi.forEach(px => { if (px[0] + px[1] + px[2] > 0) { litN++; uniq.add(px.join(',')); } });
+  ok(uniq.size === 1 && litN > 0,
+     `内建单点追逐跑 ${TICKS} 拍后：${litN} 颗灯亮、只有 ${uniq.size} 种像素值（平顶光带：带内一律满档，无边缘衰减）`);
+}
 
 /* ---------- 4b) F5) 旁路的图层（en=0）在真编译的 C 里也被跳过 ---------- */
 console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
@@ -299,7 +337,7 @@ let lit = 0, hueUsed = 0;
 cModes.forEach(f => f.forEach(px => { if (px[0] + px[1] + px[2] > 0) lit++; }));
 ok(lit > 0, `C 侧确实点亮了 ${lit} 个灯位（不是一片黑）`);
 const kinds = new Set();
-st.effects.list.forEach(e => e.layers.forEach(l => kinds.add(l.kind)));
+st.effects.list.forEach(e => (e.layers || []).forEach(l => kinds.add(l.kind)));
 ok(kinds.size >= 3, `覆盖了 ${kinds.size} 种图层 (${[...kinds].join(',')})`);
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');

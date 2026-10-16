@@ -75,13 +75,13 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-23 个套件、1153 项断言。五类：
+23 个套件、1185 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
 | **纯逻辑** | `test_effects_core` `test_core` `test_map` `test_shape` | 图层原语、排布生成、校验、C 文本；`test_shape` 另守住形状引擎（`cells` 档必须与旧 `GEN.rectLeds` 逐字节相同、21 颗闭环、每边颗数、反向编号、圆/圆弧、退化形状、圆角矩形/直线/椭圆/换类型外框不动/轮廓最近点） |
 | **真编译** | `test_effects_c_exec` | 用 **AndeSight 自带的 cygwin gcc** 真编译生成的头文件、真运行，**3 模式 × 37 帧整个 104 灯 fb 与 JS 预览逐字节比对**；另有一段**前半慢档 / 后半快档**的场景，验「音乐来了会变快」 |
-| **契约** | `test_gen_independence` | 契约第 ① 步的守门人：`led_gen_hal.h` 零平台符号 / 只 include 标准头 / ASCII / 行尾可控；契约与 `docs/firmware-contract.md` 双向一致；附录 A 账本（现有导出物的 29 个平台耦合）不许变多；**真编译**平台照契约实现能编过、版本不符必须编不过 |
+| **契约** | `test_gen_independence` | 契约第 ① 步的守门人：`led_gen_hal.h` 零平台符号 / 只 include 标准头 / ASCII / 行尾可控；契约与 `docs/firmware-contract.md` 双向一致；附录 A 账本（现有导出物的 28 个平台耦合）不许变多；**真编译**平台照契约实现能编过、版本不符必须编不过 |
 | **假 DOM** | `test_ui` `test_modes` `test_stage` `test_override` `test_help` `test_export` … | 把界面层真跑一遍（`boot()` 走通）、交互、接线；`test_help` 还断言帮助页章节与 `data-tip`；`test_export` 断言导出窗口（开关 / 四页签 / 「另存为」与回退下载 / 拖动 / Esc）与右栏宽度上限 |
 | **画布映射** | `test_canvas_map` | 把浏览器的**位图 / CSS 盒子 / dpr** 三样分开建模，再用记录型 2D 上下文抓住 `render()` 真正用的变换、每一次 `arc` / `fillRect` / `fillText` —— 「屏幕上的那个灯点被点下去会选中谁」是**算出来**的：点灯准不准、布局变了 / dpr 变了会不会偏、手柄在一次手势里抓不抓得住、**哪些东西画出来了**（手柄只在形状编辑态出现、定头尾时画布上写着「① 点头 / ② 点尾」且那行提示**钉在画布窗口左上角**、缩放平移都不动）。**别处的假 DOM 三者恒等（1200×1200、dpr 1），这类 bug 在那儿根本看不见** |
 | **持久化** | `test_persist` `test_solo` | 关掉再打开还在、迁移（含「老存档没有 `shapes` 字段」）、状态隔离 |
@@ -120,10 +120,12 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 24. **数字输入框不能一「清空」就回填**（批 11，用户第十一轮实测「分区的 count 参数没办法彻底删除再输入新参数，框里始终有个 1」）：老写法 `z.count = Math.max(1, +e.target.value || 1)` —— 用户全选删掉的一瞬间 `value === ''`，`+'' || 1` = 1，紧接着 `afterChange → syncZoneEdit` 又把「1」写回框里，于是**永远打不进新数字**（`start` 同理回填 0）。现在统一走 UI 段的 `bindNumField(id, { get, set, min, max })`：`oninput` **只在「确实打出了一个数」时才落状态**（空着 / 只打了个负号先不动 state，框里就保持空的，用户能接着打字），`onchange`（离开输入框）才定稿 —— 空着离开 = 这次没改，把原值写回来；越界 / 负数在定稿时夹紧。`#zStart` / `#zCount` / `#mLedCount` 都已切过去，**以后新增数字框一律用它**，别再写 `+e.target.value || N` 这一类「清空即归零」的写法。
 
+25. **效果名是「算出来」的，不是「存下来」的**（2026-10-16，用户要求「名称改为自动生成，用现有的【模板+配色】规则」）：名字的唯一来源是 core 的 `fxEffectName(e)` = `模板 / 配色` —— 内建的「模板」= `FW.ANIM_NAME[anim]`（如「单点追逐」），自定义的 = `e.tpl`（**最近一次套用的预置模板名**，`applyPreset()` 写入；缺省 = 「自定义」），配色取 `FW.COLOR_NAME[color]`。`defaultEffects()` 也走它（内建 9 条的默认名与从前逐字相同）。界面侧：`#fName` 是**只读** `<b>`（`syncFxEdit()` 写 `textContent`），**没有** `bind('fName')`；改参数后由 `fxLive()` / `fxStruct()` 里的 `fxSyncName()` 重算。两条别踩：① **只算 `selEffect()`** —— 「正在微调某条绑定的覆盖」那份 `editBinding.override` 的名字由模式页给出（带「覆盖」），`test_override` 断言它，别被顺手改掉；② `fxLive()` 里**不能**整体调 `syncFxEdit()`：它会 `renderLayers()` 重建图层卡 DOM，正在拖的数值框当场失焦 —— 这里只用 `syncFxName()` 刷 `#fName` 那一格 + `renderFxList()`。名字**只进导出的 C 注释**（中文注释写 `name`、ASCII 注释写 latin 别名），不进固件数据，所以导出物 / 契约账本 / C 模板都不受影响。
+
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、1153 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1153 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1185 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1185 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

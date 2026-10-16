@@ -31,7 +31,9 @@ const LEDGER = [
   'ANIM_CHASE_SINGLE', 'ANIM_CHASE_DUAL', 'ANIM_SWING', 'ANIM_FILL',
   'COLOR_SOLID', 'COLOR_GRADIENT', 'EASE_OUT_QUAD',
   'anim_set', 'anim_update', 'color_update', 'ring_set_position',
-  'anim_render_chase_single', 'anim_render_chase_dual', 'anim_render_swing', 'anim_render_fill',
+  /* 单点追逐的渲染不再借平台原语：生成代码自带 led_gen_anim_chase_single()（平顶光带）。
+     账本因此从 29 条降到 28 条 —— 导出物里那 4 个 anim_render_* 只剩 3 个被调用。 */
+  'anim_render_chase_dual', 'anim_render_swing', 'anim_render_fill',
 ];
 const EMPTY_MARK = '无耦合（引擎自洽）';
 const STD_T = ['uint8_t', 'uint16_t', 'uint32_t', 'int8_t', 'int16_t', 'int32_t', 'uint64_t', 'int64_t', 'size_t', 'bool'];

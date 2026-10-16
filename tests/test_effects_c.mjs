@@ -80,6 +80,18 @@ const layRows = (lay.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
 ok(layRows.length === 1 && layRows[0].length === 21 && layRows[0][0] === 2 && layRows[0][1] === 1,
    `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 21 个 / 2 / 1）`);
 
+console.log('--- 内建「单点追逐」由生成代码自画（不再调平台原语，平顶光带）---');
+ok(hdr.includes('static void led_gen_anim_chase_single(uint8_t *mask, uint8_t len, int16_t pos, uint8_t width)'),
+   '生成头里自带 led_gen_anim_chase_single()');
+ok(hdr.includes('led_gen_anim_chase_single(mask, len, zpos, led_gen_scaled(E->width, len, 1u)); break;'),
+   'ANIM_CHASE_SINGLE 分支调的是它（宽度仍按分区长度等比缩放）');
+ok(!/^\s*anim_render_chase_single\s*\(/m.test(hdr),
+   '平台那个同名原语一次都没被调用（契约账本因此少 1 个符号）');
+ok(/if \(ad < hw\) mask\[i\] = 255u;/.test(hdr),
+   '平顶：带内一律 255，没有边缘衰减（这一句就够，不必查 cos_window_tbl）');
+ok(hdr.includes('anim_render_chase_dual') && hdr.includes('anim_render_swing') && hdr.includes('anim_render_fill'),
+   '双点 / 摆动 / 填充仍走平台原语（这批只改单点追逐）');
+
 console.log('--- 头文件结构 ---');
 ok(hdr.includes('#ifndef __LED_EFFECTS_GEN_H__'), '有 include guard');
 ok(hdr.includes('@author  LED layout editor (Automatic generated)'), '照抄了 Automatic generated 的作者标记');

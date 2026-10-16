@@ -479,7 +479,8 @@
 
       <fieldset id="fxEdit">
         <legend>选中效果</legend>
-        <label class="row"><span>名称</span><input type="text" id="fName" data-tip="给这个效果起个名字。会写进导出的 C 注释里。"></label>
+        <label class="row"><span>名称</span><b id="fName" data-tip="自动生成，不在这里改：模板 / 配色。&#10;内建的「模板」= 固件动画名（单点追逐 / 双点追逐 / 摆动 / 填充 / 静态）；自定义的「模板」= 你最近套用的那个预置模板名（套完再调宽度、速度、相位名字都不变，自己从零搭的叫「自定义」）。&#10;名字只写进导出的 C 注释，不进固件数据。">—</b>
+          <span class="hint" style="flex:1;margin:0">自动生成（模板 / 配色）：换模板或改配色，名字跟着变</span></label>
         <label class="row"><span>别名(ASCII)</span><input type="text" id="fLatin" data-tip="ASCII 别名。导出 C 时用 ASCII 注释就用它（避免 GBK 乱码）。" placeholder="导出 C 注释用"></label>
         <label class="row"><span>序号</span><b id="fMode">—</b>
           <span class="hint" style="flex:1;margin:0">只是库里的编号；哪个模式用哪个效果，在「模式」页里配</span></label>
@@ -497,10 +498,11 @@
 
       <fieldset id="fxBuiltin">
         <legend>内建参数</legend>
-        <label class="row"><span>动画</span><select id="fAnim" data-tip="用固件原有的动画类型（追逐/双点/摆动/填充/静态）。想看自定义图案就点上面的「转为自定义」。"></select></label>
-        <label class="row"><span>光宽</span><input type="number" id="fWidth" data-tip="内建动画的光宽（按 RING_SIZE 逻辑单位，各分区等比缩放）。" min="1" max="255"></label>
+        <label class="row"><span>动画</span><select id="fAnim" data-tip="用固件原有的动画类型（追逐/双点/摆动/填充/静态）。想看自定义图案就点上面的「转为自定义」。&#10;单点追逐 = 平顶光带：光带内一律最亮，中间亮–两边暗的衰减已经没有了。"></select></label>
+        <label class="row"><span>光宽</span><input type="number" id="fWidth" data-tip="内建动画的光宽（按 RING_SIZE 逻辑单位，各分区等比缩放）。&#10;单点追逐画出来的是一条平顶光带：带内全是最亮、带外全灭，不带边缘衰减。&#10;想要拖尾/柔边/彗星，用图层：一个「光点」层 + 衰减曲线。" min="1" max="255"></label>
         <label class="row"><span>间隔</span><input type="number" id="fGap" data-tip="双点追逐时两个光斑的间距。" min="0" max="255"></label>
         <div class="hint">「间隔」只在双点追逐时用得上。</div>
+        <div class="hint">内建的单点追逐是<b>平顶光带</b>（带内一律最亮、无衰减）；双点追逐与摆动仍是固件原版的余弦窗。</div>
       </fieldset>
 
       <fieldset id="fxCustom">
@@ -674,7 +676,15 @@
           校验页会给出提示（V33）。所以能用原效果就别覆盖，确实需要差异化时再开。</div>
 
         <h3 id="hs-layer">效果页：图层怎么调</h3>
+        <p>效果分两类：<b>内建</b>（直接用固件原有的动画类型，参数只有动画 / 光宽 / 间隔 / 配色 / 速度）与<b>自定义</b>
+          （图层合成；任何一条内建效果都能一键「转为自定义」接着改）。内建里的<b>单点追逐</b>是一条
+          <b>平顶光带</b> —— 带内一律最亮、带外全灭、不带边缘衰减（每颗灯只有「减、取绝对值、比较」三步，
+          主控几乎不花时间）。想要拖尾 / 柔边 / 彗星，把它们做成图层（一个「光点」层 + 衰减曲线）即可。</p>
         <p>一个自定义效果由若干「图层」叠加而成，每个灯位取所有图层里<b>最亮</b>的那一个（连带它的颜色）。</p>
+        <p><b>效果的名字不用自己起</b>：工具按「<b>模板 / 配色</b>」自动生成 —— 内建的「模板」就是固件动画名
+          （「单点追逐/单色」）；自定义的「模板」是你最近<b>套用的那个预置模板</b>（套「拖尾彗星」就叫「拖尾彗星/单色」，
+          套完再调宽度、速度、相位名字都不动；自己从零搭的叫「自定义/单色」）。换模板或改配色，名字就跟着变。
+          名字只写进导出的 C 注释（ASCII 注释用「别名」那一栏），不进固件数据。</p>
         <p>图层卡最左边有个勾选框：取消勾选就是<b>旁路</b>这一层 —— 预览和固件都跳过它，但参数和位置都留着，
            想比「少了这层会怎样」时不用删了再加回来（整条效果的层全被旁路，校验页会提示 V37：渲染出来是一片黑）。
            旁边的<b>复制</b>把这一层连同参数复制一份插在后面，做「看着一样、错开相位」的变体不用重配一遍。</p>
@@ -685,7 +695,7 @@
           <tr><td>光点数</td><td>环上同时有几个光斑。1 = 单点追逐，2 = 双点，再大就是多点。</td></tr>
           <tr><td>光宽</td><td>光斑有多宽（按 RING_SIZE 逻辑单位，各分区会等比缩放，所以各环张角一致）。</td></tr>
           <tr><td>相位</td><td>把光斑沿环挪一段。多点时相当于错开 spacing。</td></tr>
-          <tr><td>衰减曲线</td><td>光斑边缘怎么衰减：<b>余弦窗</b>最柔和（固件原版追逐就是这个）；<b>线性</b>是直上直下；<b>硬边</b>是纯色块；<b>单边拖尾</b>一边亮一边长尾 = 彗星。</td></tr>
+          <tr><td>衰减曲线</td><td>光斑边缘怎么衰减：<b>余弦窗</b>最柔和（固件原版的双点追逐/摆动就是这个）；<b>线性</b>是直上直下；<b>硬边</b>是纯色块（＝平顶光带，内建「单点追逐」画的就是它）；<b>单边拖尾</b>一边亮一边长尾 = 彗星。</td></tr>
           <tr><td>方向</td><td>沿编号正方向还是反方向跑。</td></tr>
           <tr><td>往返</td><td>选「走到头折返」就是摆动/钟摆；选「绕圈」就是一直追。</td></tr>
           <tr><td>脉动周期/深度</td><td>光斑整体忽明忽暗。周期 = 多少帧一个来回，0 = 不脉动。</td></tr>
@@ -1892,6 +1902,23 @@ const EFFECT_SLOTS = 251;
 /* 固件原有的 9 条内置动画，新建工程时用它播种（模式 0..8 与旧行为一致） */
 const SEED_EFFECTS = 9;
 
+/* 效果名的**唯一来源**：模板 / 配色。
+ * 名称在界面上不给改（不给用户起名字，工具自己算）—— 算的规则就是「模板 + 配色」：
+ *   · 内建效果的「模板」= 固件动画名（`FW.ANIM_NAME`，如「单点追逐」）；
+ *   · 自定义效果的「模板」= 它**最近一次套用的预置模板名**（`e.tpl`，见 FX_PRESETS /
+ *     applyPreset）—— 套完模板再微调宽度、速度、相位的，名字不跟着抖；
+ *     自己从零搭的没有模板，记作「自定义」；
+ *   · 旧存档没有 `tpl` 字段 → 也走「自定义」这一支。
+ * 配色取 `FW.COLOR_NAME`。名字只进导出的 C 注释，不进固件数据。 */
+function fxEffectName(e) {
+  if (!e) return '';
+  const col = FW.COLOR_NAME[e.color] || ('配色' + e.color);
+  const tpl = (e.kind === 'custom')
+    ? (e.tpl || '自定义')
+    : (FW.ANIM_NAME[e.anim] || ('动画' + e.anim));
+  return tpl + '/' + col;
+}
+
 /* 默认效果表：用固件原有的 9 行播种，槽位 = 下标。
  * 导出的前 9 行必须与 spimled_service.c 的 g_presets[] 在 token 层面完全一致 —— 这是回归锚点。 */
 function defaultEffects() {
@@ -1899,7 +1926,7 @@ function defaultEffects() {
     version: 1,
     list: FW.presets.map((p, i) => ({
       id: 'e' + i,
-      name: FW.ANIM_NAME[p.anim] + '/' + FW.COLOR_NAME[p.color],
+      name: fxEffectName({ kind: 'builtin', anim: p.anim, color: p.color }),
       latin: 'EFFECT' + i,
       slot: i, enabled: true, kind: 'builtin',
       anim: p.anim, color: p.color, width: p.width, gap: p.gap,
@@ -1909,18 +1936,23 @@ function defaultEffects() {
   };
 }
 
-/* 新建一个自定义效果（图层列表从「一个余弦光点」起步，最简单可见的东西） */
+/* 新建一个自定义效果（图层列表从「一个余弦光点」起步，最简单可见的东西）。
+ * 名字照【模板 / 配色】自动生成 —— 还没套过模板，所以叫「自定义/<配色名>」。
+ * 第二个参数是**留给测试/调用方**的名字覆盖口子（界面上不传，走自动名）。 */
 function newCustomEffect(slot, name) {
-  return {
+  const e = {
     id: 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-    name: name || ('自定义' + slot), latin: 'CUSTOM' + slot,
+    name: '', latin: 'CUSTOM' + slot,
     slot: slot, enabled: true, kind: 'custom',
+    tpl: '自定义',                       /* 名字的「模板」那一半：最近套用的预置模板名 */
     offset: 0,
     color: FW.COLOR.SOLID, c1: [255, 0, 0], c2: [0, 0, 0],
     slow: 8, fast: 1, speed: 0, moves: true,
     layers: [{ kind: 'spot', count: 1, width: 8, phase: 0, falloff: 'cos',
                pulse_period: 0, pulse_amp: 0, direction: 1 }],
   };
+  e.name = name || fxEffectName(e);
+  return e;
 }
 
 /* 第 idx 个模式上生效的效果。**列表顺序就是 LEDMode 顺序**，idx 即模式号。
@@ -2026,7 +2058,28 @@ function zoneScaled(v, len, minv) {
   return r;
 }
 
+/* 单点追逐 = 一条**平顶光带**：带内一律满亮 255，带外全灭。
+ * 不带任何边缘衰减（想要拖尾/柔边就用图层里的「光点」＋衰减曲线）。
+ * 这样每颗灯只有「减、取绝对值、比较」三步、不查表 —— 固件那边是同一个式子。
+ * 与 genSpot(count=1, 硬边) 逐字节一致（test_effects_core 会钉住这条不变量），
+ * 也就是说：内建单点追逐 == 一个 count=1、falloff='hard' 的光点层。 */
 function chaseSingle(mask, len, pos, width) {
+  const halfRing = len * 128;
+  let halfW = Math.floor(width / 2); if (halfW < 1) halfW = 1;
+  const hw = halfW * 256;
+  mask.fill(0, 0, len);
+  for (let i = 0; i < len; i++) {
+    let fdist = i * 256 - pos;
+    while (fdist >  halfRing) fdist -= len * 256;
+    while (fdist < -halfRing) fdist += len * 256;
+    const adist = fdist < 0 ? -fdist : fdist;
+    if (adist < hw) mask[i] = 255;
+  }
+}
+/* 旧版余弦窗光带（中间亮、两边渐暗）。**只留给双点追逐与摆动的预览** ——
+ * 这两个效果还是走平台原语 anim_render_chase_dual / anim_render_swing，
+ * 预览必须继续和它们逐字节一致，所以这份算法原样留着，等改到它们时再一起收。 */
+function chaseCosBand(mask, len, pos, width) {
   const halfRing = len * 128;
   let halfW = Math.floor(width / 2); if (halfW < 1) halfW = 1;
   const hw = halfW * 256;
@@ -2041,10 +2094,10 @@ function chaseSingle(mask, len, pos, width) {
 }
 function chaseDual(mask, len, pos, width, gap) {
   mask.fill(0, 0, len);
-  chaseSingle(mask, len, pos, width);
+  chaseCosBand(mask, len, pos, width);
   const tmp = new Uint8Array(len);
   const p2 = ((pos + (width + gap) * 256) % (len * 256) + len * 256) % (len * 256);
-  chaseSingle(tmp, len, p2, width);
+  chaseCosBand(tmp, len, p2, width);
   for (let i = 0; i < len; i++) if (tmp[i] > mask[i]) mask[i] = tmp[i];
 }
 function fillAnim(mask, len, level, direction) {
@@ -2236,7 +2289,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.CHASE_SINGLE: chaseSingle(m, len, pos, zoneScaled(a.params.light_width, len, 1)); break;
     case FW.ANIM.CHASE_DUAL:   chaseDual(m, len, pos, zoneScaled(a.params.light_width, len, 1),
                                                        zoneScaled(a.params.gap, len, 0)); break;
-    case FW.ANIM.SWING:        chaseSingle(m, len, pos, zoneScaled(a.params.light_width, len, 1)); break;
+    case FW.ANIM.SWING:        chaseCosBand(m, len, pos, zoneScaled(a.params.light_width, len, 1)); break;
     case FW.ANIM.FILL:         fillAnim(m, len, pos, a.params.direction); break;
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
     default:                   genRender(m, hue, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset); break;
@@ -2284,6 +2337,33 @@ function instNew() {
              secondary: { r: 0, g: 0, b: 0 }, phase: 0, tick_cnt: 0, spectrum_speed: 1 },
     speed_slow: 8, speed_fast: 1, speed_cur: 8, step_cnt: 0,
   };
+}
+
+/* 帧缓冲里「光带现在在哪」—— 单点追逐是**平顶光带**（带内每颗灯一样亮），
+ * 「最亮的那颗」没有唯一解，所以按「点亮段的中点」定位：余弦/线性衰减下中点就是峰值那颗，
+ * 读数与从前一致；平顶光带下它每走一颗灯才动一格，不跳。亮点有多段（双点追逐等）时取最长那段。
+ * 返回物理灯号；该分区全灭时返回 null。 */
+function litBandCenter(fb, z) {
+  const n = z.count, on = [];
+  for (let i = 0; i < n; i++) {
+    const k = (z.start + i) * 3;
+    if (k + 2 >= fb.length) break;
+    if (fb[k] + fb[k + 1] + fb[k + 2] > 0) on.push(i);
+  }
+  if (!on.length) return null;
+  /* 相邻亮点之间最大的空档 = 两段光带的分界；空档后面那颗就是这一段亮的起点 */
+  let gi = 0, gap = -1;
+  for (let j = 0; j < on.length; j++) {
+    const d = (on[(j + 1) % on.length] - on[j] + n) % n;
+    if (d > gap) { gap = d; gi = (j + 1) % on.length; }
+  }
+  const start = on[gi];
+  let len = 1;
+  for (let i = 1; i < on.length; i++) {
+    if ((on[(gi + i) % on.length] - start + n) % n !== i) break;
+    len = i + 1;
+  }
+  return z.start + ((start + Math.round((len - 1) / 2)) % n);
 }
 
 function simInit() {
@@ -2807,6 +2887,26 @@ const LED_GEN_IMPL = [
 '    return (t < span) ? t : (two - t);',
 '}',
 '',
+'/* @chasesingle@ */',
+'static void led_gen_anim_chase_single(uint8_t *mask, uint8_t len, int16_t pos, uint8_t width)',
+'{',
+'    uint8_t  i, half_w;',
+'    int32_t  d, ad, rd, half, hw;',
+'    half_w = (uint8_t)(width / 2u); if (half_w < 1u) half_w = 1u;',
+'    rd   =  (int32_t)len * 256;',
+'    half =  (int32_t)len * 128;',
+'    hw   =  (int32_t)half_w * 256;',
+'    memset(mask, 0, len);',
+'    for (i = 0; i < len; i++) {',
+'        d = (int32_t)i * 256 - (int32_t)pos;',
+'        while (d >  half) d -= rd;',
+'        while (d < -half) d += rd;',
+'        ad = (d < 0) ? -d : d;',
+'        /* @chaseflat@ */',
+'        if (ad < hw) mask[i] = 255u;',
+'    }',
+'}',
+'',
 '/* @huefn@ */',
 'static uint8_t led_gen_hue_of(const led_gen_layer_t *L, uint8_t i, uint8_t len, uint16_t tick)',
 '{',
@@ -2956,7 +3056,8 @@ const LED_GEN_IMPL = [
 '    memset(hue, 0xFF, len);',
 '    switch (E->anim) {',
 '        case ANIM_CHASE_SINGLE:',
-'            anim_render_chase_single(mask, len, zpos, led_gen_scaled(E->width, len, 1u)); break;',
+'            /* @chasegen@ */',
+'            led_gen_anim_chase_single(mask, len, zpos, led_gen_scaled(E->width, len, 1u)); break;',
 '        case ANIM_CHASE_DUAL:',
 '            anim_render_chase_dual(mask, len, zpos, led_gen_scaled(E->width, len, 1u),',
 '                                   led_gen_scaled(E->gap, len, 0u)); break;',
@@ -3121,8 +3222,8 @@ const GEN_COMMENTS = {
   gentick:   { zh:'每帧推进一次：所有实例各推进各的', en:'called once per frame: advance every instance' },
   syncspeed: { zh:'ring 级速度档：speed_cur 由 ring_set_audio_level() 按音量在 slow/fast 之间切。只有「快档确实更快」才认快档，否则一律慢档（与打补丁前一致）', en:'ring-level speed stage: ring_set_audio_level() switches speed_cur between slow/fast by volume. Treated as fast only when fast is really quicker, else slow (as before the patch)' },
   instspeed: { zh:'每拍把 ring 级档位同步进本实例；各效果仍用自己配的 fast/slow', en:'sync the ring-level stage into this instance every frame; each effect keeps its own fast/slow' },
-  genrender: { zh:'把当前模式渲染进 ring->fb。内建效果直接调固件原有的渲染函数，行为完全一致', en:'render the current mode into ring->fb. built-ins call the firmware own renderers' },
-  zonerender:{ zh:'单个分区渲染：内建走固件原函数，自定义走图层合成', en:'render one zone: built-in via the firmware, custom via layer compositing' },
+  genrender: { zh:'把当前模式渲染进 ring->fb。内建效果里双点/摆动/填充调固件原有的渲染函数；单点追逐由生成代码自己画（平顶光带）', en:'render the current mode into ring->fb. built-ins: dual/swing/fill call the firmware own renderers; the single chase is drawn here (flat top)' },
+  zonerender:{ zh:'单个分区渲染：内建的单点追逐与自定义走生成代码，双点/摆动/填充走固件原函数', en:'render one zone: single chase + custom via the generated code; dual/swing/fill via the firmware' },
   setpos:    { zh:'位置推进：把 from 折算到离 target 最近的等价位置（顺带修掉「转一圈闪一下」）', en:'position advance; re-bases from to the nearest equivalent (fixes the once-per-revolution flash)' },
   layersrender:{ zh:'自定义效果的图层合成（对应工具里的 genRender）', en:'layer compositing for custom effects' },
   bypass: { zh:'被旁路的层：占位还在，合成时跳过', en:'bypassed layer: the placeholder stays, compositing skips it' },
@@ -3133,6 +3234,9 @@ const GEN_COMMENTS = {
   cmt4: { zh:'同一个效果只建一次实例 —— 这就是「同步」的由来', en:'one instance per distinct effect - this is what makes shared zones synchronised' },
   hueArr: { zh:'每个灯位的色相数组; 0xFF 表示用效果的全局配色', en:'per-LED hue array; 0xFF means use the effect global colour' },
   bounce: { zh:'往返（乒乓）：走到头就回头', en:'ping-pong: turn around at the ends' },
+  chasesingle: { zh:'内建「单点追逐」：生成代码自带这份实现（不调平台原语），与工具预览逐字节一致', en:'built-in single chase, implemented here (no platform primitive); byte-identical to the tool preview' },
+  chaseflat:   { zh:'平顶光带：带内一律满亮 255，带外全灭 —— 不带边缘衰减', en:'flat top: 255 throughout the band, 0 outside - no edge falloff at all' },
+  chasegen:    { zh:'内建单点追逐由生成代码自己画（平顶光带），不再调平台的同名原语', en:'the built-in single chase is drawn here (flat top); the platform primitive of the same name is no longer called' },
   huefn:  { zh:'本层在第 i 个灯位上的色相；0xFF 表示用全局配色', en:'hue of this layer at LED i; 0xFF = use the global colour' },
   grad:   { zh:'亮度渐变层：沿环斜坡/三角/锯齿，可带起始位与旋转', en:'brightness gradient layer: ramp/triangle/saw around the ring' },
 };
@@ -3162,6 +3266,9 @@ function patchLines(zh) {
     '    (the generated code calls them and must see them first):',
     '        #define LED_EFFECTS_GEN_RENDER 1',
     '        #include "led_effects_gen.h"',
+    '    Note: the built-in single chase is drawn by the generated code itself',
+    '    (a flat-top band: 255 inside, 0 outside, no edge falloff), so the',
+    '    platform anim_render_chase_single() is no longer called - no patch.',
     '',
     '[4] device/led_ring.c - render_all(): hand the whole frame to the generator',
     '        old: { ...built-in per-zone loop... }',
@@ -3207,6 +3314,8 @@ function patchLines(zh) {
     '      生成代码要调它们，必须先看得到）:',
     '        #define LED_EFFECTS_GEN_RENDER 1',
     '        #include "led_effects_gen.h"',
+    '    说明：内建「单点追逐」已由生成代码自己画（平顶光带：带内 255、带外 0，',
+    '    不带边缘衰减），平台那个 anim_render_chase_single() 不再被调用 —— 无需改它。',
     '',
     '[4] device/led_ring.c  render_all()：整帧交给生成代码',
     '        原: { ...按分区遍历的那一大段... }',
@@ -3646,17 +3755,17 @@ function buildPatchText(state, o, EOL) {
 
 const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDists, emptyProject, clone,
                PRESET_SP3122D, projectFromPreset, animNew, animSet, animUpdate,
-               zoneScaled, chaseSingle, chaseDual, fillAnim, renderZoneMask,
+               zoneScaled, chaseSingle, chaseCosBand, chaseDual, fillAnim, renderZoneMask,
                colorUpdate, simInit, instApplyPreset, simApplyEffect, simApplyMode,
                simSetSpeed, simSetupPreset, simApplySolo, instTick, simTick, modeOf, effectById, effectIndex,
-               ringIsFast, instSpeedFromRing, simSyncSpeed,
+               ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
                FALL, LAYER, WAVE, CMODE, pulseGain, bouncePos, layerHue,
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
-               EFFECT_SLOTS, defaultEffects, newCustomEffect, effectAtSlot,
+               EFFECT_SLOTS, defaultEffects, newCustomEffect, effectAtSlot, fxEffectName,
                layerToCRow, layerNums, modesPlan, exportEffectsC, buildPatchText, mangleComment,
                LED_GEN_HAL, exportHalC,
                PATCH_BANNER2, patchLines, genImpl, GEN_COMMENTS,
@@ -4411,14 +4520,8 @@ function render() {
     const fix = A().fix;
     for (const z of state.zones) {
       if (!z.enabled || !z.count) continue;
-      let bn = null, bb = 0;
-      for (let i = 0; i < z.count; i++) {
-        const n = z.start + i;
-        if (n * 3 + 2 >= sim.fb.length) break;
-        const v = sim.fb[n * 3] + sim.fb[n * 3 + 1] + sim.fb[n * 3 + 2];
-        if (v > bb) { bb = v; bn = n; }
-      }
-      if (bn === null || bb === 0) continue;
+      const bn = litBandCenter(sim.fb, z);
+      if (bn === null) continue;
       const rev = fix && zoneReverse(state, z, 'cw');
       const step = rev ? -1 : 1;                       /* 编号方向 = 光点行进方向 */
       const nb = z.start + ((bn - z.start + step + z.count) % z.count);
@@ -5203,16 +5306,10 @@ function fixDiag() {
   const fb = S().fb;
   const parts = state.zones.map(z => {
     if (!z.count) return `${z.name} —`;
-    let bn = null, bb = -1;
-    for (let i = 0; i < z.count; i++) {
-      const n = z.start + i;
-      if (n * 3 + 2 >= fb.length) break;
-      const v = fb[n * 3] + fb[n * 3 + 1] + fb[n * 3 + 2];
-      if (v > bb) { bb = v; bn = n; }
-    }
+    const bn = litBandCenter(fb, z);
     const d = deriveZoneDir(state, z), rev = zoneReverse(state, z, 'cw');
     const tag = d === 'cw' ? '顺' : d === 'ccw' ? '逆' : '—';
-    return `${z.name} ${tag}${rev ? '·反向' : ''} → 亮 ${bb > 0 ? bn + ' 号' : '无'}`;
+    return `${z.name} ${tag}${rev ? '·反向' : ''} → 亮 ${bn !== null ? bn + ' 号' : '无'}`;
   });
   el.innerHTML = `修正<b>${fix ? '已开' : '已关'}</b>：` + parts.join('　|　');
 }
@@ -5386,6 +5483,23 @@ function renderFxList() {
   }
 }
 
+/* 名字自动生成：把「模板 / 配色」重算一遍，写回效果库里那条。
+ * 只认 selEffect() —— 「正在微调某条绑定的覆盖」那份临时副本的名字由模式页给出
+ * （「…（覆盖）」），别被这里顺手改掉。返回是否真的变了。 */
+function fxSyncName() {
+  const e = selEffect(); if (!e) return false;
+  const n = fxEffectName(e);
+  if (n === e.name) return false;
+  e.name = n;
+  return true;
+}
+/* 只把自动名字写到右栏那一格（不重建 DOM —— 正在拖的数值框 / 色块不能失焦） */
+function syncFxName() {
+  const el = $('#fName'); if (!el) return;
+  const e = editTarget();
+  el.textContent = e ? e.name : '—';
+}
+
 /* 改参数：重算并重画（不重建 DOM，避免输入框失焦） */
 function fxLive() {
   /* 效果页只更新编辑台。模式预览（灯板）不在这一页显示，标脏就行 ——
@@ -5393,11 +5507,15 @@ function fxLive() {
   simDirty = true;
   stageRefresh();           /* 编辑台跟着更新（保留播放进度） */
   render();                 /* 当前画的是编辑台 */
+  /* 改配色 / 改内建动画之后名字要跟着变：只刷名字那两处显示 ——
+   * 这里不能整体 syncFxEdit()，它会重建图层卡 DOM，正在拖的数值框当场失焦 */
+  if (fxSyncName()) { renderFxList(); syncFxName(); }
   saveStore();
 }
 /* 改结构（增删图层、换效果）：整体刷新 */
 function fxStruct() {
   if (selFx >= fxList().length) selFx = Math.max(0, fxList().length - 1);
+  fxSyncName();             /* 名字 = 模板 / 配色，结构一变就重算（列表与右栏随后一起刷新） */
   afterChange(); renderFxList(); syncFxEdit();
 }
 
@@ -5472,7 +5590,7 @@ function renderLayers() {
     if (L.kind === 'spot') {
       row.appendChild(layerRow('衰减曲线', selInput(FALL_NAME, () => L.falloff,
         v => { L.falloff = v; fxLive(); },
-        '光斑边缘怎么衰减：\n余弦窗最柔和（固件原版追逐就是这个）\n线性是直上直下\n硬边是纯色块\n单边拖尾一边亮一边长尾 = 彗星')));
+        '光斑边缘怎么衰减：\n余弦窗最柔和（固件原版的双点追逐/摆动就是这个）\n线性是直上直下\n硬边是纯色块（＝平顶光带，内建「单点追逐」画的也是它）\n单边拖尾一边亮一边长尾 = 彗星')));
       row.appendChild(layerRow('方向', selInput([['1','沿编号正方向'], ['0','反向']],
         () => L.direction ? 1 : 0, v => { L.direction = +v; fxLive(); },
         '沿灯号增大的方向跑，还是反着跑。')));
@@ -5570,6 +5688,8 @@ function applyPreset(name) {
   const e = editTarget(); if (!e) return;
   const made = P.make();
   e.kind = 'custom';
+  e.tpl = name;                    /* 名字的「模板」那一半：套了哪个模板，名字就叫哪个 */
+  if (e === selEffect()) e.name = fxEffectName(e);
   e.moves = made.moves;
   e.color = made.color; e.c1 = made.c1.slice(); e.slow = made.slow; e.fast = made.fast; e.speed = made.speed;
   e.layers = JSON.parse(JSON.stringify(made.layers));
@@ -5581,7 +5701,8 @@ function applyPreset(name) {
 function syncFxEdit() {
   const e = editTarget();
   const on = !!e;
-  const ids = ['fName','fLatin','fEn','fColor','fC1','fC2','fSlow','fFast','fSpeed',
+  /* 名称不在这一串里 —— 它只读（自动生成），不用跟着禁用 / 启用 */
+  const ids = ['fLatin','fEn','fColor','fC1','fC2','fSlow','fFast','fSpeed',
                'fAnim','fWidth','fGap','fMoves','fOffset','fxPresetApply','fxPresetPick'];
   ids.forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
   $('#fxBuiltin').style.display = (on && e.kind !== 'custom') ? '' : 'none';
@@ -5590,7 +5711,7 @@ function syncFxEdit() {
 
   $('#fMode').textContent = selFx + '（共 ' + fxList().length + ' 条）';
 
-  $('#fName').value = e.name;
+  $('#fName').textContent = e.name;      /* 只读：名字由「模板 / 配色」算出来（fxEffectName） */
   $('#fLatin').value = e.latin || '';
   $('#fKind').textContent = e.kind === 'custom' ? '自定义动效（图层合成）' : '内建（固件原有动画类型）';
   $('#fEn').checked = !!e.enabled;
@@ -5669,7 +5790,7 @@ function buildFxPanel() {
   if (ff) ff.oninput = e => { fxFilterTxt = e.target.value; renderFxList(); };
   $('#fxAdd').onclick = () => {
     if (fxList().length >= EFFECT_SLOTS) { status('效果条数已达上限 ' + EFFECT_SLOTS, 'err'); return; }
-    const e = newCustomEffect(fxList().length, '自定义' + fxList().length);
+    const e = newCustomEffect(fxList().length);   /* 名字自动生成：「自定义 / <配色名>」 */
     state.effects.list.push(e);
     selFx = state.effects.list.length - 1;
     state.anim.effectId = e.id;
@@ -5696,6 +5817,9 @@ function buildFxPanel() {
     if (!confirm('把「' + e.name + '」（槽位 ' + e.slot + '）改成自定义动效？\n' +
                  '它的内建动画参数会被一个起始光点图层取代，配色和速度保留。')) return;
     e.kind = 'custom';
+    /* 名字的「模板」那一半：接手原来那条内建动画的名字（「单点追逐」这种）——
+     * 转换本身不该让名字突变，之后换模板 / 改配色名字才跟着走 */
+    if (e === selEffect()) e.tpl = FW.ANIM_NAME[e.anim] || '自定义';
     e.moves = true;
     e.layers = [{ kind: 'spot', count: 1, width: 8, phase: 0, falloff: 'cos',
                   pulse_period: 0, pulse_amp: 0, direction: 1 }];
@@ -5708,7 +5832,8 @@ function buildFxPanel() {
     const e = selEffect(); if (!e) return;
     const c = clone(e);
     c.id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-    c.name = e.name + ' 副本'; c.latin = (e.latin || 'FX') + '_CP';
+    c.name = fxEffectName(c);              /* 副本同模板、同配色 → 同名（列表靠槽位 / 色块区分） */
+    c.latin = (e.latin || 'FX') + '_CP';
     state.effects.list.push(c);
     fxFilterClear();                       /* F2：副本刚建好要看得见 */
     syncSlots();
@@ -5761,7 +5886,7 @@ function buildFxPanel() {
   };
 
   const bind = (id, fn, ev) => { const el = $('#' + id); if (el) el[(ev || 'oninput')] = fn; };
-  bind('fName',  e => { const x = editTarget(); if (x) { x.name = e.target.value; renderFxList(); fillPresetSelect(); saveStore(); } });
+  /* 名称这里没有绑定 —— 它是只读的，由 fxEffectName()（模板 / 配色）自动算出来 */
   bind('fLatin', e => { const x = editTarget(); if (x) { x.latin = e.target.value.replace(/[^\x20-\x7E]/g, ''); saveStore(); } });
   bind('fEn',    e => { const x = editTarget(); if (x) { x.enabled = e.target.checked; fxStruct(); } }, 'onchange');
   bind('fColor', e => { const x = editTarget(); if (x) { x.color = +e.target.value | 0; fxLive(); } }, 'onchange');
