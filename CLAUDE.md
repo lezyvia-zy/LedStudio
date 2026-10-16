@@ -64,7 +64,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 - 渲染走 `renderZoneMaskTo(inst, mask, hue, len, pos)` —— **缓冲由调用方给**，所以长度不受 `ZONE_MAX_LEN` 限制。
 - **编辑台的播放状态是独立的**（`stagePlaying`），与动画页的灯板预览（`A().playing`）互不影响。播放循环 `loop()` 按当前页决定推进谁。
-- **效果页底部有一条常驻播放条**（`#fxPlayBar` + CSS `.fxbar` = `position:sticky; bottom:-8px`，排在这一页**最后一个**控件的位置）：播放 / 暂停、**步进**（一个灯位 = `speed_cur` 个 20ms 节拍，播着会先暂停）、归零、**倍率**（存 `state.stage.rate`，`stageRate()` 读、老工程兜底 1×）与**上一条 / 下一条**（`fxSelMove(±1)`：只换 `selFx` + `state.anim.effectId`，**不动库顺序、不动绑定**，播放中切换不打断）。`loop()` 里两个累加器分开：`acc` 看 `A().rate`（灯板）、`accS` 看 `stageRate()`（编辑台）；「从头计时」统一走 `resetClock()`。
+- **效果页底部有一条常驻播放条**（`#fxPlayBar` + CSS `.fxbar` = `position:sticky; bottom:-8px`，排在这一页**最后一个**控件的位置）：**按钮上只有图标**（照音乐播放器 —— 新 CSS `.fxplay`，一排 34×30 的键 + 大一号的播放键；`▶` / `⏸` 两个 `<svg>` 挂在 `#fxTest` 里，靠 `.on` 切 CSS，见坑 26⑤），文字解释全在 `data-tip`：**上一条 / 下一条**（双箭头 = 巡览，`fxSelMove(±1)`：只换 `selFx` + `state.anim.effectId`，**不动库顺序、不动绑定**，播放中切换不打断）、**播放 / 暂停**、**步进**（一个灯位 = `speed_cur` 个 20ms 节拍，播着会先暂停）、**归零**、**倍率**（存 `state.stage.rate`，`stageRate()` 读、老工程兜底 1×）。`loop()` 里两个累加器分开：`acc` 看 `A().rate`（灯板）、`accS` 看 `stageRate()`（编辑台）；「从头计时」统一走 `resetClock()`。**「在灯板上看」（`#fxShowReal`）暂挂起**（`class="hide"` 先不摆出来，按钮与接线都留着 —— 等「模式」模块完成后按新语义回来做）。
 - 效果页改参数只把模式预览**标脏**（`simDirty`），不当场 `resetSim()` —— 否则会重置灯板动画的相位。
 - 效果列表上方那个**「过滤」框是纯显示层**（`fxFilterTxt` / `fxFilterHit()` / `fxFilterClear()`）：只决定 `renderFxList()` 画哪几行（真下标照旧 —— 点过滤后剩下的那一行，选中的仍是它真实的槽位），**不写进 `state`、不进存档、不动 `slot` 与模式绑定**；「新建 / 复制 / 转为自定义」之后自动清掉，免得刚建好却看不见。以后再添这类「只影响显示」的输入框，照这个来。
 
@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-23 个套件、1228 项断言。五类：
+23 个套件、1251 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -129,10 +129,12 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
     ② **两个播放状态**：编辑台 `stagePlaying`、灯板 `A().playing` 互不影响（`test_solo` 守着）；`#fxTest` 的 onclick 只走 `stageToggle(on, restart)`，restart=true = 从头放。
     ③ **「上一条 / 下一条」= 只换「现在看哪一条」**（`fxSelMove`）：动 `selFx` + `state.anim.effectId`（顺手清过滤、落库），**绝不动库里的顺序**（那是「上移 / 下移」`moveFx` 的事），也不动模式绑定；播放中切换**不打断**播放。
     ④ 播放条**必须排在效果页最后一个控件的位置**（`#fxPlayBar` + CSS `.fxbar`：`position:sticky; bottom:-8px` 常驻贴底），`test_stage` §10 数着它的位置与控制件 —— 以后往效果页加控件，**加在播放条之前**，别把它挤到中间。
+    ⑤ **图标键里那行字收在 `.vh` 里，别改按钮的 `textContent`**：播放键里挂着两个 `<svg>`（`.iPlay` / `.iPause`），`syncStagePlayBtn()` 只 `classList.toggle('on', stagePlaying)`（由 CSS 切图标）+ 写 `#fxPlayBtnTxt`（`.vh` 里那行字，读屏与测试用）。写 `$('#fxTest').textContent = …` 会把那两个 svg 一起冲掉（表单控件里再挂新的图标键照这个来）。
+    ⑥ **效果页的灰字规矩跟「分区」页一样**（静态灰底说明 ≤ 5 条、每条 ≤ 100 字，`test_stage` §12 数着）：新说明优先写进控件的 `data-tip` 或帮助页，别再往页面上堆 `.hint`；按钮行一律用 `.btnrow`（`flex + gap:4px`，行内标签加 `.lb` 与 `label.row` 的 56px 标签列对齐），**别再写 `style="margin:4px 0"`** —— 那样每个子块各排各的，宽窄不齐。
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、1228 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1228 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1251 项断言全绿（`node tests/run_all.mjs` 实测 23 套件 / 1251 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）** 与 批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

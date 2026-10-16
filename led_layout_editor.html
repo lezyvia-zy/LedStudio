@@ -78,6 +78,32 @@
     background:var(--panel); border-color:var(--accent);
     box-shadow:0 -8px 14px rgba(0,0,0,.28);
   }
+  /* 播放条上的图标键：照音乐播放器 —— 上一条 / 播放暂停 / 下一条 + 步进 / 归零。
+     按钮上只有图形，文字解释全在悬浮提示（data-tip）里。 */
+  .fxplay{display:flex; align-items:center; justify-content:center; gap:5px; margin:3px 0 5px}
+  .fxplay button{
+    flex:0 0 auto; width:34px; height:30px; padding:0;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .fxplay button svg{width:16px; height:16px; fill:currentColor}
+  .fxplay button.st svg{fill:none; stroke:currentColor; stroke-width:1.7;
+    stroke-linecap:round; stroke-linejoin:round}
+  .fxplay button.play{width:44px; height:32px}
+  .fxplay button.play svg{width:17px; height:17px}
+  .fxplay .div{flex:0 0 auto; width:1px; height:20px; background:var(--line); margin:0 3px}
+  /* 播放中 → 播放键里换成暂停图标（.on 由 syncStagePlayBtn() 切） */
+  #fxTest .iPause{display:none}
+  #fxTest.on .iPause{display:block}
+  #fxTest.on .iPlay{display:none}
+  /* 图标键里那行字只给读屏与测试看，不占版面 */
+  .vh{position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0;
+      overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+  /* ---- 通用「一行控件」：按钮 / 下拉排成整齐的一行（换行也不散） ---- */
+  .btnrow{display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin:4px 0; min-width:0}
+  .btnrow.tight{margin:2px 0 0}
+  .btnrow>.hint{margin:0}
+  .btnrow>.lb{flex:0 0 auto; min-width:56px; color:var(--dim)}
+  .btnrow>.sp{flex:1 1 auto; min-width:0}
   button,select,input[type=number],input[type=text]{
     background:var(--panel2); color:var(--fg); border:1px solid var(--line);
     border-radius:4px; padding:3px 7px; font:inherit; font-size:12px;
@@ -133,6 +159,8 @@
   .card{display:flex; flex-wrap:wrap; gap:1px 10px; align-items:center;
         border:1px solid var(--line); border-radius:4px; padding:5px; margin:4px 0; min-width:0}
   .cardHead{flex:1 1 100%; display:flex; align-items:center; gap:4px; margin-bottom:2px}
+  /* 卡片头上那排小键（复制 / ↑ / ↓ / ×）等宽排齐，别一个个宽窄不一 */
+  .cardHead button{min-width:26px; padding:2px 4px; text-align:center}
   .card.off{border-style:dashed; opacity:.55}   /* 被旁路的图层：位置还在，只是不参与合成 */
   .cardHead .layOn{margin:0 2px 0 0}
   .card>label.row{flex:1 1 148px; min-width:140px; margin:1px 0}
@@ -448,20 +476,22 @@
     </div>
 
     <div class="pane" data-pane="fx">
-      <label class="row"><span>过滤</span><input type="text" id="fxFilter" placeholder="名称 / 类型 / 槽号" data-tip="按名称、ASCII 别名、类型（自定义 / 内建）或槽号过滤下面的列表 —— 只影响显示：不改任何效果的槽位，也不动模式绑定。清空输入框就恢复全部。"><span class="hint" id="fxFilterInfo"></span></label>
+      <label class="row"><span>过滤</span><input type="text" id="fxFilter" placeholder="名称 / 类型 / 槽号" data-tip="按名称、ASCII 别名、类型（自定义 / 内建）或槽号过滤下面的列表 —— 只影响显示：不改任何效果的槽位，也不动模式绑定。清空输入框就恢复全部。"><span class="hint" id="fxFilterInfo" style="flex:none;margin:0"></span></label>
       <table id="fxTbl"></table>
-      <div style="margin:4px 0">
+      <div class="btnrow">
         <button id="fxAdd" data-tip="在列表末尾追加一个新的自定义效果。">新建</button>
         <button id="fxConv" data-tip="把选中的内建效果就地改成自定义动效 —— 模式号、配色、速度都保留，只把内建动画换成一个起始光点图层。&#10;9 个效果都用满时，这是加自定义效果的路子。">转为自定义</button>
         <button id="fxCopy" data-tip="复制选中效果（含图层），方便做「看起来一样但错开相位」的变体。">复制</button>
         <button id="fxDel" data-tip="删除选中效果。">删除</button>
         <!-- 「播放 / 在灯板上看」搬到了这一页底部的常驻播放条（#fxPlayBar），不再挤在这一行 -->
       </div>
-      <div style="margin:4px 0">
+      <div class="btnrow">
         <button id="fxUp" data-tip="在效果库列表里往前挪一位（只影响编号，不影响哪个模式用哪个效果）。">上移</button>
         <button id="fxDown" data-tip="在效果库列表里往后挪一位。">下移</button>
-        <span class="hint" style="margin-left:6px">顺序 = 固件 LEDMode 的顺序</span>
+        <span class="hint">顺序 = 固件 LEDMode 的顺序</span>
       </div>
+      <!-- 这句跟紧它解释的那张表（别夹在别的子块中间） -->
+      <div class="hint">这里是<b>效果库</b>：一个效果 = 图层 + 配色 + 速度，可被多个模式、多个分区复用。</div>
       <div id="fxTarget" class="iss info" style="display:none"></div>
 
       <fieldset>
@@ -469,19 +499,13 @@
         <label class="row"><span>直线颗数</span><input type="number" id="stStrip" min="2" max="200" data-tip="基础排布里那条直线有多少颗灯。看追逐的宽度、拖尾、衰减最清楚。"></label>
         <label class="row"><span>圆环颗数</span><input type="number" id="stRing" min="3" max="200" data-tip="基础排布里那个圆环有多少颗灯。用来看环形效果绕回来时的接缝。"></label>
         <label class="row"><span>多长度对比</span><input type="checkbox" id="stCompare" data-tip="在中央画布上同时画几条直线做对比：取你板子上真实的分区长度（去重后最多 3 条 —— 最短 / 中间 / 最长），板上一段分区都没有时回落到 8 / 24 / 40 —— 调光宽时用，避免在一种长度上调好了、到别的长度上走样。"></label>
-        <div class="hint">编辑台只用一个<b>基础排布</b>（直线 + 圆环）来看效果本身，与真实灯板无关。
-          在效果页时中央画布自动切到编辑台；切到别的页恢复成真实灯板。</div>
+        <div class="hint">编辑台只用一个<b>基础排布</b>（直线 + 圆环）看效果本身，与真实灯板无关；在这一页中央画布就归它。</div>
       </fieldset>
-
-      <div class="hint">这里是<b>效果库</b>：一个效果 = 一套图层 + 配色 + 速度，可以被任意多个模式、任意多个分区复用。
-        「哪个分区在哪个模式里跑哪个效果」在<b>模式页</b>里配。</div>
 
       <fieldset>
         <legend>预置效果（一键套用到选中效果）</legend>
-        <label class="row"><span>模板</span><select id="fxPresetPick" data-tip="预置模板：照 spim_led.c 里那几类基础效果做的，套用后可以继续改每一项参数。"></select></label>
-        <label class="row"><span></span><button id="fxPresetApply" data-tip="把选中的模板套到当前效果上（会覆盖它的图层和配色）。" class="pri">套用</button></label>
-        <div class="hint">这些模板照 spim_led.c 里的几类基础效果做（追逐/摆动/呼吸/闪烁/跳变/彩虹/渐变/填充/随机闪），
-          套用后可以继续改每一项参数。</div>
+        <label class="row"><span>模板</span><select id="fxPresetPick" data-tip="预置模板：照 spim_led.c 里那几类基础效果做的，套用后可以继续改每一项参数。"></select><button id="fxPresetApply" class="pri" data-tip="把选中的模板套到当前效果上（会覆盖它的图层和配色）。">套用</button></label>
+        <div class="hint">照 spim_led.c 的几类基础效果做的（追逐/摆动/呼吸/闪烁/跳变/彩虹/渐变/填充/随机闪），套完还能接着改参数。</div>
       </fieldset>
 
       <fieldset id="fxEdit">
@@ -500,48 +524,47 @@
         <label class="row"><span>快速</span><input type="number" id="fFast" data-tip="快速档：播放时按音量自动切换用的那一档。" min="1" max="99"></label>
         <label class="row"><span>彩循环</span><input type="number" id="fSpeed" data-tip="彩虹/渐变每隔几帧变一次颜色。0 = 不变色。" min="0" max="255"></label>
         <label class="row"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
-        <div class="hint">「起始位」只对自定义动效有效（它是图层参数，固件那边的内建动画没有这个概念）。</div>
       </fieldset>
 
       <fieldset id="fxBuiltin">
         <legend>内建参数</legend>
         <label class="row"><span>动画</span><select id="fAnim" data-tip="用固件原有的动画类型（追逐/双点/摆动/填充/静态）。想看自定义图案就点上面的「转为自定义」。&#10;单点追逐 = 平顶光带：光带内一律最亮，中间亮–两边暗的衰减已经没有了。"></select></label>
         <label class="row"><span>光宽</span><input type="number" id="fWidth" data-tip="内建动画的光宽（按 RING_SIZE 逻辑单位，各分区等比缩放）。&#10;单点追逐画出来的是一条平顶光带：带内全是最亮、带外全灭，不带边缘衰减。&#10;想要拖尾/柔边/彗星，用图层：一个「光点」层 + 衰减曲线。" min="1" max="255"></label>
-        <label class="row"><span>间隔</span><input type="number" id="fGap" data-tip="双点追逐时两个光斑的间距。" min="0" max="255"></label>
-        <div class="hint">「间隔」只在双点追逐时用得上。</div>
-        <div class="hint">内建的单点追逐是<b>平顶光带</b>（带内一律最亮、无衰减）；双点追逐与摆动仍是固件原版的余弦窗。</div>
+        <label class="row"><span>间隔</span><input type="number" id="fGap" data-tip="双点追逐时两个光斑的间距。&#10;只在「双点追逐」这个动画下用得上。" min="0" max="255"></label>
       </fieldset>
 
       <fieldset id="fxCustom">
         <legend>图层（自定义动效）</legend>
         <div id="fLayers"></div>
-        <div style="margin:4px 0">
+        <div class="btnrow">
           <button id="fxAddSpot" data-tip="加一个光点层：沿环跑的光斑。">+ 光点</button>
           <button id="fxAddTwinkle" data-tip="加一个随机闪层：与位置无关的随机亮度。">+ 随机闪</button>
           <button id="fxAddFill" data-tip="加一个填充层：整环同亮。配脉动就是呼吸。">+ 填充</button>
           <button id="fxAddGrad" data-tip="加一个亮度渐变层：沿环的明暗斜坡，带起始位与旋转。">+ 亮度渐变</button>
         </div>
         <label class="row"><span>随位置前进</span><input type="checkbox" id="fMoves" data-tip="勾上 = 这个效果随时间自己跑（追逐、摆动）。&#10;不勾 = 位置不动（呼吸、靠色相旋转的彩虹）。" checked></label>
-        <div class="hint">图层是逐点「取较大值」叠在一起的。<br>
-          光点 = 沿环跑的光斑；填充 = 整环同亮（配脉动就是呼吸）；随机闪 = 与位置无关的随机闪烁。</div>
+        <div class="hint">图层逐点「取较大值」叠加：光点跑光斑、填充配脉动就是呼吸。</div>
       </fieldset>
 
-      <!-- 播放（常驻）：独立成一条贴在这一页底部，改完效果随手就能播、步进、换下一条巡览 -->
+      <!-- 播放（常驻）：独立成一条贴在这一页底部，改完效果随手就能播、步进、换下一条巡览。
+           按钮上只有图形（照音乐播放器：上一条 / 播放暂停 / 下一条 + 步进 / 归零），
+           文字解释全挂在 data-tip 上（鼠标悬停弹出）。 -->
       <fieldset id="fxPlayBar" class="fxbar">
         <legend>播放（常驻）</legend>
-        <div class="row" style="margin:0">
-          <button id="fxPrev" data-tip="上一条效果：把选中的效果换成列表里的前一条（到头绕回最后一条），编辑台立刻切过去、从头放 —— 播放中也能切，不打断播放。&#10;注意：这只改「现在看的是哪一条」，不动库里的顺序；要挪顺序用上面的「上移 / 下移」。">◀ 上一条</button>
-          <button id="fxNext" data-tip="下一条效果：换成列表里的后一条（到头绕回第一条）。用来把做完的效果从头到尾巡一遍。">下一条 ▶</button>
-          <button id="fxShowReal" data-tip="把当前效果铺到真实灯板的所有分区上看（切到「动画」页）。编辑台看的是基础排布，这里看的是你现在这块板子。">在灯板上看</button>
+        <div class="fxplay">
+          <button id="fxPrev" class="st" data-tip="上一条效果（巡览）：换成列表里的前一条（到头绕回最后一条），编辑台立刻切过去、从头放 —— 播放中也能换，不打断。&#10;只改「现在看哪一条」，不动库里的顺序；要挪顺序用上面的「上移 / 下移」。"><svg viewBox="0 0 16 16"><path d="M8.4 3 4 8l4.4 5"/><path d="M13.2 3 8.8 8l4.4 5"/></svg><span class="vh">上一条</span></button>
+          <button id="fxTest" class="pri play" data-tip="播放 / 暂停中央那个编辑台 —— 不用跳页，在这里改参数、在这里看结果。&#10;播放状态是编辑台自己的：在「动画」页按播放不会把它带起来，反过来也一样。"><svg class="iPlay" viewBox="0 0 16 16"><path d="M4.6 2.6 13 8l-8.4 5.4Z"/></svg><svg class="iPause" viewBox="0 0 16 16"><rect x="4" y="2.8" width="3.2" height="10.4" rx="1.2"/><rect x="8.8" y="2.8" width="3.2" height="10.4" rx="1.2"/></svg><span class="vh" id="fxPlayBtnTxt">播放</span></button>
+          <button id="fxNext" class="st" data-tip="下一条效果（巡览）：换成列表里的后一条（到头绕回第一条）—— 把做完的效果从头到尾巡一遍。&#10;只改「现在看哪一条」，不动库里的顺序，也不动模式绑定；正播着换下一条接着播。"><svg viewBox="0 0 16 16"><path d="M2.8 3l4.4 5-4.4 5"/><path d="M7.6 3 12 8l-4.4 5"/></svg><span class="vh">下一条</span></button>
+          <span class="div"></span>
+          <button id="fxStep" data-tip="步进播放：往前走一个灯位（固件里每 speed_cur 个 20ms 节拍走一格），一帧一帧看接缝。&#10;正在播时按它会先暂停 —— 步进就是要停下来看。"><svg viewBox="0 0 16 16"><path d="M3.2 2.6 10.4 8 3.2 13.4Z"/><rect x="11.2" y="2.8" width="2.2" height="10.4" rx="1"/></svg><span class="vh">步进</span></button>
+          <button id="fxZero" data-tip="归零：回到起始相位，方便两条效果从同一个起点比。"><svg viewBox="0 0 16 16"><rect x="2.6" y="2.8" width="2.2" height="10.4" rx="1"/><path d="M12.8 2.6 5.6 8l7.2 5.4Z"/></svg><span class="vh">归零</span></button>
+          <!-- 「在灯板上看」暂挂起（.hide = 先不摆出来）：等「模式」模块完成后再回来优化。
+               按钮与接线都留着（test_solo 的 4b 仍守着这段接线），界面上先不出现。 -->
+          <button id="fxShowReal" class="hide" data-tip="把当前效果铺到真实灯板的所有分区上看（切到「动画」页）。编辑台看的是基础排布，这里看的是你现在这块板子。">在灯板上看</button>
         </div>
-        <div class="row" style="margin:0"><span>现在看</span>
+        <div class="btnrow tight"><span class="lb">现在看</span>
           <b id="fxPlayName" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</b>
-          <span class="hint" id="fxPlayPos" style="flex:none;margin:0">—</span></div>
-        <div class="row" style="margin:0">
-          <button id="fxTest" class="pri" data-tip="就地播放 / 暂停中央那个编辑台 —— 不用跳页，在这里改参数、在这里看结果。&#10;播放状态是编辑台自己的：在动画页按播放不会把它带起来，反过来也一样。">播放</button>
-          <button id="fxStep" data-tip="步进播放：往前走一个灯位（固件里每 speed_cur 个 20ms 节拍走一格），一帧一帧看接缝。&#10;正在播时按它会先暂停 —— 步进就是要停下来看。">步进</button>
-          <button id="fxZero" data-tip="归零：回到起始相位，方便两条效果从同一个起点比。">归零</button>
-        </div>
+          <span class="hint" id="fxPlayPos" style="flex:none">—</span></div>
         <label class="row"><span>倍率</span><select id="fxRate" data-tip="编辑台的播放倍率（0.25× 慢动作 ~ 8×）：只改这个编辑台走得快慢，不动「动画」页那边的倍率，也不改导出参数。">
           <option value="0.25">0.25× 慢动作</option>
           <option value="0.5">0.5×</option>
@@ -550,7 +573,6 @@
           <option value="4">4×</option>
           <option value="8">8×</option>
         </select></label>
-        <div class="hint" id="fxPlayHint">这条播放条一直贴在效果页底部：改完一条随手就能播 / 步进 / 换下一条 —— 巡览只改「现在看哪一条」，库里的顺序与模式绑定都不动。</div>
       </fieldset>
     </div>
 
@@ -688,12 +710,12 @@
           <li><b>圆环</b>：颗数可自定义。用来看环形效果"绕回来"时的接缝。</li>
           <li><b>多长度对比</b>：同时画几条 —— 取你板子上真实的分区长度（去重后最多 3 条：最短 / 中间 / 最长），板上一段分区都没有时才回落到 8 / 24 / 40。</li>
         </ul>
-        <div class="hint">效果页<b>底部的播放条</b>（常驻：翻多长都贴在下面）就地控制这个编辑台 ——
-          <b>播放 / 暂停</b>、<b>步进</b>（一格一格往前看）、<b>归零</b>（回到起始相位，方便两条效果从同一起点比）、
-          <b>倍率</b> 0.25×~8×，还有 <b>上一条 / 下一条</b>：把做完的效果<b>从头到尾巡一遍</b>。<br>
-          巡览只换「现在看哪一条」，<b>不动效果库里的顺序</b>（挪顺序是上面那对「上移 / 下移」），也不动模式绑定；
-          正在播时换下一条接着播，步进会先暂停。<br>
-          还有一个 <b>「在灯板上看」</b>：把当前效果铺到真实灯板的所有分区上（会切到「动画」页）。</div>
+        <div class="hint">效果页<b>底部的播放条</b>（常驻：翻多长都贴在下面；按钮上只有图标，说明看悬浮提示）
+          就地控制这个编辑台 —— <b>上一条 / 下一条</b>（把做完的效果<b>从头到尾巡一遍</b>：只换「现在看哪一条」，
+          <b>不动效果库里的顺序</b>，也不动模式绑定；正播着换下一条接着播）、<b>播放 / 暂停</b>、
+          <b>步进</b>（一格一格往前看）、<b>归零</b>（回到起始相位）、<b>倍率</b> 0.25×~8×。<br>
+          <b>「在灯板上看」暂挂起</b>（等「模式」模块完成后回来做）：要对到真实灯板，先去「动画」页
+          把「预览对象」选成<b>单独一个效果</b>。</div>
         <div class="hint"><b>为什么需要「多长度对比」？</b>因为效果在各分区上是<b>等比缩放</b>的 ——
           张角相同、点亮的颗数不同。同一个光宽 10 的效果：<br>
           8 颗的旋钮 → 只有 <b>1–3 颗</b>亮；24 颗的环 → 约 10 颗；40 颗的顶环 → 约 16 颗；104 颗 → 约 37 颗。<br>
@@ -811,7 +833,8 @@
           在效果页按下播放，这页的灯板不会跟着动；在这里暂停，也不会影响效果页的编辑台。
           在效果页改参数也<b>不会重置</b>这里的动画进度。</div>
         <div class="hint"><b>在效果页就能看</b>：效果页的「播放」是就地播中央那个编辑台，不用跳页 ——
-          边改参数边看结果。想在真实灯板上看，用效果页的<b>「在灯板上看」</b>，它会切到这里并选好「单独一个效果」。<br>
+          边改参数边看结果。要对到真实灯板，就在上面把「预览对象」选成<b>单独一个效果</b>、再选好那一条
+          （效果页原来那个「在灯板上看」按钮<b>暂挂起</b>，等「模式」模块完成后回来做）。<br>
           单独预览只是看，<b>不会改动</b>工程里任何模式的分区分配。</div>
         <table>
           <tr><th>控件</th><th>作用</th></tr>
@@ -5810,11 +5833,13 @@ function syncFxTargetBar() {
   el.appendChild(txt); el.appendChild(back);
 }
 
-/* 播放条的状态同步：按钮文字 + 「现在看哪一条」的名字与序号。
+/* 播放条的状态同步：播放键的图标（.on = 暂停）、读屏那行字、以及「现在看哪一条」。
  * 切页 / 换效果 / 切项目都走它 —— 别处就不必知道播放条的细节了。 */
 function syncStagePlayBtn() {
   const b = $('#fxTest');
-  if (b) { b.textContent = stagePlaying ? '暂停' : '播放'; b.classList.toggle('on', stagePlaying); }
+  if (b) b.classList.toggle('on', stagePlaying);        /* .on → 播放键里换成暂停图标 */
+  const t = $('#fxPlayBtnTxt');
+  if (t) t.textContent = stagePlaying ? '暂停' : '播放';  /* 图标键里那行字（读屏 / 测试用） */
   const nm = $('#fxPlayName'), pos = $('#fxPlayPos');
   const n = fxList().length;
   if (nm) nm.textContent = (selEffect() || {}).name || '—';

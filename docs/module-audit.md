@@ -22,7 +22,7 @@
 | 模块 | 页签 | HTML 标记 | 界面代码 | 核心逻辑 | 主要测试 |
 |---|---|---|---|---|---|
 | **分区** | `zones` | 251–320（板级参数 / 分区表 / **铺灯 · 形状** / 底图 —— 批 5-A 起全在这一页；批 7-A/B 起铺灯 = 形状） | 4209–4280（表 / 高亮 / 配色 / 编辑）、5879–6075（形状面板 ⇄ `SHAPE`：`readShapePanel` / `syncShapeEdit` / `shapeRows` / `shapeInfoText` / `shapeTouched` / `layShape` / `#shApply`/`#shFlip`/`#shKeep`/`#shAdd`/`#shDel`/`#shFromZone`）、3830–3862（画布上的形状参考层：虚线 + 头尾标记）、3590–3600（`normalizeShapes`） | `SHAPE` 1008–1305（形状引擎：四档分布 / 头尾 / 诊断）、`deriveZoneDir` 1308–1326、`GEN` 914–991、`validate` 1372–1545 | `test_ui` `test_struct` `test_core` `test_map` `test_shape` `test_persist` |
-| **效果** | `fx` | 450–555（列表 / 过滤 / **编辑台设置** / 预置 / 选中效果 / 图层 / 底部**常驻播放条** `#fxPlayBar`） | 3714–3941（列表/图层）、3943–3982（预置）、3998–4185（窗体接线）、`syncStagePlayBtn`/`stageToggle`/`stageStep`/`stageZero`/`fxSelMove`（播放条；`stageRate()` 读 `state.stage.rate`，`loop()` 里 `accS` 独立累加） | `instApplyPreset` 1690–1721、`instNew`/`instTick` 1131–1641 | `test_effects_core` `test_effects_c` `test_effects_ui` `test_fx_presets` `test_stage` `test_solo` `test_override` `test_split` `test_effects_c_exec` |
+| **效果** | `fx` | 478–577（列表 / 过滤 / **编辑台设置** / 预置 / 选中效果 / 图层 / 底部**常驻播放条** `#fxPlayBar` 552–577 —— 按钮上只有**图标**（`.fxplay`，说明挂 `data-tip`）；`#fxShowReal`「在灯板上看」`class="hide"` **暂挂起**、接线留着） | 5522–5549（列表/图层 5629）、5765–5780（预置）、`syncStagePlayBtn` 5838 / `stageToggle` 5851 / `fxSelMove` 5882（播放条；`stageRate()` 读 `state.stage.rate`，`loop()` 5386 里 `accS` 独立累加） | `instApplyPreset`、`instNew`/`instTick` | `test_effects_core` `test_effects_c` `test_effects_ui` `test_fx_presets` `test_stage` `test_solo` `test_override` `test_split` `test_effects_c_exec` |
 | **模式** | `mode` | 284–315 | 4187–4416 | `resolveEffect`/`bindKey`/`bindZones` 1642–1688 | `test_modes` `test_override` `test_split` |
 | **动画** | `anim` | 237–282 | 3542–3711（接线/播放）、3586–3639（下拉/同步） | `sim*` 1131–1641、`ringIsFast`/`instSpeedFromRing`/`simSyncSpeed` 1531–1546 | `test_anim` `test_anim2` `test_effects_c_exec` |
 | **校验** | `check` | 233–236 | `renderIssues` 3505–3526 | `validate` 872–1030 | `test_core` `test_struct` |
@@ -80,8 +80,12 @@
 | **F6** ✓e735f29 | P2 | **编辑台没有进度/倍率**：编辑台播放时看不出播到第几拍、也不显示当前速度档；`#aRate` 在编辑台播放时生效（`loop` 3701）但控件不在这页 | 3006–3070、3701 | 编辑台标题栏补「帧 x · 速度 慢/快 · 倍率 n×」；或提供就地倍率下拉 | ~25 行 |
 | **F7** ✓01988b6 | P2 | **效果重名不校验**：`fName` 自由输入（4164），重名会让导出的 C 注释与模式绑定摘要难辨认 | 4164、`renderMdList` 4200–4207 | `validate` 加提示级检查（重名只警告）。**2026-10-16 起** `fName` 不再自由输入（名字由「模板 / 配色」自动生成，见 CHANGELOG），重名只剩「自定义/单色」这类可预期的情况 | ~15 行（core） |
 | **F8** | P2 | 预置套用是破坏性的，但有 `resetSim()`+可撤销链路，`status` 也报了名 —— 保留 | 3984–3996 | 不改 | 0 |
+| **F9** ✓（本次） | P1 | **播放条是文字按钮**（「◀ 上一条 / 播放 / 步进 / 归零 / 在灯板上看」）：占地方、一眼看不到音乐播放器那套直觉 | HTML 450–555（播放条 552–577） | 已改成**一行图标键**（`.fxplay`：双箭头 = 上一条 / 下一条、`▶`/`⏸` = 播放暂停、三角+竖条 = 步进、竖条+反三角 = 归零；文字解释全挂 `data-tip`，那行字收进 `.vh`）；播放中换图标靠 `.on` 切 CSS，**别再写按钮 `textContent`** | ~40 行 |
+| **F10** ⏸ **挂起** | P1 | **「在灯板上看」暂挂起**（用户第三条要求：等**模式**模块完成后再优化）：`#fxShowReal` 现在是 `class="hide"`（不摆出来），接线与 `data-tip` 都留着 | 播放条内 `#fxShowReal`、`$('#fxShowReal').onclick` | 等「模式」模块（`M2` 预览模式 / `M5` 等）做完后按新语义回来做 —— 极可能改成「把当前效果铺到**当前模式**的分配上看」而不只是铺满所有分区；`test_solo` 4b 现在仍守着这段接线 | 待定 |
 
 > **批 2 · 效果页（2026-10-16，`894515f`）**：`F1` / `F2` 已落地 —— 对比条改成画**板子上真实的几条长度**（去重后 1–3 条、标签写真实分区名、超过 3 条取最短 / 中位 / 最长；**板上一段分区都没有才**回落到 8 / 24 / 40），列表上方的过滤框是**纯显示层**（只决定画哪几行，不碰顺序 / `slot` / 绑定 / 存档）。两条都**不碰 core**、不动 C 模板与导出物（不用跑真编译）；过滤那一行放在 `<table>` **外面**，`#fxTbl` 的行结构没变（老套件数 `#fxTbl.children` 的断言不受影响）。
+>
+> **效果页随后两轮（2026-10-16，`4f07af8` 与本次）**：①「播放」独立成**常驻播放条**（`#fxPlayBar`，编辑台自己的播放 / 暂停 · 调速 · 步进 · 归零 · 上一条下一条巡览）；② 播放条**图形化**（`F9`）、页面上灰字从 7 条瘦到 **4 条**（照「分区」页那条 ≤5 条 / ≤100 字的规矩，`test_stage` §12 数着）、按钮行统一成 `.btnrow`（`F10` 的「在灯板上看」挂起）。这一页**新增任何控件都要排在 `#fxPlayBar` 之前**（`test_stage` §10 数着它的位置）。
 
 ## 5. 模式页 `mode`
 

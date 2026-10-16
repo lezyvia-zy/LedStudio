@@ -87,6 +87,8 @@ install(); boot(); await new Promise(r => setTimeout(r, 700));
 const click3 = id => byId.get(id).onclick();
 const projState = i => JSON.parse(store.get('led_layout_editor.v1')).projects[i].state;
 const tabBtn = t => (byId.get('tabCache') || []).find(b => b.dataset.tab === t);
+/* 播放键上那行字收进了 .vh（只给读屏看），断言改读它 */
+const playTxt = () => (byId.get('fxPlayBtnTxt') || {}).textContent;
 /* 内存里的值（不必等存盘）*/
 const stageRingInMemory = () => +byId.get('stRing').value;
 
@@ -286,6 +288,32 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   ok((rateHtml.match(/<option/g) || []).length === 6, '倍率 6 档（0.25× ~ 8×，与动画页同一套）');
   ok(/value="1" selected/.test(rateHtml), '倍率默认 1× 固件节拍(20ms)');
 
+  /* 10.1b 图形化：按钮上只有图标（照音乐播放器），文字解释全在悬浮说明里 */
+  const barHtml = paneFx.slice(barAt, paneFx.indexOf('</fieldset>', barAt) + 12);
+  ok((barHtml.match(/<svg /g) || []).length >= 5,
+     `播放条改用图标键（${(barHtml.match(/<svg /g) || []).length} 个 svg）`);
+  ['fxPrev','fxTest','fxNext','fxStep','fxZero'].forEach(id => {
+    const at = barHtml.indexOf('id="' + id + '"');
+    const seg = barHtml.slice(at, barHtml.indexOf('</button>', at));
+    ok(/<svg /.test(seg) && /data-tip="/.test(seg) && /class="vh"/.test(seg),
+       `${id} = 图形 + 悬浮说明（那行字收进 .vh，只给读屏看）`);
+  });
+  const icoCss = (html.match(/\.fxplay button\{[^}]*\}/) || [''])[0].replace(/\s+/g, ' ');
+  ok(/width:34px/.test(icoCss) && /height:30px/.test(icoCss) && /display:\s*inline-flex/.test(icoCss),
+     `图标键大小固定、居中：${icoCss}`);
+  ok(/\.fxplay\{[^}]*display:\s*flex/.test(html), '图标键排成整齐一行（.fxplay 用 flex）');
+  ok(/\.vh\{[^}]*clip:/.test(html), '图标键里那行字用 .vh 藏起来（读屏 / 测试仍能读到）');
+  ok(/#fxTest \.iPause\{display:none\}/.test(html) && /#fxTest\.on \.iPause\{display:block\}/.test(html),
+     '播放中换成暂停图标（靠 .on 切图标，不再改按钮文字）');
+  ok(/const t = \$\('#fxPlayBtnTxt'\)/.test(html) && /t\.textContent = stagePlaying \? '暂停' : '播放'/.test(html),
+     'syncStagePlayBtn 同时切图标与那行字');
+
+  /* 10.1c 「在灯板上看」暂挂起：按钮与接线都留着，界面上先不出现 */
+  const srAt = barHtml.indexOf('id="fxShowReal"');
+  ok(/class="hide"/.test(barHtml.slice(srAt, barHtml.indexOf('</button>', srAt))),
+     '「在灯板上看」挂起（.hide 先不摆出来，等「模式」模块完成后再优化）');
+  ok(/\$\('#fxShowReal'\)\.onclick\s*=/.test(html), '挂起期间接线留着（回来做时不用重接）');
+
   tabBtn('fx').onclick();
   await new Promise(r => setTimeout(r, 50));
   ok(byId.get('fxRate').value === '1', `进效果页时倍率显示的是 ${byId.get('fxRate').value}×`);
@@ -306,7 +334,7 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   const p0 = posLine();
   for (let i = 0; i < 3; i++) byId.get('fxStep').onclick();
   const p1 = posLine();
-  ok(byId.get('fxTest').textContent === '播放', '步进之后仍是暂停状态（步进就是停下来看）');
+  ok(playTxt() === '播放', '步进之后仍是暂停状态（步进就是停下来看）');
   ok(p0 !== '' && p1 !== '' && p0 !== p1, `步进让编辑台真的往前走了: "${p0}" → "${p1}"`);
   ok(/步进/.test(byId.get('status').textContent),
      `状态栏报了这一步走了几个固件节拍: "${byId.get('status').textContent}"`);
@@ -360,17 +388,40 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   /* 播放中换下一条：不打断播放；步进会先暂停 */
   byId.get('fxTest').onclick();
   await new Promise(r => setTimeout(r, 60));
-  ok(byId.get('fxTest').textContent === '暂停', '播放条上按播放 → 变成「暂停」');
+  ok(playTxt() === '暂停', '播放条上按播放 → 变成「暂停」');
   byId.get('fxNext').onclick();
-  ok(byId.get('fxTest').textContent === '暂停', '播放中换下一条不打断播放');
+  ok(playTxt() === '暂停', '播放中换下一条不打断播放');
   ok(/正在播/.test(byId.get('status').textContent),
      `状态栏也说了正在播: "${byId.get('status').textContent}"`);
   ok(projState(0).anim.playing === false, '播放条的播放只作用在编辑台，动画页的灯板仍是停的');
   byId.get('fxStep').onclick();
-  ok(byId.get('fxTest').textContent === '播放', '步进会先把播放停掉（停下来一格一格看）');
-  ok(/上一条/.test(html) && /下一条/.test(html) && /巡览/.test(html),
-     '播放条上写明了「上一条 / 下一条」是巡览用（不动库里的顺序）');
+  ok(playTxt() === '播放', '步进会先把播放停掉（停下来一格一格看）');
+  ok(/id="fxPrev"[^>]*data-tip="[^"]*巡览/.test(html) && /id="fxNext"[^>]*data-tip="[^"]*巡览/.test(html),
+     '「上一条 / 下一条」的悬浮说明写明了这是巡览用（不动库里的顺序）');
   byId.get('fxRate').value = '1'; byId.get('fxRate').onchange({ target: byId.get('fxRate') });
+}
+
+/* ---- 12) 效果页瘦身与排布：灰字只留几句短的、按钮行排齐（照「分区」页的做法） ---- */
+{
+  const i = html.indexOf('data-pane="fx"');
+  const paneFx = html.slice(i, html.indexOf('data-pane="exp"', i));
+  const prose = [...paneFx.matchAll(/<div class="hint"(?![^>]*id=)[^>]*>([\s\S]*?)<\/div>/g)]
+    .map(m => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+  ok(prose.length <= 5, `效果页静态灰底说明只剩 ${prose.length} 条（≤ 5）`);
+  const longest = prose.reduce((a, b) => (b.length > a.length ? b : a), '');
+  ok(longest.length <= 100, `最长的一条 ${longest.length} 字（≤ 100）：“${longest.slice(0, 24)}…”`);
+  ok(!/id="fxPlayHint"/.test(paneFx), '播放条那大段灰字说明撤掉了（文字改挂悬浮提示）');
+  ok(!/「间隔」只在双点追逐时用得上/.test(paneFx) && !/「起始位」只对自定义动效有效/.test(paneFx),
+     '被悬浮提示覆盖的重复灰字说明已删（间隔 / 起始位）');
+  /* 按钮行统一成 .btnrow（flex + 固定间距），不再各排各的 */
+  const inlineRows = [...paneFx.matchAll(/<div style="margin:4px 0">/g)].length;
+  ok(inlineRows === 0, `效果页的按钮行都换成了 .btnrow（残留 ${inlineRows} 行 inline 排布）`);
+  const rows = [...paneFx.matchAll(/<div class="btnrow/g)].length;
+  ok(rows >= 4, `${rows} 组按钮行共用一套排布（列表 / 上移下移 / 图层 / 播放条状态行）`);
+  ok(/<span>模板<\/span><select id="fxPresetPick"[\s\S]{0,700}?<\/select><button id="fxPresetApply"/.test(paneFx),
+     '「模板」与「套用」并成一行（跟在标签列后面，不再单独占一行）');
+  ok(/\.btnrow\{[^}]*display:\s*flex/.test(html) && /\.btnrow>\s*\.lb\{[^}]*min-width:56px/.test(html),
+     '行内标签与其它行的标签列同宽（56px），整页左边缘对齐');
 }
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');

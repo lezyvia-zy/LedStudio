@@ -82,6 +82,8 @@ install(); boot(); await new Promise(r => setTimeout(r, 700));
 
 /* ============ 单独预览一个效果 ============ */
 const click2 = id => byId.get(id).onclick();
+/* 播放键上那行字收进了 .vh（只给读屏看），断言改读它 */
+const stagePlayTxt = () => byId.get('fxPlayBtnTxt').textContent;
 const projState = i => JSON.parse(store.get('led_layout_editor.v1')).projects[i].state;
 const tabBtn = t => (byId.get('tabCache') || []).find(b => b.dataset.tab === t);
 const anim = () => projState(0).anim;
@@ -154,7 +156,7 @@ ok(projState(0).anim.playing === false, '开局动画页是停着的');
 
 click2('fxTest');
 await new Promise(r => setTimeout(r, 60));
-ok(byId.get('fxTest').textContent === '暂停', `编辑台按钮变成「${byId.get('fxTest').textContent}」`);
+ok(stagePlayTxt() === '暂停', `编辑台按钮变成「${stagePlayTxt()}」`);
 {
   const onTab = (byId.get('tabCache') || []).filter(b => b.classList.contains('on')).map(b => b.dataset.tab);
   ok(onTab.join() === 'fx', `播放后仍在效果页（当前 ${onTab.join()}），没有跳走`);
@@ -167,7 +169,7 @@ ok(byId.get('aPlay').textContent === '播放', `动画页那边的按钮仍是�
 
 click2('fxTest');                          /* 先把编辑台停掉 */
 await new Promise(r => setTimeout(r, 60));
-ok(byId.get('fxTest').textContent === '播放', '编辑台已停下');
+ok(stagePlayTxt() === '播放', '编辑台已停下');
 
 /* 反过来：动画页在播，切回效果页时编辑台不该显示成在播 */
 tabBtn('anim').onclick();
@@ -177,8 +179,8 @@ await new Promise(r => setTimeout(r, 700));
 ok(projState(0).anim.playing === true, '动画页开始播');
 tabBtn('fx').onclick();
 await new Promise(r => setTimeout(r, 60));
-ok(byId.get('fxTest').textContent === '播放',
-   `切回效果页，编辑台按钮仍是「${byId.get('fxTest').textContent}」（没跟着灯板走）`);
+ok(stagePlayTxt() === '播放',
+   `切回效果页，编辑台按钮仍是「${stagePlayTxt()}」（没跟着灯板走）`);
 tabBtn('anim').onclick();
 await new Promise(r => setTimeout(r, 50));
 byId.get('aPlay').onclick();                        /* 把灯板停掉 */
@@ -186,7 +188,10 @@ await new Promise(r => setTimeout(r, 700));
 tabBtn('fx').onclick();
 await new Promise(r => setTimeout(r, 50));
 
-/* ---- 4b) 「在灯板上看」才跳到动画页，并把效果铺满真实分区 ---- */
+/* ---- 4b) 「在灯板上看」暂挂起（界面上 .hide 不摆出来）但接线还在：
+ *      按下仍会把当前效果铺满真实分区、切到动画页 —— 等「模式」模块完成后回来优化。 ---- */
+ok(/id="fxShowReal" class="hide"/.test(html), '「在灯板上看」在界面上挂起（.hide）');
+ok(/\$\('#fxShowReal'\)\.onclick\s*=/.test(html), '接线留着（挂起期间仍由这段守着）');
 click2('fxShowReal');
 await new Promise(r => setTimeout(r, 700));
 tabBtn('anim').onclick();
