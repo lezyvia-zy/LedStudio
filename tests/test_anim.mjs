@@ -2,7 +2,7 @@ import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
 const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
 const {FW, GEN, projectFromPreset, PRESET_SP3122D, deriveZoneDir, validate, exportC,
-       simInit, simSetupPreset, simTick, litBandCenter} = CORE;
+       simInit, simSetupPreset, simTick, litBandCenter, instAdvances, instNew, instTick} = CORE;
 let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fails++;};
 const st = projectFromPreset(PRESET_SP3122D);
 
@@ -72,6 +72,26 @@ console.log(code.split('\n').map(l=>'  '+l).join('\n'));
 const flags = [...code.matchAll(/\{\s*\d+,\s*\d+,\s*(\d)\s*\}/g)].map(m=>m[1]).join(',');
 ok(flags==='0,0,0,1,1', `reverse 标记 = ${flags}`);
 ok(!/\?/.test(code.split('/*').slice(1).join('')), 'ASCII 注释无问号占位');
+
+console.log('\n--- 「这一拍该不该自己往前走一格」那条判断（instAdvances，instTick 与效果页的步进共用）---');
+{
+  const mk = (type, moves, speed) => {
+    const i = instNew(); i.anim.type = type; i.anim.moves = moves; i.speed_cur = speed;
+    return i;
+  };
+  ok(instAdvances(mk(FW.ANIM.CHASE_SINGLE, false, 1)), '单点追逐：这一拍自己往前走');
+  ok(instAdvances(mk(FW.ANIM.CHASE_DUAL,   false, 1)), '双点追逐：这一拍自己往前走');
+  ok(instAdvances(mk(FW.ANIM.SWING,        false, 1)), '摆动：这一拍自己往前走');
+  ok(!instAdvances(mk(FW.ANIM.FILL,        false, 1)), '填充（呼吸那种）：相位不动');
+  ok(instAdvances(mk(FW.ANIM.FILL,         true,  1)), '填充但勾了「随位置前进」：照样走');
+  /* 真的各跑 4 拍，看落点 —— 走位置的每拍正好一格，不走的纹丝不动 */
+  const a = mk(FW.ANIM.CHASE_SINGLE, false, 1), b = mk(FW.ANIM.FILL, false, 1);
+  for (let t = 0; t < 4; t++) { instTick(a); instTick(b); }
+  ok(a.anim.position.target === 4 * 256 && a.anim.position.current === 4 * 256,
+     `单点追逐 4 拍走到第 4 颗（target/current = ${a.anim.position.target}/${a.anim.position.current}）`);
+  ok(b.anim.position.target === 0 && b.anim.position.current === 0,
+     '填充 4 拍后相位仍在 0（不自己往前走的就不许动位置）');
+}
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');
 process.exit(fails?1:0);

@@ -271,40 +271,74 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
 
 /* ---- 10) 「播放」独立成一条常驻播放条：播放 / 暂停、步进、倍率、上一条 / 下一条效果 ---- */
 {
-  /* 10.1 结构与位置：贴在这一页的「下方」（最后一组控件之后），CSS 用 sticky 常驻 */
+  /* 10.1 结构与位置：贴在这一页的「下方」（最后一组控件之后），CSS 用 sticky 钉住不动 */
   const paneFx = html.slice(html.indexOf('data-pane="fx"'), html.indexOf('data-pane="exp"'));
   const barAt = paneFx.indexOf('id="fxPlayBar"');
   ok(barAt > 0, '效果页里有独立的播放条 #fxPlayBar');
-  ['fxPrev','fxNext','fxPlayName','fxPlayPos','fxTest','fxStep','fxZero','fxShowReal','fxRate']
+  ['fxPrev','fxNext','fxPlayName','fxPlayPos','fxTest','fxStepPrev','fxStepNext','fxZero','fxShowReal','fxRate']
     .forEach(id => ok(paneFx.includes('id="' + id + '"'), `播放条里的控件 ${id} 在效果页`));
+  ok(!/<legend>播放（常驻）<\/legend>/.test(paneFx), '播放条左上角那个「播放（常驻）」标题删掉了');
   ok(!/id="fxEdit"|id="fxBuiltin"|id="fxCustom"/.test(paneFx.slice(barAt)),
      '播放条排在最后一组控件之后（＝固定在效果模块的下方）');
   const listRow = paneFx.slice(paneFx.indexOf('id="fxAdd"'), paneFx.indexOf('id="fxUp"'));
   ok(!/id="fxTest"/.test(listRow), '「播放」不再挤在列表按钮那行里（独立出来了）');
   const barCss = (html.match(/\.fxbar\{[^}]*\}/) || [''])[0].replace(/\s+/g, ' ');
-  ok(/position:\s*sticky/.test(barCss) && /bottom:/.test(barCss), `.fxbar 用 sticky 贴住这一页底部: ${barCss}`);
+  ok(/position:\s*sticky/.test(barCss) && /bottom:\s*0/.test(barCss) && /margin-bottom:\s*0/.test(barCss),
+     `.fxbar 用 sticky 钉住这一页底部（bottom:0 + 自己下外边距 0）: ${barCss}`);
+  ok(/#paneFx\{padding-bottom:0\}/.test(html),
+     '效果页那格（#paneFx）里下内边距留 0 —— 两者一起才让播放条滚动时纹丝不动（上一版 bottom:-8px 滚到底会往上跳一小截）');
   const rateAt = html.indexOf('id="fxRate"');
   const rateHtml = html.slice(rateAt, html.indexOf('</select>', rateAt));
   ok((rateHtml.match(/<option/g) || []).length === 6, '倍率 6 档（0.25× ~ 8×，与动画页同一套）');
   ok(/value="1" selected/.test(rateHtml), '倍率默认 1× 固件节拍(20ms)');
 
-  /* 10.1b 图形化：按钮上只有图标（照音乐播放器），文字解释全在悬浮说明里 */
+  /* 10.1b 图形化：按钮上只有图标（照音乐播放器），文字解释全在悬浮说明里 —— 而且说明要短 */
   const barHtml = paneFx.slice(barAt, paneFx.indexOf('</fieldset>', barAt) + 12);
-  ok((barHtml.match(/<svg /g) || []).length >= 5,
-     `播放条改用图标键（${(barHtml.match(/<svg /g) || []).length} 个 svg）`);
-  ['fxPrev','fxTest','fxNext','fxStep','fxZero'].forEach(id => {
-    const at = barHtml.indexOf('id="' + id + '"');
-    const seg = barHtml.slice(at, barHtml.indexOf('</button>', at));
-    ok(/<svg /.test(seg) && /data-tip="/.test(seg) && /class="vh"/.test(seg),
+  const segOf = id => { const at = barHtml.indexOf('id="' + id + '"'); return barHtml.slice(at, barHtml.indexOf('</button>', at)); };
+  const svgN = (barHtml.match(/<svg /g) || []).length;
+  ok(svgN >= 7, `播放条改用图标键（${svgN} 个 svg：归零 / 上一条 / 播放 / 暂停 / 下一条 / 前一帧 / 后一帧）`);
+  const iconTip = {};
+  ['fxPrev','fxTest','fxNext','fxStepPrev','fxStepNext','fxZero'].forEach(id => {
+    const seg = segOf(id);
+    iconTip[id] = (seg.match(/data-tip="([^"]*)"/) || [])[1] || '';
+    ok(/<svg /.test(seg) && iconTip[id] !== '' && /class="vh"/.test(seg),
        `${id} = 图形 + 悬浮说明（那行字收进 .vh，只给读屏看）`);
   });
+  const tipMax = Object.keys(iconTip).sort((a, b) => iconTip[b].length - iconTip[a].length)[0];
+  ok(iconTip[tipMax].length <= 30,
+     `图标键的悬浮说明都缩成一行了（最长 ${iconTip[tipMax].length} 字：“${iconTip[tipMax]}”）`);
   const icoCss = (html.match(/\.fxplay button\{[^}]*\}/) || [''])[0].replace(/\s+/g, ' ');
-  ok(/width:34px/.test(icoCss) && /height:30px/.test(icoCss) && /display:\s*inline-flex/.test(icoCss),
-     `图标键大小固定、居中：${icoCss}`);
+  ok(/width:40px/.test(icoCss) && /height:36px/.test(icoCss) && /display:\s*inline-flex/.test(icoCss),
+     `图标键大小固定、居中，比上一版（34×30）又大了一圈：${icoCss}`);
+  const playCss = (html.match(/\.fxplay button\.play\{[^}]*\}/) || [''])[0].replace(/\s+/g, ' ');
+  ok(/width:56px/.test(playCss) && /height:40px/.test(playCss), `播放键比别的键再大一圈: ${playCss}`);
+  const svgCss = (html.match(/\.fxplay button svg\{[^}]*\}/) || [''])[0].replace(/\s+/g, ' ');
+  ok(/width:20px/.test(svgCss) && /height:20px/.test(svgCss),
+     `图标本身也从 16px 放大到 20px: ${svgCss}`);
+  ok(/\.fxplay path\.rnd\{[^}]*stroke-linejoin:round/.test(html),
+     '实心三角的角磨圆了（照截图那种圆角三角；只挂 path，免得把旁边的竖条也加粗）');
+
+  /* 上一条 / 下一条 = 实心双三角（照音乐播放器的上一曲 / 下一曲）；归零 = 单独的实心方块 */
+  const prevSeg = segOf('fxPrev'), nextSeg = segOf('fxNext'), zeroSeg = segOf('fxZero');
+  ok((prevSeg.match(/<path /g) || []).length === 2 && !/fill="none"|class="st"/.test(prevSeg),
+     '「上一条」= 两个实心三角（上一版那种细描边箭头换掉了）');
+  ok((nextSeg.match(/<path /g) || []).length === 2 && !/fill="none"|class="st"/.test(nextSeg),
+     '「下一条」= 两个实心三角（朝右）');
+  ok(/<rect [^>]*width="10"[^>]*height="10"/.test(zeroSeg) && (zeroSeg.match(/<path /g) || []).length === 0,
+     '「归零」改用实心方块（常见的「停止」记号）');
+  ok(!/\.fxplay button\.st svg/.test(html), '上一版那套「细描边图标」的样式删掉了（不留死代码）');
+  ok(barHtml.indexOf('id="fxZero"') < barHtml.indexOf('id="fxPrev"'),
+     '归零单独摆在整个播放条的最左边');
+  const div1 = barHtml.indexOf('class="div"');
+  ok(div1 > barHtml.indexOf('id="fxZero"') && div1 < barHtml.indexOf('id="fxPrev"') &&
+     barHtml.indexOf('class="div"', div1 + 1) > barHtml.indexOf('id="fxNext"'),
+     '归零 / 巡览 / 步进三组之间各有一条分线');
+
   ok(/\.fxplay\{[^}]*display:\s*flex/.test(html), '图标键排成整齐一行（.fxplay 用 flex）');
   ok(/\.vh\{[^}]*clip:/.test(html), '图标键里那行字用 .vh 藏起来（读屏 / 测试仍能读到）');
   ok(/#fxTest \.iPause\{display:none\}/.test(html) && /#fxTest\.on \.iPause\{display:block\}/.test(html),
      '播放中换成暂停图标（靠 .on 切图标，不再改按钮文字）');
+
   ok(/const t = \$\('#fxPlayBtnTxt'\)/.test(html) && /t\.textContent = stagePlaying \? '暂停' : '播放'/.test(html),
      'syncStagePlayBtn 同时切图标与那行字');
 
@@ -317,7 +351,7 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   tabBtn('fx').onclick();
   await new Promise(r => setTimeout(r, 50));
   ok(byId.get('fxRate').value === '1', `进效果页时倍率显示的是 ${byId.get('fxRate').value}×`);
-  ok(/fxPlayBar/.test(html) && /sticky/.test(barCss), '播放条常驻（滚动效果页时也贴着底部）');
+  ok(/fxPlayBar/.test(html) && /sticky/.test(barCss), '播放条钉在这一页底部（翻页面时也贴着底下、不动）');
 
   /* 10.2 调速：写在 stage.rate 上，只改编辑台的节奏，不动「动画」页那个倍率 */
   byId.get('fxRate').value = '4'; byId.get('fxRate').onchange({ target: byId.get('fxRate') });
@@ -328,16 +362,41 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   ok(/function stageRate\(\)/.test(html) && /rate: 1 \}/.test(html),
      'stageRate() 读 stage.rate，老工程没有这个字段时兜底 1×');
 
-  /* 10.3 步进：暂停着一格一格往前走 —— 位置真的动，而且不会把播放打开 */
+  /* 10.3 步进（后一帧）：暂停着一格一格往前走 —— 位置真的动，而且不会把播放打开 */
+  byId.get('fxRate').value = '1'; byId.get('fxRate').onchange({ target: byId.get('fxRate') });
   const posLine = () => (texts.filter(t => /位置 \d+\/\d+ 颗/.test(t)).pop() || '');
+  const zIdx = () => Number((posLine().match(/位置 (\d+)\//) || [])[1]);
+  const ringN = () => Number((posLine().match(/位置 \d+\/(\d+) 颗/) || [])[1]);
   texts.length = 0; byId.get('stCompare').onchange({ target: byId.get('stCompare') });
   const p0 = posLine();
-  for (let i = 0; i < 3; i++) byId.get('fxStep').onclick();
+  const i0 = zIdx();
+  for (let i = 0; i < 3; i++) byId.get('fxStepNext').onclick();
   const p1 = posLine();
   ok(playTxt() === '播放', '步进之后仍是暂停状态（步进就是停下来看）');
   ok(p0 !== '' && p1 !== '' && p0 !== p1, `步进让编辑台真的往前走了: "${p0}" → "${p1}"`);
+  ok(zIdx() === (i0 + 3) % ringN(), `三次「后一帧」正好走三个灯位（不是走一半插值）: ${p0} → ${p1}`);
   ok(/步进/.test(byId.get('status').textContent),
      `状态栏报了这一步走了几个固件节拍: "${byId.get('status').textContent}"`);
+
+  /* 10.3b 前一帧 / 后一帧：一次按键正好一个灯位，两个方向对称 */
+  {
+    const i1 = zIdx();
+    texts.length = 0; byId.get('fxStepNext').onclick();
+    const i2 = zIdx();
+    ok(i2 === (i1 + 1) % ringN(), `「后一帧」往前走一个灯位: ${i1} → ${i2}（共 ${ringN()} 颗）`);
+    texts.length = 0; byId.get('fxStepPrev').onclick();
+    ok(zIdx() === i1, `「前一帧」把相位原地退回来: ${i2} → ${zIdx()}`);
+    texts.length = 0; byId.get('fxStepPrev').onclick();
+    ok(zIdx() === (i1 + ringN() - 1) % ringN(),
+       `「前一帧」再退一格（到头绕回最后一颗）: ${i1} → ${zIdx()}`);
+    ok(playTxt() === '播放', '前后翻帧都保持暂停（步进就是停下来看）');
+    ok(/回退一个灯位/.test(byId.get('status').textContent),
+       `状态栏分得清前后: "${byId.get('status').textContent}"`);
+  }
+  /* 走不走位置得先问一句：呼吸 / 闪烁这类相位本来就不动，步进别假装它动了 */
+  ok(/const moves = instAdvances\(inst\)/.test(html) && /不随位置前进/.test(html),
+     '步进先问 instAdvances()（与 instTick 那条判断同一份），不走位置时相位不动、状态栏说明原因');
+
 
   /* 10.4 归零：回到起始相位（两条效果从同一起点比） */
   texts.length = 0;
@@ -394,7 +453,7 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   ok(/正在播/.test(byId.get('status').textContent),
      `状态栏也说了正在播: "${byId.get('status').textContent}"`);
   ok(projState(0).anim.playing === false, '播放条的播放只作用在编辑台，动画页的灯板仍是停的');
-  byId.get('fxStep').onclick();
+  byId.get('fxStepNext').onclick();
   ok(playTxt() === '播放', '步进会先把播放停掉（停下来一格一格看）');
   ok(/id="fxPrev"[^>]*data-tip="[^"]*巡览/.test(html) && /id="fxNext"[^>]*data-tip="[^"]*巡览/.test(html),
      '「上一条 / 下一条」的悬浮说明写明了这是巡览用（不动库里的顺序）');

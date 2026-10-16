@@ -70,27 +70,31 @@
   #tabs button.on{color:var(--fg); border-bottom-color:var(--accent)}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
   .pane.on{display:block}
-  /* 效果页的「播放」条：常驻贴在这一页底部（翻多长都看得见）——
-     播放 / 暂停、步进、归零、倍率、上一条 / 下一条效果都在这里。
-     bottom:-8px 抵消 .pane 的下内边距，贴住可视区底边。 */
+  /* 效果页的「播放」条：钉在这一页底部（翻多长都看得见、一像素都不动）——
+     归零 · 上一条 / 播放暂停 / 下一条 · 前一帧 / 后一帧 + 倍率。
+     它贴得动弹不得靠两件事一起：① 本页（#paneFx）下内边距留 0，
+     ② 自己下外边距 0（fieldset 默认有 10px）。少一条，滚到底时就会往上跳一小截。 */
+  #paneFx{padding-bottom:0}
   .fxbar{
-    position:sticky; bottom:-8px; z-index:5;
+    position:sticky; bottom:0; z-index:5; margin-bottom:0;
     background:var(--panel); border-color:var(--accent);
     box-shadow:0 -8px 14px rgba(0,0,0,.28);
   }
-  /* 播放条上的图标键：照音乐播放器 —— 上一条 / 播放暂停 / 下一条 + 步进 / 归零。
+  /* 播放条上的图标键：照音乐播放器 —— 归零 / 上一条 · 播放暂停 · 下一条 / 前一帧 · 后一帧。
      按钮上只有图形，文字解释全在悬浮提示（data-tip）里。 */
-  .fxplay{display:flex; align-items:center; justify-content:center; gap:5px; margin:3px 0 5px}
+  .fxplay{display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+    gap:6px; margin:4px 0 6px}
   .fxplay button{
-    flex:0 0 auto; width:34px; height:30px; padding:0;
+    flex:0 0 auto; width:40px; height:36px; padding:0;
     display:inline-flex; align-items:center; justify-content:center;
   }
-  .fxplay button svg{width:16px; height:16px; fill:currentColor}
-  .fxplay button.st svg{fill:none; stroke:currentColor; stroke-width:1.7;
-    stroke-linecap:round; stroke-linejoin:round}
-  .fxplay button.play{width:44px; height:32px}
-  .fxplay button.play svg{width:17px; height:17px}
-  .fxplay .div{flex:0 0 auto; width:1px; height:20px; background:var(--line); margin:0 3px}
+  .fxplay button svg{width:20px; height:20px; fill:currentColor}
+  /* 实心三角的角磨圆一点（照音乐播放器那种圆角三角）：靠描边把拐角糊圆，别用尖角。
+     只挂在 <path> 上 —— 挂在 svg 上会把旁边的竖条也一起加粗。 */
+  .fxplay path.rnd{stroke:currentColor; stroke-width:1.2; stroke-linejoin:round; stroke-linecap:round}
+  .fxplay button.play{width:56px; height:40px}
+  .fxplay button.play svg{width:24px; height:24px}
+  .fxplay .div{flex:0 0 auto; width:1px; height:24px; background:var(--line); margin:0 4px}
   /* 播放中 → 播放键里换成暂停图标（.on 由 syncStagePlayBtn() 切） */
   #fxTest .iPause{display:none}
   #fxTest.on .iPause{display:block}
@@ -475,7 +479,7 @@
       </fieldset>
     </div>
 
-    <div class="pane" data-pane="fx">
+    <div class="pane" id="paneFx" data-pane="fx">
       <label class="row"><span>过滤</span><input type="text" id="fxFilter" placeholder="名称 / 类型 / 槽号" data-tip="按名称、ASCII 别名、类型（自定义 / 内建）或槽号过滤下面的列表 —— 只影响显示：不改任何效果的槽位，也不动模式绑定。清空输入框就恢复全部。"><span class="hint" id="fxFilterInfo" style="flex:none;margin:0"></span></label>
       <table id="fxTbl"></table>
       <div class="btnrow">
@@ -546,18 +550,19 @@
         <div class="hint">图层逐点「取较大值」叠加：光点跑光斑、填充配脉动就是呼吸。</div>
       </fieldset>
 
-      <!-- 播放（常驻）：独立成一条贴在这一页底部，改完效果随手就能播、步进、换下一条巡览。
-           按钮上只有图形（照音乐播放器：上一条 / 播放暂停 / 下一条 + 步进 / 归零），
+      <!-- 播放（常驻）：钉在这一页底部，改完效果随手就能播、一帧一帧看、换下一条巡览。
+           按钮上只有图形（照音乐播放器）：归零 / 上一条 · 播放暂停 · 下一条 / 前一帧 · 后一帧，
            文字解释全挂在 data-tip 上（鼠标悬停弹出）。 -->
       <fieldset id="fxPlayBar" class="fxbar">
-        <legend>播放（常驻）</legend>
         <div class="fxplay">
-          <button id="fxPrev" class="st" data-tip="上一条效果（巡览）：换成列表里的前一条（到头绕回最后一条），编辑台立刻切过去、从头放 —— 播放中也能换，不打断。&#10;只改「现在看哪一条」，不动库里的顺序；要挪顺序用上面的「上移 / 下移」。"><svg viewBox="0 0 16 16"><path d="M8.4 3 4 8l4.4 5"/><path d="M13.2 3 8.8 8l4.4 5"/></svg><span class="vh">上一条</span></button>
-          <button id="fxTest" class="pri play" data-tip="播放 / 暂停中央那个编辑台 —— 不用跳页，在这里改参数、在这里看结果。&#10;播放状态是编辑台自己的：在「动画」页按播放不会把它带起来，反过来也一样。"><svg class="iPlay" viewBox="0 0 16 16"><path d="M4.6 2.6 13 8l-8.4 5.4Z"/></svg><svg class="iPause" viewBox="0 0 16 16"><rect x="4" y="2.8" width="3.2" height="10.4" rx="1.2"/><rect x="8.8" y="2.8" width="3.2" height="10.4" rx="1.2"/></svg><span class="vh" id="fxPlayBtnTxt">播放</span></button>
-          <button id="fxNext" class="st" data-tip="下一条效果（巡览）：换成列表里的后一条（到头绕回第一条）—— 把做完的效果从头到尾巡一遍。&#10;只改「现在看哪一条」，不动库里的顺序，也不动模式绑定；正播着换下一条接着播。"><svg viewBox="0 0 16 16"><path d="M2.8 3l4.4 5-4.4 5"/><path d="M7.6 3 12 8l-4.4 5"/></svg><span class="vh">下一条</span></button>
+          <button id="fxZero" data-tip="归零：回到起始相位（两条效果从同一个起点比）。"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="2"/></svg><span class="vh">归零</span></button>
           <span class="div"></span>
-          <button id="fxStep" data-tip="步进播放：往前走一个灯位（固件里每 speed_cur 个 20ms 节拍走一格），一帧一帧看接缝。&#10;正在播时按它会先暂停 —— 步进就是要停下来看。"><svg viewBox="0 0 16 16"><path d="M3.2 2.6 10.4 8 3.2 13.4Z"/><rect x="11.2" y="2.8" width="2.2" height="10.4" rx="1"/></svg><span class="vh">步进</span></button>
-          <button id="fxZero" data-tip="归零：回到起始相位，方便两条效果从同一个起点比。"><svg viewBox="0 0 16 16"><rect x="2.6" y="2.8" width="2.2" height="10.4" rx="1"/><path d="M12.8 2.6 5.6 8l7.2 5.4Z"/></svg><span class="vh">归零</span></button>
+          <button id="fxPrev" data-tip="上一条效果（巡览）：只换现在看哪条效果，不动库里的顺序。"><svg viewBox="0 0 16 16"><path class="rnd" d="M7.1 3 2.3 8 7.1 13Z"/><path class="rnd" d="M13.5 3 8.7 8 13.5 13Z"/></svg><span class="vh">上一条</span></button>
+          <button id="fxTest" class="pri play" data-tip="播放 / 暂停中央那个编辑台（不用跳页）。"><svg class="iPlay" viewBox="0 0 16 16"><path class="rnd" d="M4.9 3.1 12.9 8 4.9 12.9Z"/></svg><svg class="iPause" viewBox="0 0 16 16"><rect x="4" y="3" width="3.2" height="10" rx="1.4"/><rect x="8.8" y="3" width="3.2" height="10" rx="1.4"/></svg><span class="vh" id="fxPlayBtnTxt">播放</span></button>
+          <button id="fxNext" data-tip="下一条效果（巡览）：只换现在看哪条效果，不动库里的顺序。"><svg viewBox="0 0 16 16"><path class="rnd" d="M8.9 3 13.7 8 8.9 13Z"/><path class="rnd" d="M2.5 3 7.3 8 2.5 13Z"/></svg><span class="vh">下一条</span></button>
+          <span class="div"></span>
+          <button id="fxStepPrev" data-tip="前一帧：往回退一个灯位（正播着会先暂停）。"><svg viewBox="0 0 16 16"><rect x="2.6" y="2.8" width="2.2" height="10.4" rx="1"/><path class="rnd" d="M12.6 3 5.9 8l6.7 5Z"/></svg><span class="vh">前一帧</span></button>
+          <button id="fxStepNext" data-tip="后一帧：往前走一个灯位（正播着会先暂停）。"><svg viewBox="0 0 16 16"><path class="rnd" d="M3.4 3 10.1 8l-6.7 5Z"/><rect x="11.2" y="2.8" width="2.2" height="10.4" rx="1"/></svg><span class="vh">后一帧</span></button>
           <!-- 「在灯板上看」暂挂起（.hide = 先不摆出来）：等「模式」模块完成后再回来优化。
                按钮与接线都留着（test_solo 的 4b 仍守着这段接线），界面上先不出现。 -->
           <button id="fxShowReal" class="hide" data-tip="把当前效果铺到真实灯板的所有分区上看（切到「动画」页）。编辑台看的是基础排布，这里看的是你现在这块板子。">在灯板上看</button>
@@ -565,7 +570,7 @@
         <div class="btnrow tight"><span class="lb">现在看</span>
           <b id="fxPlayName" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</b>
           <span class="hint" id="fxPlayPos" style="flex:none">—</span></div>
-        <label class="row"><span>倍率</span><select id="fxRate" data-tip="编辑台的播放倍率（0.25× 慢动作 ~ 8×）：只改这个编辑台走得快慢，不动「动画」页那边的倍率，也不改导出参数。">
+        <label class="row"><span>倍率</span><select id="fxRate" data-tip="编辑台的播放倍率（0.25× 慢动作 ~ 8×）：只改这个编辑台走得快慢，不动「动画」页那条，也不改导出参数。">
           <option value="0.25">0.25× 慢动作</option>
           <option value="0.5">0.5×</option>
           <option value="1" selected>1× 固件节拍(20ms)</option>
@@ -710,10 +715,11 @@
           <li><b>圆环</b>：颗数可自定义。用来看环形效果"绕回来"时的接缝。</li>
           <li><b>多长度对比</b>：同时画几条 —— 取你板子上真实的分区长度（去重后最多 3 条：最短 / 中间 / 最长），板上一段分区都没有时才回落到 8 / 24 / 40。</li>
         </ul>
-        <div class="hint">效果页<b>底部的播放条</b>（常驻：翻多长都贴在下面；按钮上只有图标，说明看悬浮提示）
-          就地控制这个编辑台 —— <b>上一条 / 下一条</b>（把做完的效果<b>从头到尾巡一遍</b>：只换「现在看哪一条」，
-          <b>不动效果库里的顺序</b>，也不动模式绑定；正播着换下一条接着播）、<b>播放 / 暂停</b>、
-          <b>步进</b>（一格一格往前看）、<b>归零</b>（回到起始相位）、<b>倍率</b> 0.25×~8×。<br>
+        <div class="hint">效果页<b>底部的播放条</b>（钉在这一页底部不动；按钮上只有图标，鼠标悬停看说明）
+          就地控制这个编辑台 —— <b>最左边那格方块 = 归零</b>（回到起始相位），中间三格是
+          <b>上一条 / 播放暂停 / 下一条</b>（把做完的效果<b>从头到尾巡一遍</b>：只换「现在看哪一条」，
+          <b>不动效果库里的顺序</b>，也不动模式绑定；正播着换下一条接着播），
+          右边两格是<b>前一帧 / 后一帧</b>（一个灯位一格，正播着会先暂停），最下面是<b>倍率</b> 0.25×~8×。<br>
           <b>「在灯板上看」暂挂起</b>（等「模式」模块完成后回来做）：要对到真实灯板，先去「动画」页
           把「预览对象」选成<b>单独一个效果</b>。</div>
         <div class="hint"><b>为什么需要「多长度对比」？</b>因为效果在各分区上是<b>等比缩放</b>的 ——
@@ -2545,13 +2551,19 @@ function effectPreset(eff, idx) {
   };
 }
 
+/* 固件 ring_tick 里「这一拍该不该自己往前走一格」的那条判断：
+ * 位置型动画（单点/双点追逐、摆动）或勾了「随位置前进」的自定义动效。 */
+function instAdvances(inst) {
+  const t = inst.anim.type;
+  return t === FW.ANIM.CHASE_SINGLE || t === FW.ANIM.CHASE_DUAL || t === FW.ANIM.SWING || !!inst.anim.moves;
+}
+
 /* 单个实例推进一 tick（对应固件 ring_tick 里那段自动前进 + 动画/颜色更新） */
 function instTick(inst) {
   inst.step_cnt++;
   if (inst.step_cnt >= inst.speed_cur) {
     inst.step_cnt = 0;
-    const t = inst.anim.type;
-    if (t === FW.ANIM.CHASE_SINGLE || t === FW.ANIM.CHASE_DUAL || t === FW.ANIM.SWING || inst.anim.moves) {
+    if (instAdvances(inst)) {
       const next = ((inst.anim.position.target >> 8) + 1) % FW.RING_SIZE;
       ringSetPosition(inst.anim.position, (next * 256) % (FW.RING_SIZE * 256),
                       inst.speed_cur, FW.EASE.OUT_QUAD);
@@ -3818,7 +3830,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                PRESET_SP3122D, projectFromPreset, animNew, animSet, animUpdate,
                zoneScaled, chaseSingle, chaseCosBand, chaseDual, fillAnim, renderZoneMask,
                colorUpdate, simInit, instApplyPreset, simApplyEffect, simApplyMode,
-               simSetSpeed, simSetupPreset, simApplySolo, instTick, simTick, modeOf, effectById, effectIndex,
+               simSetSpeed, simSetupPreset, simApplySolo, instTick, instAdvances, simTick, modeOf, effectById, effectIndex,
                ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
@@ -5856,16 +5868,34 @@ function stageToggle(on, restart) {
   render();
 }
 
-/* 步进播放：往前走一个灯位（固件里每 speed_cur 个 20ms 节拍走一格）。
+/* 步进播放：一格 = 一个灯位 = 固件里 speed_cur 个 20ms 节拍。dir = +1 后一帧、-1 前一帧。
+ *
+ * 这里不靠「多跑几拍让固件自己走一格」（那样落点会停在这一格插值的半路上，前/后也没法对称），
+ * 而是把相位直接往目标方向拨一个灯位，再用同样多的节拍把这段插值走满 —— 一次按键正好落在一格上。
+ * 拨相位前先把 step_cnt 挪到负数：instTick 里那条自动前进在这几拍里就不该再触发。
+ * 效果自己不走位置（呼吸 / 闪烁这类）时相位本来就不动，只把这几拍的账（颜色、随机）走掉。
  * 正在播时先暂停 —— 步进就是用来看清一格一格的。 */
-function stageStep() {
+function stageStep(dir) {
   if (!stageInst) stageSync(true);
   if (!stageInst) return 0;
   if (stagePlaying) stageToggle(false);
-  const n = Math.max(1, stageInst.speed_cur || 8);
-  for (let i = 0; i < n; i++) instTick(stageInst);
+  const inst = stageInst;
+  const back = dir < 0;
+  const n = Math.max(1, inst.speed_cur || 8);
+  const moves = instAdvances(inst);
+  if (moves && n > 0) {
+    const span = FW.RING_SIZE * 256;
+    const from = inst.anim.position.target | 0;
+    const to = (((from + (back ? -256 : 256)) % span) + span) % span;
+    inst.step_cnt = -n;                       /* 这一轮别让 instTick 自己再往前走一格 */
+    ringSetPosition(inst.anim.position, to, n, FW.EASE.OUT_QUAD);
+  }
+  for (let i = 0; i < n; i++) instTick(inst);
+  inst.step_cnt = 0;                          /* 与「固件自己走完一格」后的状态对齐 */
   render();
-  status(`编辑台步进：前进 ${n} 个固件节拍（一个灯位）`);
+  status(moves
+    ? `编辑台步进：${back ? '回退' : '前进'}一个灯位（${n} 个固件节拍）`
+    : `编辑台步进：这条效果不随位置前进（相位不动，只走了 ${n} 个固件节拍）`);
   return n;
 }
 
@@ -5998,13 +6028,14 @@ function buildFxPanel() {
     if (refs.length) status(`已删除效果「${e.name}」：${refs.length} 个模式的绑定变成了「（空）」，记得重新选效果`, 'warn');
     else status(`已删除效果「${e.name}」`, 'ok');
   };
-  /* ---- 播放（常驻）条：播放 / 暂停、步进、归零、倍率、上一条 / 下一条 ----
+  /* ---- 播放条：归零 · 上一条 / 播放暂停 / 下一条 · 前一帧 / 后一帧、倍率 ----
    * 全部就地作用在中央那个编辑台上，不跳页。 */
   $('#fxTest').onclick = () => {          /* 播放 / 暂停（开播都从头放） */
     const e = curEffect(); if (!e) return;
     stageToggle(!stagePlaying, true);
   };
-  $('#fxStep').onclick  = () => { stageStep(); };
+  $('#fxStepPrev').onclick = () => { stageStep(-1); };
+  $('#fxStepNext').onclick = () => { stageStep(1); };
   $('#fxZero').onclick  = () => { stageZero(); };
   $('#fxPrev').onclick  = () => { fxSelMove(-1); };
   $('#fxNext').onclick  = () => { fxSelMove(1); };
