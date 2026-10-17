@@ -3,6 +3,7 @@
  *
  *   node tools/docsync.mjs stats --write         跑一次全量测试，刷新文档里会漂的数字
  *   node tools/docsync.mjs stats                 只看会改什么，不落盘
+ *   node tools/docsync.mjs stats --write --no-tests   只改了文档 / 工具脚本时：不跑全量，沿用自动块里的计数
  *   node tools/docsync.mjs check                 几秒内校验（不跑测试）
  *   node tools/docsync.mjs check --with-tests    连断言数一起校验（跑全量）
  *
@@ -43,6 +44,7 @@ const cmd = (args[0] || 'check').toLowerCase();
 const isWrite = args.includes('--write');
 const withTests = args.includes('--with-tests');
 const verbose = args.includes('--verbose');
+const noTests = args.includes('--no-tests');   // 只改了文档 / 工具脚本时用：沿用自动块里的计数，不跑全量
 
 const read = f => fs.readFileSync(f, 'utf8');
 const save = (f, s) => fs.writeFileSync(f, s, 'utf8');
@@ -167,7 +169,16 @@ function changedLines(a, b) {
   return out;
 }
 function buildStats() {
-  const { suites, pass, fail } = runAll();
+  let suites = null, pass, fail;
+  if (noTests) {                              // 只改了文档 / 工具脚本时：不跑全量，沿用自动块里的计数
+    const mm = ((read(HANDOFF).match(HEAD_RE) || [''])[0]).match(/(\d+)\s*套件 \/ (\d+)\s*项 \/ (\d+)\s*FAIL/);
+    if (!mm) { console.error(`${HANDOFF} 自动块里没有「N 套件 / M 项 / F FAIL」，去掉 --no-tests 跑一次`); process.exit(2); }
+    pass = +mm[2]; fail = +mm[3];
+    console.log('  （--no-tests：沿用自动块里的计数，不跑全量）');
+  } else {
+    const r = runAll();
+    suites = r.suites; pass = r.pass; fail = r.fail;
+  }
   const n = suiteCount();
   const hash = git(['rev-parse', '--short', 'HEAD']) || '???????';
   const date = git(['log', '-1', '--format=%ad', '--date=short']) || '0000-00-00';
@@ -181,7 +192,7 @@ function buildStats() {
         process.exit(2);
       }
       t = t.replace(HEAD_RE, headBlock({ hash, date, n, m: pass, f: fail }, eolOf(src)));
-      t = fixSuiteCounts(t, suites).txt;
+      if (suites) t = fixSuiteCounts(t, suites).txt;
     }
     out[file] = { src, t };
   }
@@ -244,7 +255,14 @@ function cmdCheck() {
     const head = git(['rev-parse', '--short', 'HEAD']);
     if (!h) fail('自动块里没有「代码顶端 = `…`」');
     else if (h === head) good(`自动块：代码顶端 ${h} = 当前 HEAD`);
-    else console.log(`  · 自动块：记的是 ${h}，当前 HEAD 是 ${head}（差一个提交很正常，改完跑一次 stats --write 对齐）`);
+    else {
+      /* 自动块记的是「刷新时的代码顶端」：只要此后没动过代码 / 测试，它就仍然准确 ——
+         2026-10-17 改成自己去 git 里看，不再一律报「差一个提交很正常」。 */
+      const touched = git(['diff', '--name-only', h, 'HEAD']).split('\n').filter(Boolean);
+      const code = touched.filter(f => !/\.md$/.test(f) && !/^tools\//.test(f));
+      if (!code.length) good(`自动块：代码顶端 ${h}（此后 ${touched.length} 个改动全是文档 / 工具脚本，代码与测试没动）`);
+      else console.log(`  · 自动块：记的是 ${h}，当前 HEAD 是 ${head}；期间动过 ${code.length} 个非文档文件（${code.slice(0, 3).join(' ')}），跑一次 stats --write 对齐`);
+    }
   }
 
   const { warn: rw, seen } = checkRanges();
@@ -266,4 +284,4 @@ function cmdCheck() {
 
 if (cmd === 'stats') cmdStats();
 else if (cmd === 'check') cmdCheck();
-else { console.error('用法：node tools/docsync.mjs stats [--write] | check [--with-tests]'); process.exit(2); }
+else { console.error('用法：node tools/docsync.mjs stats [--write] [--no-tests] | check [--with-tests] [--verbose]'); process.exit(2); }
