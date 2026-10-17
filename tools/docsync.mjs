@@ -17,7 +17,9 @@
  * module-audit / CHANGELOG 里的「当时 20 套件 / 643 项」是**历史快照**，永远不碰。
  *
  * check 查四件事：②③ 是否与实测一致、套件数是否等于磁盘上的测试文件数、
- * 自动块里的提交号是否还是当前 HEAD、module-audit 里「`符号` N–M」的区间引用是否还落得上。
+ * 自动块里的提交号是否还是当前 HEAD、各文档里「`符号` 紧跟 N–M」的区间引用是否还落得上。
+ * 区间只认「符号紧贴区间」这一种写法（中间不含数字 / 反引号 / 竖线），裸区间和表格里隔壁
+ * 单元格的符号都不参与 —— 2026-10-17 收紧过一次，见 checkRanges 上的注释。
  * ==========================================================================*/
 import fs from 'node:fs';
 import path from 'node:path';
@@ -111,26 +113,49 @@ function numsIn(text) {
   return { ns, ms, fs };
 }
 
-/* —— 区间引用：「`符号` N–M」里的符号还落在 N..M 这一带吗（容差 ±WINDOW 行） —— */
+/* —— 区间引用：只认「`符号` 紧跟 N–M」这一种写法，然后问：这个符号现在真在 N..M 这一带吗
+       （容差 ±WINDOW 行）。
+       2026-10-17 收紧过一版：老写法取「区间前后 ±70 字的符号」，在 §1 模块地图这种一行里有 4 个
+       单元格、好几个区间的地方，会把隔壁单元格的符号算到这条区间上 —— 233–236（HTML 标记）配
+       `renderIssues`（JS）这种，凭空报出 60 多条假警报。 */
+const REF_RE = /`([A-Za-z_#][\w.#$-]*\*?)`[^\d`|]{0,12}?(\d{2,6})\s*[–—~]\s*(\d{2,6})/g;
+
+/* 符号「像定义」的那一行（1 起）；找不到 = -1 */
+function lineOfSym(sym) {
+  const esc = sym.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tries = [
+    new RegExp('id="' + esc + '"'),                               // #paneZones → id="paneZones"
+    new RegExp('\\b(?:function|const|let|var)\\s+' + esc + '\\b'), // function foo() / const FW = {
+    new RegExp('\\b' + esc + '\\b'),                               // 兜底：任何出现处
+  ];
+  for (const re of tries) {
+    const i = HTML_LINES.findIndex(l => re.test(l));
+    if (i >= 0) return i + 1;
+  }
+  return -1;
+}
+
 function checkRanges() {
   const warn = [];
+  let seen = 0;
   for (const f of RANGE_DOCS) {
     read(f).split('\n').forEach((line, i) => {
-      for (const m of line.matchAll(/(\d{2,6})\s*[–—~]\s*(\d{2,6})/g)) {
-        const a = +m[1], b = +m[2];
+      for (const m of line.matchAll(REF_RE)) {
+        if (/\*$/.test(m[1])) continue;          // `sim*` 这种前缀写法不是锚点
+        const sym = m[1].replace(/^#/, '');
+        const a = +m[2], b = +m[3];
         if (a < 60 || b > HTML_LINES.length || b < a) continue;
-        const near = line.slice(Math.max(0, m.index - 70), m.index + m[0].length + 70);
-        const syms = [...near.matchAll(/`([A-Za-z_#][\w.#$-]*)`/g)]
-          .map(x => x[1].replace(/^#/, '').replace(/\(\)$/, ''));
-        if (!syms.length) continue;
-        const lo = Math.max(0, a - WINDOW), hi = Math.min(HTML_LINES.length, b + WINDOW);
-        if (!syms.some(s => HTML_LINES.slice(lo, hi).some(l => l.includes(s)))) {
-          warn.push(`${f}:${i + 1}  区间 ${a}–${b}  候选符号 ${syms.slice(0, 3).join(' / ')} 都没落在这一带`);
+        const at = lineOfSym(sym);
+        seen++;
+        if (at < 0) {
+          warn.push(`${f}:${i + 1}  \`${sym}\` 在 HTML 里找不到（改名 / 删了？）—— 区间 ${a}–${b} 请换成现在的符号名`);
+        } else if (at < a - WINDOW || at > b + WINDOW) {
+          warn.push(`${f}:${i + 1}  \`${sym}\` 实际在 ${at} 行，文档写 ${a}–${b}（偏 ${at > b ? at - b : a - at} 行）`);
         }
       }
     });
   }
-  return warn;
+  return { warn, seen };
 }
 
 /* —— stats —— */
@@ -222,15 +247,15 @@ function cmdCheck() {
     else console.log(`  · 自动块：记的是 ${h}，当前 HEAD 是 ${head}（差一个提交很正常，改完跑一次 stats --write 对齐）`);
   }
 
-  const rw = checkRanges();
-  if (!rw.length) good(`区间引用：${RANGE_DOCS.length} 份文档里的「符号 N–M」都还落得上`);
+  const { warn: rw, seen } = checkRanges();
+  if (!rw.length) good(`区间引用：${seen} 处「\`符号\` 紧跟 N–M」都还落得上`);
   else if (verbose) {
-    console.log(`  ! 区间引用可能有漂移（${rw.length} 条，只提示不算错）：`);
+    console.log(`  ! 区间引用漂了（${rw.length} / ${seen} 处；只提示不算错）：`);
     rw.forEach(x => console.log('      ' + x));
   } else {
     const byLine = new Map();
     rw.forEach(x => { const k = x.split('  ')[0]; byLine.set(k, (byLine.get(k) || 0) + 1); });
-    console.log(`  ! 区间引用可能有漂移（${rw.length} 条，落在 ${byLine.size} 行；只提示不算错，加 --verbose 看逐条）：`);
+    console.log(`  ! 区间引用漂了（${rw.length} / ${seen} 处，落在 ${byLine.size} 行；只提示不算错，加 --verbose 看逐条）：`);
     [...byLine].slice(0, 8).forEach(([k, c]) => console.log(`      ${k}  ${c} 条区间落不上`));
     if (byLine.size > 8) console.log(`      …还有 ${byLine.size - 8} 行`);
   }

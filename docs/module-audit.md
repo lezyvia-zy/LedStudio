@@ -1,7 +1,7 @@
 # 工具模块体检报告（逐模块优化的底稿）
 
-> **用途**：页签 = 功能模块，一件一件优化（原 8 个；**批 5-A（2026-10-14）** 把「生成」并入「分区」后是 7 个）。每条发现都带**证据行号**（`led_layout_editor.html`，
-> 基线提交 `34a6110`）、影响、建议动作、预估改动面、要跑的测试。行号会随实施漂移，动手前用关键字复核。
+> **用途**：页签 = 功能模块，一件一件优化（原 8 个；**批 5-A（2026-10-14）** 把「生成」并入「分区」后是 7 个）。每条发现都带**证据位置**（`#id` / 函数名 / 小节名；原来挂的「基线 `34a6110` 行号」2026-10-17 已删，
+> 实测平均偏了一千行，比没有更糟）、影响、建议动作、预估改动面、要跑的测试。动手前用 `Select-String` 现查符号。
 >
 > **严重度**
 > - **P0** 数据正确性 / 数据丢失（用户会白干）
@@ -21,17 +21,17 @@
 
 | 模块 | 页签 | HTML 标记 | 界面代码 | 核心逻辑 | 主要测试 |
 |---|---|---|---|---|---|
-| **分区** | `zones` | 251–320（板级参数 / 分区表 / **铺灯 · 形状** / 底图 —— 批 5-A 起全在这一页；批 7-A/B 起铺灯 = 形状） | 4209–4280（表 / 高亮 / 配色 / 编辑）、5879–6075（形状面板 ⇄ `SHAPE`：`readShapePanel` / `syncShapeEdit` / `shapeRows` / `shapeInfoText` / `shapeTouched` / `layShape` / `#shApply`/`#shFlip`/`#shKeep`/`#shAdd`/`#shDel`/`#shFromZone`）、3830–3862（画布上的形状参考层：虚线 + 头尾标记）、3590–3600（`normalizeShapes`） | `SHAPE` 1008–1305（形状引擎：四档分布 / 头尾 / 诊断）、`deriveZoneDir` 1308–1326、`GEN` 914–991、`validate` 1372–1545 | `test_ui` `test_struct` `test_core` `test_map` `test_shape` `test_persist` |
+| **分区** | `zones` | 251–320（板级参数 / 分区表 / **铺灯 · 形状** / 底图 —— 批 5-A 起全在这一页；批 7-A/B 起铺灯 = 形状） | 4209–4280（表 / 高亮 / 配色 / 编辑）、5879–6075（形状面板 ⇄ `SHAPE`：`readShapePanel` / `syncShapeEdit` / `shapeRows` / `shapeInfoText` / `shapeTouched` / `layShape` / `#shApply`/`#shFlip`/`#shKeep`/`#shAdd`/`#shDel`/`#shFromZone`）、画布上的形状参考层（虚线 + 头尾标记）、`normalizeShapes` | `SHAPE` 1008–1305（形状引擎：四档分布 / 头尾 / 诊断）、`deriveZoneDir`、`GEN`、`validate` | `test_ui` `test_struct` `test_core` `test_map` `test_shape` `test_persist` |
 | **效果** | `fx` | 491–592（列表 / 过滤 / **编辑台设置** / 预置 / 选中效果 / 图层 / 底部**常驻播放条** `#fxPlayBar` 565–590 —— 按钮上只有**图标**（`.fxplay`，40×36 的键 + 56×40 的播放键，说明挂 `data-tip` 且都压在一行内；**归零 = 实心方块、单独摆在最左**，上/下一条 = **实心双三角**，前一帧/后一帧 = 三角 + 竖条；三组之间有 `.div` 分线）；`#fxShowReal`「在灯板上看」`class="hide"` **暂挂起**、接线留着） | 5543–5570（列表/图层 5650）、5787（预置 `applyPreset`）、`syncStagePlayBtn` 5860 / `stageToggle` 5873 / `stageStep(dir)` 5888（前/后一帧）/ `fxSelMove` 5922（播放条；`stageRate()` 读 `state.stage.rate`，`loop()` 5407 里 `accS` 独立累加） | `instApplyPreset` 2699、`instNew` 2406 / `instAdvances` 2565 / `instTick` 2571 | `test_effects_core` `test_effects_c` `test_effects_ui` `test_fx_presets` `test_stage` `test_solo` `test_override` `test_split` `test_effects_c_exec` |
-| **模式** | `mode` | 284–315 | 4187–4416 | `resolveEffect`/`bindKey`/`bindZones` 1642–1688 | `test_modes` `test_override` `test_split` |
-| **动画** | `anim` | 237–282 | 3542–3711（接线/播放）、3586–3639（下拉/同步） | `sim*` 1131–1641、`ringIsFast`/`instSpeedFromRing`/`simSyncSpeed` 1531–1546 | `test_anim` `test_anim2` `test_effects_c_exec` |
-| **校验** | `check` | 233–236 | `renderIssues` 3505–3526 | `validate` 872–1030 | `test_core` `test_struct` |
-| ~~**生成**~~ | ~~`gen`~~ | — | **批 5-A 已并入「分区」**（批 7-A/B 起 `genParams()` / `genInfo()` / `#gApply` 等已删除，改成 `SHAPE` + `#sh*`，见上一行） | `GEN` 914–991（批 7-A/B 起 `SHAPE` 接管铺灯） | `test_map` `test_struct` `test_shape` |
-| **导出** | `exp` | 482–496（面板入口）、718–780（`#exportDlg` 弹窗） | 4640–4671（生成）、4672–4790（导出窗口：`EXPORT_KINDS`/`openExport`/`saveAsFile`）、4791–4880（文件 / JSON / PNG） | `exportC`/`exportEffectsC`/`exportHalC` 1723–2970 | `test_effects_c` `test_map` `test_wrap` `test_export` `test_gen_independence` |
-| **帮助** | `help` | 482–683 | `tab('help')` 3457、`tipInit` 2725–2747 | — | `test_help`（断言章节与 `data-tip`） |
+| **模式** | `mode` | 284–315 | 4187–4416 | `resolveEffect` / `bindKey` / `bindZones` | `test_modes` `test_override` `test_split` |
+| **动画** | `anim` | 237–282 | 3542–3711（接线/播放）、3586–3639（下拉/同步） | `sim*`、`ringIsFast` / `instSpeedFromRing` / `simSyncSpeed` | `test_anim` `test_anim2` `test_effects_c_exec` |
+| **校验** | `check` | 233–236 | `renderIssues` | `validate` | `test_core` `test_struct` |
+| ~~**生成**~~ | ~~`gen`~~ | — | **批 5-A 已并入「分区」**（批 7-A/B 起 `genParams()` / `genInfo()` / `#gApply` 等已删除，改成 `SHAPE` + `#sh*`，见上一行） | `GEN`（批 7-A/B 起 `SHAPE` 接管铺灯） | `test_map` `test_struct` `test_shape` |
+| **导出** | `exp` | 482–496（面板入口）、718–780（`#exportDlg` 弹窗） | 4640–4671（生成）、导出窗口（`EXPORT_KINDS` / `openExport` / `saveAsFile`）、文件 / JSON / PNG | `exportC` / `exportEffectsC` / `exportHalC` | `test_effects_c` `test_map` `test_wrap` `test_export` `test_gen_independence` |
+| **帮助** | `help` | 482–683 | `tab('help')` 3457、`tipInit` | — | `test_help`（断言章节与 `data-tip`） |
 | 横向 | — | 左侧栏/画布/键盘 | 2697–3440 | 项目库 2780–2921、撤销 2893–2906、状态栏 4540–4550、项目切换 4552–4595 | `test_ui` `test_persist` |
 
-> **行号只是粗指路（2026-10-17 起这么用）**：下表里 `` `符号` N–M ``、`1234–1310` 这类区间**不保证跟得上代码**，权威定位一律用 `#id` / 函数名 / 小节名 —— 改某个模块前先 `Select-String` 现查一次，别照着旧行号跳。**每次只校准「本次改动到的那一行」**，不再全表重算；哪条区间已经落不上，交给 `node tools/docsync.mjs check` 列出来（只提示、不算错）。历史折算：批 7-A/B 校准过「分区」那一行；**2026-10-16 勾选框那次 CSS 微调（H10）**在 `<style>` 里插了 9 行（`led_layout_editor.html` 130–137）→ 这一处之后的 HTML / JS 行号**整体 +9**（`<script id="ui">` 里 5661 行之后再 +1），**「效果」一行已按新行号校准**（页面 491–592、`#fxPlayBar` 565–590、`renderFxList` 5543、`renderLayers` 5650、`applyPreset` 5787、`syncStagePlayBtn` 5860、`fxSelMove` 5922），其余行照 +9 粗平移一下就能用。
+> **行号只是粗指路（2026-10-17 起这么用）**：下表里 `` `符号` N–M ``、`1234–1310` 这类区间**不保证跟得上代码**，权威定位一律用 `#id` / 函数名 / 小节名 —— 改某个模块前先 `Select-String` 现查一次，别照着旧行号跳。**每次只校准「本次改动到的那一行」**，不再全表重算；哪条区间已经落不上，交给 `node tools/docsync.mjs check` 列出来（只提示、不算错）。**2026-10-17**：「`符号` + 区间」这种写法里已经漂掉的 21 处行号删掉了（`check` 的假警报由 62 条收到 3 处真锚点，详见当天的提交）。历史折算：批 7-A/B 校准过「分区」那一行；**2026-10-16 勾选框那次 CSS 微调（H10）**在 `<style>` 里插了 9 行→ 这一处之后的 HTML / JS 行号**整体 +9**（`<script id="ui">` 里 5661 行之后再 +1），**「效果」一行已按新行号校准**（页面 491–592、`#fxPlayBar` 565–590、`renderFxList` 5543、`renderLayers` 5650、`applyPreset` 5787、`syncStagePlayBtn` 5860、`fxSelMove` 5922），其余行照 +9 粗平移一下就能用。
 
 ## 2. 横向发现（跨模块，先修这几条收益最大）
 
@@ -45,7 +45,7 @@
 | **H6** ✓fd6e189 | P2 | **文案引用过期**：导出页警告说「必须先打**第 4 节**列的 6 处一次性补丁」，但 `docs/firmware-contract.md` 里补丁清单现在是**第二节**（第三节被速度档占用） | 4426 vs `docs/firmware-contract.md` 47 行「二、要手工打的一次性补丁」 | 改成「补丁清单 [1]–[6]（见 docs/firmware-contract.md 第二节）」 | 1 行 |
 | **H7** | P1 | **测试可维护性**：20 个套件各抄一份假 DOM；改公共部分要改 20 处（`ctxDraw` 是可变全局，抽取时要用 getter/setter） | HANDOFF 第 5/7 节；`tests/test_*.mjs` 各含 `install()`/`mkEl()` | 抽 `tests/_harness.mjs`（独立批次，风险低收益高） | 大（但机械） |
 | **H8** | P1 | **C/JS 双实现需同步**：`ringIsFast()` ↔ `led_gen_tick()` 判档、`zpos` 归一化、图层原语等，两边必须逐字节一致 | 坑 15（CLAUDE.md）、`test_effects_c_exec` | 保持现状（这是有意设计），但每次改判据都要「C/JS 一起改 + 跑真编译」写入 checklist | 0（流程） |
-| **H9** ✓fd6e189 | P1 | **右栏宽度上限固定 820**：窗口不够宽（<1280）时拖到极限 = 画布被挤没，观感就是「铺满整个工具」；存档里存下的超大值下次打开也照原样用 | `setRightWidth` 3097–3103 | 上限跟着窗口走：`rightWMax() = clamp(vw - 460, 260, 820)`，恢复存档时也夹紧；窗口 resize 时重新夹一次 | ~12 行 |
+| **H9** ✓fd6e189 | P1 | **右栏宽度上限固定 820**：窗口不够宽（<1280）时拖到极限 = 画布被挤没，观感就是「铺满整个工具」；存档里存下的超大值下次打开也照原样用 | `setRightWidth` | 上限跟着窗口走：`rightWMax() = clamp(vw - 460, 260, 820)`，恢复存档时也夹紧；窗口 resize 时重新夹一次 | ~12 行 |
 | **H10** ✓ | P2 | **勾选框的方块离功能文字远**（用户实测：「几个勾选的方块 UI 有偏差，和对应的功能文字离得有点远了」）：`label.row>input{flex:1 1 auto}`（「控件列吃掉剩余宽度」）把**勾选框也一起撑开** —— 方块被画在被撑宽的框里，离左边的文字多远全看这一行有多宽（同一个页面里各行还不一样，看着像没对齐）；浏览器 UA 样式又给勾选框自带 `3px 3px 3px 4px` 外边距；勾选框行的标签列固定 56px，2 字标签（使能）把方块推到 62px 处；图层卡那枚「启用」还被标题的 `flex:1` 顶到复制 / ↑ / ↓ / × 那一头 | CSS 129（`label.row>input`）、125–128（56px 标签列）、12 处勾选框行（`#chkSnap` 288 / `#zEn` 339 / `#shClosed` 383 / `#aFix` 435 / `#aShow*` 443–446 / `#mdEn` 473 / `#stCompare` 512 / `#fEn` 530 / `#fMoves` 556）、`renderLayers()` 5650 | ① `label.row>input[type=checkbox]{flex:0 0 auto}`：方块不吃弹性宽度（132）；② `input[type=checkbox]{margin:0}` 归零 UA 外边距（134）；③ 12 个勾选框行加 `.ck`：`gap:5px` + `span:first-child{min-width:0; max-width:none}`，方块紧贴自己的文字（136–137）；④ 图层卡标题改 `nowrap + ellipsis`、`.cardHead .layOn{margin:0 auto 0 2px}`（方块跟在标题后面，小键仍靠右，177–178）。规矩写进 CLAUDE.md 坑 27，`test_ui` §20 / `test_effects_ui` §6b 数着（新增勾选框行照抄 `class="row ck"`） | ~20 行（纯 CSS / HTML 类名 / 一处 inline style，导出物与 `state` 零改动） |
 
 
@@ -60,7 +60,7 @@
 | **Z5** ✓70ba5b3 | P2 | **配色只能逐个点**：`<input type="color">`（213），5–8 个分区要开 5–8 次取色器；新增分区用的是硬编码 8 色环（4658） | 213 / 4658 | 加一排预设色块（就用 4658 那 8 色）+ 「按编号间隔取色」按钮 | ~25 行 |
 | **Z6** ✓644be41 | P2 | **项目设置混在分区页**，且改小「灯总数」只在校验页报 `V3/V3b`，没有「裁剪多余编号」的动作入口 | 222–230、4690 | ① 把项目设置移到左侧栏或独立小节（避免与分区编辑抢注意力，需先看 `test_ui` 断言）；② `mLedCount` 调小时给「现在裁剪」按钮 | 小–中 |
 | **Z7**（批 7-D-9） | P1 | **「删除分区」删不干净**：只把 `zone` 从 `state.zones` 里 `splice` 掉 —— 号段里的灯原地留下（校验页立刻一屏 `V4`「N 号灯不属于任何分区」，1700），挂在这个分区上的形状归属没了、掉成「参考线」；用户原话「删除分区的时候，要连带灯和形状一起删除干净」 | 旧 `#btnZoneDel`（只 `splice` + `afterChange`）；`V4` 见 1700 一带 | 新增 `zoneDelClean()`（现 6410–6452）：连号段里的灯 + 挂在这个分区上的形状一起删，**后面的编号往前挪 `count` 位**（灯号 / 别的分区 `start` / 形状 `first`）、`meta.ledCount` 跟着减；确认框先列清后果 | ~45 行 |
-| **Z8**（批 11） ✓ | P1 | **分区顺序换不了**：分区表的先后**就是板上的编号顺序**（`exportC` 的 `g_default_zones[] = {start,count}` 按它排、固件按这张表认分区），可页面上只有「新增 / 复制 / 删除」，想交换两个分区的位置（**灯数与形状原样不动、编号自动重排**）只能手工改 `start`/`count`，交界处必冲突（`V5`/`V8`/`V9`）；用户原话「如果要交换分区顺序，该如何操作……我希望分区的灯数、形状都保持不变，但是灯的编号会自动重新排序」 | 旧 HTML 只有 `#btnZoneAdd` / `#btnZoneDup` / `#btnZoneDel`（4651–4671 一带）；编号重排的既有先例 = `zoneDelClean` 的「后面的往前挪」 | 加「上移 / 下移」两键 → `zoneMove(zi, dir)`：相邻两段整段换位 + `zoneRelayNumbers(oldStartById)` 按「旧编号 → 新编号」重排（分区 `start` / 灯的号 / 形状 `first` / 框选 `sel` 一起走，**形状的旧起点必须按分区 id 查**）+ `zoneRelayBinds(zi, zj)` 把模式绑定里的分区序号一起对调；一次 `snapshot()`，选中头尾项时按钮 `disabled` | ~60 行 |
+| **Z8**（批 11） ✓ | P1 | **分区顺序换不了**：分区表的先后**就是板上的编号顺序**（`exportC` 的 `g_default_zones[] = {start,count}` 按它排、固件按这张表认分区），可页面上只有「新增 / 复制 / 删除」，想交换两个分区的位置（**灯数与形状原样不动、编号自动重排**）只能手工改 `start`/`count`，交界处必冲突（`V5`/`V8`/`V9`）；用户原话「如果要交换分区顺序，该如何操作……我希望分区的灯数、形状都保持不变，但是灯的编号会自动重新排序」 | 旧 HTML 只有 `#btnZoneAdd` / `#btnZoneDup` / `#btnZoneDel`；编号重排的既有先例 = `zoneDelClean` 的「后面的往前挪」 | 加「上移 / 下移」两键 → `zoneMove(zi, dir)`：相邻两段整段换位 + `zoneRelayNumbers(oldStartById)` 按「旧编号 → 新编号」重排（分区 `start` / 灯的号 / 形状 `first` / 框选 `sel` 一起走，**形状的旧起点必须按分区 id 查**）+ `zoneRelayBinds(zi, zj)` 把模式绑定里的分区序号一起对调；一次 `snapshot()`，选中头尾项时按钮 `disabled` | ~60 行 |
 | **Z9**（批 11） ✓ | P1 | **数字框删不干净**：`zStart` / `zCount` 老写法 `Math.max(1, +e.target.value || 1)` —— 全选删掉的一瞬间 `value === ''` → `+'' || 1` = 1，`syncZoneEdit()` 再把它写回框里，用户**永远打不进新数字**（用户原话「始终都是有个 1 在输入框内」）；`#mLedCount` 同病 | 旧 `#zStart` / `#zCount` 的 `oninput`；`#mLedCount` 的 `oninput` | 抽 `bindNumField(id, {get,set,min,max})`：`oninput` **只在真打出数字时落状态**（空着 / 半截不动 state），`onchange` 才定稿（空着离开 = 没改、原值写回；越界夹紧）；三个数字框全部切过去，以后新增数字框一律用它 | ~35 行 |
 
 > 本页不动的东西：分区表的 `start + i` 连续编号假设（docs/firmware-contract.md 第七节），与本页无关。
@@ -79,7 +79,7 @@
 | **F4** ✓81dd19f | P1 | **删效果无引用提示**：`$('#fxDel')` 只问「删除效果？」；若有模式绑定指向它，删完那些绑定静默变成「（空）」（`renderMdList` 4206 显示"（空）"），相位/分配被悄悄改掉 | 4130–4137 | 删除前统计 `m.binds` 里引用该效果的模式与分区，`confirm` 里列出；或直接禁止 + 引导用「覆盖参数」 | ~20 行 |
 | **F5** ✓7b54d71 | P2 | **图层不能旁路/复制**：图层卡只有 `↑ ↓ ×`（3884–3886）。调多层效果时想「临时关掉第 2 层看差异」只能删掉再加回来 | 3878–3887、`LAYER_FIELDS` 3721 | 加「启用」勾选（渲染时跳过）+ 「复制层」；注意导出侧 `led_gen_layer_t` 是否需要字段（可只在工具侧跳过，不改 C，但会破坏"预览=代码"的严格对应 → 需在 C 侧也加 `en` 字段才安全） | 中（涉及 C 模板，必跑真编译） |
 | **F6** ✓e735f29 | P2 | **编辑台没有进度/倍率**：编辑台播放时看不出播到第几拍、也不显示当前速度档；`#aRate` 在编辑台播放时生效（`loop` 3701）但控件不在这页 | 3006–3070、3701 | 编辑台标题栏补「帧 x · 速度 慢/快 · 倍率 n×」；或提供就地倍率下拉 | ~25 行 |
-| **F7** ✓01988b6 | P2 | **效果重名不校验**：`fName` 自由输入（4164），重名会让导出的 C 注释与模式绑定摘要难辨认 | 4164、`renderMdList` 4200–4207 | `validate` 加提示级检查（重名只警告）。**2026-10-16 起** `fName` 不再自由输入（名字由「模板 / 配色」自动生成，见 CHANGELOG），重名只剩「自定义/单色」这类可预期的情况 | ~15 行（core） |
+| **F7** ✓01988b6 | P2 | **效果重名不校验**：`fName` 自由输入（4164），重名会让导出的 C 注释与模式绑定摘要难辨认 | 4164、`renderMdList` | `validate` 加提示级检查（重名只警告）。**2026-10-16 起** `fName` 不再自由输入（名字由「模板 / 配色」自动生成，见 CHANGELOG），重名只剩「自定义/单色」这类可预期的情况 | ~15 行（core） |
 | **F8** | P2 | 预置套用是破坏性的，但有 `resetSim()`+可撤销链路，`status` 也报了名 —— 保留 | 3984–3996 | 不改 | 0 |
 | **F9** ✓6f3129 · **二刷 ✓** | P1 | **播放条是文字按钮**（「◀ 上一条 / 播放 / 步进 / 归零 / 在灯板上看」）：占地方、一眼看不到音乐播放器那套直觉 | HTML 491–592（播放条 565–590） | 已改成**一行图标键**（`.fxplay`：**双实心三角** = 上一条 / 下一条、`▶`/`⏸` = 播放暂停、三角 + 竖条 = 前一帧 / 后一帧、**实心方块 = 归零（单独摆最左）**；文字解释全挂 `data-tip` 且都压在一行内，那行字收进 `.vh`）；播放中换图标靠 `.on` 切 CSS，**别再写按钮 `textContent`**。**二刷（用户第二轮实测）**：① 键从 34×30 放大到 **40×36**（播放键 44×32 → **56×40**，svg 16 → 20 / 24px）；② 上/下一条从细描边箭头换成**截图那种实心双三角**（`path.rnd` 描一道圆角边把尖角磨圆）；③ **步进拆成前一帧 / 后一帧两个键**（`stageStep(dir)`：拨相位一个灯位再走满插值，落点正好在一格上）；④ **归零改用实心方块并挪到最左**、与其它两组用分线隔开；⑤ 悬浮说明全部缩到一行 ≤30 字（`test_stage` §10.1b 数着）；⑥ **钉底修好**：`#paneFx{padding-bottom:0}` + `.fxbar{margin-bottom:0; bottom:0}` —— 上一版 `bottom:-8px` 滚到底时会往上跳一小截（用户：「还是会随着滚动条移动，但是移动的范围很小」），同时删掉了那条「播放（常驻）」标题 | ~40 行 |
 | **F10** ⏸ **挂起** | P1 | **「在灯板上看」暂挂起**（用户第三条要求：等**模式**模块完成后再优化）：`#fxShowReal` 现在是 `class="hide"`（不摆出来），接线与 `data-tip` 都留着 | 播放条内 `#fxShowReal`、`$('#fxShowReal').onclick` | 等「模式」模块（`M2` 预览模式 / `M5` 等）做完后按新语义回来做 —— 极可能改成「把当前效果铺到**当前模式**的分配上看」而不只是铺满所有分区；`test_solo` 4b 现在仍守着这段接线 | 待定 |
@@ -92,8 +92,8 @@
 
 | # | 严重度 | 现象 | 证据 | 建议动作 | 改动面 |
 |---|---|---|---|---|---|
-| **M1** ✓0677fed | P1 | **同一分区出现在两条绑定里没有校验**：帮助页明说「会以先出现的那条为准」（616），但 `validate()` 里没有对应条目，UI 也不拦 —— 用户以为两个效果叠加，实际只跑第一条 | 4260–4279（勾选无互斥提示）、`validate` 872–1030（无绑定冲突项） | `validate` 加 `V34`（同一模式内分区被多条绑定覆盖 → 警告，列出分区名），并在模式页高亮冲突勾选框 | ~35 行（core + UI，跑 `test_core`/`test_modes`） |
-| **M2** | P1 | **没有「预览这个模式」**：想看某个模式在灯板上的样子，得手动切到动画页再把下拉拨过去 | 4283–4324（绑定卡只有删除/覆盖/微调） | 绑定区加「在灯板上预览这个模式」按钮（`A().previewTarget='mode'`、`A().modeId=m.id`、`tab('anim')`、`playToggle(true)`），与效果页 `#fxShowReal`（4151–4161）对称 | ~20 行 |
+| **M1** ✓0677fed | P1 | **同一分区出现在两条绑定里没有校验**：帮助页明说「会以先出现的那条为准」（616），但 `validate()` 里没有对应条目，UI 也不拦 —— 用户以为两个效果叠加，实际只跑第一条 | 4260–4279（勾选无互斥提示）、`validate`（无绑定冲突项） | `validate` 加 `V34`（同一模式内分区被多条绑定覆盖 → 警告，列出分区名），并在模式页高亮冲突勾选框 | ~35 行（core + UI，跑 `test_core`/`test_modes`） |
+| **M2** | P1 | **没有「预览这个模式」**：想看某个模式在灯板上的样子，得手动切到动画页再把下拉拨过去 | 4283–4324（绑定卡只有删除/覆盖/微调） | 绑定区加「在灯板上预览这个模式」按钮（`A().previewTarget='mode'`、`A().modeId=m.id`、`tab('anim')`、`playToggle(true)`），与效果页 `#fxShowReal`对称 | ~20 行 |
 | **M3** | P2 | **绑定分区勾选无全选/全不选**：分区多时要逐个点 | 4258–4279 | 在勾选区右侧加「全选 / 全不选」两个小按钮 | ~15 行 |
 | **M4** ✓01988b6 | P2 | **模式名/别名无重名提示**（同 F7 的另一半），且改名不进撤销栈（与 `fName` 一致，保留） | 4353–4354 | 与 F7 一起做 | 小 |
 | **M5** | P2 | 「按分区拆开」只在**恰好 1 条**绑定时可用（`binds.length !== 1` 直接拒绝），而绑定卡上没有针对单条绑定的同类动作 | 4406–4414 | 把动作下放到每条绑定卡（「把这条按分区拆开」） | ~15 行 |
@@ -197,11 +197,11 @@
 
 ## 13. 有意为之，不要「顺手改」（改这些等于改产品语义）
 
-1. **「音乐来了」是手动布尔，不是真 FFT**：它模拟的是固件那条 `ring_set_audio_level()`（帮助页 639–642 已说明）。要接真音频，接口就是 `syncPreviewSpeed` / `speedWhich`（2838–2845）。
+1. **「音乐来了」是手动布尔，不是真 FFT**：它模拟的是固件那条 `ring_set_audio_level()`（帮助页 639–642 已说明）。要接真音频，接口就是 `syncPreviewSpeed` / `speedWhich`。
 2. **判档是保守的**：`fast >= slow` 时一律慢档，与打补丁前行为一致（`ringIsFast` 1531 / `led_gen_tick` 的 C 侧表达式）。要"更激进"就是改判据 —— 那必须 C/JS 同步 + 跑真编译。
 3. **`ring->speed_slow / speed_fast` 只是判档参考**：各效果用自己配的 `fast/slow`（firmware-contract.md 第三节），不要改回"ring 级覆盖实例级"。
-4. **一条绑定不勾分区 = 覆盖全部分区**（`bindZones` 1670–1674）：新增分区能自动跟上，这是特性。
-5. **覆盖参数是完整效果副本**（`resolveEffect` 1657–1661）：改原效果不会影响已覆盖的绑定，`V33` 只提示不合并。
+4. **一条绑定不勾分区 = 覆盖全部分区**（`bindZones`）：新增分区能自动跟上，这是特性。
+5. **覆盖参数是完整效果副本**（`resolveEffect`）：改原效果不会影响已覆盖的绑定，`V33` 只提示不合并。
 6. **预览与生成的代码必须逐字节一致**：任何渲染/参数改动都要过 `test_effects_c_exec`；为了让预览"更好看"而在 JS 侧加效果是禁止的。
 7. **`undo/redo`、`打开工程` 必须原地改写 `state`**（`Object.assign`，坑 1）：不要为了"干净"改成重新赋值。
 8. **分区在 SPI 链上连续编号**（`start + i`）：非连续编号需要新映射层（firmware-contract.md 第七节），别在 UI 层硬凑。
