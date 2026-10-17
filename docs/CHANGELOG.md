@@ -4,6 +4,19 @@
 > **新条目怎么写（省时版 · 2026-10-17 定）**：一条 **≤ 15 行** —— 「动机（用户原话一句）」/「根因」/「改动（文件 + 关键位置）」/「测试计数」/「影响（含坑号）」各 1–3 行，细节留给代码和 [module-audit.md](module-audit.md)。**存量条目保持原样**：里面的旧行号、旧计数是**历史快照**，不要去改（统计数字由 `node tools/docsync.mjs stats --write` 管，只刷 CLAUDE / README / HANDOFF）。
 
 ---
+## 2026-10-17 —— 体检报告拆开：28k 字单文件 → 1.5k 索引 + `docs/audit/` 7 份　`1a6518f`
+
+**动机**（用户原话）：「`module-audit.md`（28k 字）按模块拆 7 个文件……剩下唯一有量级意义的 token 项」。
+
+**根因**：改「效果页」也要把整份 28k 读进来，其中九成是别的模块；拆开后按「要改哪」挑一份（3~6k）即可。行号那套已经证明会漂，定位交给 `docsync where` 现算。
+
+**改动**：正文按 §1–§13 切到 `docs/audit/{map,zones,fx,pages,priority,checklist,invariants}.md`；`module-audit.md` 只留「怎么用 + 目录 + 严重度」；**小节号沿用拆分前**，跨文件「见第 N 节」照旧对得上；`map.md` 里那段「其余行照 +9 粗平移」删掉（换成 `where` 一句话）。`docsync check` 的区间引用面扩到 `docs/audit/*.md`（读目录现算，以后加文件自动纳入）。
+
+**测试**：24 套件 / 1303 项 / 0 FAIL（`test_docs` 14 → 15：新增「索引链到全部 7 份正文」；它扫「第 N 行」式坐标的范围也覆盖到 `docs/audit/`）。
+
+**影响**：查一个模块从 28k 字降到 3~6k（索引本身 1.5k）；正文逐行比对过 —— 除上面刻意改写的那一句，155 行非空行一字不差；`led_layout_editor.html` 未动。
+
+
 ## 2026-10-17 —— `docsync where` / `sections`：定位从「grep 几次 + 翻 8000 行」变成一条命令　`d5007e0`
 
 **动机**（用户原话）：「给 `tools/docsync.mjs` 加 `where` / `sections` 只读子命令，让『改哪个模块 → 精确行区间』从多次 grep 变一条命令」。
