@@ -215,8 +215,8 @@ else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 2
 | | `ANIM_CHASE_DUAL` | 同上 |
 | | `ANIM_SWING` | 同上 |
 | | `ANIM_FILL` | 同上 |
-| | `COLOR_SOLID` | 配色类型（单色） |
-| | `COLOR_GRADIENT` | 配色类型（渐变，双点追逐时用副色） |
+| | `COLOR_SOLID` | 配色类型（纯色） |
+| | `COLOR_GRADIENT` | 配色类型（旧的「双色渐变」= 相位 +85；新配色 3..6 由生成代码处理，不叫这个枚举） |
 | | `EASE_OUT_QUAD` | 位置插值的缓动类型 |
 | 函数（7） | `anim_set` | 起一段关键帧插值 |
 | | `anim_update` | 推进插值 |

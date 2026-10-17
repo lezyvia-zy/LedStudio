@@ -208,5 +208,99 @@ ok(!!md9b, '重开后模式名还在');
 ok(md9b && JSON.stringify(md9b.binds.map(b => b.zones)) === '[[0,1],[2],[3,4]]',
    `重开后分区划分还在: ${md9b && JSON.stringify(md9b.binds.map(b => b.zones))}`);
 
+/* ---- 8) 批 2 · 模式页：M2 预览 / M3 全选全不选 / M5 按条拆分 ---- */
+const walk = (el, out = []) => { ((el && el.children) || []).forEach(c => { out.push(c); walk(c, out); }); return out; };
+const btnIn = (root, txt) => walk(root).find(e => e.tagName === 'BUTTON' && e.textContent === txt);
+const cardOf = i => bindBox().children[i];
+const zoneCbs = card => {
+  const row = card.children[1];                       /* r2：分区 标签 + 方块列 + 全选/全不选 */
+  return walk(row.children[1]).filter(e => e.tagName === 'INPUT');
+};
+
+/* 8.1 M3：每条绑定都能一键全选 / 全不选 */
+tabBtn('mode').onclick();
+await new Promise(r => setTimeout(r, 50));
+mdRows()[0].onclick();                                /* 模式 0：上一轮已拆成 5 条，每条一个分区 */
+await new Promise(r => setTimeout(r, 60));
+ok(cardOf(0) && projState(0).modes.list[0].binds.length === 5,
+   `M3 起始：模式 0 有 ${projState(0).modes.list[0].binds.length} 条绑定（每分区一条）`);
+ok(!!btnIn(cardOf(0), '全选') && !!btnIn(cardOf(0), '全不选'),
+   'M3：每条绑定卡上都有「全选 / 全不选」两个小键');
+ok(!!btnIn(cardOf(0), '按分区拆开'), 'M5：每条绑定卡上有自己的「按分区拆开」');
+
+btnIn(cardOf(0), '全不选').onclick();
+await new Promise(r => setTimeout(r, 700));
+{
+  const st = projState(0), b0 = st.modes.list[0].binds[0];
+  ok(b0.none === true, 'M3：「全不选」记成 none=true（不是「空数组 = 全部分区」）');
+  ok(CORE.bindZones(st, b0).length === 0, 'M3：全不选后 bindZones 一个分区都不给');
+  const plan = CORE.simApplyMode(CORE.simInit(), st);
+  ok(plan.filter(p => p.zones.length === 0).length === 1,
+     `M3：预览里这条绑定也真的不铺任何分区（${plan.map(p => '[' + p.zones.join(',') + ']').join(' ')}）`);
+  ok(zoneCbs(cardOf(0)).every(cb => !cb.checked), 'M3：重画后这条绑定的分区方块全是空的');
+}
+
+btnIn(cardOf(0), '全选').onclick();
+await new Promise(r => setTimeout(r, 700));
+{
+  const st = projState(0), b1 = st.modes.list[0].binds[0];
+  ok(!b1.none && (b1.zones || []).length === 0,
+     'M3：「全选」回到 zones=[]（= 全部分区，以后新加的分区也自动跟上）');
+  ok(CORE.bindZones(st, b1).length === st.zones.length, 'M3：全选后覆盖全部分区');
+  ok(zoneCbs(cardOf(0)).length === st.zones.length && zoneCbs(cardOf(0)).every(cb => cb.checked),
+     'M3：重画后每个分区的方块都勾上了');
+}
+
+/* 逐个取消（老逻辑会把「全取消」偷偷当成「全部分区」→ 画面反而全亮） */
+for (const cb of zoneCbs(cardOf(0))) { cb.checked = false; cb.onchange(); }
+await new Promise(r => setTimeout(r, 700));
+{
+  const st = projState(0), b2 = st.modes.list[0].binds[0];
+  ok(b2.none === true && CORE.bindZones(st, b2).length === 0,
+     'M3：手动把分区逐个取消 = 一个都不跑（不再被当成「全部分区」）');
+}
+btnIn(cardOf(0), '全选').onclick();                    /* 复原，后面的用例不受影响 */
+await new Promise(r => setTimeout(r, 700));
+
+/* 8.2 M5：拆分下放到每条绑定（不必整条模式只剩一条） */
+mdRows()[9].onclick();                                /* 模式 9：3 条绑定 [0,1] / [2] / [3,4] */
+await new Promise(r => setTimeout(r, 60));
+{
+  const md = projState(0).modes.list[9];
+  const before = md.binds.map(b => (b.zones || []).join('+')).join('|');
+  ok(before === '0+1|2|3+4', `M5 起始：模式 9 的绑定 = ${before}`);
+  const eff0 = md.binds[0].effect;
+  const v34Before = CORE.validate(projState(0)).filter(i => i.code === 'V34').length;
+  btnIn(cardOf(0), '按分区拆开').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  const b = projState(0).modes.list[9].binds;
+  ok(b.length === 4 && b.map(x => (x.zones || []).join('+')).join('|') === '0|1|2|3+4',
+     `M5：只把第 1 条拆开 → ${b.length} 条（${b.map(x => (x.zones || []).join('+')).join('|')}）`);
+  ok(b[0].effect === eff0 && b[1].effect === eff0, 'M5：拆出来的每条都还是原来那个效果');
+  ok(/已把这条绑定拆成 2 条/.test(byId.get('status').textContent),
+     'M5：状态栏说清了拆成几条');
+  ok(CORE.validate(projState(0)).filter(i => i.code === 'V34').length === v34Before,
+     'M5：拆开不改覆盖关系，V34 数量不变');
+}
+
+/* 8.3 M2：在灯板上预览这个模式 */
+{
+  const mdNow = projState(0).modes.list[9];
+  ok(!!byId.get('mdShowReal'), 'M2：模式页有「在灯板上预览」按钮');
+  ok(byId.get('mdShowReal').disabled === false, 'M2：选中模式时按钮可用');
+  const cur0 = JSON.parse(store.get('led_layout_editor.v1')).current;
+  const nProj = JSON.parse(store.get('led_layout_editor.v1')).projects.length;
+  byId.get('mdShowReal').onclick();
+  await new Promise(r => setTimeout(r, 700));
+  const o = JSON.parse(store.get('led_layout_editor.v1'));
+  const a = o.projects[0].state.anim;
+  ok(a.previewTarget === 'mode', 'M2：预览对象是「按模式」');
+  ok(a.modeId === mdNow.id, `M2：预览的是当前选中的模式（${mdNow.name}）`);
+  ok(a.playing === true, 'M2：直接开播');
+  ok(o.current === cur0 && o.projects.length === nProj, 'M2：没切项目、没多建工程');
+  ok(byId.get('aPreset').value === mdNow.id, 'M2：动画页的下拉同步到该模式');
+  ok(byId.get('aTarget').value === 'mode', 'M2：「预览对象」控件显示「按模式」');
+}
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

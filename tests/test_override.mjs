@@ -9,7 +9,8 @@ let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fa
 const listeners = {};
 const byId = new Map();
 let ctxDraw = 0;
-const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=()=>{ctxDraw++;})), set:(t,k,v)=>{t[k]=v;return true;} });
+const fills = [];                       /* 编辑台画过的 fillStyle（查「改了配色有没有真的重画」） */
+const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=()=>{ctxDraw++;})), set:(t,k,v)=>{ if (k === 'fillStyle') fills.push(v); t[k]=v; return true; } });
 const store = new Map();
 
 function mkEl(tag='div', id=''){ return {
@@ -198,6 +199,32 @@ byId.get('mdTbl').children[0].onclick(); await wait(700);
   const st = projState(0);
   ok(st.modes.list[0].binds[0].override.slow === 33, '改动写进了覆盖');
   ok(st.effects.list[0].slow !== 33, `原效果没被动（slow 仍是 ${st.effects.list[0].slow}）`);
+
+  /* 编辑台画的必须是「覆盖」那份：改配色 / 改调色板要立刻看得见。
+   * （stageSync() 早先按 curEffect() 建实例，微调时画的一直是库里的原效果。） */
+  const colSel = byId.get('fColor');
+  colSel.value = String(CORE.FW.COLOR.SOLID);
+  colSel.onchange({ target: colSel });
+  await wait(70);
+  fills.length = 0;
+  const sw0 = (byId.get('fPalette').children || []).find(c => c.type === 'color');
+  ok(!!sw0, '微调时调色板色块在');
+  sw0.value = '#0000ff';
+  sw0.oninput();
+  await wait(700);
+  const pix = [...new Set(fills.filter(f => /^rgb\(/.test(f)))]
+    .map(f => f.match(/\d+/g).map(Number));
+  ok(pix.some(p => p[2] > 200 && p[0] < 40),
+     `改色后预览立刻变蓝（画的是覆盖那份）：${JSON.stringify(pix.slice(-3))}`);
+  const st2 = projState(0);
+  ok(JSON.stringify(st2.modes.list[0].binds[0].override.c1) === '[0,0,255]', '覆盖副本的 c1 跟着变');
+  ok(JSON.stringify(st2.effects.list[0].c1) !== '[0,0,255]',
+     `效果库的原效果没被改（c1 仍是 ${JSON.stringify(st2.effects.list[0].c1)}）`);
+  /* 回到效果库，别让后面的断言踩在「微调中」的状态上 */
+  const back = (byId.get('fxTarget').children || []).find(c => c.textContent === '返回效果库');
+  ok(!!back, '横条上有「返回效果库」');
+  if (back) back.onclick();
+  await wait(70);
 }
 
 /* ---- 7) 「返回效果库」 ---- */

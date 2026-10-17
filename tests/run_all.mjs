@@ -9,8 +9,8 @@
  * 依赖：node（无需 npm install）。test_effects_c_exec 还需要 AndeSight 自带的
  * cygwin gcc，见 README；没有的话它会自己跳过并说明。
  *
- * 并行是安全的：每个套件都是独立进程，写盘的两个（effects_c_exec → tests/.build、
- * gen_independence → tests/.build/hal）落在不同目录。输出仍按文件名顺序打印，
+ * 并行是安全的：每个套件都是独立进程，写盘的两个（effects_c_exec → tests/.build/exec、
+ * gen_independence → tests/.build/hal）落在不同子目录，谁也不会删掉谁。输出仍按文件名顺序打印，
  * 所以「合计 N 项通过」的解析、以及屏幕上谁先谁后都不变。
  * ==========================================================================*/
 import fs from 'node:fs';

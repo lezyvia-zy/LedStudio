@@ -38,7 +38,7 @@ ok(/id="fOffset"[^>]*data-tip=/.test(html) || /data-tip="[^"]*"[^>]*id="fOffset"
 ok(/function tipInit/.test(html) && /function tipShow/.test(html), '运行时提示系统在');
 ok(/id="tipBox"|tipEl\.id = 'tipBox'/.test(html), '提示小窗是动态创建的');
 /* 动态生成的图层控件也带说明 */
-ok(html.includes("'跟随效果配色：整个环同色"), '图层「配色」下拉有说明');
+ok(html.includes("'跟随效果配色：这一层用"), '图层「本层取色」下拉有说明');
 ok(html.includes('单边拖尾一边亮一边长尾'), '「衰减曲线」有说明');
 ok(/selInput\([^)]*,\s*$|selInput\([^)]*,\s*'|selInput\([\s\S]{0,120}?'跟随/.test(html) || html.includes('selInput(WAVE_NAME'), '下拉支持挂说明');
 

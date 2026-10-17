@@ -108,7 +108,7 @@ await new Promise(r => realST(r, 70));
 const e0 = fxListOf(0)[0];
 ok(e0.kind === 'custom', '槽位 0 已转为自定义');
 ok(e0.layers.length === 1 && e0.layers[0].kind === 'spot', `起始图层: ${e0.layers[0].kind}`);
-ok(e0.name === '单点追逐/彩虹循环', `名字保留: ${e0.name}`);
+ok(e0.name === '单点追逐/' + CORE.FW.COLOR_NAME[e0.color], `名字保留: ${e0.name}`);
 
 /* ---- 3) 加图层 ---- */
 click('fxAddTwinkle');
@@ -141,7 +141,7 @@ const out = byId.get('xOut').value;
 const eb = out.slice(out.indexOf('static const led_gen_effect_t'));
 ok(/^    \{ 1, /m.test((eb.match(/^    \{.*\},/gm) || [])[0] || ''), '效果表第 0 行被标成自定义（kind=1）');
 ok(/0 CUSTOM0_CUSTOM|0 .*CUSTOM/.test(out) || out.includes('custom'), 'g_presets 行的注释标了自定义');
-ok(/^    \{ 1, 0, 0, 0, 1, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 3, 0, 1 \},/m.test(eb),
+ok(/^    \{ 1, 0, 0, 0, 1, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 3, 0, 1, 0, \d+, \d+, \d+, \d+, \d+ \},/m.test(eb),
    '效果行记录了 layers_count=3: ' + ((eb.match(/^    \{ 1,.*/m) || ['(没找到)'])[0]));
 
 ok(/^    \{ 0, 1, 5, 20, /m.test(out), `图层表第一行 = kind=0(光点), en=1, count=5, width=20: ${(out.match(/^    \{ 0, 1, 5, 20,.*/m) || ['(没找到)'])[0]}`);

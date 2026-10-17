@@ -118,7 +118,7 @@ const dir = path.join('tests', '.build', 'hal');
 if (!fs.existsSync(GCC)) {
   console.log('  · SKIP 真编译（没找到 ' + GCC + '）—— 上面那些静态断言已经覆盖契约本身');
 } else {
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'led_gen_hal.h'), hal);
   /* 平台侧参考实现：只实现 HAL，引擎由工具生成（这里用桩代替） */

@@ -122,6 +122,11 @@
   label.row>input[type=number]+input[type=number]{flex:1 1 46px}
   /* 行：标签列固定且可省略号，控件列吃掉剩余宽度 —— 栏宽变化时自然伸缩 */
   label.row{display:flex; align-items:center; gap:6px; margin:3px 0; min-width:0}
+/* 调色板：一排色块 + 增删键（颜色数就是跳变/呼吸的颜色个数） */
+.palrow{display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-height:24px}
+.palrow input[type=color]{width:34px; height:24px; padding:0; border:1px solid var(--line); border-radius:4px; background:none}
+.palrow .palN{color:var(--dim); font-size:11px; margin-left:2px}
+#fxPalAdd,#fxPalDel{min-width:26px; padding:2px 6px}
   label.row>span:first-child{
     flex:0 0 auto; min-width:56px; max-width:104px; color:var(--dim);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -457,7 +462,7 @@
 
     <div class="pane" data-pane="mode">
       <table id="mdTbl"></table>
-      <div style="margin:4px 0">
+      <div class="btnrow">
         <button id="mdAdd" data-tip="新建一个模式。模式顺序就是固件 LEDMode 的顺序。">新建</button>
         <button id="mdCopy" data-tip="复制选中模式（含全部绑定）。">复制</button>
         <button id="mdDel" data-tip="删除选中模式。">删除</button>
@@ -478,13 +483,14 @@
       <fieldset>
         <legend>分区 → 效果 绑定</legend>
         <div id="mdBinds"></div>
-        <div style="margin:4px 0">
+        <div class="btnrow">
           <button id="mdAddBind" data-tip="加一条「分区 → 效果」绑定：选一个效果，再勾上要跑它的分区。">+ 添加绑定</button>
           <button id="mdAllZones" data-tip="把一条覆盖全部分区的绑定拆成每个分区一条，方便逐个指定。">按分区拆开</button>
+          <button id="mdShowReal" data-tip="按这个模式在灯板上播放（切到「动画」页）—— 看整块板子配起来的样子，不改工程里的任何分配。">在灯板上预览</button>
         </div>
         <div class="hint">每个分区只应出现在一条绑定里。<b>同一个效果被多个分区选中时，它们共享相位 —— 也就是真同步</b>
           （比如 0-7 与 8-15 用同一个效果，两边的光点是齐的）。<br>
-          一条绑定不勾任何分区 = 覆盖全部分区（以后加分区也能自动跟上）。</div>
+          一条绑定「全选」= 覆盖全部分区（以后加分区也能自动跟上）；「全不选」= 这条一个分区都不跑。</div>
       </fieldset>
     </div>
 
@@ -530,12 +536,20 @@
           <span class="hint" style="flex:1;margin:0">只是库里的编号；哪个模式用哪个效果，在「模式」页里配</span></label>
         <label class="row"><span>类型</span><span id="fKind">—</span></label>
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
-        <label class="row"><span>配色</span><select id="fColor" data-tip="整个环的颜色怎么变：&#10;单色 = 固定用颜色①&#10;彩虹循环 = 整环同色但随时间变色&#10;渐变循环 = 颜色①到②之间循环（只在「双点追逐」时认颜色②）"></select></label>
-        <label class="row"><span>颜色①</span><input type="color" id="fC1" data-tip="主色。单色模式下就是灯的颜色。" style="width:40px;padding:0;height:22px"></label>
-        <label class="row"><span>颜色②</span><input type="color" id="fC2" data-tip="副色。只在「双点追逐 + 渐变循环」这个组合下用得上。" style="width:40px;padding:0;height:22px"></label>
+        <label class="row"><span>配色</span><select id="fColor" data-tip="颜色怎么变：&#10;纯色 = 固定一色&#10;跳变 = 几种颜色按固定拍数整条切换（颜色个数 = 调色板里的颜色数）&#10;渐变 = 红→黄→绿→青→蓝→紫→红 平滑循环（整条同色）&#10;彩虹 = 沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）&#10;呼吸 = 灭→亮→灭，一个周期换一种颜色&#10;覆盖 = 一种颜色被另一种逐级盖掉"></select></label>
+        <label class="row" id="rowPal"><span>调色板</span>
+          <span id="fPalette" class="palrow"></span>
+          <button id="fxPalAdd" data-tip="给调色板加一个颜色（最多 8 个）。">+</button>
+          <button id="fxPalDel" data-tip="删掉调色板最后一个颜色（至少留 1 个）。">−</button>
+        </label>
+        <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色；覆盖：第 1 个是底色、第 2 个是盖上去的颜色。</div>
+        <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：每种颜色停留几拍；渐变：每 N 拍色相 +1（越小越快）。"></label>
+        <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
+        <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
+        <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="255" data-tip="每 N 拍整体转一格；0 = 不动。"></label>
+        <label class="row" id="rowPeriod"><span>周期(拍)</span><input type="number" id="fPeriod" min="2" max="600" data-tip="呼吸：一次「灭→亮→灭」多少拍，每过一个周期换一种颜色。&#10;覆盖：一遍颜色盖过去多少拍。"></label>
         <label class="row"><span>慢速</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要几个 20ms 节拍。数值越大越慢。" min="1" max="99"></label>
         <label class="row"><span>快速</span><input type="number" id="fFast" data-tip="快速档：播放时按音量自动切换用的那一档。" min="1" max="99"></label>
-        <label class="row"><span>彩循环</span><input type="number" id="fSpeed" data-tip="彩虹/渐变每隔几帧变一次颜色。0 = 不变色。" min="0" max="255"></label>
         <label class="row"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
       </fieldset>
 
@@ -807,7 +821,7 @@
           <tr><td><b>波形</b></td><td>脉动长什么样：<b>三角</b> = 呼吸（渐亮渐暗）；<b>方波</b> = 闪烁（一亮一灭）；<b>锯齿</b> = 渐暗然后瞬间跳回最亮（跳变）。</td></tr>
           <tr><td><b>配色</b></td><td>
             <b>跟随效果配色</b>：整个环同一个颜色，颜色可以随时间循环（由效果级的「配色」决定）。<br>
-            <b>本层空间色相</b>：每颗灯自己的色相 —— 这才是绕环彩虹。下面三项控制它：
+            <b>本层空间色相</b>：这一层自己算色相（覆盖效果级配色），每颗灯不一样 —— 老存档和几个老预置还在用它。下面三项控制它：
             <table>
               <tr><td>色相起点</td><td>0 号灯是什么颜色（0=红，85=绿，170=蓝，255 回到红）。</td></tr>
               <tr><td>沿环色相跨度</td><td>沿环铺多少色相：0 = 同色；255 = 整圈正好铺满一轮彩虹。120 左右是「一段渐变」。</td></tr>
@@ -819,12 +833,22 @@
         <h4>效果级参数</h4>
         <table>
           <tr><th>参数</th><th>作用</th></tr>
-          <tr><td>配色</td><td><b>单色</b>（用颜色①固定色）、<b>彩虹循环</b>（整个环同色但随时间变色）、<b>渐变循环</b>（颜色①到②之间循环，只在「双点追逐」时认颜色②）。</td></tr>
-          <tr><td>颜色①/②</td><td>主色 / 副色。</td></tr>
+          <tr><td><b>配色</b></td><td>
+            <b>纯色</b>：整条固定用调色板第 1 个颜色。<br>
+            <b>跳变</b>：调色板里几种颜色按固定拍数整条切换（颜色个数 = 色块数）。<br>
+            <b>渐变</b>：红→黄→绿→青→蓝→紫→红 平滑循环（整条同色），速度可调。<br>
+            <b>彩虹</b>：沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）；<b>级数</b> = 走完一轮红→红要多少颗灯（30 颗的圆环填 30，40 颗的顶环填 40）。<br>
+            <b>呼吸</b>：灭→亮→灭算一个周期，一个周期换一种颜色（颜色来自调色板）。<br>
+            <b>覆盖</b>：第 1 个颜色被第 2 个逐级盖掉（一遍多少拍看「周期」）。
+          </td></tr>
+          <tr><td>调色板</td><td>用户自己定的颜色，最多 8 个。纯色用第 1 个；跳变/呼吸按色块个数循环；覆盖用第 1、2 个（底色 / 盖上去的颜色）。</td></tr>
+          <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
+          <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
+          <tr><td>周期(拍)</td><td>呼吸：一次灭→亮→灭多少拍；覆盖：一遍颜色盖过去多少拍。</td></tr>
+          <tr><td>速度</td><td>跳变：每种颜色停留几拍；渐变：每 N 拍色相 +1（越小越快）。</td></tr>
           <tr><td>慢速 / 快速</td><td>每走一格要几帧。数值越大越慢。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
-          <tr><td>彩循环</td><td>彩虹/渐变每隔几帧变色一次。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
-          <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动（呼吸、彩虹旋转靠色相自己转）。</td></tr>
+          <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。</td></tr>
         </table>
 
         <h3 id="hs-mode">模式页怎么用</h3>
@@ -832,10 +856,11 @@
           <li>点「新建」加一个模式，或者选中已有的改。</li>
           <li>点「+ 添加绑定」，选一个效果、勾上要跑这个效果的分区。</li>
           <li>重复，直到每个分区都被分到。没被勾到的分区会黑着。</li>
-          <li>「按分区拆开」能把一条覆盖全部分区的绑定拆成每个分区一条，方便逐个指定。</li>
+          <li>「按分区拆开」能把一条绑定拆成每个分区一条，方便逐个指定；每条绑定右边还有「全选 / 全不选」。</li>
+          <li>「在灯板上预览」直接跳到动画页，按这个模式在真实灯板上跑一遍（不改工程里的分配）。</li>
           <li>「上移/下移」调模式顺序 —— 顺序就是固件里 LEDMode 的顺序。</li>
         </ol>
-        <div class="hint">一个分区不应该出现在两条绑定里（会以先出现的那条为准）。一条绑定不勾任何分区 = 覆盖全部分区。</div>
+        <div class="hint">一个分区不应该出现在两条绑定里（会以先出现的那条为准）。「全选」= 覆盖全部分区（以后加分区也能自动跟上）；「全不选」= 这条一个分区都不跑，那个分区会黑着。</div>
 
         <h3 id="hs-anim">预览页（动画）</h3>
         <p>预览有两种对象，用「预览对象」切换：</p>
@@ -892,7 +917,9 @@
           <tr><td>闪烁</td><td>同上，波形换<b>方波</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
-          <tr><td>绕环彩虹</td><td>一个填充层，配色选<b>本层空间色相</b>，跨度 255，旋转 2–4。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>绕环彩虹</td><td>一个填充层，配色选<b>本层空间色相</b>，跨度 255，旋转 2–4。或者用效果级配色选<b>彩虹</b>（级数填成分区灯数）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>一整圈首尾相接的彩虹</td><td>效果级配色选<b>彩虹</b>，<b>级数</b>填这个分区的灯数（30 颗圆环填 30；填 30 而分区只有 8 颗，就只显示红→黄那一小段）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，选「选中效果 → 配色」。">效果页</button></td></tr>
+          <tr><td>一种颜色盖过另一种</td><td>配色选<b>覆盖</b>，调色板第 1/2 个分别是底色和盖上去的颜色，<b>周期</b>管盖得快慢。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，选「选中效果 → 配色」。">效果页</button></td></tr>
           <tr><td>彩虹在跑</td><td>外环用「彩虹环」（填充+空间色相），顶环再加一个光点层让亮点扫过。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>随机闪</td><td>一个<b>随机闪</b>层；想让它盖在底色上，再垫一个低亮度的填充层。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>旋钮光晕太窄</td><td>模式页那条绑定勾「覆盖参数」→「微调参数」→ 把光宽调大（效果页的「多长度对比」用的是你板子上真实的几条长度，先在编辑台看清再改）。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
@@ -1017,8 +1044,12 @@ const FW = {
   ANIM:  { CHASE_SINGLE:0, CHASE_DUAL:1, SWING:2, FILL:3, STATIC:4 },
   ANIM_COUNT: 5,                       /* == 固件 ANIM_TYPE_COUNT；自定义动效 id 从这里往后排 */
   ANIM_NAME: ['单点追逐','双点追逐','摆动','填充','静态'],
-  COLOR: { SOLID:0, SPECTRUM:1, GRADIENT:2 },
-  COLOR_NAME: ['单色','彩虹循环','渐变循环'],
+  /* 0..2 = 旧三档（2 是「相位差 85 的双色彩虹」，已退休但老存档还认）；
+     3..6 = 新四档。渐变(1) 就是原来的 SPECTRUM：沿 spectrum_tbl 随时间走。
+     界面只列 COLOR_UI（跳过 2）。 */
+  COLOR: { SOLID:0, SPECTRUM:1, GRADIENT:2, STEP:3, RAINBOW:4, BREATH:5, WIPE:6 },
+  COLOR_NAME: ['纯色','渐变','渐变(旧·双色)','跳变','彩虹','呼吸','覆盖'],
+  COLOR_UI: [0, 3, 1, 4, 5, 6],
   EASE:  { LINEAR:0, OUT_QUAD:1, IN_OUT_QUAD:2 },
 };
 
@@ -1880,7 +1911,7 @@ function validate(state) {
       }
     });
     if (e.color === FW.COLOR.GRADIENT)
-      push('warn', 'V31', `自定义效果「${e.name}」选了渐变配色：固件只在「双点追逐 + 渐变」时才认第二个颜色（render_all），自定义动效用不上色②`, [], JX);
+      push('warn', 'V31', `自定义效果「${e.name}」还在用旧的「双色渐变」配色（2，已退休）：导出仍能跑，但建议在配色里改成「渐变」或「彩虹」`, [], JX);
   }
   /* 覆盖参数：同一个效果被多处绑定各自覆盖时提示一下（改原效果不会影响它们） */
   {
@@ -1902,13 +1933,13 @@ function validate(state) {
   }
 
   /* M1) 同一分区出现在同一模式的多条绑定里：固件只跑先出现的那条（帮助页写过），
-   * 但用户常以为是「两个效果叠着跑」。列出来 + 可跳到那个模式（一条绑定不勾分区 = 全部）。 */
+   * 但用户常以为是「两个效果叠着跑」。列出来 + 可跳到那个模式（`zones:[]` = 全部；`none` = 一个都不跑）。 */
   {
     const Z = state.zones || [];
     (state.modes && state.modes.list || []).forEach((m, mi) => {
       const hit = new Map();                       /* 分区下标 -> 覆盖它的绑定序号（从 1 数） */
       (m.binds || []).forEach((b, bi) => {
-        const idxs = (!b.zones || !b.zones.length) ? Z.map((_, i) => i) : b.zones.slice();
+        const idxs = bindZones(state, b);          /* 走同一份判断：none = 一个都不跑 */
         idxs.forEach(i => { if (Z[i]) { if (!hit.has(i)) hit.set(i, []); hit.get(i).push(bi + 1); } });
       });
       const bad = [...hit.entries()].filter(([, v]) => v.length > 1);
@@ -1995,6 +2026,44 @@ function fxEffectName(e) {
   return tpl + '/' + col;
 }
 
+/* ---- 配色（效果级）------------------------------------------------------
+ * 六种模式共用一套字段：
+ *   color     : FW.COLOR.*（0 纯色 / 1 渐变 / 3 跳变 / 4 彩虹 / 5 呼吸 / 6 覆盖）
+ *   palette   : 用户自定义色板（最多 8 个）—— 纯色 / 跳变 / 呼吸 / 覆盖用
+ *   levels    : 彩虹 —— 走完一轮「红→…→红」要多少颗灯（>= 6，默认 30）
+ *   hue_base  : 彩虹起点；hue_speed = 每 N 拍整体转一格（0 = 不转）
+ *   period    : 呼吸 / 覆盖 —— 一个周期多少拍
+ *   speed     : 跳变 = 每种颜色停留多少拍；渐变 = 每 N 拍相位 +1
+ *   c1 / c2   : 旧字段（老存档、单色、覆盖参数仍用它们），也是 palette 的后备
+ *
+ * 算法约束：纯色 / 跳变 / 渐变 / 呼吸每帧只算一次颜色；彩虹每像素一次递推 + 一次
+ * 查表；覆盖每像素一次比较。没有浮点，也没有除法落进像素循环。
+ * ---------------------------------------------------------------------- */
+const PAL_MAX = 8;
+function isRgb(c) { return Array.isArray(c) && c.length >= 3; }
+function effPalette(e) {
+  const p = (e && Array.isArray(e.palette)) ? e.palette.filter(isRgb).slice(0, PAL_MAX) : [];
+  if (p.length) return p.map(c => [c[0] | 0, c[1] | 0, c[2] | 0]);
+  return [(e && e.c1) || [255, 0, 0], (e && e.c2) || [0, 0, 0]];
+}
+function effLevels(e) { return Math.max(6, Math.min(255, ((e && e.levels) | 0) || 30)); }
+function effPeriod(e) { return Math.max(2, Math.min(600, ((e && e.period) | 0) || 60)); }
+/* 老存档 / 覆盖副本 / 手工造的效果对象都走这里补字段（幂等） */
+function normalizeEffect(e) {
+  if (!e) return e;
+  if (e.color == null) e.color = FW.COLOR.SOLID;
+  if (!Array.isArray(e.palette) || !e.palette.length) {
+    e.palette = [(e.c1 || [255, 0, 0]).slice(), (e.c2 || [0, 0, 0]).slice()];
+  }
+  const pal = e.palette.filter(isRgb).map(c => [c[0] | 0, c[1] | 0, c[2] | 0]).slice(0, PAL_MAX);
+  e.palette = pal.length ? pal : [[255, 0, 0]];
+  e.levels = effLevels(e);
+  e.period = effPeriod(e);
+  e.hue_base = (e.hue_base | 0) & 0xFF;
+  e.hue_speed = (e.hue_speed | 0) & 0xFF;
+  return e;
+}
+
 /* 默认效果表：用固件原有的 9 行播种，槽位 = 下标。
  * 导出的前 9 行必须与 spimled_service.c 的 g_presets[] 在 token 层面完全一致 —— 这是回归锚点。 */
 function defaultEffects() {
@@ -2008,6 +2077,8 @@ function defaultEffects() {
       anim: p.anim, color: p.color, width: p.width, gap: p.gap,
       slow: p.slow, fast: p.fast, speed: p.speed,
       c1: p.c1.slice(), c2: p.c2.slice(),
+      palette: [p.c1.slice(), p.c2.slice()],
+      levels: 30, hue_base: 0, hue_speed: 0, period: 60,
     })),
   };
 }
@@ -2023,6 +2094,8 @@ function newCustomEffect(slot, name) {
     tpl: '自定义',                       /* 名字的「模板」那一半：最近套用的预置模板名 */
     offset: 0,
     color: FW.COLOR.SOLID, c1: [255, 0, 0], c2: [0, 0, 0],
+    palette: [[255, 0, 0], [0, 0, 255]],
+    levels: 30, hue_base: 0, hue_speed: 0, period: 60,
     slow: 8, fast: 1, speed: 0, moves: true,
     layers: [{ kind: 'spot', count: 1, width: 8, phase: 0, falloff: 'cos',
                pulse_period: 0, pulse_amp: 0, direction: 1 }],
@@ -2355,12 +2428,40 @@ function genRender(mask, hue, len, pos, layers, tick, offset) {
   }
 }
 
+/* 呼吸包络：一次「灭 → 亮 → 灭」= 0 → 255 → 0。
+ * 与 pulseGain 的三角波相位差半拍（那个是一上来就满亮）。period=0 视为不呼吸。 */
+function breathGain(tick, period) {
+  if (!period) return 255;
+  const t = Math.floor(((tick % period) * 256) / period);   /* 0..255 */
+  return t < 128 ? t * 2 : (255 - t) * 2;
+}
+
 /* 把一条效果渲染到给定的 mask/hue 缓冲里。长度可以是任意值 ——
- * 真实分区用它渲染，效果编辑台的基础排布（8/24/40/… 颗）也用它，
- * 所以缓冲必须由调用方给，不能写死用 inst 自己那个 ZONE_MAX_LEN 的。 */
+ * 真实分区用它渲染，效果台的基础排布（8/24/40/… 颗）也用它，
+ * 所以缓冲必须由调用方给，不能写死用 inst 自己那个 ZONE_MAX_LEN 的。
+ *
+ * hue[] 的约定（全项目统一）：
+ *   0xFF      = 用效果当前色（c.current：纯色 / 跳变 / 渐变 / 呼吸）
+ *   0xFE      = 用副色（c.secondary，只有覆盖模式会写）
+ *   0x00..0xFD = 直接查 spectrum_tbl（本层空间色相 / 效果级彩虹）
+ * 覆盖模式的判断必须排在「查表」之前 —— 0xFE 只是本模式内的哨兵。 */
 function renderZoneMaskTo(inst, m, hue, len, pos) {
-  const a = inst.anim;
-  hue.fill(0xFF, 0, len);                   /* 默认跟随全局配色；空间色相由图层自己写 */
+  const a = inst.anim, c = inst.color;
+  hue.fill(0xFF, 0, len);                   /* 默认跟随效果配色；空间色相由图层自己写 */
+
+  /* 呼吸 / 覆盖是「整条效果」级：不看图层，整条点亮。 */
+  if (c.type === FW.COLOR.BREATH) {
+    m.fill(breathGain(a.gen_tick, c.period), 0, len);
+    return;
+  }
+  if (c.type === FW.COLOR.WIPE) {
+    m.fill(255, 0, len);
+    const per = c.period > 0 ? c.period : 60;
+    const edge = Math.floor(((a.gen_tick % per) * len) / per);
+    for (let i = 0; i < edge; i++) hue[i] = 0xFE;
+    return;
+  }
+
   switch (a.type) {
     case FW.ANIM.CHASE_SINGLE: chaseSingle(m, len, pos, zoneScaled(a.params.light_width, len, 1)); break;
     case FW.ANIM.CHASE_DUAL:   chaseDual(m, len, pos, zoneScaled(a.params.light_width, len, 1),
@@ -2370,12 +2471,28 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
     default:                   genRender(m, hue, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset); break;
   }
+
+  /* 效果级彩虹：只补「跟随效果配色」的灯位（图层自己写了空间色相的保留）。
+   * (i × 256 / levels) 用 q/r 递推算，逐值与除法完全相同，但循环里没有除法。 */
+  if (c.type === FW.COLOR.RAINBOW) {
+    const levels = Math.max(6, Math.min(255, c.levels | 0 || 30));
+    const base = (c.hue_base | 0) & 0xFF;
+    const rot  = c.hue_speed > 0 ? Math.floor(a.gen_tick / c.hue_speed) : 0;
+    const q0 = Math.floor(256 / levels), r0 = 256 % levels;
+    let q = 0, r = 0;
+    for (let i = 0; i < len; i++) {
+      if (hue[i] === 0xFF) hue[i] = (base + q + rot) & 0xFF;
+      r += r0; q += q0;
+      if (r >= levels) { r -= levels; q++; }
+    }
+  }
 }
 /* 真实分区渲染：缓冲就用实例自己那两个 */
 function renderZoneMask(inst, len, pos) {
   renderZoneMaskTo(inst, inst.anim.mask, inst.anim.hue, len, pos);
 }
-function colorUpdate(c) {
+function colorUpdate(c, tick) {
+  const pal = (c.palette && c.palette.length) ? c.palette : null;
   switch (c.type) {
     case FW.COLOR.SOLID: break;
     case FW.COLOR.SPECTRUM:
@@ -2387,6 +2504,26 @@ function colorUpdate(c) {
       c.current   = FW.spectrum_tbl[c.phase];
       c.secondary = FW.spectrum_tbl[(c.phase + 85) & 0xFF];
       break;
+    /* 跳变：每 speed 拍换下一个颜色。只改索引，不碰像素。 */
+    case FW.COLOR.STEP:
+      if (!pal) break;
+      if (++c.tick_cnt >= c.spectrum_speed) {
+        c.tick_cnt = 0;
+        c.phase = (c.phase + 1) % pal.length;
+        c.current = pal[c.phase];
+      }
+      break;
+    /* 呼吸：每 period 拍换下一个颜色；亮度包络在 renderZoneMaskTo 里算。 */
+    case FW.COLOR.BREATH:
+      if (!pal) break;
+      {
+        const t = (tick == null) ? (c.tick_cnt = (c.tick_cnt + 1) & 0xFFFF) : tick;
+        const idx = Math.floor(t / (c.period > 0 ? c.period : 60)) % pal.length;
+        c.phase = idx;
+        c.current = pal[idx];
+      }
+      break;
+    /* 彩虹 / 覆盖：颜色每帧固定（彩虹按像素查表、覆盖用 current/secondary）。 */
     default: break;
   }
 }
@@ -2410,7 +2547,8 @@ function instNew() {
             hue: new Uint8Array(FW.ZONE_MAX_LEN).fill(0xFF),
             layers: [], moves: false, gen_tick: 0, offset: 0 },
     color: { type: FW.COLOR.SOLID, current: { r: 255, g: 0, b: 0 },
-             secondary: { r: 0, g: 0, b: 0 }, phase: 0, tick_cnt: 0, spectrum_speed: 1 },
+             secondary: { r: 0, g: 0, b: 0 }, phase: 0, tick_cnt: 0, spectrum_speed: 1,
+             palette: [[255, 0, 0]], levels: 30, hue_base: 0, hue_speed: 0, period: 60 },
     speed_slow: 8, speed_fast: 1, speed_cur: 8, step_cnt: 0,
   };
 }
@@ -2551,12 +2689,20 @@ function simSetSpeed(sim, which) {
 
 /* 效果对象 → ring_preset_t 形状（内建/自定义共用） */
 function effectPreset(eff, idx) {
+  const mode = eff.color | 0;
+  const pal = effPalette(eff);
   return {
     anim:  (eff.kind === 'custom') ? (FW.ANIM_COUNT + (idx | 0)) : (eff.anim | 0),
-    color: eff.color | 0,
+    color: mode,
     width: eff.width | 0, gap: eff.gap | 0,
     slow:  eff.slow | 0,  fast: eff.fast | 0, speed: eff.speed | 0,
-    c1: eff.c1 || [255, 0, 0], c2: eff.c2 || [0, 0, 0],
+    /* 纯色的主色仍以 c1 为准（「覆盖参数」只改 c1 时立刻生效）；
+       色板类模式（跳变/呼吸/覆盖/彩虹）以 palette 为准。 */
+    c1: mode === FW.COLOR.SOLID ? (eff.c1 || pal[0]) : pal[0],
+    c2: mode === FW.COLOR.WIPE ? (pal[1] || eff.c2 || pal[0])
+                               : (eff.c2 || pal[1] || [0, 0, 0]),
+    palette: pal, levels: effLevels(eff),
+    hue_base: eff.hue_base | 0, hue_speed: eff.hue_speed | 0, period: effPeriod(eff),
   };
 }
 
@@ -2581,7 +2727,7 @@ function instTick(inst) {
   }
   animUpdate(inst.anim.position);
   inst.anim.gen_tick = (inst.anim.gen_tick + 1) & 0xFFFF;
-  colorUpdate(inst.color);
+  colorUpdate(inst.color, inst.anim.gen_tick);
 }
 
 function simTick(sim, state, applyReverse) {
@@ -2599,6 +2745,8 @@ function simTick(sim, state, applyReverse) {
 function effectColorAt(inst, i, len, hue) {
   const a = inst.anim, c = inst.color;
   const hh = hue[i];
+  /* 覆盖模式先判：它的 0xFE 是「用副色」的哨兵，不能落到下面的查表分支 */
+  if (c.type === FW.COLOR.WIPE) return (hh === 0xFE) ? c.secondary : c.current;
   if (hh !== 0xFF) return FW.spectrum_tbl[hh];
   if (a.type === FW.ANIM.CHASE_DUAL && c.type === FW.COLOR.GRADIENT)
     return (i >= len / 2) ? c.secondary : c.current;
@@ -2675,10 +2823,14 @@ function bindKey(state, b) {
   return (b.effect || '') + '|' + (b.override ? JSON.stringify(b.override) : '');
 }
 
-/* 一条绑定覆盖哪些分区；zones 为空表示「全部分区」（这样以后加分分区也能自动跟上） */
+/* 一条绑定覆盖哪些分区；zones 为空表示「全部分区」（这样以后加分分区也能自动跟上）。
+ * none = 一个分区都不跑（模式页「全不选」后的状态）—— 不能再用空数组表达，
+ * 否则「全取消」会被当成「全部分区」，用户看到的是恰好在全亮。 */
 function bindZones(state, b) {
   const all = state.zones.map((_, i) => i);
-  if (!b || !b.zones || !b.zones.length) return all;
+  if (!b) return all;
+  if (b.none) return [];
+  if (!b.zones || !b.zones.length) return all;
   return b.zones.filter(i => i >= 0 && i < state.zones.length);
 }
 /* 用现有效果库播种模式：第 i 个模式 = 全部分区跑第 i 个效果（与旧行为完全一致） */
@@ -2706,22 +2858,54 @@ function instApplyPreset(inst, p) {
   inst.anim.mask.fill(0);
   inst.anim.hue.fill(0xFF);
 
-  switch (p.color) {
+  /* 色板：新字段优先；老调用方（测试 / ring_preset_t 形状）只有 c1/c2 也照常工作 */
+  const asRgb = c => Array.isArray(c)
+    ? { r: c[0] | 0, g: c[1] | 0, b: c[2] | 0 }
+    : (c && typeof c === 'object' ? { r: c.r | 0, g: c.g | 0, b: c.b | 0 } : { r: 0, g: 0, b: 0 });
+  const pal = (Array.isArray(p.palette) && p.palette.length)
+    ? p.palette.slice(0, PAL_MAX).map(asRgb)
+    : [asRgb(p.c1 || [255, 0, 0]), asRgb(p.c2 || [0, 0, 0])];
+  inst.color.palette = pal;
+  inst.color.levels = p.levels > 0 ? (p.levels | 0) : 30;
+  inst.color.hue_base = (p.hue_base | 0) & 0xFF;
+  inst.color.hue_speed = (p.hue_speed | 0) & 0xFF;
+  inst.color.period = p.period > 0 ? (p.period | 0) : 60;
+  inst.color.spectrum_speed = p.speed > 0 ? p.speed : 1;
+  inst.color.phase = 0; inst.color.tick_cnt = 0;
+
+  switch (p.color | 0) {
     case FW.COLOR.SOLID:
       inst.color.type = FW.COLOR.SOLID;
-      inst.color.current = { r: p.c1[0], g: p.c1[1], b: p.c1[2] };
+      /* 纯色以 c1 为准（「覆盖参数」改的就是它）；palette[0] 只是默认值 */
+      inst.color.current = asRgb(p.c1 || pal[0]);
       break;
     case FW.COLOR.SPECTRUM:
-      inst.color.type = FW.COLOR.SPECTRUM;
-      inst.color.spectrum_speed = p.speed > 0 ? p.speed : 1;
-      inst.color.phase = 0; inst.color.tick_cnt = 0;
-      break;
     case FW.COLOR.GRADIENT:
-      inst.color.type = FW.COLOR.GRADIENT;
-      inst.color.spectrum_speed = p.speed > 0 ? p.speed : 1;
-      inst.color.phase = 0; inst.color.tick_cnt = 0;
+      inst.color.type = p.color | 0;
       break;
-    default: break;
+    /* 跳变 / 呼吸：从色板第一个颜色起步，之后由 colorUpdate 每 N 拍换一个 */
+    case FW.COLOR.STEP:
+    case FW.COLOR.BREATH:
+      inst.color.type = p.color | 0;
+      inst.color.current = pal[0];
+      break;
+    /* 彩虹：current 用不到（每像素查表），留着只是让像素循环有一条兜底路径 */
+    case FW.COLOR.RAINBOW:
+      inst.color.type = FW.COLOR.RAINBOW;
+      inst.color.current = pal[0];
+      break;
+    /* 覆盖：0xFE 的灯位用 secondary；颜色取调色板第 2 个 */
+    case FW.COLOR.WIPE:
+      inst.color.type = FW.COLOR.WIPE;
+      inst.color.current = pal[0];
+      {
+        inst.color.secondary = asRgb(pal[1] || p.c2 || pal[0]);
+      }
+      break;
+    default:
+      inst.color.type = FW.COLOR.SOLID;
+      inst.color.current = { r: pal[0].r, g: pal[0].g, b: pal[0].b };
+      break;
   }
   inst.speed_slow = p.slow > 0 ? p.slow : 1;
   inst.speed_fast = p.fast > 0 ? p.fast : 1;
@@ -2855,12 +3039,22 @@ function modesPlan(state) {
   let modes = (state.modes && state.modes.list) || [];
   if (!modes.length) modes = defaultModesFromEffects(state).list;
   const layerRows = [];
+  const palRows = [];                 /* 所有效果的色板拼成一张表；效果行用 first/count 指进来 */
 
   const rowFromEffect = (e, layerRows0, name) => {
-    const c1 = e.c1 || [255, 0, 0], c2 = e.c2 || [0, 0, 0];
+    const pal = effPalette(e);
+    const mode = e.color | 0;
+    const c1 = (mode === FW.COLOR.SOLID) ? (e.c1 || pal[0]) : pal[0];
+    const c2 = (mode === FW.COLOR.WIPE) ? (pal[1] || e.c2 || pal[0])
+                                        : (e.c2 || pal[1] || [0, 0, 0]);
+    const palFirst = palRows.length;
+    for (const c of pal) palRows.push(c);
     const base = { ctype: e.color | 0, c1r: c1[0], c1g: c1[1], c1b: c1[2],
                    c2r: c2[0], c2g: c2[1], c2b: c2[2],
                    speed: e.speed | 0, slow: e.slow | 0, fast: e.fast | 0,
+                   pal_first: palFirst, pal_count: pal.length,
+                   levels: effLevels(e), hue_base: e.hue_base | 0,
+                   hue_speed: e.hue_speed | 0, period: effPeriod(e),
                    name: name || e.name, latin: e.latin || '' };
     if (e.kind !== 'custom')
       return Object.assign(base, { kind: 0, anim: e.anim | 0, width: e.width | 0, gap: e.gap | 0,
@@ -2911,7 +3105,7 @@ function modesPlan(state) {
     return { first, count, enabled: m.enabled ? 1 : 0,
              name: m.name, latin: m.latin || '' };
   });
-  return { effRows, layerRows, bindRows, mdRows };
+  return { effRows, layerRows, bindRows, mdRows, palRows };
 }
 
 /* 生成的 C 渲染器正文。与 JS 的 genSpot/genTwinkle/genFill/genRender/pulseGain
@@ -3126,29 +3320,66 @@ const LED_GEN_IMPL = [
 '    }',
 '}',
 '',
+'/* @breath@ */',
+'static uint8_t led_gen_breath(uint16_t tick, uint16_t period)',
+'{',
+'    uint32_t t;',
+'    if (period == 0u) return 255u;',
+'    t = ((uint32_t)(tick % period) * 256u) / (uint32_t)period;',
+'    return (uint8_t)((t < 128u) ? (t * 2u) : ((255u - t) * 2u));',
+'}',
+'',
 '/* @zonerender@ */',
 'static void led_gen_zone_render(led_gen_inst_t *I, uint8_t len, int16_t zpos,',
 '                                uint8_t *mask, uint8_t *hue)',
 '{',
 '    const led_gen_effect_t *E = &led_gen_effects[I->eff];',
-'    if (E->kind == (uint8_t)LED_GEN_EFF_CUSTOM) {',
-'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, zpos);',
+'    uint8_t i;',
+'    /* @breathmode@ */',
+'    if (E->ctype == (uint8_t)LED_GEN_COLOR_BREATH) {',
+'        memset(hue, 0xFF, len);',
+'        memset(mask, led_gen_breath(I->anim.gen_tick, E->period), len);',
 '        return;',
 '    }',
-'    memset(hue, 0xFF, len);',
-'    switch (E->anim) {',
-'        case ANIM_CHASE_SINGLE:',
-'            /* @chasegen@ */',
-'            led_gen_anim_chase_single(mask, len, zpos, led_gen_scaled(E->width, len, 1u)); break;',
-'        case ANIM_CHASE_DUAL:',
-'            anim_render_chase_dual(mask, len, zpos, led_gen_scaled(E->width, len, 1u),',
-'                                   led_gen_scaled(E->gap, len, 0u)); break;',
-'        case ANIM_SWING:',
-'            anim_render_swing(mask, len, zpos, led_gen_scaled(E->width, len, 1u), true); break;',
-'        case ANIM_FILL:',
-'            anim_render_fill(mask, len, zpos, true); break;',
-'        default:',
-'            memset(mask, 255, len); break;',
+'    if (E->ctype == (uint8_t)LED_GEN_COLOR_WIPE) {',
+'        uint32_t per = (E->period != 0u) ? E->period : 60u;',
+'        uint8_t  edge = (uint8_t)(((uint32_t)(I->anim.gen_tick % per) * len) / per);',
+'        memset(mask, 255, len);',
+'        memset(hue, 0xFF, len);',
+'        memset(hue, 0xFE, edge);          /* @wipesentinel@ */',
+'        return;',
+'    }',
+'    if (E->kind == (uint8_t)LED_GEN_EFF_CUSTOM) {',
+'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, zpos);',
+'    } else {',
+'        memset(hue, 0xFF, len);',
+'        switch (E->anim) {',
+'            case ANIM_CHASE_SINGLE:',
+'                /* @chasegen@ */',
+'                led_gen_anim_chase_single(mask, len, zpos, led_gen_scaled(E->width, len, 1u)); break;',
+'            case ANIM_CHASE_DUAL:',
+'                anim_render_chase_dual(mask, len, zpos, led_gen_scaled(E->width, len, 1u),',
+'                                       led_gen_scaled(E->gap, len, 0u)); break;',
+'            case ANIM_SWING:',
+'                anim_render_swing(mask, len, zpos, led_gen_scaled(E->width, len, 1u), true); break;',
+'            case ANIM_FILL:',
+'                anim_render_fill(mask, len, zpos, true); break;',
+'            default:',
+'                memset(mask, 255, len); break;',
+'        }',
+'    }',
+'    /* @rainbowfill@ */',
+'    /* @rainbowcalc@ */',
+'    if (E->ctype == (uint8_t)LED_GEN_COLOR_RAINBOW) {',
+'        uint8_t  levels = (E->levels >= 6u) ? E->levels : 30u;',
+'        uint8_t  q0 = (uint8_t)(256u / levels), r0 = (uint8_t)(256u % levels);',
+'        uint8_t  rot = (E->hue_speed > 0u) ? (uint8_t)(I->anim.gen_tick / E->hue_speed) : 0u;',
+'        uint16_t q = 0u, r = 0u;',
+'        for (i = 0; i < len; i++) {',
+'            if (hue[i] == 0xFFu) hue[i] = (uint8_t)(E->hue_base + q + rot);',
+'            r += r0; q += q0;',
+'            if (r >= levels) { r -= levels; q++; }',
+'        }',
 '    }',
 '}',
 '',
@@ -3242,7 +3473,26 @@ const LED_GEN_IMPL = [
 '        }',
 '        anim_update(&I->anim.position);',
 '        I->anim.gen_tick++;',
-'        color_update(&I->color);',
+'        {',
+'            const led_gen_effect_t *E = &led_gen_effects[I->eff];',
+'            if (E->ctype == (uint8_t)COLOR_SOLID) {',
+'                /* @solidnoop@ */',
+'            } else if (E->ctype == (uint8_t)LED_GEN_COLOR_STEP) {',
+'                if (++I->color.tick_cnt >= I->color.spectrum_speed) {',
+'                    uint8_t n = (E->pal_count != 0u) ? E->pal_count : 1u;',
+'                    I->color.tick_cnt = 0;',
+'                    I->color.phase.current = (int16_t)((I->color.phase.current + 1) % n);',
+'                    I->color.current = led_gen_palette[E->pal_first + I->color.phase.current];',
+'                }',
+'            } else if (E->ctype == (uint8_t)LED_GEN_COLOR_BREATH) {',
+'                uint8_t n = (E->pal_count != 0u) ? E->pal_count : 1u;',
+'                uint8_t idx = (uint8_t)((I->anim.gen_tick / ((E->period != 0u) ? E->period : 60u)) % n);',
+'                I->color.phase.current = idx;',
+'                I->color.current = led_gen_palette[E->pal_first + idx];',
+'            } else if (E->ctype <= (uint8_t)COLOR_GRADIENT) {',
+'                color_update(&I->color);',
+'            }',
+'        }',
 '    }',
 '}',
 '',
@@ -3272,7 +3522,9 @@ const LED_GEN_IMPL = [
 '            phys = (uint8_t)(zn->start + i);',
 '            if (phys >= LED_COUNT) continue;',
 '            hh = led_gen_hue[i];',
-'            if (hh != 0xFFu) col = spectrum_tbl[hh];',
+'            if (I->color.type == (uint8_t)LED_GEN_COLOR_WIPE)',
+'                col = (hh == 0xFEu) ? I->color.secondary : I->color.current;',
+'            else if (hh != 0xFFu) col = spectrum_tbl[hh];',
 '            else if (I->anim.type == ANIM_CHASE_DUAL && I->color.type == COLOR_GRADIENT)',
 '                col = (i >= len / 2u) ? I->color.secondary : I->color.current;',
 '            else col = I->color.current;',
@@ -3320,6 +3572,13 @@ const GEN_COMMENTS = {
   chaseflat:   { zh:'平顶光带：带内一律满亮 255，带外全灭 —— 不带边缘衰减', en:'flat top: 255 throughout the band, 0 outside - no edge falloff at all' },
   chasegen:    { zh:'内建单点追逐由生成代码自己画（平顶光带），不再调平台的同名原语', en:'the built-in single chase is drawn here (flat top); the platform primitive of the same name is no longer called' },
   huefn:  { zh:'本层在第 i 个灯位上的色相；0xFF 表示用全局配色', en:'hue of this layer at LED i; 0xFF = use the global colour' },
+  hueArr: { zh:'每个灯位的颜色来源: 0x00..0xFD = spectrum_tbl 下标, 0xFE = 副色, 0xFF = 效果当前色', en:'per-LED colour source: 0x00..0xFD = spectrum_tbl index, 0xFE = secondary, 0xFF = effect current colour' },
+  breath: { zh:'呼吸包络：灭 -> 亮 -> 灭（0 -> 255 -> 0）', en:'breath envelope: dark -> bright -> dark (0 -> 255 -> 0)' },
+  breathmode: { zh:'呼吸 / 覆盖是整条效果级：不看图层，整条点亮', en:'breath/wipe are whole-effect modes: ignore layers, light the whole strip' },
+  wipesentinel: { zh:'0xFE = 用副色：被盖住的那一段换成第二种颜色', en:'0xFE = use the secondary colour for the covered part' },
+  rainbowfill: { zh:'效果级彩虹：只补「跟随效果配色」的灯位（图层自己写了色相的保留）', en:'effect-level rainbow: fill only LEDs that follow the effect colour' },
+  rainbowcalc: { zh:'(i * 256 / levels) 用 q/r 递推，循环里没有除法', en:'(i * 256 / levels) via a q/r recurrence: no division in the loop' },
+  solidnoop: { zh:'纯色：current 在 apply_mode 里已经定好，每拍什么都不用做', en:'solid: current is already set in apply_mode, nothing to do per frame' },
   grad:   { zh:'亮度渐变层：沿环斜坡/三角/锯齿，可带起始位与旋转', en:'brightness gradient layer: ramp/triangle/saw around the ring' },
 };
 function genImpl(zh) {
@@ -3438,7 +3697,7 @@ function exportEffectsC(state, opt) {
   const o = Object.assign({ form: 'header', comment: 'ascii', eol: 'crlf' }, opt || {});
   const EOL = (o.eol === 'lf') ? '\n' : '\r\n';
   const zh = o.comment === 'zh';
-  const { effRows, layerRows, bindRows, mdRows } = modesPlan(state);
+  const { effRows, layerRows, bindRows, mdRows, palRows } = modesPlan(state);
   const L = [];
   const push = (...xs) => xs.forEach(x => L.push(x));
   const gmax = v => Math.max.apply(null, v.concat([1]));
@@ -3450,13 +3709,21 @@ function exportEffectsC(state, opt) {
     effKind: '0 = 用固件原有动画, 1 = 用图层合成',
     effAnim: '内建动画类型 ANIM_*',
     effWidth: '内建光宽', effGap: '内建双点间隔',
-    effCtype: '配色 COLOR_SOLID/SPECTRUM/GRADIENT',
-    effC1: '主色', effC2: '副色（只在 双点追逐+渐变 时用）',
-    effSpeed: '彩虹/渐变循环速度: 每 N 帧相位+1',
+    effCtype: '配色 0纯色/1渐变/3跳变/4彩虹/5呼吸/6覆盖（2 = 旧双色渐变）',
+    effC1: '主色（纯色/覆盖的底色）', effC2: '副色（覆盖时盖上去的颜色）',
+    effSpeed: '跳变 = 每种颜色停留几拍；渐变 = 每 N 拍相位 +1',
     effSlow: '慢速档 ticks/格', effFast: '快速档 ticks/格',
     effFirst: '该效果在图层表里的起点', effCount: '图层数（内建效果为 0）',
     effOffset: '起始位: 把动画沿环挪一段 (0..255)',
     effMoves: '是否随位置自动前进',
+    effPalFirst: '该效果的色板在 led_gen_palette 里的起点',
+    effPalCount: '色板颜色数（纯色/跳变/呼吸/覆盖用）',
+    effLevels: '彩虹: 走完一轮红->红要多少颗灯 (>=6)',
+    effHueBase: '彩虹: 色相起点 0..255',
+    effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转',
+    effPeriod: '呼吸/覆盖: 一个周期多少拍',
+    newColors: '新配色模式（0..2 沿用固件的 COLOR_* 枚举；3..6 由生成代码处理）',
+    palRow: '色板: 每个效果一段 {r,g,b}；效果行用 pal_first/pal_count 指进来',
     bindEffect: '用第几个效果（led_gen_effects 下标）',
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
@@ -3501,13 +3768,21 @@ function exportEffectsC(state, opt) {
     effKind: '0 = use a firmware built-in animation, 1 = use layer compositing',
     effAnim: 'built-in animation id ANIM_*',
     effWidth: 'built-in light width', effGap: 'built-in dual-spot gap',
-    effCtype: 'colour: COLOR_SOLID/SPECTRUM/GRADIENT',
-    effC1: 'primary colour', effC2: 'secondary colour (only for DUAL chase + GRADIENT)',
-    effSpeed: 'rainbow/gradient speed: +1 phase every N frames',
+    effCtype: 'colour: 0 solid / 1 gradient / 3 step / 4 rainbow / 5 breath / 6 wipe (2 = legacy duo)',
+    effC1: 'primary colour (solid / wipe base)', effC2: 'secondary colour (the one wiping over)',
+    effSpeed: 'step: ticks per colour; gradient: +1 phase every N frames',
     effSlow: 'slow ticks per step', effFast: 'fast ticks per step',
     effFirst: 'start index into the layer table', effCount: 'layer count (0 for built-in effects)',
     effOffset: 'start offset: shift the animation around the ring (0..255)',
     effMoves: 'advances with the animation position',
+    effPalFirst: 'start index into led_gen_palette',
+    effPalCount: 'palette size (solid/step/breath/wipe)',
+    effLevels: 'rainbow: LEDs per full red->red cycle (>=6)',
+    effHueBase: 'rainbow: hue start 0..255',
+    effHueSpeed: 'rainbow: shift one level every N frames, 0 = static',
+    effPeriod: 'breath/wipe: ticks per cycle',
+    newColors: 'new colour modes (0..2 reuse the firmware COLOR_* enum; 3..6 are handled here)',
+    palRow: 'palette rows: {r,g,b} per colour, referenced by pal_first/pal_count',
     bindEffect: 'which effect (index into led_gen_effects)',
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
@@ -3584,7 +3859,13 @@ function exportEffectsC(state, opt) {
        'typedef enum { LED_GEN_CMODE_GLOBAL=0, LED_GEN_CMODE_SPATIAL } led_gen_cmode_t;',
        'typedef enum { LED_GEN_LAYER_SPOT=0, LED_GEN_LAYER_TWINKLE, LED_GEN_LAYER_FILL, LED_GEN_LAYER_GRADIENT } led_gen_layer_kind_t;',
        'typedef enum { LED_GEN_EFF_BUILTIN=0, LED_GEN_EFF_CUSTOM } led_gen_eff_kind_t;',
+       '/* ' + t.newColors + ' */',
+       '#define LED_GEN_COLOR_STEP     3u',
+       '#define LED_GEN_COLOR_RAINBOW  4u',
+       '#define LED_GEN_COLOR_BREATH   5u',
+       '#define LED_GEN_COLOR_WIPE     6u',
        '',
+       '/* ' + t.palRow + ' */',
        'typedef struct {',
        '    uint8_t kind;          /* ' + t.lkind + ' */',
        '    uint8_t en;            /* ' + t.layen + ' */',
@@ -3621,6 +3902,12 @@ function exportEffectsC(state, opt) {
        '    uint8_t layers_count;   /* ' + t.effCount + ' */',
        '    uint8_t offset;         /* ' + t.effOffset + ' */',
        '    uint8_t moves;          /* ' + t.effMoves + ' */',
+       '    uint16_t pal_first;    /* ' + t.effPalFirst + ' */',
+       '    uint8_t pal_count;      /* ' + t.effPalCount + ' */',
+       '    uint8_t levels;         /* ' + t.effLevels + ' */',
+       '    uint8_t hue_base;       /* ' + t.effHueBase + ' */',
+       '    uint8_t hue_speed;      /* ' + t.effHueSpeed + ' */',
+       '    uint16_t period;        /* ' + t.effPeriod + ' */',
        '} led_gen_effect_t;',
        '',
        'typedef struct { uint8_t effect; uint16_t zone_mask; } led_gen_bind_t;  /* ' + t.bindt + ' */',
@@ -3648,12 +3935,21 @@ function exportEffectsC(state, opt) {
     push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
   }
   push('');
+  push('/* ' + t.palRow + ' */');
+  push('static const rgb_t led_gen_palette[] = {');
+  if (palRows.length) {
+    palRows.forEach(c => push('    { ' + (c[0] | 0) + ', ' + (c[1] | 0) + ', ' + (c[2] | 0) + ' },'));
+  } else {
+    push('    { 255, 0, 0 },');
+  }
+  push('};', '');
   push('/* ' + t.effLibNote + ' */');
   push('static const led_gen_effect_t led_gen_effects[LED_GEN_EFFECT_COUNT] = {');
   effRows.forEach((e, i) => {
     push('    { ' + [e.kind, e.anim, e.width, e.gap, e.ctype, e.c1r, e.c1g, e.c1b,
                      e.c2r, e.c2g, e.c2b, e.speed, e.slow, e.fast,
-                     e.first, e.count, e.offset, e.moves].join(', ') +
+                     e.first, e.count, e.offset, e.moves,
+                     e.pal_first, e.pal_count, e.levels, e.hue_base, e.hue_speed, e.period].join(', ') +
          ' },   /* ' + i + ' ' + nm(e) + ' */');
   });
   push('};', '');
@@ -3847,6 +4143,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
+               breathGain, effPalette, effLevels, effPeriod, normalizeEffect,
                EFFECT_SLOTS, defaultEffects, newCustomEffect, effectAtSlot, fxEffectName,
                layerToCRow, layerNums, modesPlan, exportEffectsC, buildPatchText, mangleComment,
                LED_GEN_HAL, exportHalC,
@@ -4292,7 +4589,8 @@ function renderStage() {
 
   const inst = stageSync(false);
   const st = stageParams();
-  const e = curEffect();
+  /* 标题用 editTarget()：微调绑定覆盖时写的是「…（覆盖）」那个名字 */
+  const e = editTarget();
 
   if (!inst || !e) {
     ctx.fillStyle = TC.label; ctx.textAlign = 'center';
@@ -5492,17 +5790,60 @@ function stageParams() {
 function stageRate() { return +stageParams().rate || 1; }
 /* 按当前选中的效果重建编辑台实例；换效果才重置进度，改参数则保留 */
 function stageSync(force) {
-  const e = curEffect();
+  /* 用 editTarget()：微调某条绑定的「覆盖参数」时，编辑台要画那份覆盖，
+     不是效果库里那条原效果（curEffect() 只认 state.anim.effectId）。 */
+  const e = editTarget();
   if (!e) { stageInst = null; stageEffectId = null; return null; }
-  if (stageInst && !force && stageEffectId === e.id) return stageInst;
-  const keep = (!force && stageInst && stageEffectId === e.id) ? stageInst.anim.position : null;
+  /* 缓存的键要区分「原效果」和「覆盖」—— 两者 id 相同，只看 id 会一直画旧快照 */
+  const key = (editBinding ? 'bind:' : 'eff:') + (e.id || '');
+  if (stageInst && !force && stageEffectId === key) return stageInst;
   stageInst = instNew();
   simApplyEffect(stageInst, e, effectIndex(state, e.id));
-  if (keep) stageInst.anim.position = keep;
-  stageEffectId = e.id;
+  if (!stagePlaying) stageSampleFrame(stageInst);
+  stageEffectId = key;
   return stageInst;
 }
-/* 参数被改了 —— 重新套一遍，但保留播放进度 */
+
+/* 暂停时给编辑台一帧「看得出区别」的样本。
+ *
+ * 编辑台默认是暂停的（stagePlaying = false），如果永远停在 tick 0：
+ *   呼吸 → breathGain(0) = 0，整条全黑；
+ *   跳变 / 覆盖 → 用的是调色板第 1 个颜色；渐变 → 相位于 0（红）——
+ *   三者跟「纯色红」长得一模一样，用户会以为「改了配色没生效」。
+ * 这里只拨预览实例的相位（不碰固件算法）；一旦按播放，
+ * stageToggle() 会重新 stageSync(true) 从 tick 0 开始，语义还是固件那一套。 */
+function stageSampleFrame(inst) {
+  const c = inst.color, pal = c.palette || [];
+  const per = c.period > 0 ? c.period : 60;
+  switch (c.type) {
+    case FW.COLOR.BREATH:
+      /* 包络顶点：颜色看得到（呼吸的「灭」那一半留给播放） */
+      inst.anim.gen_tick = Math.floor(per / 2);
+      c.phase = Math.floor(inst.anim.gen_tick / per) % Math.max(1, pal.length);
+      if (pal.length) c.current = pal[c.phase];
+      break;
+    case FW.COLOR.WIPE:
+      /* 盖到一半：底色和盖色同屏 */
+      inst.anim.gen_tick = Math.floor(per / 2);
+      break;
+    case FW.COLOR.STEP: {
+      /* 停在一个「看得见」的颜色上（老效果的调色板第 2 色常常是黑，
+         拨过去就整条黑掉了 —— 那又成了「像没生效」） */
+      const idx = pal.findIndex((c, i) => i > 0 && (c.r | c.g | c.b));
+      if (idx > 0) { c.phase = idx; c.current = pal[idx]; c.tick_cnt = 0; }
+      break;
+    }
+    case FW.COLOR.SPECTRUM:
+    case FW.COLOR.GRADIENT:
+      /* 相位移到绿：不要跟默认的红撞脸 */
+      c.phase = 85;
+      c.current = FW.spectrum_tbl[85];
+      c.secondary = FW.spectrum_tbl[(85 + 85) & 0xFF];
+      break;
+    default: break;
+  }
+}
+/* 参数被改了 —— 重新套一遍（相位从头开始；暂停时自动补「样本帧」） */
 function stageRefresh() { stageSync(true); }
 
 function fxList() { return (state.effects && state.effects.list) || []; }
@@ -5552,7 +5893,7 @@ function renderFxList() {
     shown++;
     const tr = document.createElement('tr');
     if (i === selFx) tr.className = 'sel';
-    const c = e.c1 || [255, 0, 0];
+    const c = effPalette(e)[0] || [255, 0, 0];
     tr.innerHTML = '<td><span class="sw" style="background:' + rgbHex(c) + '"></span></td>' +
       '<td class="num">' + (e.enabled ? e.slot : '<s>' + e.slot + '</s>') + '</td>' +
       '<td>' + e.name + '</td>' +
@@ -5617,6 +5958,10 @@ function fxLive() {
 function fxStruct() {
   if (selFx >= fxList().length) selFx = Math.max(0, fxList().length - 1);
   fxSyncName();             /* 名字 = 模板 / 配色，结构一变就重算（列表与右栏随后一起刷新） */
+  /* 结构变了 = 预览实例要按新结构重建（套预置 / 增删图层 / 开关效果都走这里）。
+   * 少了这一步，编辑台会一直画 stageSync() 里那份老快照 —— 看着就像「改了没生效」。
+   * 必须在 afterChange() 之前：它里面的 render() 才是真正把新帧画出去的。 */
+  stageRefresh();
   afterChange(); renderFxList(); syncFxEdit();
 }
 
@@ -5681,9 +6026,9 @@ function renderLayers() {
     row.appendChild(head);
 
     /* 配色模式 + 波形 + 方向/往返 */
-    row.appendChild(layerRow('配色', selInput(CMODE_NAME, () => L.cmode ? 1 : 0,
+    row.appendChild(layerRow('本层取色', selInput(CMODE_NAME, () => L.cmode ? 1 : 0,
       v => { L.cmode = +v; fxLive(); },
-      '跟随效果配色：整个环同色，颜色可随时间循环。\n本层空间色相：每颗灯自己的色相 —— 这才是绕环彩虹（下面三项控制它）。')));
+      '跟随效果配色：这一层用「选中效果 → 配色」算出来的颜色。\n本层空间色相：这一层自己算（每颗灯不同色），会盖掉效果级配色 —— 老存档/老预置的兼容路径，新做效果优先用效果级「彩虹」。')));
     if (L.kind !== 'twinkle') {
       row.appendChild(layerRow('波形', selInput(WAVE_NAME, () => L.wave | 0,
         v => { L.wave = +v; fxLive(); },
@@ -5782,6 +6127,20 @@ const FX_PRESETS = [
       layers:[ Object.assign(mkLayer('fill'),  { level:60, cmode:0 }),
                Object.assign(mkLayer('twinkle'), { density:60, rate:3, lo:0, hi:255,
                                                    cmode:1, hue_base:0, hue_spread:255, hue_speed:6 }) ] }) },
+  /* ---- 新配色模型（效果级，见 FW.COLOR 3..6） ---- */
+  { name:'彩虹环',         make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
+      levels:30, hue_base:0, hue_speed:0,
+      layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
+  { name:'七彩跳变',       make: () => ({ moves:false, color:3, c1:[255,0,0], slow:8, fast:1, speed:20,
+      palette:[[255,0,0],[255,255,0],[0,255,0],[0,255,255],[0,0,255],[255,0,255]],
+      layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
+  { name:'多色呼吸',       make: () => ({ moves:false, color:5, c1:[255,0,0], slow:8, fast:1, speed:0,
+      period:60, palette:[[255,0,0],[0,255,0],[0,0,255]],
+      layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
+  { name:'颜色覆盖',       make: () => ({ moves:false, color:6, c1:[0,0,255], c2:[255,120,0],
+      slow:8, fast:1, speed:0, period:80,
+      palette:[[0,0,255],[255,120,0]],
+      layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
 ];
 
 function applyPreset(name) {
@@ -5793,37 +6152,147 @@ function applyPreset(name) {
   e.tpl = name;                    /* 名字的「模板」那一半：套了哪个模板，名字就叫哪个 */
   if (e === selEffect()) e.name = fxEffectName(e);
   e.moves = made.moves;
-  e.color = made.color; e.c1 = made.c1.slice(); e.slow = made.slow; e.fast = made.fast; e.speed = made.speed;
+  const pal = (made.palette || [made.c1, made.c2 || [0, 0, 0]]).map(c => c.slice());
+  e.color = made.color;
+  e.palette = pal;
+  e.c1 = (made.c1 || pal[0]).slice();
+  e.c2 = (made.c2 || pal[1] || [0, 0, 0]).slice();
+  e.levels = made.levels || 30;
+  e.hue_base = made.hue_base || 0;
+  e.hue_speed = made.hue_speed || 0;
+  e.period = made.period || 60;
+  e.slow = made.slow; e.fast = made.fast; e.speed = made.speed;
   e.layers = JSON.parse(JSON.stringify(made.layers));
   if (!e.offset) e.offset = 0;
   resetSim(); fxStruct();
   status('已套用预置效果「' + name + '」');
 }
 
+/* ---- 调色板编辑器（效果级）-----------------------------------------------
+ * 色块个数 = 用户定义的颜色个数；跳变 / 呼吸直接拿它当循环色表，
+ * 覆盖取第 1、2 个（底色 / 盖上去的颜色），纯色只用第 1 个。
+ * 改色块只落 e.palette，同时把 c1/c2 同步一份（老字段、覆盖参数、列表色块都读它）。
+ * ---------------------------------------------------------------------- */
+function renderPalette(e) {
+  const box = $('#fPalette');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!e) return;
+  normalizeEffect(e);
+  e.palette.slice(0, PAL_MAX).forEach((c, i) => {
+    const inp = document.createElement('input');
+    inp.type = 'color';
+    inp.value = rgbHex(c);
+    tip(inp, '第 ' + (i + 1) + ' 个颜色');
+    inp.oninput = () => {
+      const rgb = hexRgb(inp.value);
+      e.palette[i] = rgb;
+      if (i === 0) e.c1 = rgb.slice();
+      if (i === 1) e.c2 = rgb.slice();
+      fxLive(); renderFxList();
+    };
+    box.appendChild(inp);
+  });
+  const n = document.createElement('span');
+  n.className = 'palN';
+  n.textContent = e.palette.length + ' 色';
+  box.appendChild(n);
+}
+
+function palAddColor() {
+  const e = editTarget(); if (!e) return;
+  normalizeEffect(e);
+  if (e.palette.length >= PAL_MAX) { status('调色板最多 ' + PAL_MAX + ' 个颜色', 'warn'); return; }
+  const pick = [[255,255,255],[0,255,255],[255,255,0],[255,0,255],[0,255,0],[0,0,255],[255,128,0],[128,0,255]];
+  const c = pick[e.palette.length % pick.length].slice();
+  e.palette.push(c);
+  if (e.palette.length === 2) e.c2 = c.slice();
+  fxLive(); syncFxEdit(); renderFxList();
+  status(`调色板加了第 ${e.palette.length} 个颜色`);
+}
+function palDelColor() {
+  const e = editTarget(); if (!e) return;
+  normalizeEffect(e);
+  if (e.palette.length <= 1) { status('调色板至少留 1 个颜色', 'warn'); return; }
+  e.palette.pop();
+  if (e.palette.length < 2) e.c2 = [0, 0, 0];
+  fxLive(); syncFxEdit(); renderFxList();
+  status(`调色板剩 ${e.palette.length} 个颜色`);
+}
+
+/* 按配色模式显示/隐藏参数行，并把「速度」那一格的标题换成该模式的说法 */
+function syncFxColorRows(e) {
+  const mode = e ? (e.color | 0) : FW.COLOR.SOLID;
+  const show = (id, on) => { const el = $('#' + id); if (el) el.style.display = on ? '' : 'none'; };
+  const pal = (mode === FW.COLOR.SOLID || mode === FW.COLOR.STEP ||
+               mode === FW.COLOR.BREATH || mode === FW.COLOR.WIPE);
+  show('rowPal', pal);
+  show('fxPalAdd', pal); show('fxPalDel', pal);
+  show('rowSpeed', mode === FW.COLOR.STEP || mode === FW.COLOR.SPECTRUM || mode === FW.COLOR.GRADIENT);
+  show('rowLevels', mode === FW.COLOR.RAINBOW);
+  show('rowHueBase', mode === FW.COLOR.RAINBOW);
+  show('rowHueSpeed', mode === FW.COLOR.RAINBOW);
+  show('rowPeriod', mode === FW.COLOR.BREATH || mode === FW.COLOR.WIPE);
+  const lab = $('#fSpeedLab'), sp = $('#fSpeed'), hint = $('#fPalHint');
+  if (lab) lab.textContent = (mode === FW.COLOR.STEP) ? '停留(拍)' : '渐变速度';
+  if (sp) {
+    if (mode === FW.COLOR.STEP) tip(sp, '每种颜色停留多少拍（20ms 一拍）。\n颜色个数 = 调色板里的色块数。');
+    else tip(sp, '每 N 拍色相往前一格；越小越快。');
+  }
+  if (hint) {
+    hint.textContent = mode === FW.COLOR.SOLID   ? '纯色只用调色板第 1 个颜色。'
+      : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；每种停留几拍看「停留」。'
+      : mode === FW.COLOR.BREATH                 ? '整条效果级（图层参数不参与）：一个周期换一种颜色；周期看「周期(拍)」。'
+      : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：第 1 个是底色、第 2 个是盖上去的颜色。'
+      : '渐变 / 彩虹用内置彩虹表，不需要调色板。';
+    /* 图层自己算色相时会盖过效果配色 —— 不点明就像「改了配色没反应」 */
+    const hueLayers = (e && e.kind === 'custom')
+      ? (e.layers || []).map((l, i) => ({ l, i })).filter(x => x.l.en && x.l.cmode) : [];
+    if (hueLayers.length) {
+      hint.textContent += '　本效果第 ' + hueLayers.map(x => x.i + 1).join('、') +
+        ' 层的「本层取色」是空间色相，会盖过这里选的配色。';
+    }
+  }
+}
+
 function syncFxEdit() {
   const e = editTarget();
   const on = !!e;
   /* 名称不在这一串里 —— 它只读（自动生成），不用跟着禁用 / 启用 */
-  const ids = ['fLatin','fEn','fColor','fC1','fC2','fSlow','fFast','fSpeed',
+  const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSpeed',
+               'fLevels','fHueBase','fHueSpeed','fPeriod',
                'fAnim','fWidth','fGap','fMoves','fOffset','fxPresetApply','fxPresetPick'];
   ids.forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
   $('#fxBuiltin').style.display = (on && e.kind !== 'custom') ? '' : 'none';
   $('#fxCustom').style.display  = (on && e.kind === 'custom') ? '' : 'none';
   if (!on) { $('#fKind').textContent = '—'; syncStagePlayBtn(); return; }
 
+  normalizeEffect(e);
   $('#fMode').textContent = selFx + '（共 ' + fxList().length + ' 条）';
 
   $('#fName').textContent = e.name;      /* 只读：名字由「模板 / 配色」算出来（fxEffectName） */
   $('#fLatin').value = e.latin || '';
   $('#fKind').textContent = e.kind === 'custom' ? '自定义动效（图层合成）' : '内建（固件原有动画类型）';
   $('#fEn').checked = !!e.enabled;
-  $('#fColor').value = e.color;
-  $('#fC1').value = rgbHex(e.c1 || [255, 0, 0]);
-  $('#fC2').value = rgbHex(e.c2 || [0, 0, 0]);
+  /* 老存档里可能是已退休的 2（旧双色渐变）：临时补一个选项，别让下拉显示成空 */
+  const sc = $('#fColor');
+  const opts = Array.from(sc.children || []);
+  if (!opts.some(o => +o.value === (e.color | 0))) {
+    const o = document.createElement('option');
+    o.value = e.color | 0; o.textContent = FW.COLOR_NAME[e.color | 0] || ('配色' + e.color);
+    sc.appendChild(o);
+  }
+  sc.value = e.color | 0;
+  renderPalette(e);
+  $('#fLevels').value = e.levels;
+  $('#fHueBase').value = e.hue_base;
+  $('#fHueSpeed').value = e.hue_speed;
+  $('#fPeriod').value = e.period;
   $('#fSlow').value = e.slow; $('#fFast').value = e.fast; $('#fSpeed').value = e.speed;
   $('#fOffset').value = e.offset | 0;
   if (e.kind === 'custom') { $('#fMoves').checked = !!e.moves; renderLayers(); }
   else { $('#fAnim').value = e.anim; $('#fWidth').value = e.width; $('#fGap').value = e.gap; }
+  syncFxColorRows(e);
   /* 播放条上的「现在看 XXX · 第 x / n 条」跟着走 —— 换效果、增删效果都会进这里 */
   syncStagePlayBtn();
 }
@@ -5836,9 +6305,11 @@ function syncFxTargetBar() {
   const m = selMode();
   const b = editBinding;
   const zs = bindZones(state, b);
-  const zt = (!b.zones || !b.zones.length)
-    ? '全部分区'
-    : zs.map(zi => (state.zones[zi] ? state.zones[zi].name : '?')).join('、');
+  const zt = b.none
+    ? '（未选分区）'
+    : (!b.zones || !b.zones.length)
+      ? '全部分区'
+      : zs.map(zi => (state.zones[zi] ? state.zones[zi].name : '?')).join('、');
   el.style.display = '';
   el.innerHTML = '';
   const txt = document.createElement('div');
@@ -5871,8 +6342,10 @@ function syncStagePlayBtn() {
 /* 播放 / 暂停编辑台。播放状态是编辑台自己的：动画页那边按播放不会把它带起来。
  * restart=true 表示这一下要「从头放」（播放条上点播放的语义）。 */
 function stageToggle(on, restart) {
-  if (on && (restart || !stageInst)) stageSync(true);
+  /* 先落播放状态：stageSync() 靠它决定要不要塞「暂停样本帧」——
+   * 从头上播放必须从 tick 0 开始，不能带上暂停时那一帧。 */
   stagePlaying = !!on;
+  if (on && (restart || !stageInst)) stageSync(true);
   if (stagePlaying) { resetClock(); requestAnimationFrame(loop); }
   syncStagePlayBtn();
   render();
@@ -5960,7 +6433,11 @@ function buildFxPanel() {
   const sa = $('#fAnim');
   FW.ANIM_NAME.forEach((n, i) => { const o = document.createElement('option'); o.value = i; o.textContent = i + ': ' + n; sa.appendChild(o); });
   const sc = $('#fColor');
-  FW.COLOR_NAME.forEach((n, i) => { const o = document.createElement('option'); o.value = i; o.textContent = n; sc.appendChild(o); });
+  FW.COLOR_UI.forEach(i => {
+    const o = document.createElement('option'); o.value = i; o.textContent = FW.COLOR_NAME[i]; sc.appendChild(o);
+  });
+  $('#fxPalAdd').onclick = () => palAddColor();
+  $('#fxPalDel').onclick = () => palDelColor();
 
   $('#fxTbl').onclick = null;
   /* F2：列表过滤框 —— 只重画列表，不碰任何效果数据 */
@@ -6067,12 +6544,28 @@ function buildFxPanel() {
   /* 名称这里没有绑定 —— 它是只读的，由 fxEffectName()（模板 / 配色）自动算出来 */
   bind('fLatin', e => { const x = editTarget(); if (x) { x.latin = e.target.value.replace(/[^\x20-\x7E]/g, ''); saveStore(); } });
   bind('fEn',    e => { const x = editTarget(); if (x) { x.enabled = e.target.checked; fxStruct(); } }, 'onchange');
-  bind('fColor', e => { const x = editTarget(); if (x) { x.color = +e.target.value | 0; fxLive(); } }, 'onchange');
-  bind('fC1',    e => { const x = editTarget(); if (x) { x.c1 = hexRgb(e.target.value); fxLive(); renderFxList(); } });
-  bind('fC2',    e => { const x = editTarget(); if (x) { x.c2 = hexRgb(e.target.value); fxLive(); } });
+  bind('fColor', e => {
+    const x = editTarget();
+    if (!x) return;
+    x.color = +e.target.value | 0;
+    normalizeEffect(x);
+    fxLive(); syncFxEdit(); renderFxList();
+  }, 'onchange');
   bind('fSlow',  e => { const x = editTarget(); if (x) { x.slow = Math.max(1, +e.target.value || 1); fxLive(); } });
   bind('fFast',  e => { const x = editTarget(); if (x) { x.fast = Math.max(1, +e.target.value || 1); fxLive(); } });
-  bind('fSpeed', e => { const x = editTarget(); if (x) { x.speed = Math.max(0, +e.target.value || 0); fxLive(); } });
+  bind('fSpeed', e => { const x = editTarget(); if (x) { x.speed = Math.max(0, Math.min(255, +e.target.value || 0)); fxLive(); } });
+  bind('fLevels', e => {
+    const x = editTarget(); if (!x) return;
+    x.levels = Math.max(6, Math.min(255, +e.target.value || 30));
+    fxLive();
+  });
+  bind('fHueBase',  e => { const x = editTarget(); if (x) { x.hue_base = Math.max(0, Math.min(255, +e.target.value || 0)); fxLive(); } });
+  bind('fHueSpeed', e => { const x = editTarget(); if (x) { x.hue_speed = Math.max(0, Math.min(255, +e.target.value || 0)); fxLive(); } });
+  bind('fPeriod',   e => {
+    const x = editTarget(); if (!x) return;
+    x.period = Math.max(2, Math.min(600, +e.target.value || 60));
+    fxLive();
+  });
   bind('fAnim',  e => { const x = editTarget(); if (x) { x.anim = +e.target.value | 0; fxLive(); } }, 'onchange');
   bind('fWidth', e => { const x = editTarget(); if (x) { x.width = Math.max(1, +e.target.value || 1); fxLive(); } });
   bind('fGap',   e => { const x = editTarget(); if (x) { x.gap = Math.max(0, +e.target.value || 0); fxLive(); } });
@@ -6103,9 +6596,11 @@ function renderMdList() {
     const summary = (m.binds || []).map(b => {
       const e = effs.find(x => x.id === b.effect);
       const zs = bindZones(state, b);
-      const zt = (!b.zones || !b.zones.length)
-        ? '全部分区'
-        : zs.map(zi => state.zones[zi] ? state.zones[zi].name : '?').join('/');
+      const zt = b.none
+        ? '（未选分区）'
+        : (!b.zones || !b.zones.length)
+          ? '全部分区'
+          : zs.map(zi => state.zones[zi] ? state.zones[zi].name : '?').join('/');
       return zt + '→' + (e ? e.name : '（空）');
     }).join('，') || '（无绑定）';
     tr.innerHTML = '<td class="num">' + (m.enabled ? i : '<s>' + i + '</s>') + '</td>' +
@@ -6124,6 +6619,23 @@ function renderMdList() {
 function mdStruct() {
   if (selMd >= mdList().length) selMd = Math.max(0, mdList().length - 1);
   afterChange(); renderMdList(); syncMdEdit(); fillPresetSelect();
+}
+
+/* M5：把一条绑定按它当前覆盖的分区拆成「每个分区一条」。
+ * 效果与覆盖参数原样带过去 —— 覆盖内容各自一份副本，但内容相同 ⇒ 相位仍然同步。 */
+function splitBind(m, bi) {
+  const b = (m.binds || [])[bi];
+  if (!b) return 0;
+  const zs = bindZones(state, b);
+  if (zs.length < 2) return 0;
+  const made = zs.map(zi => {
+    const nb = { effect: b.effect, zones: [zi] };
+    if (b.override) nb.override = clone(b.override);
+    return nb;
+  });
+  m.binds.splice(bi, 1, ...made);
+  mdLive(); mdStruct();
+  return made.length;
 }
 
 function renderBinds() {
@@ -6165,14 +6677,20 @@ function renderBinds() {
       lb.style.cssText = 'display:flex;align-items:center;gap:3px;color:var(--fg)';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = (!b.zones || !b.zones.length) || b.zones.indexOf(zi) >= 0;
+      /* none = 全不选（一个分区都不跑）；zones 为空 = 全部分区（含以后新加的） */
+      cb.checked = b.none ? false
+                          : ((!b.zones || !b.zones.length) || b.zones.indexOf(zi) >= 0);
       cb.onchange = () => {
         /* 从「全部分区」显式化，再增删这一项 */
-        let cur = (!b.zones || !b.zones.length) ? state.zones.map((_, k) => k) : b.zones.slice();
+        let cur = b.none ? []
+                : ((!b.zones || !b.zones.length) ? state.zones.map((_, k) => k) : b.zones.slice());
         const at = cur.indexOf(zi);
         if (cb.checked && at < 0) cur.push(zi);
         if (!cb.checked && at >= 0) cur.splice(at, 1);
         cur.sort((x, y) => x - y);
+        /* 全勾 = "全部分区"（以后加分区自动跟上）；一个都不勾 = 真的一个都不跑 ——
+         * 老写法把空数组也当「全部分区」，全取消后反而全亮，很费解。 */
+        b.none  = (cur.length === 0 && state.zones.length > 0);
         b.zones = (cur.length === state.zones.length) ? [] : cur;
         mdLive(); renderMdList();
       };
@@ -6180,12 +6698,37 @@ function renderBinds() {
       tx.textContent = z.name + (z.enabled ? '' : '(停用)');
       lb.appendChild(cb); lb.appendChild(tx); wrap.appendChild(lb);
     });
-    r2.appendChild(wrap); row.appendChild(r2);
+    r2.appendChild(wrap);
+
+    /* M3：分区多时逐个点太累 —— 一行两个小键全选 / 全不选 */
+    const qa = document.createElement('span');
+    qa.style.cssText = 'display:inline-flex;gap:4px;margin-left:6px';
+    const bAll = document.createElement('button'); bAll.textContent = '全选';
+    tip(bAll, '这条绑定勾上所有分区（等于「全部分区」，以后新加的分区也自动跟上）。');
+    bAll.onclick = () => { b.none = false; b.zones = []; mdLive(); renderBinds(); renderMdList(); };
+    const bNone = document.createElement('button'); bNone.textContent = '全不选';
+    tip(bNone, '这条绑定的分区全勾掉（它暂时一个分区都不跑）—— 再点「全选」或单选几个就回来。');
+    bNone.onclick = () => { b.none = true; b.zones = []; mdLive(); renderBinds(); renderMdList(); };
+    qa.appendChild(bAll); qa.appendChild(bNone);
+    r2.appendChild(qa);
+    row.appendChild(r2);
 
     const r3 = document.createElement('div'); r3.style.marginTop = '3px';
     const del = document.createElement('button'); del.textContent = '删除这条绑定';
     del.onclick = () => { m.binds.splice(bi, 1); mdLive(); mdStruct(); };
     r3.appendChild(del);
+
+    /* M5：这条绑定自己就能按分区拆开（不必回到顶部那条「按分区拆开」） */
+    const sp = document.createElement('button');
+    sp.textContent = '按分区拆开';
+    sp.style.marginLeft = '4px';
+    tip(sp, '把这一条按它覆盖的分区拆成「每个分区一条」（效果不变）—— 方便给每个分区单独换效果。');
+    sp.onclick = () => {
+      const n = splitBind(m, bi);
+      status(n ? `已把这条绑定拆成 ${n} 条（每个分区一条）`
+               : '这条绑定覆盖不到两个分区，不用拆', n ? 'ok' : 'warn');
+    };
+    r3.appendChild(sp);
 
     /* 覆盖参数：让这条绑定用一套自己的参数（不动效果库里的原效果） */
     const ov = document.createElement('label');
@@ -6242,7 +6785,7 @@ function mdLive() { resetSim(); applyFrame(); saveStore(); }
 function syncMdEdit() {
   const m = selMode();
   const on = !!m;
-  ['mdName','mdLatin','mdEn','mdAddBind','mdAllZones'].forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
+  ['mdName','mdLatin','mdEn','mdAddBind','mdAllZones','mdShowReal'].forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
   if (!on) { $('#mdIdx').textContent = '—'; $('#mdBinds').innerHTML = ''; return; }
   $('#mdName').value = m.name;
   $('#mdLatin').value = m.latin || '';
@@ -6305,15 +6848,33 @@ function buildModePanel() {
     m.binds.push({ effect: effs.length ? effs[0].id : '', zones: free.length ? free : [] });
     mdLive(); mdStruct();
   };
-  /* 把「全部分区」拆成每个分区一条，便于逐个指定 */
+  /* 把「一条覆盖全部分区」的绑定拆成每个分区一条，便于逐个指定。
+   * M5 起真正的动作在每条绑定卡上（splitBind）—— 这里只留「只有一条」时的快捷方式，
+   * 且必须真的覆盖全部分区，否则会悄悄把没勾的分区也铺上效果。 */
   $('#mdAllZones').onclick = () => {
     const m = selMode(); if (!m) return;
     const binds = m.binds || [];
-    if (binds.length !== 1) { status('只有「一条覆盖全部分区」的绑定才能一键拆开', 'warn'); return; }
-    const eff = binds[0].effect;
-    m.binds = state.zones.map((_, i) => ({ effect: eff, zones: [i] }));
-    mdLive(); mdStruct();
+    const full = binds.length === 1 && state.zones.length > 0 &&
+                 bindZones(state, binds[0]).length === state.zones.length;
+    if (!full) {
+      status('这条快捷方式只处理「一条覆盖全部分区」的绑定 —— 其它情况请点每条绑定上的「按分区拆开」', 'warn');
+      return;
+    }
+    splitBind(m, 0);
     status('已按分区拆开，现在可以给每个分区单独选效果');
+  };
+
+  /* M2：按这个模式在灯板上预览（与效果页的「在灯板上看」对称，但这里走的是模式分配） */
+  $('#mdShowReal').onclick = () => {
+    const m = selMode(); if (!m) return;
+    A().previewTarget = 'mode';
+    A().modeId = m.id;
+    tab('anim');           /* 先切页：tab() 会把 simDirty 置上，并顺手同步下拉 */
+    resetSim();            /* 再按新模式重建 —— 顺序反了会被标脏盖回旧对象 */
+    applyFrame();
+    if (!A().playing) playToggle(true);
+    saveStore();
+    status('正在灯板上预览模式「' + m.name + '」（不改工程里的任何分配）');
   };
 }
 
@@ -6643,6 +7204,7 @@ function bindProject() {
   if (!state.anim)   state.anim = defaultAnim();          /* 老存档补默认值 */
   /* 老存档迁移：以前是 anim.preset（FW.presets 的下标），现在是效果 id */
   if (!state.effects) state.effects = defaultEffects();
+  (state.effects.list || []).forEach(normalizeEffect);
   /* 模式层是后加的：老存档按「一个效果一个模式、覆盖全部分区」补出来，行为不变 */
   if (!state.modes || !state.modes.list || !state.modes.list.length) {
     state.modes = defaultModesFromEffects(state);
@@ -6651,6 +7213,8 @@ function bindProject() {
   if (!state.anim.modeId || !state.modes.list.some(m => m.id === state.anim.modeId))
     state.anim.modeId = (state.modes.list[0] || {}).id || '';
   else (state.effects.list || []).sort((a, b) => (a.slot | 0) - (b.slot | 0));   /* 老存档按原槽位排好 */
+  /* 覆盖是效果的副本：也补一次新配色字段（色板 / 级数 / 周期） */
+  state.modes.list.forEach(m => (m.binds || []).forEach(b => { if (b.override) normalizeEffect(b.override); }));
   syncSlots();
   if (!state.anim.effectId)
     state.anim.effectId = 'e' + (state.anim.preset | 0);
@@ -6909,7 +7473,7 @@ function zoneRelayNumbers(oldStartById) {
 function zoneRelayBinds(zi, zj) {
   for (const m of (state.modes && state.modes.list) || []) {
     for (const b of (m.binds || [])) {
-      if (!Array.isArray(b.zones) || !b.zones.length) continue;      /* 空数组 = 全部分区，跟着新顺序走 */
+      if (!Array.isArray(b.zones) || !b.zones.length) continue;      /* 空数组 = 全部分区，跟着新顺序走（`none` 也是空数组，本来就不指谁） */
       b.zones = b.zones.map(i => (i === zi ? zj : i === zj ? zi : i)).sort((x, y) => x - y);
     }
   }

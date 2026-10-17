@@ -8,7 +8,8 @@ let fails=0; const ok=(c,m)=>{console.log((c?'  PASS  ':'  FAIL  ')+m); if(!c)fa
 
 const listeners = {};
 const byId = new Map();
-const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=()=>{})), set:(t,k,v)=>{t[k]=v;return true;} });
+const fills = [];                       /* 编辑台画过的 fillStyle（查「改了配色有没有真的重画」） */
+const CTX = new Proxy({}, { get:(t,k)=> (k in t ? t[k] : (t[k]=()=>{})), set:(t,k,v)=>{ if (k === 'fillStyle') fills.push(v); t[k]=v; return true; } });
 const store = new Map();
 
 function mkEl(tag='div', id=''){ return {
@@ -147,7 +148,7 @@ ok(/0, 255, 2, 0, 1, 1 \}/.test(out),
 
 const eblk = out.slice(out.indexOf('static const led_gen_effect_t'));
 const eblkRows = (eblk.match(/^    \{.*\},/gm) || []);
-ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0 \},/.test(eblkRows[0]),
+ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
    '效果行 = kind=1, 1 个图层, moves=1: ' + (eblkRows[0] || '(无)'));
 
 
@@ -162,6 +163,94 @@ install(); boot(); await new Promise(r => setTimeout(r, 700));
 const e9 = fxListOf(0)[0];
 ok(e9.kind === 'custom' && e9.layers[0].cmode === 1, '重开后空间色相图层还在');
 ok(e9.offset === 64, '重开后起始位还在');
+
+/* ---- 10) 新配色：彩虹 / 跳变 / 呼吸 / 覆盖 的界面与参数 ---- */
+console.log('--- 新配色（效果级）---');
+{
+  const col = byId.get('fColor');
+  const pick = byId.get('fxPresetPick');
+  const show = id => (byId.get(id).style.display !== 'none');
+  const palN = () => (byId.get('fPalette').children || []).filter(c => c.type === 'color').length;
+
+  pick.value = '彩虹环'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const eR = fxListOf(0)[0];
+  ok(eR.color === CORE.FW.COLOR.RAINBOW && eR.levels === 30,
+     `彩虹预置：color=${eR.color} levels=${eR.levels}`);
+  ok(show('rowLevels') && show('rowHueBase') && show('rowHueSpeed'), '彩虹模式：级数 / 起点 / 旋转三行都出来');
+  ok(!show('rowPal') && !show('rowSpeed'), '彩虹模式：调色板与速度行收起');
+
+  const lv = byId.get('fLevels');
+  lv.value = '40'; lv.oninput({ target: lv });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].levels === 40, `级数改成 40 已存盘: ${fxListOf(0)[0].levels}`);
+
+  col.value = String(CORE.FW.COLOR.STEP);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  ok(show('rowPal') && show('rowSpeed'), '跳变：调色板与「停留」都出来');
+  ok(byId.get('fSpeedLab').textContent === '停留(拍)', `跳变的数值叫「停留(拍)」: ${byId.get('fSpeedLab').textContent}`);
+  const n0 = palN();
+  click('fxPalAdd');
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].palette.length === n0 + 1 && palN() === n0 + 1,
+     `加一个颜色：${n0} → ${fxListOf(0)[0].palette.length}`);
+  click('fxPalDel');
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].palette.length === n0, `删一个颜色：回到 ${n0}`);
+
+  col.value = String(CORE.FW.COLOR.SPECTRUM);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  ok(!show('rowPal') && show('rowSpeed'), '渐变：用内置彩虹表（无调色板），只留速度');
+
+  pick.value = '多色呼吸'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const eB = fxListOf(0)[0];
+  ok(eB.color === CORE.FW.COLOR.BREATH && eB.period === 60 && eB.palette.length === 3,
+     `呼吸预置：period=${eB.period} / ${eB.palette.length} 色`);
+  ok(show('rowPeriod') && show('rowPal') && !show('rowSpeed'), '呼吸：周期 + 调色板');
+
+  pick.value = '颜色覆盖'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const eW = fxListOf(0)[0];
+  ok(eW.color === CORE.FW.COLOR.WIPE && eW.period === 80 && eW.palette.length === 2,
+     `覆盖预置：period=${eW.period} / ${eW.palette.length} 色`);
+}
+
+/* ---- 11) 暂停时也要「看得出改了配色」 ---- */
+console.log('--- 暂停样本帧（改了配色立刻看得见）---');
+{
+  /* 这一段是重开工具之后跑的，得先回到动效页（画布要切到「效果编辑台」才会画灯） */
+  tabBtn('fx').onclick();
+  byId.get('fxTbl').children[0].onclick();
+  const pick = byId.get('fxPresetPick');
+  const pixels = () => [...new Set(fills.filter(f => /^rgb\(/.test(f)))]
+    .map(f => f.match(/\d+/g).map(Number));
+  const has = pred => pixels().some(pred);
+
+  /* 11a 呼吸：tick 0 的包络是 0（整条全黑），暂停时必须拨到顶点 */
+  fills.length = 0;
+  pick.value = '多色呼吸'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(has(p => p[0] > 200 && p[1] < 40 && p[2] < 40),
+     `呼吸暂停时画出第 1 色（不是全黑）：${JSON.stringify(pixels().slice(-3))}`);
+
+  /* 11b 覆盖：tick 0 还没开始盖（整条底色，跟纯色一模一样），暂停时拨到半程 */
+  fills.length = 0;
+  pick.value = '颜色覆盖'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(has(p => p[2] > 200 && p[0] < 40), '覆盖暂停时看得到底色（蓝）');
+  ok(has(p => p[0] > 200 && p[1] > 80 && p[2] < 40), '覆盖暂停时看得到盖色（橙）—— 两种颜色同屏');
+
+  /* 11c 套预置（结构变了）也要重画：上一段已经证明「颜色换了」；
+         这里再确认套完预置后暂停帧里不再是旧配色的颜色 */
+  fills.length = 0;
+  pick.value = '彩虹环'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(new Set(pixels().map(p => p.join(','))).size >= 6,
+     `彩虹环暂停时画出一整圈颜色（${new Set(pixels().map(p => p.join(','))).size} 种色相）`);
+}
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

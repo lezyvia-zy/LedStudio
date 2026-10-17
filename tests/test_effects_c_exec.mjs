@@ -63,9 +63,32 @@ effs.push(builtin);                       /* st.effects.list 就是 effs 本身 
 st.modes.list.push({ id:'mD', name:'内建单点追逐', latin:'BUILTIN_CHASE', enabled:true,
                      binds:[{ effect:builtin.id, zones:[] }] });
 
+/* ---------- 3) 新配色模式：彩虹 / 跳变 / 呼吸 / 覆盖（JS ↔ C 逐字节） ---------- */
+const LAYER_FILL = { kind:'fill', level:255, pulse_period:0, pulse_amp:0, wave:0,
+                     direction:1, bounce:0, cmode:0, hue_base:0, hue_spread:0,
+                     hue_speed:0, spans:0, rotate:0 };
+const RAIN = mkFx(3, [Object.assign({}, LAYER_FILL)]);
+RAIN.color = CORE.FW.COLOR.RAINBOW; RAIN.levels = 30; RAIN.hue_base = 0; RAIN.hue_speed = 3;
+const STEP = mkFx(4, [Object.assign({}, LAYER_FILL)]);
+STEP.color = CORE.FW.COLOR.STEP; STEP.speed = 5;
+STEP.palette = [[255,0,0],[0,255,0],[0,0,255],[255,255,0]];
+STEP.c1 = STEP.palette[0].slice(); STEP.c2 = STEP.palette[1].slice();
+const B2 = mkFx(5, [Object.assign({}, LAYER_FILL)]);
+B2.color = CORE.FW.COLOR.BREATH; B2.period = 12;
+B2.palette = [[255,0,0],[0,255,0],[0,0,255]];
+B2.c1 = B2.palette[0].slice(); B2.c2 = B2.palette[1].slice();
+const WIP = mkFx(6, [Object.assign({}, LAYER_FILL)]);
+WIP.color = CORE.FW.COLOR.WIPE; WIP.period = 10;
+WIP.palette = [[0,0,255],[255,120,0]];
+WIP.c1 = WIP.palette[0].slice(); WIP.c2 = WIP.palette[1].slice();
+st.modes.list.push({ id:'mE', name:'新配色', latin:'NEW_COLORS', enabled:true,
+  binds:[ { effect:RAIN.id, zones:[0] }, { effect:STEP.id, zones:[1] },
+          { effect:B2.id,   zones:[2] }, { effect:WIP.id,  zones:[3] },
+          { effect:A.id,    zones:[4] } ] });
+
 /* ---------- 2) 桩 led_ring.h ---------- */
-const dir = path.join('tests', '.build');
-fs.rmSync(dir, { recursive: true, force: true });
+const dir = path.join('tests', '.build', 'exec');
+fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(path.join(dir, 'led_effects_gen.h'), exportEffectsC(st, { form:'header', comment:'ascii', eol:'lf' }));
 
@@ -260,6 +283,26 @@ st.modes.list.forEach((mode, mi) => {
 ok(bad === 0, bad === 0
    ? `${st.modes.list.length} 个模式 × ${TICKS} 帧，整个 104 灯 fb 与 JS 预览逐字节一致`
    : `${bad}/${st.modes.list.length} 个模式不一致，首例: ${JSON.stringify(firstBad)}`);
+
+/* ---------- 4b) 新配色：彩虹 / 跳变 / 呼吸 / 覆盖 真跑出来是什么样 ---------- */
+console.log('--- 新配色模式（C 侧真跑 37 拍）---');
+{
+  const row = cModes[4] || [];
+  const rgb = c => c.split(',').map(Number);
+  const uniq = new Set();
+  for (let i = 0; i < 8; i++) uniq.add(row[i] && row[i].join(','));
+  ok(uniq.size >= 4, `彩虹分区（8 颗，levels=30）出现 ${uniq.size} 种颜色`);
+  ok(row.slice(0, 8).every(px => px[0] + px[1] + px[2] > 0), '彩虹分区整条点亮');
+  const stepCol = row[8] && row[8].join(',');
+  ok(!!stepCol && row[15] && row[15].join(',') === stepCol, '跳变分区整条同色');
+  const brCol = row[16] && row[16].join(',');
+  ok(!!brCol && row[55] && row[55].join(',') === brCol, '呼吸分区整条同色');
+  const wipe = new Set();
+  for (let i = 56; i < 80; i++) wipe.add(row[i] && row[i].join(','));
+  ok(wipe.size === 2, `覆盖分区正好 2 种颜色（${[...wipe].join(' | ')}）`);
+  ok([...wipe].some(c => { const p = rgb(c); return p[0] > 200 && p[1] > 80 && p[2] < 10; }),
+     '覆盖的第二种颜色来自调色板第 2 个（橙色）');
+}
 
 /* ---------- 4a) 内建单点追逐：真编译出来的 C 画的是平顶光带，且没调平台原语 ---------- */
 console.log('--- 内建单点追逐：生成代码自画（平顶、不调平台原语） ---');

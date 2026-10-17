@@ -382,5 +382,82 @@ console.log('--- 效果名：模板 / 配色 ---');
 }
 
 
+/* ---- 11) 新配色：纯色 / 跳变 / 渐变 / 彩虹 / 呼吸 / 覆盖 ---- */
+console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
+{
+  const { instNew, instApplyPreset, renderZoneMaskTo, effectColorAt,
+          breathGain, colorUpdate, effPalette, effLevels, effPeriod } = CORE;
+  const base = { anim: FW.ANIM.STATIC, width: 10, gap: 0, slow: 8, fast: 1, speed: 1,
+                 c1: [255, 0, 0], c2: [0, 0, 0] };
+  const mkInst = p => { const I = instNew(); instApplyPreset(I, Object.assign({}, base, p)); return I; };
+  const render = (I, len, tick) => {
+    I.anim.gen_tick = tick;
+    const m = new Uint8Array(len), h = new Uint8Array(len);
+    renderZoneMaskTo(I, m, h, len, 0);
+    return { m, h };
+  };
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+  /* 彩虹：沿灯位铺开，levels = 走完一轮要多少颗灯（最小 6） */
+  const R = mkInst({ color: FW.COLOR.RAINBOW, levels: 30, hue_base: 0, hue_speed: 0 });
+  const r30 = render(R, 30, 0);
+  ok(r30.m.every(v => v === 255), '彩虹：整条点亮');
+  ok(r30.h[0] === 0 && r30.h[1] === 8 && r30.h[15] === 128 && r30.h[29] === 247,
+     `彩虹 levels=30 → 0/8/128/247（实际 ${r30.h[0]}/${r30.h[1]}/${r30.h[15]}/${r30.h[29]}）`);
+  ok(same(r30.h, Uint8Array.from({ length: 30 }, (_, i) => Math.floor(i * 256 / 30) & 0xFF)),
+     '彩虹逐位 = floor(i × 256 / levels)（q/r 递推与除法逐值相同）');
+  const r8 = render(R, 8, 0);
+  ok(r8.h[7] === 59, `8 颗灯 + levels=30 只取一小段（第 8 颗 = ${r8.h[7]}）`);
+  R.color.hue_speed = 2;
+  const rRot = render(R, 30, 10);
+  ok(rRot.h[3] === ((Math.floor(3 * 256 / 30) + 5) & 0xFF),
+     `彩虹旋转：每 N 拍整体挪一格（tick=10 / speed=2 → +5）`);
+
+  /* 跳变：每 speed 拍换下一个颜色，颜色数 = 调色板大小 */
+  const S = mkInst({ color: FW.COLOR.STEP, speed: 3,
+                     palette: [[255,0,0],[0,255,0],[0,0,255]] });
+  for (let t = 1; t <= 3; t++) colorUpdate(S.color, t);
+  ok(S.color.current.g === 255 && S.color.current.r === 0, '跳变：3 拍后换到第 2 色');
+  for (let t = 4; t <= 6; t++) colorUpdate(S.color, t);
+  ok(S.color.current.b === 255, '跳变：6 拍后换到第 3 色');
+  for (let t = 7; t <= 9; t++) colorUpdate(S.color, t);
+  ok(S.color.current.r === 255, '跳变：9 拍后绕回第 1 色');
+
+  /* 呼吸：灭→亮→灭；一个周期一种颜色 */
+  ok(breathGain(0, 12) === 0 && breathGain(6, 12) === 254 && breathGain(11, 12) === 42,
+     `呼吸包络 0/6/11 拍 = ${breathGain(0,12)}/${breathGain(6,12)}/${breathGain(11,12)}`);
+  const B = mkInst({ color: FW.COLOR.BREATH, period: 12,
+                     palette: [[255,0,0],[0,255,0],[0,0,255]] });
+  colorUpdate(B.color, 0);
+  ok(B.color.current.r === 255, '呼吸：第 1 个周期用第 1 色');
+  colorUpdate(B.color, 12);
+  ok(B.color.current.g === 255, '呼吸：第 2 个周期换第 2 色');
+  colorUpdate(B.color, 24);
+  ok(B.color.current.b === 255, '呼吸：第 3 个周期换第 3 色');
+  const breathShot = render(B, 10, 6);
+  ok(breathShot.m.every(v => v === 254), '呼吸：半周期时整条最亮（254）');
+
+  /* 覆盖：第二种颜色从 0 号灯开始逐级盖过去（0xFE = 用副色） */
+  const W = mkInst({ color: FW.COLOR.WIPE, period: 10,
+                     palette: [[0,0,255],[255,120,0]] });
+  const w0 = render(W, 10, 0);
+  ok(w0.m.every(v => v === 255) && w0.h.every(v => v === 0xFF), '覆盖：0 拍时还是底色');
+  const w5 = render(W, 10, 5);
+  ok(w5.h.slice(0, 5).every(v => v === 0xFE) && w5.h.slice(5).every(v => v === 0xFF),
+     '覆盖：半程时前 5 颗换成第二种颜色');
+  const wc = effectColorAt(W, 0, 10, w5.h);
+  ok(wc.r === 255 && wc.g === 120 && wc.b === 0, `覆盖：被盖住那段用副色（${wc.r},${wc.g},${wc.b}）`);
+
+  /* 字段兜底 */
+  ok(effPalette({ c1: [1,2,3] }).length === 2, '老效果没有 palette → 用 c1/c2 兜底');
+  ok(effLevels({ levels: 0 }) === 30 && effLevels({ levels: 2 }) === 6 && effLevels({ levels: 999 }) === 255,
+     '彩虹级数夹在 6..255，缺省 30');
+  ok(effPeriod({}) === 60 && effPeriod({ period: 1 }) === 2, '周期夹在 2..600，缺省 60');
+  const pR = CORE.effectPreset({ kind:'custom', color: FW.COLOR.RAINBOW, levels: 24,
+                                 hue_base: 1, hue_speed: 2, palette: [[1,2,3]] }, 0);
+  ok(pR.palette.length === 1 && pR.levels === 24 && pR.hue_base === 1 && pR.hue_speed === 2,
+     'effectPreset 把色板 / 级数 / 起点 / 旋转带给实例');
+}
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);
