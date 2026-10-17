@@ -9,6 +9,9 @@
 <!-- /auto -->
 > **近五轮**：摘要**不在这里重复**（手写摘要会和实现 / 行号一起漂）—— 见 [docs/CHANGELOG.md](docs/CHANGELOG.md) 最新五条。
 > **接着做**：① 「**在灯板上看**」等**模式模块**完成后按新语义回来做（用户显式挂起）；② 逐模块优化的下一站 = 批 2 剩下的那几站（模式页 `M2 / M3 / M5`（预览模式 / 全选 / 拆绑定）→ 动画 `A1 / A2`（快捷键 / 档位显示）→ 校验 `C2 / C4 / C5` → 导出 `E3 / E4 / E5`）—— 批 2 里分区三条（Z2 / Z3 / Z4 ✓5135e3c）与效果页两条（F1 / F2 ✓894515f）已落地；**界面通用的 H10（勾选框方块贴文字 ✓f2c52c5）** 也顺手修了；也可以改做批 5-C 画布直编，开工前与用户确认一句。批次表与条目细节见 [docs/audit/priority.md](docs/audit/priority.md)（§11 优先级总表）与 [docs/audit/checklist.md](docs/audit/checklist.md)（§12 验收清单），索引在 [docs/module-audit.md](docs/module-audit.md)。
+> **文档地图（2026-10-17 重排）**：定位 → `node tools/docsync.mjs where <小节|符号|#id>`（`sections` 列全部顶格小节）；逐模块体检 → [docs/module-audit.md](docs/module-audit.md) 是**索引**（1.8k），正文 12 份在 `docs/audit/`（**一页 = 一份**，只读你要改的那份）；数字与自检 → `docsync stats --write` / `docsync check`（几秒、不跑测试）。
+> **本轮结论（2026-10-17）**：① `where` / `sections` 已落地（`d5007e0`）—— 改代码前不再「grep 几次 + 翻 8167 行」；② 体检报告 28k 单文件 → 1.8k 索引 + 12 份正文（`1a6518f` / `8bcd7c0`），查一个模块从 28k 字降到 0.9~6k 字，`led_layout_editor.html` 一字未动；③ 现状 24 套件 / 1303 项 / 0 FAIL / 约 21s（`--jobs=1` 串行 58s）。
+> **观察项（未决，先别拆 HTML）**：`where` 够不够用还没实测 —— 接下来 2~3 轮真实模块改动各记一行进 `.git/readlog.txt`（判据写死在文件头）：一次命中且读取 ≤20k 字就不拆；命中后还要读 2+ 区间才谈拆 core；反复「必须看整体结构」才谈全拆。
 
 ---
 
