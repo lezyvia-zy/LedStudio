@@ -1,6 +1,14 @@
 /* 模拟「关掉工具再打开」：连跑两次界面层，共享同一份 localStorage */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
+
+/* 省时：界面脚本里「等一等」的定时器（400ms 自动保存防抖、700/900ms 闪烁清除）整轮测试
+ * 要等上百次，纯睡掉两分钟。这里只改「多久之后」，压到 40ms；测试自己的 wait 用真定时器
+ * 70ms（40 < 70，落地顺序不变）。3200/6000ms 的状态栏自动清除**不压** —— 有断言依赖它
+ * 「这时还看得见」。被测代码一字不动。 */
+const realST = globalThis.setTimeout;
+const FAST_MS = { 400: 40, 700: 40, 900: 40 };
+globalThis.setTimeout = (fn, ms = 0, ...a) => realST(fn, FAST_MS[ms] || ms, ...a);
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
 const uiSrc   = html.match(/<script id="ui">([\s\S]*?)<\/script>/)[1];
 const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]));
@@ -81,7 +89,7 @@ const fwRows = fs.readFileSync('tests/fixtures/fw_g_presets.txt', 'utf8')
 
 const bootErr = null;
 
-install(); boot(); await new Promise(r => setTimeout(r, 700));
+install(); boot(); await new Promise(r => realST(r, 70));
 
 /* ============ 效果编辑台（基础排布） ============ */
 const click3 = id => byId.get(id).onclick();
@@ -104,7 +112,7 @@ await new Promise(r => setTimeout(r, 50));
 ctxDraw = 0;
 byId.get('stCompare').checked = true; byId.get('stCompare').onchange({ target: byId.get('stCompare') });
 ok(ctxDraw > 0, `切到效果页并开对比后重绘了画布（ctx ${ctxDraw} 次）`);
-await new Promise(r => setTimeout(r, 700));   /* 等自动保存的防抖 */
+await new Promise(r => realST(r, 70));   /* 等自动保存的防抖 */
 ok(projState(0).stage.compare === true, '对比开关写进了工程');
 
 /* ---- 2b) 编辑台第二行给出运行状态（暂停/位置/节奏），调 speed 参数时看得见 ---- */
@@ -120,14 +128,14 @@ byId.get('stCompare').onchange({ target: byId.get('stCompare') });
 /* ---- 3) 颗数可以自定义 ---- */
 byId.get('stRing').value = '60'; byId.get('stRing').oninput({ target: byId.get('stRing') });
 byId.get('stStrip').value = '7';  byId.get('stStrip').oninput({ target: byId.get('stStrip') });
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(projState(0).stage.ringN === 60 && projState(0).stage.stripN === 7,
    `自定义颗数生效：圆环 ${projState(0).stage.ringN} / 直线 ${projState(0).stage.stripN}`);
 byId.get('stRing').value = '500'; byId.get('stRing').oninput({ target: byId.get('stRing') });
 byId.get('stRing').onchange({ target: byId.get('stRing') });
 ok(byId.get('stRing').value === '200', `输入 500 被夹到 200，且输入框回写显示 ${byId.get('stRing').value}`);
 byId.get('stRing').value = '24'; byId.get('stRing').oninput({ target: byId.get('stRing') });
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 
 /* ---- 4) 核心语义：等比缩放（同一个效果在不同长度上张角相同） ---- */
 {
@@ -187,7 +195,7 @@ await new Promise(r => setTimeout(r, 700));
 }
 
 /* ---- 8) 重开后编辑台设置还在 ---- */
-install(); boot(); await new Promise(r => setTimeout(r, 700));
+install(); boot(); await new Promise(r => realST(r, 70));
 ok(projState(0).stage.ringN === 24 && projState(0).stage.stripN === 7,
    `重开后编辑台设置还在（圆环 ${projState(0).stage.ringN} / 直线 ${projState(0).stage.stripN}）`);
 ok(projState(0).stage.compare === true, '对比开关也记得住');
@@ -204,7 +212,7 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
       { name: (names || [])[i] || baseZones[i % baseZones.length].name, count: c }));
     st.stage = Object.assign({ ringN: 24, stripN: 24 }, st.stage, { compare: true });
     store.set('led_layout_editor.v1', JSON.stringify(db));
-    install(); boot(); await new Promise(r => setTimeout(r, 700));
+    install(); boot(); await new Promise(r => realST(r, 70));
     tabBtn('fx').onclick();
     await new Promise(r => setTimeout(r, 50));
     texts.length = 0; ctxArcs = 0;
@@ -249,7 +257,7 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
 
   /* 9.6 默认工程 SP-3122D（8/8/40/24/24）去重后正好 8 / 24 / 40，与老观感一致 */
   store.delete('led_layout_editor.v1');
-  install(); boot(); await new Promise(r => setTimeout(r, 700));
+  install(); boot(); await new Promise(r => realST(r, 70));
   tabBtn('fx').onclick();
   await new Promise(r => setTimeout(r, 50));
   texts.length = 0; ctxArcs = 0;
@@ -355,7 +363,7 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
 
   /* 10.2 调速：写在 stage.rate 上，只改编辑台的节奏，不动「动画」页那个倍率 */
   byId.get('fxRate').value = '4'; byId.get('fxRate').onchange({ target: byId.get('fxRate') });
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(projState(0).stage.rate === 4, `播放条的倍率写进了工程 stage.rate = ${projState(0).stage.rate}`);
   ok(projState(0).anim.rate === 1, `没有顺手改掉「动画」页的倍率（仍是 ${projState(0).anim.rate}×）`);
   ok(/const tickMs = 20 \/ stageRate\(\)/.test(html), '编辑台按自己的 stageRate() 走（与灯板的累加器分开）');
@@ -440,7 +448,7 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   ok(pos() === `第 1 / ${N} 条`, `「上一条」往回走: ${pos()}`);
   byId.get('fxPrev').onclick();
   ok(pos() === `第 ${N} / ${N} 条`, `在第 1 条按「上一条」绕回最后一条: ${pos()}`);
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(ids().join() === beforeIds.join(), '巡览只换选中项：效果库的顺序一条没动');
   ok(projState(0).anim.effectId === beforeIds[N - 1], '选中的那条记进了工程（重开还看这条）');
 

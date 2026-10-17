@@ -1,6 +1,14 @@
 /* 假 DOM：把界面层脚本真正跑一遍，捕捉 boot 期的运行错误与失效的选择器 */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
+
+/* 省时：界面脚本里「等一等」的定时器（400ms 自动保存防抖、700/900ms 闪烁清除）整轮测试
+ * 要等上百次，纯睡掉两分钟。这里只改「多久之后」，压到 40ms；测试自己的 wait 用真定时器
+ * 70ms（40 < 70，落地顺序不变）。3200/6000ms 的状态栏自动清除**不压** —— 有断言依赖它
+ * 「这时还看得见」。被测代码一字不动。 */
+const realST = globalThis.setTimeout;
+const FAST_MS = { 400: 40, 700: 40, 900: 40 };
+globalThis.setTimeout = (fn, ms = 0, ...a) => realST(fn, FAST_MS[ms] || ms, ...a);
 const uiSrc = html.match(/<script id="ui">([\s\S]*?)<\/script>/)[1];
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
 
@@ -135,19 +143,19 @@ const animOf = i => JSON.parse(store.get('led_layout_editor.v1')).projects[i].st
 /* 在项目 0 上开始播放 */
 ok(byId.get('aPlay').textContent === '播放', `项目0 初始按钮: "${byId.get('aPlay').textContent}"`);
 byId.get('aPlay').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(byId.get('aPlay').textContent === '暂停', `项目0 点播放后按钮: "${byId.get('aPlay').textContent}"`);
 ok(animOf(0).playing === true, '项目0 已记录 playing = true');
 
 /* 新建空白项目 → 它必须是「未播放」，不能被项目0 带着跑 */
 byId.get('btnProjNew').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(animOf(1).playing === false, '新建的项目 playing = false（没有跟着项目0 一起放）');
 ok(byId.get('aPlay').textContent === '播放', `切到新项目后按钮: "${byId.get('aPlay').textContent}"`);
 
 /* 在新项目上播放，不能影响项目0 */
 byId.get('aPlay').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(animOf(1).playing === true, '新项目已记录 playing = true');
 ok(animOf(0).playing === true, '项目0 的播放状态未被改动');
 
@@ -158,7 +166,7 @@ ok(byId.get('aPlay').textContent === '暂停', `切回项目0 按钮: "${byId.ge
 
 /* 在项目0 上暂停，不能影响新项目 */
 byId.get('aPlay').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(animOf(0).playing === false, '项目0 已暂停');
 ok(animOf(1).playing === true, '新项目仍在播放（互不影响）');
 
@@ -168,7 +176,7 @@ const optIds = (pre.children || []).map(o => o.value);
 ok(optIds.length === 9, `下拉有 ${optIds.length} 项（来自本项目的模式表）`);
 const pick = optIds[5];
 pre.value = pick; pre.onchange();
-await new Promise(r => setTimeout(r, 700));   /* 等自动保存的 400ms 防抖 */
+await new Promise(r => realST(r, 70));   /* 等自动保存的 400ms 防抖 */
 ok(animOf(0).modeId === pick, `项目0 选中模式改成 ${animOf(0).modeId}`);
 rows()[1].onclick();
 await new Promise(r => setTimeout(r, 100));
@@ -183,15 +191,15 @@ ok(pre.value === pick, '切回项目0 又回到它自己选的模式');
 /* ---- D) 速度档「自动（跟着音乐）」的接线与存盘 ---- */
 const spd = byId.get('aSpeed'), aud = byId.get('aAudio');
 spd.value = 'auto'; spd.onchange();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(animOf(0).speed === 'auto', '速度档改成了 auto');
 ok(aud.disabled === false, '自动档下「音乐来了」按钮可用');
 aud.onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(animOf(0).audio === true, '「音乐来了」状态存住了（audio = true）');
 ok(aud.classList.contains('on') && /快档/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
 aud.onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(animOf(0).audio === false, '再点一下回慢档（audio = false）');
 spd.value = 'slow'; spd.onchange();
 await new Promise(r => setTimeout(r, 100));

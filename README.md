@@ -50,8 +50,9 @@ LED 灯效设计与代码生成工具。**一个 HTML 文件，离线可用，�
 不需要 `npm install`，有 node 就行：
 
 ```bash
-node tests/run_all.mjs            # 全部
+node tests/run_all.mjs            # 全部（默认 4 路并行，约 20s）
 node tests/run_all.mjs 效果 编译   # 只跑名字含这些字样的
+node tests/run_all.mjs --jobs=1   # 串行（怀疑套件之间互相干扰时用）
 ```
 
 当前 **24 个套件、1300 项断言**，全部通过。

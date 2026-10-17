@@ -90,7 +90,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 `test_effects_c_exec` 需要能跑 cygwin gcc（见 README 的「真编译测试」一节）；**改图层原语或 C 模板后必须跑它** —— 它验的是「预览和生成的代码是不是一回事」，这条不成立整个工具就没意义。
 ### 改完怎么验（省时版 · 2026-10-17 定）
 
-1. **改动循环里只跑相关套件**：`node tests/run_all.mjs 效果 ui`（按名字子串过滤，几秒出结果；不带参数才是全量，**约 2.5 分钟**，大头是 `effects_c_exec` 的真编译）。别改一行就全量。
+1. **改动循环里只跑相关套件**：`node tests/run_all.mjs 效果 ui`（按名字子串过滤，一两秒出结果；不带参数才是全量，**约 22s**，默认 4 路并行，`--jobs=1` 串行约 58s）。别改一行就全量。
 2. **数字不手改**：`node tools/docsync.mjs stats --write` —— 跑一次全量，然后刷新 HANDOFF 顶端的自动块、CLAUDE / README / HANDOFF 里的「套件 · 断言」数、HANDOFF「测试覆盖」表里每个套件的 `(N)`。收尾用 `node tools/docsync.mjs check`（几秒、**不跑测试**，顺带把 `module-audit` 里已经落不上的「`符号` N–M」区间引用列出来）。
 3. **文档里不写「第 N 行」这类坐标**：定位一律用 `#id` / 函数名 / 小节名；`module-audit` 表里的区间只是**粗指路**，改到哪个模块**只校准那一行**，别全表重算。
 4. **一个改动一个提交**（代码 + 测试 + 文档同一提交）；提交信息 = 标题一行 + 正文按「动机 / 根因 / 改动 / 测试 / 文档」分几段（每段 1–3 行，全文 ≤ 15 行），CHANGELOG 新条目同样 ≤ 15 行。
@@ -109,7 +109,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 9. **补丁横幅整体是一段块注释，不要对它自己调 `mangleComment`** —— 会把开头的 `/*` 也改掉，生成的头文件直接编译不过（真编译器抓出来的）。
 10. **`node` 读不了被透明加密的目录树**（比如 `MVsB1_BT_Audio_SDK_v0.3.4/` 下任何文件都会是密文乱码）。要读固件源码请用 python 或 Read 工具；测试需要的固件内容先由 python 抽成 fixture。**2026-10-14 实测**：把固件源码拷进工作区后，`python tools/extract_fw_tables.py --sdk MVsB1_BT_Audio_SDK_v0.3.4 --fixture --out <临时路径>` 能正常读，抽出的 9 行与 `tests/fixtures/fw_g_presets.txt` **逐字节一致**（哈希相同）—— 所以契约第 ② 步「引擎自洽化」要从固件对照查表/原语时，固定走 python（`search_codebase` / `read_files` 也能看，`node` 不行；那棵树不要 `git add`，`.git/hooks/pre-commit` 已拦）。
 11. 面板（`.pane`）必须在 `#right` 里面，`.pane` 要有 `overflow:auto`、`#right` 要有 `min-height:0` —— 缺一条面板就滚不动、也切不回去。
-12. **测试里改完控件要等 700ms 再断言存盘结果**（自动保存有 400ms 防抖）。
+12. **测试里改完控件要等「自动保存防抖」落地再断言**（自动保存有 400ms 防抖）。写法见各套件顶部的压缩器：把界面脚本的 400 / 700 / 900ms 定时器压到 **40ms**，测试**自己**的等待用真定时器 `realST(r, 70)`（40 < 70，落地顺序天然不变；3200 / 6000ms 的状态栏自动清除**不压**，有断言依赖它「还看得见」）。**别再写 `setTimeout(r, 700)`** —— 2026-10-17 之前每处固定睡 700ms，全量因此多花 100s。
 13. **core 里新增的函数/常量必须加进末尾的 `CORE = { … }` 导出清单**，否则测试抽不到它（`CORE.xxx` 为 `undefined`，报错还很绕）。
 14. **帮助页文案与 `data-tip` 是测试断言对象**（`test_help`）：章节标题、关键短语（如「本层空间色相」）、特定控件的 `data-tip` 都在断言里。改教程文字或删说明前先看 `test_help.mjs`。**每个 `<h3>` 必须带唯一的 `id`**（`#helpToc` 的目录按 h3 顺序生成、按 id 联动显隐），「常见做法」表里的「去做」按钮用 `data-go="<页签>"`，目标必须是已存在的页签（`test_help` 会校验）。
 15. **速度档是 ring 级信号，不是实例级的**：`ring->speed_cur` 由固件 `ring_set_audio_level()` 按音量切，生成代码在 `led_gen_tick()` 开头把它同步进每个实例（`I->speed_cur = fast ? I->speed_fast : I->speed_slow`，各效果仍用自己配的 fast/slow）。改这条判据必须同时改 JS 侧的 `ringIsFast()` —— 否则真编译套件立刻红。判据是保守的：只有 `speed_fast < speed_slow` 且 `speed_cur` 落在快档才算「有声音」。

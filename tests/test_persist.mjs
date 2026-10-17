@@ -1,6 +1,14 @@
 /* 模拟「关掉工具再打开」：连跑两次界面层，共享同一份 localStorage */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
+
+/* 省时：界面脚本里「等一等」的定时器（400ms 自动保存防抖、700/900ms 闪烁清除）整轮测试
+ * 要等上百次，纯睡掉两分钟。这里只改「多久之后」，压到 40ms；测试自己的 wait 用真定时器
+ * 70ms（40 < 70，落地顺序不变）。3200/6000ms 的状态栏自动清除**不压** —— 有断言依赖它
+ * 「这时还看得见」。被测代码一字不动。 */
+const realST = globalThis.setTimeout;
+const FAST_MS = { 400: 40, 700: 40, 900: 40 };
+globalThis.setTimeout = (fn, ms = 0, ...a) => realST(fn, FAST_MS[ms] || ms, ...a);
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
 const uiSrc   = html.match(/<script id="ui">([\s\S]*?)<\/script>/)[1];
 const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]));
@@ -66,7 +74,7 @@ const boot = () => new Function(coreSrc + '\n' + uiSrc)();
 const decode = () => { const raw = store.get('led_layout_editor.v1'); return raw ? JSON.parse(raw) : null; };
 
 /* ===== 第一次打开 ===== */
-install(); boot(); await new Promise(r=>setTimeout(r,700));
+install(); boot(); await new Promise(r=>realST(r, 70));
 ok(store.has('led_layout_editor.v1'), '第一次打开：已建初始存档');
 
 /* 1) 改一下 SP-3122D 里 0 号分区的名字 */
@@ -75,13 +83,13 @@ ok(!!zName && !!zName.oninput, '分区名输入框已接线');
 zName.value = '改过的名字'; zName.oninput({ target: zName });
 
 /* 1b) 分区名/别名/颜色/使能必须立刻存盘 —— 不能靠后面「新建项目」顺带保存 */
-await new Promise(r=>setTimeout(r,700));
+await new Promise(r=>realST(r, 70));
 ok(decode().projects[0].state.zones[0].name === '改过的名字', '分区改名后立刻存盘（无需再做别的操作）');
 const zLatin = byId.get('zLatin'), zColor2 = byId.get('zColor'), zEn2 = byId.get('zEn');
 zLatin.value = 'TOP';      zLatin.oninput({ target: zLatin });
 zColor2.value = '#123456'; zColor2.oninput({ target: zColor2 });
 zEn2.checked = false;      zEn2.onchange({ target: zEn2 });
-await new Promise(r=>setTimeout(r,700));
+await new Promise(r=>realST(r, 70));
 {
   const z0 = decode().projects[0].state.zones[0];
   ok(z0.latin === 'TOP', `分区别名已存盘: "${z0.latin}"`);
@@ -91,18 +99,18 @@ await new Promise(r=>setTimeout(r,700));
 /* 还原，别影响后面的断言 */
 zColor2.value = '#ff9a3c'; zColor2.oninput({ target: zColor2 });
 zEn2.checked = true;       zEn2.onchange({ target: zEn2 });
-await new Promise(r=>setTimeout(r,700));
+await new Promise(r=>realST(r, 70));
 
 /* 2) 新建一个空白项目，在里面放一颗灯 */
 byId.get('btnProjNew').onclick();
-await new Promise(r=>setTimeout(r,700));
+await new Promise(r=>realST(r, 70));
 const placeBtn = (byId.get('left').children || []).find(b => b.dataset.mode === 'place');
 ok(!!placeBtn, '左侧模式栏含「放置编号」按钮');
 placeBtn.onclick();
 const pd = (listeners['cv:pointerdown'] || [])[0];
 ok(!!pd, '画布已注册 pointerdown 监听');
 pd({ pointerId:1, button:0, clientX:300, clientY:400, shiftKey:false });
-await new Promise(r=>setTimeout(r,800));
+await new Promise(r=>realST(r, 70));
 
 const s1 = decode();
 ok(s1.projects.length === 2, `第一次打开：共 ${s1.projects.length} 个项目`);
@@ -122,7 +130,7 @@ chkSnap.checked = false; chkSnap.onchange({ target: chkSnap });
 cellSize.value = '32';   cellSize.onchange({ target: cellSize });
 const c1 = ledCountB();
 pd({ pointerId:1, button:0, clientX:700, clientY:700, shiftKey:false });
-await new Promise(r=>setTimeout(r,800));
+await new Promise(r=>realST(r, 70));
 const s3 = decode();
 ok(s3.projects[1].state.view.snap === false, '关掉吸附已存盘（view.snap=false）');
 ok(s3.projects[1].state.view.grid === 32, `格边长已存盘（view.grid=${s3.projects[1].state.view.grid}）`);
@@ -132,19 +140,19 @@ ok(!(loose.x % 32 === 16 && loose.y % 32 === 16), `关吸附时落点不在格�
 chkSnap.checked = true;  chkSnap.onchange({ target: chkSnap });
 cellSize.value = '40';   cellSize.onchange({ target: cellSize });
 pd({ pointerId:1, button:0, clientX:760, clientY:760, shiftKey:false });
-await new Promise(r=>setTimeout(r,800));
+await new Promise(r=>realST(r, 70));
 const snapped = lastLed();
 ok(snapped.x % 40 === 20 && snapped.y % 40 === 20, `开吸附时落点在格心: (${snapped.x}, ${snapped.y})`);
 /* 收尾：把上面这两颗测试灯撤销掉，后面的断言仍按「1 颗灯」走 */
 byId.get('btnUndo').onclick(); byId.get('btnUndo').onclick();
-await new Promise(r=>setTimeout(r,800));
+await new Promise(r=>realST(r, 70));
 ok(ledCountB() === 1, `撤销两次后回到 1 颗灯（实际 ${ledCountB()}）`);
 
 /* 3b) 形状（批 7-A/B）：预设自带 5 个形状；改过的形状参数要跟着项目一起存 */
 {
   const projRows = () => (byId.get('projList') || {}).children || [];
   projRows()[0].onclick();
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   const s = decode();
   ok((s.projects[0].state.shapes || []).length === 5,
      `SP-3122D 预设带出 ${(s.projects[0].state.shapes || []).length} 个可编辑形状（老工程迁移的起点）`);
@@ -154,13 +162,13 @@ ok(ledCountB() === 1, `撤销两次后回到 1 颗灯（实际 ${ledCountB()}）
   ok(!!dist && !!dist.oninput && byId.get('shList').value === '1',
      `点分区自动选上关联形状（#shList 停在 ${byId.get('shList').value}）`);
   dist.value = 'even'; dist.oninput({ target: dist });
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   const sh1 = decode().projects[0].state.shapes[1];
   ok(sh1.dist === 'even' && sh1.zone === 'z1', `改形状分布已存盘（shapes[1].dist=${sh1.dist} / zone=${sh1.zone}）`);
   /* 切成圆环 / 再切回来：新露出来的几何格是空的，不能因此把形状挪到 0,0 */
   const kind = byId.get('shKind');
   kind.value = 'circle'; kind.oninput({ target: kind });
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   {
     const s2 = decode().projects[0].state.shapes[1];
     ok(s2.kind === 'circle' && s2.r > 0 && (s2.cx !== 0 || s2.cy !== 0),
@@ -168,30 +176,30 @@ ok(ledCountB() === 1, `撤销两次后回到 1 颗灯（实际 ${ledCountB()}）
     ok(s2.pts.length === 4, '切类型时原来的顶点留着（切回来不丢）');
   }
   kind.value = 'rect'; kind.oninput({ target: kind });
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   ok(decode().projects[0].state.shapes[1].pts.length === 4, '切回矩形：顶点还在（4 个）');
   /* 多边形边数这个参数（批 7-D 反馈）也要跟着项目存 —— 换回矩形时不能丢 */
   kind.value = 'poly'; kind.oninput({ target: kind });
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   {
     const nEl = byId.get('shPolyN');
     ok(!!nEl && !!nEl.oninput, '多边形面板有独立的「边数」输入框');
     nEl.value = '5'; nEl.oninput({ target: nEl });
-    await new Promise(r=>setTimeout(r,700));
+    await new Promise(r=>realST(r, 70));
     const s3 = decode().projects[0].state.shapes[1];
     ok(s3.kind === 'poly' && Math.round(+s3.n) === 5 && s3.pts.length === 5,
        `多边形边数已存盘（kind=${s3.kind} n=${s3.n} 顶点 ${s3.pts.length} 个）`);
   }
   kind.value = 'rect'; kind.oninput({ target: kind });
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   ok(Math.round(+decode().projects[0].state.shapes[1].n) === 5, '换回矩形：边数这个参数还留着（换回去不丢）');
   /* 收尾：切回刚才那个空白项目，后面的断言仍按「当前 = 项目 1」走 */
   projRows()[1].onclick();
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
 }
 
 /* ===== 关掉工具，重新打开 ===== */
-install(); boot(); await new Promise(r=>setTimeout(r,700));
+install(); boot(); await new Promise(r=>realST(r, 70));
 
 const s2 = decode();
 ok(s2.projects.length === 2, `重新打开后项目数 = ${s2.projects.length}`);
@@ -215,20 +223,20 @@ ok(s2.projects[0].state.shapes[1].dist === 'even', '重新打开后形状参数�
   const ix = raw.projects.findIndex(p => p.id === raw.current);
   raw.projects[ix].state.canvas.background = { href: 'data:,x', x: 0, y: 0, scale: 1, opacity: 0.45 };
   store.set('led_layout_editor.v1', JSON.stringify(raw));
-  install(); boot(); await new Promise(r=>setTimeout(r,700));
+  install(); boot(); await new Promise(r=>realST(r, 70));
 
   const s = byId.get('bgScale'), o = byId.get('bgOp'), bx = byId.get('bgX');
   ok(!!s && !!s.oninput && !!o && !!o.oninput, '底图参数控件已接线');
   s.value = '2';      s.oninput({ target: s });
   o.value = '80';     o.oninput({ target: o });
   bx.value = '60';    bx.oninput({ target: bx });
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   const bg = decode().projects[ix].state.canvas.background;
   ok(bg && bg.scale === 2, `底图缩放已存盘（scale=${bg && bg.scale}）`);
   ok(bg && Math.abs(bg.opacity - 0.8) < 1e-6, `底图透明度已存盘（opacity=${bg && bg.opacity}）`);
   ok(bg && bg.x === 60, `底图 X 偏移已存盘（x=${bg && bg.x}）`);
   byId.get('bgClear').onclick();
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>realST(r, 70));
   ok(decode().projects[ix].state.canvas.background === null, '移除底图也一并存盘了');
 }
 
@@ -237,7 +245,7 @@ ok(s2.projects[0].state.shapes[1].dist === 'even', '重新打开后形状参数�
   const raw = JSON.parse(store.get('led_layout_editor.v1'));
   raw.projects.forEach(p => { delete p.state.shapes; });
   store.set('led_layout_editor.v1', JSON.stringify(raw));
-  install(); boot(); await new Promise(r=>setTimeout(r,700));
+  install(); boot(); await new Promise(r=>realST(r, 70));
   const s = decode();
   const cur = s.projects.find(p => p.id === s.current);
   ok(Array.isArray(cur.state.shapes) && cur.state.shapes.length === 0,

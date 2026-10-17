@@ -1,6 +1,14 @@
 /* 假 DOM：把界面层脚本真正跑一遍，捕捉 boot 期的运行错误与失效的选择器 */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
+
+/* 省时：界面脚本里「等一等」的定时器（400ms 自动保存防抖、700/900ms 闪烁清除）整轮测试
+ * 要等上百次，纯睡掉两分钟。这里只改「多久之后」，压到 40ms；测试自己的 wait 用真定时器
+ * 70ms（40 < 70，落地顺序不变）。3200/6000ms 的状态栏自动清除**不压** —— 有断言依赖它
+ * 「这时还看得见」。被测代码一字不动。 */
+const realST = globalThis.setTimeout;
+const FAST_MS = { 400: 40, 700: 40, 900: 40 };
+globalThis.setTimeout = (fn, ms = 0, ...a) => realST(fn, FAST_MS[ms] || ms, ...a);
 const uiSrc = html.match(/<script id="ui">([\s\S]*?)<\/script>/)[1];
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
 
@@ -156,7 +164,7 @@ try { new Function(coreSrc + '\n' + uiSrc)(); } catch (e) { bootErr = e; }
 ok(!bootErr, bootErr ? `界面层启动抛错: ${bootErr.message}\n${(bootErr.stack||'').split('\n').slice(0,4).join('\n')}` : '界面层启动无异常（boot 走通）');
 
 /* ---- 4) 启动后的可观测状态 ---- */
-await new Promise(r => setTimeout(r, 700));      /* 等自动保存的 400ms 防抖落地 */
+await new Promise(r => realST(r, 70));      /* 等自动保存的 400ms 防抖落地 */
 
 const head = byId.get('headInfo'), tbl = byId.get('zoneTbl');
 ok(head && /SP-3122D/.test(head.textContent), `顶栏信息已填充: "${head && head.textContent}"`);
@@ -179,7 +187,7 @@ if (store.has('led_layout_editor.v1')) {
   ok(new Set(btns().slice(0, 8).map(b => b.style.cssText)).size === 8, '8 个预设色互不相同');
   const before = zc();
   btns()[2].onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(zc() !== before, `点色块改色并存盘: ${before} → ${zc()}`);
   ok(byId.get('zColor').value === zc(), `取色器显示同步: ${byId.get('zColor').value}`);
 }
@@ -195,19 +203,19 @@ if (store.has('led_layout_editor.v1')) {
   const f = byId.get('bgFile');
   f.files = [{ name: 'photo.png' }];
   f.onchange({ target: f });
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(!!bgOf() && bgOf().href === 'data:image/png;base64,x', '选图后底图已建立并存盘');
 
   /* 手动挪到「不在格上」的位置 */
   const bx = byId.get('bgX'), by = byId.get('bgY');
   bx.value = '13'; bx.oninput({ target: bx });
   by.value = '-27'; by.oninput({ target: by });
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(bgOf().x === 13 && bgOf().y === -27, `底图已挪到 X ${bgOf().x} / Y ${bgOf().y}（不在格上）`);
 
   const half = (+byId.get('cellSize').value || 40) / 2;
   byId.get('bgAlign').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   const g = bgOf();
   ok(g.x % half === 0 && g.y % half === 0,
      `「对齐到格」后 X ${g.x} / Y ${g.y} 都是 ${half}px 的整数倍（对齐前 13 / -27）`);
@@ -234,7 +242,7 @@ console.log('   修正开: ' + onTxt.replace(/<[^>]+>/g,''));
 const projRows = () => (byId.get('projList') || {}).children || [];
 ok(projRows().length === 1, `左侧项目区初始有 ${projRows().length} 项`);
 byId.get('btnProjNew').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 const after = JSON.parse(store.get('led_layout_editor.v1'));
 ok(after.projects.length === 2, `新建后项目数 = ${after.projects.length}`);
 ok(after.projects[1].state.leds.length === 0, `新项目是空白画布（${after.projects[1].state.leds.length} 颗灯）`);
@@ -251,13 +259,13 @@ ok(projRows()[0].classList.contains('on'), '高亮跟着切换');
 /* ---- 8) 交互：新增分区 ---- */
 /* 先在 SP-3122D 上验证保护：5 个分区已占满 0..103，必须拒绝 */
 byId.get('btnZoneAdd').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(JSON.parse(store.get('led_layout_editor.v1')).projects[0].state.zones.length === 5,
    '编号已排满时，新增分区被正确拒绝');
 /* 切到空白项目再新增，应当成功 */
 projRows()[1].onclick();
 byId.get('btnZoneAdd').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 const st2 = JSON.parse(store.get('led_layout_editor.v1')).projects[1].state;
 ok(st2.zones.length === 1, `空白项目新增分区后分区数 = ${st2.zones.length}（期望 1）`);
 
@@ -284,7 +292,7 @@ pd2({ pointerId:1, button:2, clientX:300, clientY:300, shiftKey:false, preventDe
 ok(cnt() === before, `右键按下不放置灯（${before} → ${cnt()}）`);
 (listeners['cv:pointerup'] || [])[0]({});      /* 收尾：清掉右键平移的 drag=pan，别污染后面的形状交互 */
 pd2({ pointerId:1, button:0, clientX:300, clientY:300, shiftKey:false, preventDefault(){} });
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}）`);
 
 /* ---- 11) 状态栏分级：提示带级别，err 留在栏里不被统计串盖掉 ---- */
@@ -294,7 +302,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
 
   /* a) 空白项目：删掉唯一分区、也没有形状 → 点「铺到灯位」走 warn 分支（先提醒、不打断） */
   byId.get('btnZoneDel').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(st().projects[1].state.zones.length === 0,
      `空白项目已删掉唯一分区（剩 ${st().projects[1].state.zones.length} 个）`);
   byId.get('shApply').onclick();
@@ -307,7 +315,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   byId.get('btnZoneAdd').onclick();
   ok(/lv-err/.test(statusEl.className), `失败提示带 err 级别（class="${statusEl.className}"）`);
   ok(/没有空余区间/.test(statusEl.textContent), `失败文案: "${statusEl.textContent}"`);
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => realST(r, 70));
   ok(/没有空余区间/.test(statusEl.textContent), 'err 级提示不会被自动清除（不再打断式 alert）');
   statusEl.textContent = ''; statusEl.className = '';
 }
@@ -321,11 +329,11 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const lc = byId.get('mLedCount');
   ok(leds() === 104, `裁剪前灯数 = ${leds()}`);
   lc.value = '100'; lc.oninput({ target: lc });
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(/裁剪超出灯总数的编号/.test(byId.get('status').textContent),
      `改小灯总数后给出收尾提示: "${byId.get('status').textContent}"`);
   byId.get('mLedTrim').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(leds() === 100, `裁剪后灯数 = ${leds()}（期望 100）`);
 }
 
@@ -347,7 +355,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   go('zones');
   const lc = byId.get('mLedCount');
   lc.value = '120'; lc.oninput({ target: lc });
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   const s2 = iss();
   ok(s2 === s1, '校验页不可见时改数据，清单原样不动（没白算 validate）');
 
@@ -370,7 +378,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   rows()[0].onclick();
   const zs = byId.get('zStart');
   zs.value = '115'; zs.oninput({ target: zs });
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   rows()[3].onclick();                       /* 先选中别的分区，验证点问题会把选中挪回来 */
   ok(byId.get('zStart').value !== '115',
      `已切到第 4 个分区（起点输入框 = ${byId.get('zStart').value}）`);
@@ -406,12 +414,12 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   rows()[3].onclick();                       /* 环 A：号段上还有原排布留下的灯 */
   const before = leds();
   byId.get('shAdd').onclick();               /* 按这个分区的现有灯位起一个形状 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
 
   confirmCalls.length = 0;
   globalThis.confirm = m => { confirmCalls.push(m); return false; };
   byId.get('shApply').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(confirmCalls.length === 1 && /已经有 \d+ 颗灯/.test(confirmCalls[0]),
      `铺灯前先把「要覆盖多少颗」问清楚: "${String(confirmCalls[0]).split('\n')[0]}"`);
   ok(/重铺/.test(confirmCalls[0]) && /撤销/.test(confirmCalls[0]),
@@ -422,7 +430,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
 
   globalThis.confirm = m => { confirmCalls.push(m); return true; };
   byId.get('shApply').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(confirmCalls.length === 2, '再点一次仍然先问（每次都问，不设「别再问了」）');
   ok(/已按形状铺/.test(byId.get('status').textContent),
      `确认之后才真铺: "${byId.get('status').textContent}"`);
@@ -433,11 +441,11 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   confirmCalls.length = 0;
   rows()[0].onclick();                       /* 第 1 个分区已挪到 115.. 上，没有灯 */
   byId.get('shAdd').onclick();               /* 该号段空着 → 起一个「等分弧长」的矩形形状 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(byId.get('shApply').classList.contains('pri'),
      '还没铺过的形状：「铺到灯位」亮着（亮着 = 照现在的形状铺下去就是这一步该做的）');
   byId.get('shApply').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(confirmCalls.length === 0, '号段上本来没有灯 → 不弹确认框，直接铺');
   ok(/已按形状铺/.test(byId.get('status').textContent),
      `直接铺成功: "${byId.get('status').textContent}"`);
@@ -454,7 +462,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
     const beforeP = pos(), dir0 = sh0().dir;
     confirmCalls.length = 0;
     byId.get('shFlip').onclick();
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => realST(r, 70));
     ok(confirmCalls.length === 0,
        '点「反向编号」不再弹确认框 —— 已铺过的形状：几何一点没动，点错了 Ctrl+Z 就够（用户第 4 条）');
     ok(/已反向编号/.test(byId.get('status').textContent),
@@ -485,7 +493,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   projRows()[1].onclick();
   await new Promise(r => setTimeout(r, 50));
   byId.get('btnZoneAdd').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   gal().find(b => b.dataset.kind === 'line').onclick();
   const shapeBtn = (byId.get('left').children || []).find(b => b.dataset.mode === 'shape');
   const selectBtn = (byId.get('left').children || []).find(b => b.dataset.mode === 'select');
@@ -495,7 +503,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   pd({ pointerId: 1, button: 0, clientX: 100, clientY: 100 });
   move(300, 220);
   pu({});
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   {
     const s0 = shapes()[0];
     ok(!!s0 && s0.kind === 'line' && s0.closed === false && s0.pts.length === 2,
@@ -528,7 +536,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   pd({ pointerId: 1, button: 0, clientX: 200, clientY: 160 });   /* 头：线段中点 */
   await new Promise(r => setTimeout(r, 50));
   pd({ pointerId: 1, button: 0, clientX: 250, clientY: 190 });   /* 尾：下游 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   {
     const s1 = shapes()[0];
     const z = st().zones[0];
@@ -550,7 +558,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   {
     const zc = byId.get('zCount');
     zc.value = '5'; zc.oninput({ target: zc });
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => realST(r, 70));
     {
       const z = st().zones[0], s = shapes()[0];
       const onZone = st().leds.filter(l => l.n >= z.start && l.n < z.start + z.count);
@@ -558,7 +566,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
       ok(onZone.length === 5, `号段自动删到 ${onZone.length} 颗（原来 8 颗，多出来的自动去掉）`);
     }
     zc.value = '8'; zc.oninput({ target: zc });            /* 改回来，后面换类型不受影响 */
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => realST(r, 70));
   }
 
   /* 面板「形状类型」换成圆环（外框不动）；再拖右下角手柄改大小 */
@@ -569,7 +577,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
     })();
     const kindEl = byId.get('shKind');
     kindEl.value = 'circle'; kindEl.oninput({ target: kindEl });
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => realST(r, 70));
     const c = shapes()[0];
     ok(c.kind === 'circle' && c.r > 0 && c.ry > 0, `换成圆环（r=${c.r} ry=${c.ry}）`);
     ok(Math.abs((c.cx - c.r) - before.x0) < 1e-6 && Math.abs((c.cy - c.ry) - before.y0) < 1e-6 &&
@@ -580,7 +588,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
     pd({ pointerId: 1, button: 0, clientX: 300, clientY: 220 });
     move(360, 280);
     pu({});
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => realST(r, 70));
     const c2 = shapes()[0];
     ok(c2.r > r0 && c2.ry > ry0, `拖右下角手柄后椭圆变大（r ${r0.toFixed(1)}→${c2.r.toFixed(1)}）`);
   }
@@ -593,14 +601,14 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
       const z = st().zones[0];
       const before = st().leds.find(l => l.n === z.start);
       gal().find(b => b.dataset.kind === 'line').onclick();
-      await new Promise(r => setTimeout(r, 700));
+      await new Promise(r => realST(r, 70));
       const after = st().leds.find(l => l.n === z.start);
       ok(shapes()[0].kind === 'line', '编辑态点「直线」立即把圆环换成直线（换类型）');
       ok(before && after && (before.x !== after.x || before.y !== after.y),
          '换类型后已铺的灯立即跟着重铺（不用再拖动一下）');
     }
     gal().find(b => b.dataset.kind === 'circle').onclick();
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => realST(r, 70));
     ok(shapes()[0].kind === 'circle', '再点「圆环」换回来（高亮与形状同步）');
     ok(gal().find(b => b.dataset.kind === 'circle').classList.contains('on'),
        '形状选择框高亮切到圆环');
@@ -612,7 +620,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
     pd({ pointerId: 1, button: 0, clientX: 500, clientY: 100 });
     move(600, 180);
     pu({});
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => realST(r, 70));
     ok(shapes().length === 2, `又画了 1 个形状（共 ${shapes().length} 个）`);
 
     /* 点第 1 个形状（圆环）进编辑，再点第 2 个（直线）切换选中 */
@@ -649,11 +657,11 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   await new Promise(r => setTimeout(r, 100));
   go('zones');
   byId.get('btnZoneAdd').onclick();                     /* 分区A [0,8)，加完自动选中 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
 
   const zsEl = byId.get('zStart'), zcEl = byId.get('zCount');
   zsEl.value = '100'; zsEl.oninput({ target: zsEl });   /* [100,108) 越过 ledCount 104 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(/\[V9\]/.test(chk().innerHTML),
      `Z2：start 越界时字段旁立即出现 V9（"${chk().innerHTML.replace(/<[^>]+>/g, '')}"）`);
   ok(zsEl.classList.contains('bad'), 'Z2：越界的 start 输入框被描红');
@@ -661,25 +669,25 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
 
   zsEl.value = '8'; zsEl.oninput({ target: zsEl });     /* 回到 [8,16)，挨着 分区1 但不重叠 */
   zcEl.value = '60'; zcEl.oninput({ target: zcEl });    /* [8,68)：长度超 ZONE_MAX_LEN 40 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(/\[V8\]/.test(chk().innerHTML), 'Z2：count 超 ZONE_MAX_LEN 时出 V8');
   ok(zcEl.classList.contains('bad') && !zsEl.classList.contains('bad'), 'Z2：只把超长的 count 描红');
 
   zcEl.value = '200'; zcEl.oninput({ target: zcEl });   /* 200 > 127：pos 是 int16 会溢出 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(/\[V26\]/.test(chk().innerHTML) && /\[V9\]/.test(chk().innerHTML),
      'Z2：count 填到 200 时同时报 V9（越界）与 V26（pos 溢出）');
 
   zcEl.value = '8'; zcEl.oninput({ target: zcEl });
   byId.get('btnZoneAdd').onclick();                     /* 分区3 [16,24)，与前面两个都相邻不重叠 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   zsEl.value = '4'; zsEl.oninput({ target: zsEl });     /* 分区3 → [4,12)，同时压住 分区1 与 分区2 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(/\[V5\]/.test(chk().innerHTML) && /重叠/.test(chk().innerHTML),
      'Z2：与相邻分区重叠时出 V5（并说明跟谁重叠）');
 
   zsEl.value = '16'; zsEl.oninput({ target: zsEl });
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(!/\[V\d/.test(chk().innerHTML) && !zsEl.classList.contains('bad') &&
      !zcEl.classList.contains('bad') && !/err/.test(chk().className),
      `Z2：改回不冲突的区间后提示与描红一起消失（"${chk().innerHTML}"）`);
@@ -687,7 +695,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   /* --- Z3：复制分区（当前选中的是刚加的 分区3；副本插在它后面一位） --- */
   const zsBefore = prj(1).zones.length, codesBefore = new Set(codes(prj(1)));
   byId.get('btnZoneDup').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   const z3 = prj(1).zones, cp = z3[z3.length - 1] || {}, src = z3[z3.length - 2] || {};
   ok(z3.length === zsBefore + 1, `Z3：复制后分区数 ${zsBefore} → ${z3.length}`);
   ok(cp.name === src.name + ' 副本' && cp.latin === src.latin + '_CP',
@@ -702,13 +710,13 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   ok(!added.some(c => ['V1', 'V2', 'V3', 'V3b', 'V5'].includes(c)),
      `Z3：复制分区不引入编号类问题（validate 新增条目: ${added.join(', ') || '无'}）`);
   byId.get('btnZoneDel').onclick();                     /* 收拾干净：删掉副本（这一段整段收走） */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(prj(1).zones.length === zsBefore, `Z3：删掉副本后回到 ${prj(1).zones.length} 个分区`);
 
   /* --- Z4：编号压缩 / 补缺号（回到预设的满板，才有 0..103 可数） --- */
   projRows()[0].onclick();
   byId.get('btnNew').onclick();                         /* 重置成干净的 SP-3122D 预设 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(nums(prj(0)).length === 104 && nums(prj(0))[0] === 0 && nums(prj(0))[103] === 103,
      'Z4 前置：预设是满板 0..103（没被前面的用例带脏）');
 
@@ -718,20 +726,20 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   ok(!!row0, 'Z4 前置：拿得到分区表当前渲染的第一行');
   (row0 || { onclick() {} }).onclick();                 /* 点第 1 个分区 → 整段选中它的 8 颗 */
   byId.get('btnDelLed').onclick();                      /* 删掉 0..7，人为留出缺号 */
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   ok(nums(prj(0)).length === 96 && nums(prj(0))[0] === 8,
      `Z4 前置：删掉 8 颗后剩 ${nums(prj(0)).length} 颗（最小号 ${nums(prj(0))[0]}）`);
   ok(codes(prj(0)).includes('V2'), 'Z4 前置：缺号确实进了 validate（V2）');
 
   byId.get('btnCompact').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   const n1 = nums(prj(0));
   ok(n1.length === 96 && n1.every((n, i) => n === i),
      `Z4：压缩编号后是连续的 0..${n1.length - 1}（缺号被挤到尾部）`);
 
   const gap = 104 - n1.length;
   for (let i = 0; i < gap; i++) byId.get('btnFillGap').onclick();
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => realST(r, 70));
   const n2 = nums(prj(0));
   ok(n2.length === 104 && n2.every((n, i) => n === i),
      `Z4：「补一个缺号」点 ${gap} 次后补齐 0..103（共 ${n2.length} 颗）`);
@@ -788,7 +796,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
   const move = (x, y) => pm({ clientX: x, clientY: y });
   const esc = () => (listeners['window:keydown'] || [])[0]({ key: 'Escape', target: { tagName: 'DIV' }, preventDefault() {} });
   const modeBtn = m => (byId.get('left').children || []).find(b => b.dataset.mode === m);
-  const wait = () => new Promise(r => setTimeout(r, 700));
+  const wait = () => new Promise(r => realST(r, 70));
   let cal = null;
   const clickAt = (x, y) => {
     if (!cal) return;                                       /* 校准失败时不要在测试里炸栈，让断言去报错 */
@@ -1246,7 +1254,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
  *         后面的编号往前收拢（等效「删除 + 压缩编号 + 改小灯总数」），Ctrl+Z 连编号一起回来。
  *   老写法只把 zone 从表里 splice 掉：灯原地留下变成 V4「不属于任何分区」，形状掉成「参考线」。 ---- */
 {
-  const wait = () => new Promise(r => setTimeout(r, 750));
+  const wait = () => new Promise(r => realST(r, 70));
   const cur = () => { const d = JSON.parse(store.get('led_layout_editor.v1'));
                       return (d.projects.find(p => p.id === d.current) || d.projects[0]).state; };
   const rows = () => (byId.get('zoneTbl') || {}).children || [];
@@ -1347,7 +1355,7 @@ ok(cnt() === before + 1, `左键按下正常放置灯（${before} → ${cnt()}�
  *         编号自动按新顺序重排、灯跟着自己的分区换号）② 分区页的数字框能删干净再打新的
  *         （老毛病：一清空就被 `+v || 1` 塞回一个「1」）。 ---- */
 {
-  const wait = () => new Promise(r => setTimeout(r, 750));
+  const wait = () => new Promise(r => realST(r, 70));
   const cur = () => { const d = JSON.parse(store.get('led_layout_editor.v1'));
                       return (d.projects.find(p => p.id === d.current) || d.projects[0]).state; };
   const rows = () => (byId.get('zoneTbl') || {}).children || [];

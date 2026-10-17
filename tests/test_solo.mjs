@@ -1,6 +1,14 @@
 /* 模拟「关掉工具再打开」：连跑两次界面层，共享同一份 localStorage */
 import fs from 'node:fs';
 const html = fs.readFileSync('led_layout_editor.html','utf8');
+
+/* 省时：界面脚本里「等一等」的定时器（400ms 自动保存防抖、700/900ms 闪烁清除）整轮测试
+ * 要等上百次，纯睡掉两分钟。这里只改「多久之后」，压到 40ms；测试自己的 wait 用真定时器
+ * 70ms（40 < 70，落地顺序不变）。3200/6000ms 的状态栏自动清除**不压** —— 有断言依赖它
+ * 「这时还看得见」。被测代码一字不动。 */
+const realST = globalThis.setTimeout;
+const FAST_MS = { 400: 40, 700: 40, 900: 40 };
+globalThis.setTimeout = (fn, ms = 0, ...a) => realST(fn, FAST_MS[ms] || ms, ...a);
 const coreSrc = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
 const uiSrc   = html.match(/<script id="ui">([\s\S]*?)<\/script>/)[1];
 const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]));
@@ -78,7 +86,7 @@ const fwRows = fs.readFileSync('tests/fixtures/fw_g_presets.txt', 'utf8')
 
 const bootErr = null;
 
-install(); boot(); await new Promise(r => setTimeout(r, 700));
+install(); boot(); await new Promise(r => realST(r, 70));
 
 /* ============ 单独预览一个效果 ============ */
 const click2 = id => byId.get(id).onclick();
@@ -98,7 +106,7 @@ ok(/模式页配好的分配/.test(byId.get('aTargetHint').innerHTML), '按模�
 /* ---- 2) 切到「单独一个效果」---- */
 byId.get('aTarget').value = 'effect';
 byId.get('aTarget').onchange();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(anim().previewTarget === 'effect', '预览对象已存进工程状态');
 ok(/铺到<b>所有分区<\/b>/.test(byId.get('aTargetHint').innerHTML), '说明文案切成了「单独」那套');
 
@@ -162,7 +170,7 @@ ok(stagePlayTxt() === '暂停', `编辑台按钮变成「${stagePlayTxt()}」`);
   ok(onTab.join() === 'fx', `播放后仍在效果页（当前 ${onTab.join()}），没有跳走`);
 }
 /* ★ 关键：编辑台在播，动画页的灯板不该跟着跑 */
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(projState(0).anim.playing === false,
    '编辑台在播，但动画页的播放状态没被带起来（两处预览互不影响）');
 ok(byId.get('aPlay').textContent === '播放', `动画页那边的按钮仍是「${byId.get('aPlay').textContent}」`);
@@ -175,7 +183,7 @@ ok(stagePlayTxt() === '播放', '编辑台已停下');
 tabBtn('anim').onclick();
 await new Promise(r => setTimeout(r, 50));
 byId.get('aPlay').onclick();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(projState(0).anim.playing === true, '动画页开始播');
 tabBtn('fx').onclick();
 await new Promise(r => setTimeout(r, 60));
@@ -184,7 +192,7 @@ ok(stagePlayTxt() === '播放',
 tabBtn('anim').onclick();
 await new Promise(r => setTimeout(r, 50));
 byId.get('aPlay').onclick();                        /* 把灯板停掉 */
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 tabBtn('fx').onclick();
 await new Promise(r => setTimeout(r, 50));
 
@@ -193,7 +201,7 @@ await new Promise(r => setTimeout(r, 50));
 ok(/id="fxShowReal" class="hide"/.test(html), '「在灯板上看」在界面上挂起（.hide）');
 ok(/\$\('#fxShowReal'\)\.onclick\s*=/.test(html), '接线留着（挂起期间仍由这段守着）');
 click2('fxShowReal');
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 tabBtn('anim').onclick();
 await new Promise(r => setTimeout(r, 50));
 ok(anim().previewTarget === 'effect', '「在灯板上看」把预览对象切成「单独一个效果」');
@@ -211,7 +219,7 @@ ok(byId.get('aPreset').value === pick, '下拉也同步到了它');
 /* ---- 6) 切回「按模式」应恢复 ---- */
 byId.get('aTarget').value = 'mode';
 byId.get('aTarget').onchange();
-await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
 ok(anim().previewTarget === 'mode', '切回按模式');
 ok(/模式页配好的分配/.test(byId.get('aTargetHint').innerHTML), '说明文案切回按模式');
 {
@@ -222,8 +230,8 @@ ok(/模式页配好的分配/.test(byId.get('aTargetHint').innerHTML), '说明�
 
 /* ---- 7) 关掉再打开，预览对象记得住 ---- */
 byId.get('aTarget').value = 'effect'; byId.get('aTarget').onchange();
-await new Promise(r => setTimeout(r, 700));
-install(); boot(); await new Promise(r => setTimeout(r, 700));
+await new Promise(r => realST(r, 70));
+install(); boot(); await new Promise(r => realST(r, 70));
 ok(projState(0).anim.previewTarget === 'effect', '重开后仍是「单独一个效果」');
 byId.get('aTarget') && ok(byId.get('aTarget').value === 'effect', '控件也同步了');
 

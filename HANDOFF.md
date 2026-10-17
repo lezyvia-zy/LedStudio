@@ -35,8 +35,8 @@ HANDOFF.md                   本文件（交接文档）
 docs/firmware-contract.md    目标固件必须提供什么 / 一次性补丁
 tools/extract_fw_tables.py   从固件源码重抽查表与 fixture
 tests/                       测试（node 直接跑，无需 npm）
-  run_all.mjs                一键跑全部
-  test_*.mjs                 23 个套件，每个独立可执行
+  run_all.mjs                一键跑全部（默认 4 路并行，约 20s）
+  test_*.mjs                 24 个套件，每个独立可执行
   fixtures/fw_g_presets.txt  固件 g_presets[] 的回归锚点
   .build/                    真编译套件产物（.gitignore 已忽略）
 examples/
