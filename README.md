@@ -104,7 +104,7 @@ tests/                       测试（node 直接跑）
 tools/extract_fw_tables.py
 docs/firmware-contract.md    led_gen 契约：平台要实现什么、怎么被测试守住
 docs/module-audit.md         逐模块体检报告的索引（怎么用 + 目录）
-docs/audit/*.md              体检报告正文：map / zones / fx / pages / priority / checklist / invariants
+docs/audit/*.md              体检报告正文：map / zones / fx / mode / anim / check / gen / exp / help / priority / checklist / invariants
 docs/CHANGELOG.md            历史变更记录
 HANDOFF.md                   项目交接文档
 CLAUDE.md                    给后续 Claude 会话的项目说明（含踩过的坑）
