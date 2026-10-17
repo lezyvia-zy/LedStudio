@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-24 个套件、1300 项断言。五类：
+24 个套件、1302 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -88,12 +88,14 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 | **持久化** | `test_persist` `test_solo` | 关掉再打开还在、迁移（含「老存档没有 `shapes` 字段」）、状态隔离 |
 
 `test_effects_c_exec` 需要能跑 cygwin gcc（见 README 的「真编译测试」一节）；**改图层原语或 C 模板后必须跑它** —— 它验的是「预览和生成的代码是不是一回事」，这条不成立整个工具就没意义。
-### 改完怎么验（省时版 · 2026-10-17 定）
+### 改之前定位、改完怎么验（省时版 · 2026-10-17 定）
 
-1. **改动循环里只跑相关套件**：`node tests/run_all.mjs 效果 ui`（按名字子串过滤，一两秒出结果；不带参数才是全量，**约 22s**，默认 4 路并行，`--jobs=1` 串行约 58s）。别改一行就全量。
-2. **数字不手改**：`node tools/docsync.mjs stats --write` —— 跑一次全量，然后刷新 HANDOFF 顶端的自动块、CLAUDE / README / HANDOFF 里的「套件 · 断言」数、HANDOFF「测试覆盖」表里每个套件的 `(N)`。收尾用 `node tools/docsync.mjs check`（几秒、**不跑测试**，顺带把 `module-audit` 里已经落不上的「`符号` N–M」区间引用列出来）。
-3. **文档里不写「第 N 行」这类坐标**：定位一律用 `#id` / 函数名 / 小节名；`module-audit` 表里的区间只是**粗指路**，改到哪个模块**只校准那一行**，别全表重算。
-4. **一个改动一个提交**（代码 + 测试 + 文档同一提交）；提交信息 = 标题一行 + 正文按「动机 / 根因 / 改动 / 测试 / 文档」分几段（每段 1–3 行，全文 ≤ 15 行），CHANGELOG 新条目同样 ≤ 15 行。
+1. **改之前先定位，别整份读 HTML**（380k 字 / 8000 行）：`node tools/docsync.mjs where 效果编辑台` 给小节的行区间 + 里面的顶层符号；`where renderStage` 给符号的区间 + **被哪些测试引用**（`test_effects_ui(9)` 这种）；`where '#paneFx'` 给控件在 HTML 里的行。`node tools/docsync.mjs sections` 一次列出全部顶格小节（core / ui 分组）。小节名要能被找到，标记必须**顶格**写 `/* ---------- 名字 ---------- */`。
+2. **改动循环里只跑相关套件**：`node tests/run_all.mjs 效果 ui`（按名字子串过滤，一两秒出结果；不带参数才是全量，**约 22s**，默认 4 路并行，`--jobs=1` 串行约 58s）。别改一行就全量。
+3. **数字不手改**：`node tools/docsync.mjs stats --write` —— 跑一次全量，然后刷新 HANDOFF 顶端的自动块、CLAUDE / README / HANDOFF 里的「套件 · 断言」数、HANDOFF「测试覆盖」表里每个套件的 `(N)`。收尾用 `node tools/docsync.mjs check`（几秒、**不跑测试**，顺带把 `module-audit` 里已经落不上的「`符号` N–M」区间引用列出来）。
+4. **文档里不写「第 N 行」这类坐标**：定位一律用 `#id` / 函数名 / 小节名；`module-audit` 表里的区间只是**粗指路**，改到哪个模块**只校准那一行**，别全表重算。
+5. **一个改动一个提交**（代码 + 测试 + 文档同一提交）；提交信息 = 标题一行 + 正文按「动机 / 根因 / 改动 / 测试 / 文档」分几段（每段 1–3 行，全文 ≤ 15 行），CHANGELOG 新条目同样 ≤ 15 行。
+
 
 
 ## 踩过的坑（改代码前先看这个）
@@ -148,7 +150,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、1300 项断言全绿（`node tests/run_all.mjs` 实测 24 套件 / 1300 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1302 项断言全绿（`node tests/run_all.mjs` 实测 24 套件 / 1302 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（页签 = 模块：可优化点 + 优先级批次 + 验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

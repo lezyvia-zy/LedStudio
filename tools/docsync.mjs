@@ -6,6 +6,8 @@
  *   node tools/docsync.mjs stats --write --no-tests   只改了文档 / 工具脚本时：不跑全量，沿用自动块里的计数
  *   node tools/docsync.mjs check                 几秒内校验（不跑测试）
  *   node tools/docsync.mjs check --with-tests    连断言数一起校验（跑全量）
+ *   node tools/docsync.mjs where <小节|符号|#id>  定位：给行区间 / 所属小节 / 被哪些测试引用（改代码前先跑它）
+ *   node tools/docsync.mjs sections              列出全部顶格小节（core / ui 分组）
  *
  * 为什么要有它：这些数字以前靠手改，改漏了就会出现「CLAUDE.md 说 1279 项、README 说
  * 1153 项」这种自相矛盾（2026-10-17 就真抓到过一次）。规矩见 CLAUDE.md「测试怎么组织
@@ -160,6 +162,143 @@ function checkRanges() {
   return { warn, seen };
 }
 
+/* —— 定位：where / sections ——
+   改一个模块时，定位往往比阅读更贵：先 grep 两三次，再从 8000 行里翻开某一段。
+   这里**按需现算**，一个行号都不写进文档 —— 写进去就会漂（2026-10-17 刚清掉那批）。 */
+// 小节边界只认**顶格**的 `/* ---------- 名字 ---------- */` 标记；缩进的那些是小节内部的再分组。
+const SCOPE_RE = /^\s*<script id="(\w+)">\s*$/;
+const SCOPE_END_RE = /^\s*<\/script>\s*$/;
+const SEC_TOP_RE = /^\/\* -{3,} (.+?) -{3,} \*\/\s*$/;
+const SYM_RE = /^(\s*)(?:async\s+)?(?:function|const|let|var)\s+([A-Za-z_$][\w$]*)/;
+const ID_RE = /\sid="([\w-]+)"/g;
+
+function indexHtml() {
+  const scopes = [], secs = [], syms = [], ids = [];
+  let scope = null;
+  HTML_LINES.forEach((line, i) => {
+    const at = i + 1;
+    const sm = line.match(SCOPE_RE);
+    if (sm) { scope = { name: sm[1], start: at, end: 0 }; scopes.push(scope); return; }
+    if (scope && SCOPE_END_RE.test(line)) { scope.end = at - 1; scope = null; return; }
+    /* id 锚点先扫：绝大多数控件写在 <body> 里（scope 为空），后面两个 <script> 才引用它们 */
+    for (const m of line.matchAll(ID_RE)) ids.push({ name: m[1], line: at, scope: scope ? scope.name : 'html' });
+    if (!scope) return;
+    const sec = line.match(SEC_TOP_RE);
+    if (sec) { secs.push({ name: sec[1].trim(), line: at, scope: scope.name, end: 0 }); return; }
+    const sy = line.match(SYM_RE);
+    if (sy) syms.push({ name: sy[2], line: at, scope: scope.name, indent: sy[1].length });
+  });
+  for (const s of scopes) if (!s.end) s.end = HTML_LINES.length;
+  /* 小节结束 = 同 scope 里下一节起始 - 1；最后一节到脚本末尾 */
+  secs.forEach((s, k) => {
+    const nx = secs.slice(k + 1).find(x => x.scope === s.scope);
+    s.end = nx ? nx.line - 1 : scopes.find(x => x.name === s.scope).end;
+  });
+  return { scopes, secs, syms, ids };
+}
+let IDX = null;
+const index = () => (IDX ||= indexHtml());
+const scopeEnd = name => (index().scopes.find(s => s.name === name) || { end: HTML_LINES.length }).end;
+
+/* 某一行落在哪个小节里（取最近的那个起点） */
+function secOf(line, scope) {
+  const inSec = index().secs.filter(s => s.scope === scope && s.line <= line && line <= s.end);
+  return inSec.length ? inSec[inSec.length - 1] : null;
+}
+/* 一个符号「大概读到哪」：下一个**同级或更外层**的符号前一行，但不越过所在小节 */
+function symEnd(sy) {
+  const sib = index().syms.filter(x => x.scope === sy.scope && x.line > sy.line && x.indent <= sy.indent)[0];
+  const lim = (secOf(sy.line, sy.scope) || { end: scopeEnd(sy.scope) }).end;
+  return sib && sib.line - 1 <= lim ? sib.line - 1 : lim;
+}
+
+/* 哪些测试文件引用了这个符号（只给计数，不给行 —— 输出要短） */
+let TEST_SRC = null;
+/* 数一个「整词」出现几次：不用正则转义（转义序列写错会静默算成 0），用 indexOf + 边界判断 */
+function countWord(src, w) {
+  let n = 0, i = 0;
+  while ((i = src.indexOf(w, i)) >= 0) {
+    const b = src[i - 1] || '', a = src[i + w.length] || '';
+    if (!/[\w$]/.test(b) && !/[\w$]/.test(a)) n++;
+    i += w.length;
+  }
+  return n;
+}
+function testRefs(name) {
+  if (!TEST_SRC) {
+    TEST_SRC = fs.readdirSync('tests').filter(f => /^test_.*\.mjs$/.test(f))
+      .map(f => ({ name: f.replace(/\.mjs$/, ''), src: read(path.join('tests', f)) }));
+  }
+  return TEST_SRC.map(t => ({ name: t.name, n: countWord(t.src, name) }))
+    .filter(x => x.n).sort((a, b) => b.n - a.n);
+}
+
+function cmdWhere(qraw) {
+  const q = (qraw || '').replace(/^#/, '');
+  if (!q) { console.error('用法：node tools/docsync.mjs where <小节名|符号名|#id>'); process.exit(2); }
+  const { secs, syms, ids } = index();
+  const hit = [];
+  const push = k => x => hit.push({ kind: k, x });
+  secs.filter(s => s.name === q).forEach(push('sec'));
+  syms.filter(s => s.name === q).forEach(push('sym'));
+  ids.filter(s => s.name === q).forEach(push('id'));
+  if (!hit.length) {
+    const lo = q.toLowerCase();
+    secs.filter(s => s.name.toLowerCase().includes(lo)).forEach(push('sec'));
+    syms.filter(s => s.name.toLowerCase().includes(lo)).forEach(push('sym'));
+    ids.filter(s => s.name.toLowerCase().includes(lo)).forEach(push('id'));
+  }
+  if (!hit.length) {
+    const score = (a, b) => {
+      const A = new Set(a), B = new Set(b);
+      let c = 0; A.forEach(ch => { if (B.has(ch)) c++; });
+      return c / (A.size || 1);
+    };
+    const near = [...secs.map(x => ({ kind: 'sec', x })), ...syms.map(x => ({ kind: 'sym', x }))]
+      .map(h => ({ h, s: score(q, h.x.name) })).filter(z => z.s > 0.4)
+      .sort((a, b) => b.s - a.s).slice(0, 3).map(z => z.h.x.name);
+    console.log(`  ✗ 「${q}」没找到${near.length ? '；最接近的：' + near.join(' / ') : ''}`);
+    console.log('    提示：小节名要顶格 `/* ---------- 名字 ---------- */`；符号名照代码里写（不带括号）');
+    process.exit(1);
+  }
+  const show = hit.slice(0, 6);
+  show.forEach(h => {
+    const x = h.x;
+    if (h.kind === 'sec') {
+      const inner = syms.filter(s => s.scope === x.scope && s.line >= x.line && s.line <= x.end);
+      const top = inner.filter(s => s.indent === 0);
+      console.log(`\n${x.name}   ${x.scope}  :${x.line}–${x.end}（${x.end - x.line + 1} 行）`);
+      const names = top.slice(0, 24).map(s => `${s.name}(${s.line})`).join('  ');
+      console.log(`  顶层符号 ${top.length} 个（另有 ${inner.length - top.length} 个内部声明）：`
+        + names + (top.length > 24 ? `  …还有 ${top.length - 24} 个` : ''));
+    } else if (h.kind === 'sym') {
+      const sec = secOf(x.line, x.scope);
+      const ind = x.indent ? `，缩进 ${x.indent}（内部声明）` : '';
+      console.log(`\n${x.name}   ${x.scope}:${x.line}–${symEnd(x)}  在「${sec ? sec.name : x.scope}」内${ind}`);
+      const t = testRefs(x.name);
+      if (t.length) console.log(`  测试：${t.slice(0, 4).map(r => `${r.name}(${r.n})`).join('  ')}`);
+    } else {
+      const sec = secOf(x.line, x.scope);
+      console.log(`\n#${x.name}   ${x.scope}:${x.line}${sec ? `  在「${sec.name}」内（${sec.line}–${sec.end}）` : ''}`);
+    }
+  });
+  if (hit.length > show.length) console.log(`\n  …还有 ${hit.length - show.length} 处（把查询写长一点）`);
+  else if (hit.length > 1) console.log(`\n  （${hit.length} 处命中，区间以第一条为准）`);
+}
+
+function cmdSections() {
+  const { scopes, secs } = index();
+  for (const sc of scopes) {
+    const ss = secs.filter(s => s.scope === sc.name);
+    console.log(`\n  ${sc.name}  ${ss.length} 个小节（脚本 :${sc.start}–${sc.end}）`);
+    for (const s of ss) {
+      console.log(`    ${String(s.line).padStart(5)}–${String(s.end).padEnd(5)} ${String(s.end - s.line + 1).padStart(4)} 行  ${s.name}`);
+    }
+  }
+  console.log(`\n  合计 ${secs.length} 个小节 / ${HTML_LINES.length} 行（HTML ${HTML_LINES.join('\n').length} 字）`);
+  console.log('  逐条细节：node tools/docsync.mjs where <小节名>');
+}
+
 /* —— stats —— */
 function changedLines(a, b) {
   const A = a.split('\n'), B = b.split('\n');
@@ -278,10 +417,23 @@ function cmdCheck() {
     if (byLine.size > 8) console.log(`      …还有 ${byLine.size - 8} 行`);
   }
 
+  /* 小节索引（where / sections 的数据源）：只查「标记是否老实」，不查数量 —— 数量会随重构变 */
+  const { secs } = index();
+  const outOfOrder = secs.filter((s, i) => i && secs[i - 1].line >= s.line);
+  const dupName = [...new Set(secs.map(s => s.name).filter((n, i, a) => a.indexOf(n) !== i))];
+  if (outOfOrder.length) fail(`小节标记乱序 ${outOfOrder.length} 处（${outOfOrder.slice(0, 2).map(s => s.name).join(' / ')}）`);
+  else good(`小节索引 ${secs.length} 个顶格标记，行号递增${dupName.length ? `；重名：${dupName.slice(0, 4).join(' / ')}` : '、无重名'}`);
+
   console.log(bad ? `\n  ${bad} 项不一致 —— 跑 node tools/docsync.mjs stats --write 修掉。` : '\n  文档与实测一致。');
   process.exit(bad ? 1 : 0);
 }
 
 if (cmd === 'stats') cmdStats();
 else if (cmd === 'check') cmdCheck();
-else { console.error('用法：node tools/docsync.mjs stats [--write] [--no-tests] | check [--with-tests] [--verbose]'); process.exit(2); }
+else if (cmd === 'where') cmdWhere(args.slice(1).find(a => !a.startsWith('--')));
+else if (cmd === 'sections') cmdSections();
+else {
+  console.error('用法：node tools/docsync.mjs stats [--write] [--no-tests] | check [--with-tests] [--verbose]'
+    + ' | where <小节|符号|#id> | sections');
+  process.exit(2);
+}

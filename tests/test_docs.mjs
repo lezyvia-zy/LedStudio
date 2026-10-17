@@ -79,6 +79,10 @@ ok(!stale.length, stale.length ? `还留着「第 N 行」式坐标：${stale.jo
 /* 刷新器与规矩本身在位 */
 ok(fs.existsSync('tools/docsync.mjs'), 'tools/docsync.mjs 在位（统计刷新器）');
 ok(/node tools\/docsync\.mjs stats --write/.test(text['CLAUDE.md']), 'CLAUDE.md 教了刷新命令（stats --write）');
+const dsync = fs.readFileSync('tools/docsync.mjs', 'utf8');
+ok(dsync.includes('function cmdWhere(') && dsync.includes('function cmdSections('),
+  'tools/docsync.mjs 有 where / sections（定位：改代码前先问它在哪）');
+ok(text['CLAUDE.md'].includes('docsync.mjs where'), 'CLAUDE.md 教了定位命令（where，改之前先跑）');
 ok(/新条目/.test(read('docs/CHANGELOG.md').split('\n').slice(0, 8).join('\n')), 'CHANGELOG 头部写着新条目规矩（≤15 行）');
 
 console.log(`\n  查了 ${DOCS.length} 份文档 + module-audit + CHANGELOG · 套件 ${ns[0]} / 断言 ${ms[0]}`);
