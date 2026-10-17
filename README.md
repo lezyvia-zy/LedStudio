@@ -55,7 +55,7 @@ node tests/run_all.mjs 效果 编译   # 只跑名字含这些字样的
 node tests/run_all.mjs --jobs=1   # 串行（怀疑套件之间互相干扰时用）
 ```
 
-当前 **24 个套件、1302 项断言**，全部通过。
+当前 **24 个套件、1303 项断言**，全部通过。
 
 ### 真编译测试（`test_effects_c_exec`）
 
@@ -103,7 +103,8 @@ tests/                       测试（node 直接跑）
   test_gen_independence.mjs  契约独立性（HAL 平台无关 + 文档一致 + 真编译版本守卫）
 tools/extract_fw_tables.py
 docs/firmware-contract.md    led_gen 契约：平台要实现什么、怎么被测试守住
-docs/module-audit.md         逐模块体检报告（优化底稿）
+docs/module-audit.md         逐模块体检报告的索引（怎么用 + 目录）
+docs/audit/*.md              体检报告正文：map / zones / fx / pages / priority / checklist / invariants
 docs/CHANGELOG.md            历史变更记录
 HANDOFF.md                   项目交接文档
 CLAUDE.md                    给后续 Claude 会话的项目说明（含踩过的坑）

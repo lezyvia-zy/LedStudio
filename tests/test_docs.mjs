@@ -67,14 +67,23 @@ ok(!!auto, 'HANDOFF 顶端有自动块（<!-- auto:handoff-head --> … <!-- /au
 ok(!!auto && /代码顶端 = `[0-9a-f]{7,}`/.test(auto[1]), '自动块里记着代码顶端的提交号');
 
 /* 旧式坐标：定位一律用 #id / 函数名 / 小节名，别再写「第 N 行」 */
+const AUDIT = fs.existsSync('docs/audit')
+  ? fs.readdirSync('docs/audit').filter(f => f.endsWith('.md')).sort().map(f => 'docs/audit/' + f) : [];
 const stale = [];
-for (const f of [...DOCS, 'docs/module-audit.md']) {
+for (const f of [...DOCS, 'docs/module-audit.md', ...AUDIT]) {
   read(f).split('\n').forEach((l, i) => {
     if (/第\s*\d{3,}\s*行/.test(l) || /约\s*\d{3,}\s*行起/.test(l) || /（约\s*\d+\s*行 \/ \d+\s*KB）/.test(l)) stale.push(`${f}:${i + 1}`);
   });
 }
 ok(!stale.length, stale.length ? `还留着「第 N 行」式坐标：${stale.join(', ')}`
   : '除 CHANGELOG 外，文档不写「第 N 行 / 约 N 行起」式坐标');
+
+/* 体检报告拆分后：每个 docs/audit/*.md 都必须从索引 link 得上（孤儿文件 = 没人会读） */
+const auditIndex = read('docs/module-audit.md');
+const orphan = AUDIT.filter(f => !auditIndex.includes('audit/' + f.split('/').pop()));
+ok(!orphan.length, `体检报告索引链到全部 ${AUDIT.length} 份正文`
+  + (orphan.length ? ` —— 漏了：${orphan.join(' ')}` : '（docs/audit/）'));
+
 
 /* 刷新器与规矩本身在位 */
 ok(fs.existsSync('tools/docsync.mjs'), 'tools/docsync.mjs 在位（统计刷新器）');
@@ -85,5 +94,5 @@ ok(dsync.includes('function cmdWhere(') && dsync.includes('function cmdSections(
 ok(text['CLAUDE.md'].includes('docsync.mjs where'), 'CLAUDE.md 教了定位命令（where，改之前先跑）');
 ok(/新条目/.test(read('docs/CHANGELOG.md').split('\n').slice(0, 8).join('\n')), 'CHANGELOG 头部写着新条目规矩（≤15 行）');
 
-console.log(`\n  查了 ${DOCS.length} 份文档 + module-audit + CHANGELOG · 套件 ${ns[0]} / 断言 ${ms[0]}`);
+console.log(`\n  查了 ${DOCS.length} 份文档 + 体检报告 ${AUDIT.length + 1} 份（索引 + docs/audit/）+ CHANGELOG · 套件 ${ns[0]} / 断言 ${ms[0]}`);
 process.exit(fails ? 1 : 0);

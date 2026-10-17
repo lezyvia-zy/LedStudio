@@ -34,7 +34,10 @@ process.chdir(path.resolve(HERE, '..'));   // 必须在项目根跑（测试脚�
 
 const HANDOFF = 'HANDOFF.md';
 const COUNT_DOCS = ['CLAUDE.md', HANDOFF, 'README.md'];                       // 会写数字的
-const RANGE_DOCS = ['CLAUDE.md', HANDOFF, 'README.md', 'docs/module-audit.md']; // 查区间引用的
+/* 体检报告 2026-10-17 拆成「索引 + docs/audit/*.md」，区间引用要一起查（拆之前是单文件） */
+const AUDIT_DOCS = fs.existsSync('docs/audit')
+  ? fs.readdirSync('docs/audit').filter(f => f.endsWith('.md')).map(f => 'docs/audit/' + f) : [];
+const RANGE_DOCS = ['CLAUDE.md', HANDOFF, 'README.md', 'docs/module-audit.md', ...AUDIT_DOCS]; // 查区间引用的
 const HEAD_MARK = '<!-- auto:handoff-head -->';
 const HEAD_END = '<!-- /auto -->';
 const HEAD_RE = /<!-- auto:handoff-head -->[\s\S]*?<!-- \/auto -->/;
