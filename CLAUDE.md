@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1640 项断言。五类：
+26 个套件、1647 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -152,11 +152,10 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
     ④ 图层卡那枚「启用」方块：卡片标题**不能** `flex:1`（那是把它顶到复制 / ↑ / ↓ / × 那一头的元凶）—— 标题改 `nowrap + ellipsis`，方块靠 `.cardHead .layOn{flex:0 0 auto; margin:0 auto 0 2px}`（`margin-right:auto` 吃掉中间空档：方块跟在标题后面，小键仍靠右）；`test_effects_ui` §6b 数着「方块排在卡片头第 2 位、标题仍是第 1 位」。**纯 CSS / 类名 / 一处 inline style 的改动，导出物、`state`、图层原语都没动。**
 
 28. **「渐变」是一张跟着工程走的色环表，不再只是固件里的 `spectrum_tbl`**（2026-10-23，用户「现在的渐变色似乎没起作用」+ 四条要求）：`state.gradients` = 渐变色库（每条 = `start` 起始色 + `anchors` 2~8 个颜色），`gradTable()` 把它摊成 **256 级 `{r,g,b}`**（锚点等长插值 + 按起始色旋转；默认 6 个锚点 = 红→黄→绿→青→蓝→紫，与固件彩虹表同序）。七条别踩：① **别把插值写进像素循环** —— `colorUpdate` 只查 `inst.color.spectrum[phase]`，表在 `instApplyPreset` 时由 `effectPreset(eff, idx, state)` 的 `p.gradTable` 装进去（所以那个签名必须带 `state`，`simApplyEffect(inst, eff, idx, state)` 同理）；② **导出按内容去重**（`modesPlan` 的 `gradRows` + `gradIdx`）：一条渐变 256 行 `{r,g,b}`，同内容的只存一份，效果行用 `grad_first` 指进来；生成代码自己按 `E->grad_first + phase` 取色，**不再调平台的 `color_update()`**（`docs/firmware-contract.md` 附录 A 账本 28 → 27）；③ **「起始色」是旋转不是插队**（`gradShift()` 找环上颜色最接近的一级），所以改起始色不动顺序，默认红时 shift = 0、导出与从前逐值一致；④ **绑定级选择走「覆盖参数」**（模式页那张卡上的「渐变」下拉：没覆盖就先 `clone` 一份），`bindKey` 用 `JSON.stringify(override)`，不同渐变自然是不同实例 —— 别另起一套 `b.grad` 字段；⑤ **id 必须唯一** —— 「另存为」从 `nextId` 起往上找第一个没用过的编号（`gradLib` 把 `nextId` 修成「最大编号 + 1」），撞 id 就等于两条渐变共用同一个身份：切哪个都是同一条、改起始色两边一起变；⑥ **「新建」≠「另存为」** —— 另存为复制当前这条，新建走 `gradDefault()`（默认顺序 + 起点红，与库里任何一条无关），用户要「蓝起的渐变-3」必须**先建后改**，别让他先改渐变-2 再另存（那样渐变-2 也变蓝了）；⑦ **快慢 = 速度 × 步进** —— 「速度」只管「几拍动一次」（最小 1），再快靠 `e.grad_step`（每动一次前进几级，1..16，默认 1）：一圈 = `256 × speed ÷ grad_step` 拍。三处必须同一个数（`effGradStep()` 夹紧 → `gradStepOf()` 装进实例 → 导出 `led_gen_effect_t` 末尾的 `grad_step` 列 + 生成代码 `gs = E->grad_step`），导出的结构体是**生成物**（多一列就重新覆盖，平台侧不用改）。`tests/test_grad.mjs`（125 项）守着算法 / 旋转 / 顺序 / 多套增删与互不影响 / 编号不撞 / 新建与另存为 / 步进（夹紧 · 实例 · 速度叠加 · 一圈回起点 · 导出列 · 生成代码）/ 界面与重开。
+29. **`<label class="row">` 里别再放「可点的东西 + 按钮」**（2026-10-23，用户「未添加满16种颜色前，点击颜色色块变成了添加颜色」）：`<label>` 没写 `for` 时会**隐式关联它里面的第一个「可标记」控件**（button / input / select 都算），于是点 label 内任何非控件区域，浏览器都会**替你点一下那个控件**。调色板那行原来就是 `<label class="row" id="rowPal">…色块…<button id="fxPalAdd">+</button>` —— 点色块 = 点 `+` = `palAddColor()`；而 `+` 只在「没加满 16 色」时显示，**加满后 `display:none` 的控件不会被 label 激活，反而正常**，症状只在没加满时出现（很容易误判成别的 bug）。三条规矩：① 行里既有按钮又有可点色块的，行用 `<div class="row">`（CSS 里 `div.row` 的三条排版与 `label.row` 一致）；② 色块的 `onclick` 里先 `e && e.stopPropagation()`，将来谁又把它塞进 label 也不会被转走；③ 记住 `#rowPal` / `#rowGradOrder` 就是这两行。`test_color` C2 段（7 项）数着「两行都不是 label」「是 div.row」「点一下色数不变且面板开」；真浏览器对照法见 CHANGELOG 该条（无头 Chrome 点一下数色块）。
 
 
-## 当前状态与接下来的事
-
-工具本体功能完整、1640 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1640 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1647 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1647 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

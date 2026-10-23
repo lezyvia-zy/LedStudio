@@ -122,6 +122,16 @@
   label.row>input[type=number]+input[type=number]{flex:1 1 46px}
   /* 行：标签列固定且可省略号，控件列吃掉剩余宽度 —— 栏宽变化时自然伸缩 */
   label.row{display:flex; align-items:center; gap:6px; margin:3px 0; min-width:0}
+  /* 有些行里既有按钮、又有可点的色块（调色板 / 渐变顺序）—— 那两行不能用 <label>：
+     label 没写 for 时会隐式关联行里第一个「可标记」控件（就是那个 + 按钮），
+     点色块的 click 会一路冒泡到 label，被浏览器转成点按钮 → 表现为「点颜色 = 加一个颜色」。
+     这两行用 div.row，排版和 label.row 完全一样。 */
+  div.row{display:flex; align-items:center; gap:6px; margin:3px 0; min-width:0}
+  div.row>span:first-child{
+    flex:0 0 auto; min-width:56px; max-width:104px; color:var(--dim);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  div.row>input, div.row>select{flex:1 1 auto; min-width:0}
 /* 调色板：一排色块 + 增删键（颜色数就是跳变/呼吸的颜色个数） */
 .palrow{display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-height:24px}
 .palrow .palN{color:var(--dim); font-size:11px; margin-left:2px}
@@ -631,18 +641,18 @@
           <span id="fxGradStart" class="palrow"></span>
           <span class="hint" style="flex:1;margin:0">相位 0 就是这条颜色（等于把整条环转一下，顺序不变）</span>
         </label>
-        <label class="row" id="rowGradOrder"><span>顺序</span>
+        <div class="row" id="rowGradOrder"><span>顺序</span>
           <span id="fxGradOrder" class="palrow"></span>
           <button id="fxGradAdd" data-tip="在顺序末尾加一个颜色（最多 8 个）。中间那些过渡由算法按等长自动推出来 —— 你只管定几个颜色的大致方向。">+</button>
           <button id="fxGradSub" data-tip="删掉顺序里最后一个颜色（至少留 2 个）。">−</button>
-        </label>
+        </div>
         <div class="hint" id="fxGradHint">顺序 = 颜色环上的先后：第 1 个 → 第 2 个 → … → 回到第 1 个；相邻两个之间自动补渐变。</div>
         <div id="fxGradRamp" class="gradramp" data-tip="整条渐变色环（最左 = 起始色 = 相位 0）。播放时整条灯带同色，颜色按「速度」从左边往右走，走完一整圈回到起点。"></div>
-        <label class="row" id="rowPal"><span id="fPalLab">调色板</span>
+        <div class="row" id="rowPal"><span id="fPalLab">调色板</span>
           <span id="fPalette" class="palrow"></span>
           <button id="fxPalAdd" data-tip="给调色板加一个颜色（最多 16 个）。">+</button>
           <button id="fxPalDel" data-tip="删掉调色板最后一个颜色（至少留 1 个）。">−</button>
-        </label>
+        </div>
         <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色；覆盖：第 1 个是底色、第 2 个是盖上去的颜色。</div>
         <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：停留几拍 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。想比 1 拍/级更快 → 抬下面的「步进(级)」。"></label>
         <label class="row" id="rowGradStep"><span>步进(级)</span><input type="number" id="fGradStep" min="1" max="16" data-tip="渐变专用：每动一次在色环上前进几级（1..16，默认 1）。&#10;「速度」回答「几拍动一次」（最小 1 拍），这里回答「一次走几级」—— 想比速度 = 1 还快，就抬这个：一整圈 = 256 × 速度 ÷ 步进 拍（速度 1 + 步进 8 → 32 拍 ≈ 0.64 秒一圈；50Hz 一拍 20ms）。&#10;1 = 老行为（逐拍一级）；最大 16 —— 16 个采样点走完一圈，再多就不是「流动」而是「闪」了。&#10;只改颜色走多快，不动起始色 / 顺序。"></label>
@@ -6720,7 +6730,10 @@ function wireColorChip(el, hex) {
     get: () => el.classList.contains('cchip-off'),
     set: d => { if (d) el.classList.add('cchip-off'); else el.classList.remove('cchip-off'); },
   });
-  el.onclick = () => {
+  el.onclick = e => {
+    /* 别让 click 冒泡出去：色块万一被放进 <label>（行里还有按钮），label 会把它转成点按钮
+     * （调色板那行就踩过：点颜色变成「加一个颜色」，而且只在没加满 16 色、+ 还在的时候发作） */
+    if (e && e.stopPropagation) e.stopPropagation();
     if (el.disabled) return;
     /* 再点同一个色块 = 收起（帮助页 / 提示都这么写） */
     if (cpChip === el && cpUI && cpUI.pop.style.display !== 'none') { cpClose(); return; }

@@ -215,6 +215,27 @@ ch2.click();
 ok(!ch2.__cp.isOpen, '再点同一个色块 → 收起（和帮助页写的一致）');
 ch2.onkeydown({ key: 'Enter', preventDefault() {} });
 ok(ch2.__cp.isOpen, '键盘回车也能开（色块是个 span，得补这条）');
+console.log('--- C2) 点色块不会被行里的 + 按钮抢走 ---');
+/* 调色板 / 渐变顺序这两行里还有 + − 按钮。行要是 <label>，浏览器会把点色块的 click
+ * 转给行里第一个「可标记」控件（就是 +）→ 点颜色变成「加一个颜色」，
+ * 而且只在「还没加满」时发作（加满后 + 被藏起来，反而正常）—— 就是这个坑。 */
+ok(!/<label[^>]*id="rowPal"/.test(html), '调色板那行不是 <label>（否则点色的 click 会被转给 + 按钮）');
+ok(/<div class="row" id="rowPal"/.test(html), '调色板那行换成了 div.row');
+ok(!/<label[^>]*id="rowGradOrder"/.test(html), '渐变顺序那行也不是 <label>（同一个坑）');
+ok(/<div class="row" id="rowGradOrder"/.test(html), '渐变顺序那行换成了 div.row');
+ok(/div\.row\{display:flex/.test(html), 'div.row 补了同样的排版（不然这一行会塌）');
+
+/* 色块自己也拦冒泡：以后谁又把它塞进 <label>，也不会被转走 */
+let stopped = 0;
+ch.onclick({ stopPropagation() { stopped++; } });
+ok(stopped === 1, '点色块时拦下冒泡（不交给外层 label）');
+byId.get('cpX').onclick();                    /* 上面顺带开了面板，收起 */
+
+/* 点色块 = 开面板，调色板一个颜色都不多 */
+const nBefore = pal().length;
+ch.click();
+ok(pal().length === nBefore && ch.__cp.isOpen,
+   `点第 1 个颜色只是开面板，没变成「加一个颜色」（${nBefore} 个色块不变）`);
 byId.get('cpX').onclick();
 
 
