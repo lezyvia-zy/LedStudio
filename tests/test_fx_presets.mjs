@@ -96,7 +96,7 @@ ok(((byId.get('fxTbl') || {}).children || []).length === 9, '动效列表渲染�
 const pp = byId.get('fxPresetPick');
 ok((pp.children || []).length >= 10, `预置模板有 ${(pp.children || []).length} 个`);
 const names = (pp.children || []).map(o => o.value);
-['单点追逐','拖尾彗星','摆动(往返)','呼吸','闪烁','跳变(渐暗后跳回)','绕环彩虹(旋转)','沿环渐变','双向填充','随机闪']
+['单点追逐','拖尾彗星','摆动(往返)','呼吸','闪烁','跳变(渐暗后跳回)','绕环彩虹(旋转)','沿环渐变','双向填充','随机闪','七彩跳变']
   .forEach(n => ok(names.indexOf(n) >= 0, `预置里有「${n}」`));
 
 /* ---- 3) 套用「绕环彩虹(旋转)」---- */
@@ -148,8 +148,8 @@ ok(/0, 255, 2, 0, 1, 1 \}/.test(out),
 
 const eblk = out.slice(out.indexOf('static const led_gen_effect_t'));
 const eblkRows = (eblk.match(/^    \{.*\},/gm) || []);
-ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
-   '效果行 = kind=1, 1 个图层, moves=1: ' + (eblkRows[0] || '(无)'));
+ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
+   '效果行 = kind=1, 1 个图层, moves=1, 末尾带渐亮/亮/变暗三列: ' + (eblkRows[0] || '(无)'));
 
 
 /* ---- 8) 起始位也能存 ---- */
@@ -189,6 +189,7 @@ console.log('--- 新配色（效果级）---');
   col.onchange({ target: col });
   await new Promise(r => setTimeout(r, 700));
   ok(show('rowPal') && show('rowSpeed'), '跳变：调色板与「停留」都出来');
+  ok(show('rowHold') && show('rowFade') && show('rowRise'), '跳变：渐亮(拍) / 亮(拍) / 变暗(拍) 三行都出来');
   ok(byId.get('fSpeedLab').textContent === '停留(拍)', `跳变的数值叫「停留(拍)」: ${byId.get('fSpeedLab').textContent}`);
   const n0 = palN();
   click('fxPalAdd');
@@ -198,6 +199,34 @@ console.log('--- 新配色（效果级）---');
   click('fxPalDel');
   await new Promise(r => setTimeout(r, 700));
   ok(fxListOf(0)[0].palette.length === n0, `删一个颜色：回到 ${n0}`);
+  /* 上限 16 个：一路点 + 到 16 个（PAL_MAX），第 17 次只提示、不再涨 */
+  for (let i = 0; i < 15; i++) click('fxPalAdd');
+  const stMsg = byId.get('status').textContent;
+  await new Promise(r => setTimeout(r, 900));
+  ok(fxListOf(0)[0].palette.length === 16 && /16/.test(stMsg),
+     `色板最多 16 个（存盘后 ${fxListOf(0)[0].palette.length} 个｜${stMsg}）`);
+
+  /* 渐亮 / 亮 / 变暗：改了立刻落盘，并且「停留(拍)」自动 = 三者之和（那一格只读，不用手填） */
+  const rIn = byId.get('fRise'), hIn = byId.get('fHold'), fIn = byId.get('fFade'), spIn = byId.get('fSpeed');
+  ok(spIn.readOnly === true, '跳变时「停留(拍)」是自动算的（只读）');
+  hIn.value = '6'; hIn.oninput({ target: hIn });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].hold === 6 && fxListOf(0)[0].speed === 6 && spIn.value === '6',
+     `只改「亮」：停留跟着算成 6（speed=${fxListOf(0)[0].speed}，格子=${spIn.value}）`);
+  rIn.value = '4'; rIn.oninput({ target: rIn });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].rise === 4 && fxListOf(0)[0].speed === 10 && spIn.value === '10',
+     `渐亮 4 + 亮 6 → 停留 10（speed=${fxListOf(0)[0].speed}，格子=${spIn.value}）`);
+  fIn.value = '9'; fIn.oninput({ target: fIn });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].rise === 4 && fxListOf(0)[0].hold === 6 && fxListOf(0)[0].fade === 9 &&
+     fxListOf(0)[0].speed === 19 && spIn.value === '19',
+     `渐亮 4 + 亮 6 + 暗 9 → 停留 19 自动填好（speed=${fxListOf(0)[0].speed}，格子=${spIn.value}）`);
+  /* 停留是 8 位：三段加起来超 255 时封顶，状态栏说明（不会静默改数） */
+  hIn.value = '250'; hIn.oninput({ target: hIn });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].speed === 255 && /255/.test(byId.get('status').textContent),
+     `三段加起来超过 255 拍：停留封顶 255（speed=${fxListOf(0)[0].speed}｜${byId.get('status').textContent}）`);
 
   /* 纯色：调色板只留 1 个可选色；多出来的「收起」而不是删掉 */
   const nPal = fxListOf(0)[0].palette.length;
@@ -218,11 +247,19 @@ console.log('--- 新配色（效果级）---');
   await new Promise(r => setTimeout(r, 700));
   ok(palN() === nPal && show('fxPalAdd') && show('fxPalDel'),
      `切回跳变：收起的颜色与加减按钮都回来（${palN()} 色）`);
+  {
+    const e5 = fxListOf(0)[0];
+    ok(e5.speed === Math.min(255, e5.rise + e5.hold + e5.fade) &&
+       byId.get('fSpeed').value === String(e5.speed) &&
+       byId.get('fSpeed').readOnly === true,
+       `切回跳变：停留还是 渐亮 + 亮 + 暗（${e5.rise} + ${e5.hold} + ${e5.fade} → ${e5.speed}，格子 ${byId.get('fSpeed').value}）`);
+  }
 
   col.value = String(CORE.FW.COLOR.SPECTRUM);
   col.onchange({ target: col });
   await new Promise(r => setTimeout(r, 700));
   ok(!show('rowPal') && show('rowSpeed'), '渐变：用内置彩虹表（无调色板），只留速度');
+  ok(byId.get('fSpeed').readOnly === false, '渐变时「速度」又能手填了（只读只属于跳变）');
 
   pick.value = '多色呼吸'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
@@ -240,6 +277,16 @@ console.log('--- 新配色（效果级）---');
      `覆盖预置：period=${eW.period} / ${eW.palette.length} 色`);
   ok(palN() === 2, `覆盖只用前 2 个颜色，就只画 2 个色块：${palN()}`);
   ok(!show('fxPalAdd') && !show('fxPalDel'), '覆盖：2 个颜色齐了，+ / − 都收起');
+
+  pick.value = '七彩跳变'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const eS = fxListOf(0)[0];
+  ok(eS.color === CORE.FW.COLOR.STEP && eS.speed === 20 && eS.rise === 4 &&
+     eS.hold === 8 && eS.fade === 8,
+     `七彩跳变预置：停留 ${eS.speed} / 渐亮 ${eS.rise} / 亮 ${eS.hold} / 暗 ${eS.fade}（开箱就有渐亮，换色处不抖）`);
+  ok(show('rowSpeed') && show('rowHold') && show('rowFade') && show('rowRise') &&
+     byId.get('fRise').value === '4' && byId.get('fHold').value === '8' && byId.get('fFade').value === '8',
+     `七彩跳变：四个数都填进输入框（${byId.get('fSpeed').value}/${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value}）`);
 }
 
 /* ---- 11) 暂停时也要「看得出改了配色」 ---- */
@@ -275,12 +322,27 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
   ok(new Set(pixels().map(p => p.join(','))).size >= 6,
      `彩虹环暂停时画出一整圈颜色（${new Set(pixels().map(p => p.join(','))).size} 种色相）`);
 
-  /* 11d 跳变：tick 0 的包络也是 0（整条全黑），暂停时必须拨到包络顶点 */
+  /* 11d 跳变：tick 0 只有 255/渐亮（没拨到顶点就看不出颜色），暂停时必须拨到包络顶点 */
   fills.length = 0;
   pick.value = '七彩跳变'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   ok(has(p => p[0] + p[1] + p[2] > 150),
      `跳变暂停时停在包络顶点、颜色看得见（不是全黑）：${JSON.stringify(pixels().slice(-3))}`);
+
+  /* 渐亮 > 0 且「亮」= 0：包络顶点在渐亮最后一拍（tick 0 反而是黑的）—— 暂停帧也跟着换 */
+  {
+    const rI = byId.get('fRise'), hI = byId.get('fHold');
+    rI.value = '4'; rI.oninput({ target: rI });
+    await new Promise(r => setTimeout(r, 700));
+    fills.length = 0;
+    hI.value = '0'; hI.oninput({ target: hI });
+    await new Promise(r => setTimeout(r, 700));
+    const e = fxListOf(0)[0];
+    ok(e.rise === 4 && e.hold === 0 && e.speed === 12,
+       `只有渐亮：停留 = 渐亮 + 亮 + 暗 = ${e.rise} + ${e.hold} + ${e.fade} = ${e.speed}`);
+    ok(has(p => p[0] + p[1] + p[2] > 150),
+       `渐亮 4 / 亮 0 的暂停帧停在爬满那一拍（不是 tick 0 的全黑）：${JSON.stringify(pixels().slice(-3))}`);
+  }
 }
 
 /* ---- 12) 「全点亮(测配色)」：给配色当底片（整条满亮、完全静止） ---- */

@@ -71,6 +71,8 @@ const RAIN = mkFx(3, [Object.assign({}, LAYER_FILL)]);
 RAIN.color = CORE.FW.COLOR.RAINBOW; RAIN.levels = 30; RAIN.hue_base = 0; RAIN.hue_speed = 3;
 const STEP = mkFx(4, [Object.assign({}, LAYER_FILL)]);
 STEP.color = CORE.FW.COLOR.STEP; STEP.speed = 5;
+/* 亮 1 拍 / 暗 4 拍：37 拍落在第 2 拍（停留 5），包络应该已经降到 170 */
+STEP.hold = 1; STEP.fade = 4;
 STEP.palette = [[255,0,0],[0,255,0],[0,0,255],[255,255,0]];
 STEP.c1 = STEP.palette[0].slice(); STEP.c2 = STEP.palette[1].slice();
 const B2 = mkFx(5, [Object.assign({}, LAYER_FILL)]);
@@ -81,10 +83,19 @@ const WIP = mkFx(6, [Object.assign({}, LAYER_FILL)]);
 WIP.color = CORE.FW.COLOR.WIPE; WIP.period = 10;
 WIP.palette = [[0,0,255],[255,120,0]];
 WIP.c1 = WIP.palette[0].slice(); WIP.c2 = WIP.palette[1].slice();
+/* 渐亮跳变：渐亮 3 / 亮 1 / 暗 2 = 停留 6 —— 37 拍落在第 1 拍，包络应该正爬到 170。
+ * 这一条专门让生成代码里的「渐亮段」真跑一遍（老存档不存 rise 时永远走不到那一支）。 */
+const RISE = mkFx(7, [Object.assign({}, LAYER_FILL)]);
+RISE.color = CORE.FW.COLOR.STEP;
+RISE.rise = 3; RISE.hold = 1; RISE.fade = 2; RISE.speed = 6;
+RISE.palette = [[255,0,0],[0,255,0]];
+RISE.c1 = RISE.palette[0].slice(); RISE.c2 = RISE.palette[1].slice();
 st.modes.list.push({ id:'mE', name:'新配色', latin:'NEW_COLORS', enabled:true,
   binds:[ { effect:RAIN.id, zones:[0] }, { effect:STEP.id, zones:[1] },
           { effect:B2.id,   zones:[2] }, { effect:WIP.id,  zones:[3] },
           { effect:A.id,    zones:[4] } ] });
+st.modes.list.push({ id:'mF', name:'渐亮跳变', latin:'STEP_RISE', enabled:true,
+                     binds:[{ effect:RISE.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -295,10 +306,10 @@ console.log('--- 新配色模式（C 侧真跑 37 拍）---');
   ok(row.slice(0, 8).every(px => px[0] + px[1] + px[2] > 0), '彩虹分区整条点亮');
   const stepCol = row[8] && row[8].join(',');
   ok(!!stepCol && row[15] && row[15].join(',') === stepCol, '跳变分区整条同色');
-  /* 跳变包络：37 拍 = 第 3/5 拍（停留 5），早过了顶点 —— 不再是满亮，但还亮着。
+  /* 跳变包络：37 拍 = 第 2/5 拍（停留 5，亮 1 / 暗 4）—— 亮段已过，正在渐灭。
    * 跑旧行为（硬切、恒满亮）时这里会正好是 255。 */
   ok(row[8] && row[8][0] > 0 && row[8][0] < 220,
-     `跳变在停留中途已经渐灭（第 3/5 拍 → ${row[8] && row[8][0]}/255，包络在真编译的 C 里也生效）`);
+     `跳变在停留中途已经渐灭（第 2/5 拍 → ${row[8] && row[8][0]}/255，包络在真编译的 C 里也生效）`);
   const brCol = row[16] && row[16].join(',');
   ok(!!brCol && row[55] && row[55].join(',') === brCol, '呼吸分区整条同色');
   const wipe = new Set();
@@ -306,6 +317,14 @@ console.log('--- 新配色模式（C 侧真跑 37 拍）---');
   ok(wipe.size === 2, `覆盖分区正好 2 种颜色（${[...wipe].join(' | ')}）`);
   ok([...wipe].some(c => { const p = rgb(c); return p[0] > 200 && p[1] > 80 && p[2] < 10; }),
      '覆盖的第二种颜色来自调色板第 2 个（橙色）');
+}
+/* 渐亮跳变：C 里跑 37 拍 = 第 1/6 拍（渐亮 3），包络爬到 170，乘进满档 mask（254）后是 169 ——
+ * 渐亮分支真的执行了（rise = 0 时这里会是满亮 254） */
+{
+  const row = cModes[5] || [];
+  const uniq = new Set(row.map(px => px.join(',')));
+  ok(row.length === FW.LED_COUNT && uniq.size === 1 && row[0][0] === 169,
+     `渐亮跳变：整条同色、第 1/6 拍亮度 ${row[0] && row[0][0]}/254（渐亮段在真编译的 C 里生效）`);
 }
 
 /* ---------- 4a) 内建单点追逐：真编译出来的 C 画的是平顶光带，且没调平台原语 ---------- */

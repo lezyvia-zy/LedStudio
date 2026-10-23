@@ -386,7 +386,8 @@ console.log('--- 效果名：模板 / 配色 ---');
 console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
 {
   const { instNew, instApplyPreset, renderZoneMaskTo, effectColorAt,
-          breathGain, stepEnv, colorUpdate, effPalette, effLevels, effPeriod } = CORE;
+          breathGain, stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
+          colorUpdate, effPalette, effLevels, effPeriod } = CORE;
   const base = { anim: FW.ANIM.STATIC, width: 10, gap: 0, slow: 8, fast: 1, speed: 1,
                  c1: [255, 0, 0], c2: [0, 0, 0] };
   const mkInst = p => { const I = instNew(); instApplyPreset(I, Object.assign({}, base, p)); return I; };
@@ -423,30 +424,116 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   for (let t = 7; t <= 9; t++) colorUpdate(S.color, t);
   ok(S.color.current.r === 255, '跳变：9 拍后绕回第 1 色');
 
-  /* 跳变包络：先快速点亮、再匀速渐灭，最后一拍正好灭 —— 换色那一瞬灯就是黑的 */
-  ok(stepEnv(0, 8) === 0 && stepEnv(1, 8) === 255 && stepEnv(7, 8) === 0,
-     `跳变包络 8 拍：0 → 255 → 0（${stepEnv(0, 8)}/${stepEnv(1, 8)}/${stepEnv(7, 8)}）`);
+  /* 跳变包络：渐亮 r 拍 → 满亮 h 拍 → 渐暗 f 拍（最后一拍 ≈255/(f+1)，不落 0）→ 在最暗那拍换色 */
   {
-    const d = 12, ramp = Array.from({ length: d }, (_, t) => stepEnv(t, d));
-    ok(ramp[1] === 255 && ramp[d - 1] === 0 &&
-       ramp.slice(1).every((v, i) => i === 0 || v < ramp[i]),
-       `跳变包络 12 拍：一拍冲到顶，之后一路渐灭到底 —— ${ramp.join(',')}`);
-    ok(stepEnv(0, 1) === 255 && stepEnv(3, 1) === 255,
-       '停留只有 1 拍：没有渐灭的余地，直接满亮（= 闪烁）');
+    const d = 8, h = 2, f = 6;
+    const ramp = Array.from({ length: d }, (_, t) => stepEnv(t, d, 0, h, f));
+    ok(JSON.stringify(ramp) === JSON.stringify([255, 255, 219, 183, 146, 110, 73, 37]),
+       `跳变包络 8 拍（渐亮 0 / 亮 2 / 暗 6）：${ramp.join(',')}`);
+    ok(stepEnv(0, 8, 0, 2, 6) === 255 && stepEnv(7, 8, 0, 2, 6) === 37,
+       '渐亮 0 = 硬启亮：亮段满亮，变暗最后一拍停在 37/255 —— 不全黑（留个全黑帧就是一次闪）');
   }
-  /* 包络乘在 mask 上：换色那一拍全灭、顶点满亮、中途已经暗下去（颜色始终不变） */
-  const S8 = mkInst({ color: FW.COLOR.STEP, speed: 8,
+  /* 渐亮：从 255/r 匀速爬到满亮，最后一拍正好 255；0 拍 = 老存档的硬启亮（逐拍与上一版相同）。
+   * 变暗段从 255 一路暗到 ≈255/(f+1)：不重复满亮拍、也不落到 0 —— 换色处没有黑帧。 */
+  {
+    const up = Array.from({ length: 4 }, (_, t) => stepEnv(t, 4, 4, 0, 0));
+    ok(JSON.stringify(up) === JSON.stringify([63, 127, 191, 255]),
+       `渐亮 4 拍（正好铺满停留）：${up.join(',')} —— 从 255/4 均匀爬到满亮`);
+    const mix = Array.from({ length: 7 }, (_, t) => stepEnv(t, 7, 2, 2, 3));
+    ok(JSON.stringify(mix) === JSON.stringify([127, 255, 255, 255, 192, 128, 64]),
+       `渐亮 2 / 亮 2 / 暗 3 = 7 拍：${mix.join(',')}`);
+    ok(stepEnv(0, 7, 1, 2, 3) === 255 && stepEnv(0, 7, 0, 2, 3) === 255,
+       '渐亮 1 拍与 0 拍等价（一拍照跳到满亮）');
+    /* 换色边界：上一色最后一拍 ≈255/(f+1)（不是 0），新一色从 255/r 起爬 —— 中间没有全黑帧。
+     * 全黑一帧在 50Hz 下就是一次 20ms 的闪，用户看到的就是换色时「抖一下」。 */
+    const lastFade = stepEnv(19, 20, 4, 6, 10);   /* 渐亮 4 / 亮 6 / 暗 10：第 19 拍是变暗最后一拍 */
+    const firstRise = stepEnv(0, 20, 4, 6, 10);
+    ok(lastFade === 24 && firstRise === 63 && lastFade > 0,
+       `换色处没有黑帧：上一色最后一拍 ${lastFade}/255 → 新一色第 0 拍 ${firstRise}/255`);
+  }
+  {
+    /* 黑着等换色：渐亮 0 + 亮 2 + 暗 3 = 5，剩下 5 拍保持黑（老存档 / 手改 JSON 才会这样） */
+    const d = 10;
+    const ramp = Array.from({ length: d }, (_, t) => stepEnv(t, d, 0, 2, 3));
+    ok(JSON.stringify(ramp) === JSON.stringify([255, 255, 192, 128, 64, 0, 0, 0, 0, 0]),
+       `亮 + 暗 用不完停留时，多出来的拍保持黑 —— ${ramp.join(',')}`);
+    ok(stepEnv(9, d, 0, 2, 3) === 0, '黑着等换色：停留最后一拍仍然是黑的');
+    /* 夹紧：r + h + f 超过停留 → 按顺序压回停留（不会出现「还没暗完就换色」） */
+    const c = stepClamp(8, 0, 20, 30);
+    ok(c[0] === 0 && c[1] === 8 && c[2] === 0, `亮 + 暗 超过停留：夹到 [渐亮 ${c[0]}, 亮 ${c[1]}, 暗 ${c[2]}]`);
+    const c2 = stepClamp(8, 0, 4, 9);
+    ok(c2[0] === 0 && c2[1] === 4 && c2[2] === 4, `暗段超过剩余拍数：夹到 [渐亮 ${c2[0]}, 亮 ${c2[1]}, 暗 ${c2[2]}]`);
+    const c3 = stepClamp(4, 9, 3, 3);
+    ok(c3[0] === 4 && c3[1] === 0 && c3[2] === 0, `渐亮比停留还长：夹到 [${c3.join(',')}]（只剩渐亮）`);
+    ok(stepEnv(0, 8, 0, 4, 9) === 255 && stepEnv(7, 8, 0, 4, 9) === 51,
+       '夹紧之后仍然是「满亮起、暗到 ≈255/(f+1)」（51/255，不是 0）');
+  }
+  {
+    const d = 8;
+    ok(stepEnv(0, 1, 0, 1, 0) === 255,
+       '停留只有 1 拍：没有渐灭的余地，直接满亮（= 闪烁）');
+    ok(stepEnv(0, 8, 0, 0, 0) === 0, '亮 0 / 暗 0 = 整条黑（用户自己关掉了这一种颜色）');
+    /* 缺省：老存档 / 新效果 → 渐亮 0（硬启亮）、亮一半暗一半 */
+    ok(effStepRise({}) === 0 && effStepRise({ rise: 4 }) === 4 && effStepRise({ rise: 999 }) === 255,
+       `渐亮缺省 = 0（老存档 / 老预置 = 硬启亮）；显式值照走并封顶 255（${effStepRise({ rise: 999 })}）`);
+    ok(effStepHold({ speed: d }) === 4 && effStepFade({ speed: d }) === 4,
+       `跳变缺省 = 亮一半暗一半（${effStepHold({ speed: d })}/${effStepFade({ speed: d })}）`);
+    ok(effStepHold({ speed: 1 }) === 1 && effStepFade({ speed: 1 }) === 0,
+       '停留 1 拍的老效果：亮 1 / 暗 0（跟打补丁前一样是闪烁）');
+    ok(effStepHold({ speed: 12, hold: 3 }) === 3 && effStepFade({ speed: 12, hold: 3 }) === 9,
+       '存了 hold 就照 hold 走，fade 缺省补足剩下的停留');
+    ok(effStepFade({ speed: 12, rise: 2, hold: 3 }) === 7,
+       '存了 rise + hold、没有 fade：fade 缺省 = 停留 - 渐亮 - 亮（老周期不变）');
+  }
+  /* 停留 = 渐亮 + 亮 + 变暗（界面填这三行时自动算，不存在黑尾巴） */
+  {
+    ok(stepSpeedOf({ hold: 10, fade: 10 }) === 20, `停留 = 亮 + 暗：10 + 10 = ${stepSpeedOf({ hold: 10, fade: 10 })}`);
+    ok(stepSpeedOf({ rise: 4, hold: 6, fade: 4 }) === 14,
+       `停留 = 渐亮 + 亮 + 暗：4 + 6 + 4 = ${stepSpeedOf({ rise: 4, hold: 6, fade: 4 })}`);
+    ok(stepSpeedOf({ speed: 12, hold: 3 }) === 12, '缺省 fade 补足 → 停留还是 12（老存档原样）');
+    ok(stepSpeedOf({ hold: 200, fade: 100 }) === 255, '亮 + 暗 超过 255 拍：停留封顶 255');
+    ok(stepSpeedOf({ rise: 100, hold: 200, fade: 100 }) === 255, '三段加起来超过 255：停留封顶 255');
+    ok(stepSpeedOf({ hold: 0, fade: 0 }) === 1, '全 0 也留 1 拍（8 位字段不能是 0，否则换色停住）');
+    /* 铺进实例时也按「渐亮 + 亮 + 暗」定周期：老 speed 20 与两段之和 10 不一致 → 以三段为准 */
+    const I6 = mkInst({ color: FW.COLOR.STEP, speed: 20, hold: 6, fade: 4,
+                        palette: [[255,0,0],[0,255,0]] });
+    ok(I6.color.spectrum_speed === 10 && I6.color.step_rise === 0 &&
+       I6.color.step_hold === 6 && I6.color.step_fade === 4,
+       `实例周期 = 渐亮 + 亮 + 暗（speed=${I6.color.spectrum_speed} / rise=${I6.color.step_rise} / hold=${I6.color.step_hold} / fade=${I6.color.step_fade}）`);
+    ok(stepEnv(9, I6.color.spectrum_speed, I6.color.step_rise, I6.color.step_hold, I6.color.step_fade) === 51 &&
+       stepEnv(8, 10, 0, 6, 4) === 102,
+       '两段正好铺满 10 拍：第 8 拍 102、第 9 拍最暗 51（不落 0，第 10 拍立刻换色 —— 没有黑帧）');
+  }
+  /* 包络乘在 mask 上：亮段满亮、渐灭段暗下去、灭完之后全黑（颜色始终不变） */
+  const S8 = mkInst({ color: FW.COLOR.STEP, speed: 8, hold: 2, fade: 6,
                       palette: [[255, 0, 0], [0, 255, 0]] });
   S8.color.tick_cnt = 0;
-  const sDark = render(S8, 10, 0);
+  const sOn0 = render(S8, 10, 0);
   S8.color.tick_cnt = 1;
-  const sPeak = render(S8, 10, 0);
+  const sOn1 = render(S8, 10, 0);
   S8.color.tick_cnt = 4;
   const sMid = render(S8, 10, 0);
-  ok(sDark.m.every(v => v === 0) && sPeak.m.every(v => v === 255),
-     `跳变：停留第 0 拍全灭 / 第 1 拍满亮（${sDark.m[0]} / ${sPeak.m[0]}）`);
+  S8.color.tick_cnt = 7;
+  const sOff = render(S8, 10, 0);
+  ok(sOn0.m.every(v => v === 255) && sOn1.m.every(v => v === 255),
+     `跳变：亮段（第 0/1 拍）整条满亮（${sOn0.m[0]} / ${sOn1.m[0]}）`);
   ok(sMid.m[0] > 0 && sMid.m[0] < 255,
-     `跳变：停留第 4 拍已经暗下去（${sMid.m[0]}/255）`);
+     `跳变：第 4 拍已经暗下去（${sMid.m[0]}/255）`);
+  ok(sOff.m[0] > 0 && sOff.m[0] < 60,
+     `跳变：变暗最后一拍暗到 ${sOff.m[0]}/255（不全黑 —— 换色处没有黑帧，所以不闪）`);
+  /* 渐亮段乘在 mask 上：第 0 拍就是 255/4，之后逐拍爬亮到满（包络读的是实例里的 step_rise） */
+  const S9 = mkInst({ color: FW.COLOR.STEP, rise: 4, hold: 0, fade: 0,
+                      palette: [[255, 0, 0], [0, 255, 0]] });
+  ok(S9.color.spectrum_speed === 4 && S9.color.step_rise === 4,
+     `实例带上渐亮（speed=${S9.color.spectrum_speed} / rise=${S9.color.step_rise}）`);
+  S9.color.tick_cnt = 0;
+  const rOn0 = render(S9, 10, 0);
+  S9.color.tick_cnt = 1;
+  const rOn1 = render(S9, 10, 0);
+  S9.color.tick_cnt = 3;
+  const rOn3 = render(S9, 10, 0);
+  ok(rOn0.m[0] > 0 && rOn0.m[0] < rOn1.m[0] && rOn1.m[0] < 255 && rOn3.m.every(v => v === 255),
+     `跳变：渐亮第 0/1/3 拍 = ${rOn0.m[0]}/${rOn1.m[0]}/${rOn3.m[0]}（连续爬亮，第 0 拍不再白黑一下）`);
 
   /* 呼吸：灭→亮→灭；一个周期一种颜色 */
   ok(breathGain(0, 12) === 0 && breathGain(6, 12) === 254 && breathGain(11, 12) === 42,
@@ -475,6 +562,13 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
 
   /* 字段兜底 */
   ok(effPalette({ c1: [1,2,3] }).length === 2, '老效果没有 palette → 用 c1/c2 兜底');
+  /* 色板上限 16 个（第 17 个起截掉）—— 导出的 pal_count 是 8 位数，工具侧收口 */
+  const manyPal = Array.from({ length: 20 }, (_, i) => [i, i, i]);
+  ok(effPalette({ palette: manyPal }).length === 16,
+     `色板最多 16 个颜色：给 20 个只留 ${effPalette({ palette: manyPal }).length} 个`);
+  const normMany = CORE.normalizeEffect({ palette: manyPal.map(c => c.slice()) });
+  ok(normMany.palette.length === 16,
+     `normalizeEffect 也截到 ${normMany.palette.length} 个（存档 / 导出同一个上限）`);
   ok(effLevels({ levels: 0 }) === 30 && effLevels({ levels: 2 }) === 6 && effLevels({ levels: 999 }) === 255,
      '彩虹级数夹在 6..255，缺省 30');
   ok(effPeriod({}) === 60 && effPeriod({ period: 1 }) === 2, '周期夹在 2..600，缺省 60');
