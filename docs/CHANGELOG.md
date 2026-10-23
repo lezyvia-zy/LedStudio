@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-10-23 —— 呼吸改成「渐亮 = 渐暗的跳变」：换色处不再抖一下
+
+**动机**（用户原话）：「呼吸色效果也同跳变最开始一样会有抖一下的问题。其实可以参考跳变色的设置。只是渐亮和渐暗时长一样，此效果也是基于时间变化的。」
+
+**根因**：`breathGain()` 是 `0 → 255 → 0` 的三角波 —— 每个周期的**起点那一拍正好是 0**（周期末拍也只有 8/255），而 `colorUpdate` 恰在这一拍换颜色 → 50Hz 下一次 20ms 的纯黑闪，每次换色都「抖一下」。跳变上一轮已经踩过同一个坑（最后一拍停在 ≈255/(变暗+1)，不落 0）。
+
+**改动**：
+- core：删 `breathGain()`，新增 `effBreathRise` / `effBreathHold` / `breathPlan` / `breathEnv`（= `stepEnv` 的对称特例，渐暗恒等于渐亮）；`normalizeEffect` 落 `b_rise / b_hold` 并令 `period = b_rise × 2 + b_hold`；`instApplyPreset` 把三段装进 `step_rise / step_hold / step_fade`；`renderZoneMaskTo` 的呼吸分支改用 `breathEnv`；新增 `effShape()` 给 `effectPreset` / `modesPlan` 统一取「包络四元组」。
+- 界面：呼吸时显示「渐亮=变暗(拍)」与「亮(拍)」两行（没有「变暗」行），「周期(拍)」变只读、由 `breathSyncPeriod()` 自动算；切回跳变时标签 / 提示 / 只读状态还原（`fxTip0()` 缓存原始 data-tip）。`stageSampleFrame` 的呼吸停在满亮拍（有「亮」停第 0 拍，否则停爬满那一拍）。
+- 导出：结构体**不加字段** —— 呼吸的三段就填 `step_rise / step_hold / step_fade`；生成代码 `led_gen_breath(tick, period, rise)` 调 `led_gen_step_env()`（把 `@stepenv@` 挪到它前面），分区渲染多传 `E->step_rise`。帮助页 / README / `docs/audit/fx.md` / `docs/audit/invariants.md` 第 10–11 条 / CLAUDE.md 第 30 条同步。
+
+**测试**：`test_effects_core` +13（计划 / 对称 / 包络逐拍 / 首尾不黑 / 接缝连续 / 渐亮段 / 效果 → 实例的 10 / 8 不丢 / 实例与渲染）；`test_fx_presets` +8（两行显示 / 标题换字 / 周期只读自动 / 改渐亮周期跟着变 / 落盘 / 不串跳变字段 / 重新套预置回到 60 / 切回跳变还原）；`test_effects_c_exec` +1（真编译 C 的渐亮段 = 84/255，旧三角波在这一拍是 254）。全量 26 套件 / 1665 项 / 0 FAIL。
+
+**影响**：老存档零迁移（没有 `b_rise` → 摊成 `period/2 + 0`，波形与旧版几乎一致，只是换色那一拍不再全黑）；导出结构体一列没加，平台侧不用改；用户看得见的变化 = 呼吸多两行参数、周期自动算、换色处不闪。
+
+---
+
 ## 2026-10-23 —— 取色改成「色环 + 高级设置」：系统取色框那张二维色图收起来
 
 **动机**（用户原话）：「把每一个颜色选取里面的二维色图都做进此子页面的高级设置。基础的颜色选取就用色环来选取就好了。因为此项目很少会用到灰度设置。」
