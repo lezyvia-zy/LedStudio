@@ -536,14 +536,14 @@
           <span class="hint" style="flex:1;margin:0">只是库里的编号；哪个模式用哪个效果，在「模式」页里配</span></label>
         <label class="row"><span>类型</span><span id="fKind">—</span></label>
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
-        <label class="row"><span>配色</span><select id="fColor" data-tip="颜色怎么变：&#10;纯色 = 固定一色&#10;跳变 = 几种颜色按固定拍数整条切换（颜色个数 = 调色板里的颜色数）&#10;渐变 = 红→黄→绿→青→蓝→紫→红 平滑循环（整条同色）&#10;彩虹 = 沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）&#10;呼吸 = 灭→亮→灭，一个周期换一种颜色&#10;覆盖 = 一种颜色被另一种逐级盖掉"></select></label>
+        <label class="row"><span>配色</span><select id="fColor" data-tip="颜色怎么变：&#10;纯色 = 固定一色&#10;跳变 = 几种颜色轮着来：每种先快速点亮、再渐灭到黑，然后换下一种（灯灭到底才换色，所以不硬切；停留越短，亮灭与切色越快）&#10;渐变 = 红→黄→绿→青→蓝→紫→红 平滑循环（整条同色）&#10;彩虹 = 沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）&#10;呼吸 = 灭→亮→灭，一个周期换一种颜色&#10;覆盖 = 一种颜色被另一种逐级盖掉"></select></label>
         <label class="row" id="rowPal"><span id="fPalLab">调色板</span>
           <span id="fPalette" class="palrow"></span>
           <button id="fxPalAdd" data-tip="给调色板加一个颜色（最多 8 个）。">+</button>
           <button id="fxPalDel" data-tip="删掉调色板最后一个颜色（至少留 1 个）。">−</button>
         </label>
         <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色；覆盖：第 1 个是底色、第 2 个是盖上去的颜色。</div>
-        <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：每种颜色停留几拍；渐变：每 N 拍色相 +1（越小越快）。"></label>
+        <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：每种颜色停留几拍（前 1/8 快速点亮，剩下的拍渐灭到黑，然后换下一个颜色）；渐变：每 N 拍色相 +1（越小越快）。"></label>
         <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
         <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
         <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="255" data-tip="每 N 拍整体转一格；0 = 不动。"></label>
@@ -835,7 +835,7 @@
           <tr><th>参数</th><th>作用</th></tr>
           <tr><td><b>配色</b></td><td>
             <b>纯色</b>：整条固定用调色板第 1 个颜色。<br>
-            <b>跳变</b>：调色板里几种颜色按固定拍数整条切换（颜色个数 = 色块数）。<br>
+            <b>跳变</b>：调色板里几种颜色轮着来。每种颜色先在这段停留的前 1/8 <b>快速点亮</b>，剩下的拍<b>匀速渐灭到黑</b>，然后换下一种 —— 灯灭到底才换色，所以看不出硬切。停留越短，亮灭与切色都越快。<br>
             <b>渐变</b>：红→黄→绿→青→蓝→紫→红 平滑循环（整条同色），速度可调。<br>
             <b>彩虹</b>：沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）；<b>级数</b> = 走完一轮红→红要多少颗灯（30 颗的圆环填 30，40 颗的顶环填 40）。<br>
             <b>呼吸</b>：灭→亮→灭算一个周期，一个周期换一种颜色（颜色来自调色板）。<br>
@@ -845,7 +845,7 @@
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
           <tr><td>周期(拍)</td><td>呼吸：一次灭→亮→灭多少拍；覆盖：一遍颜色盖过去多少拍。</td></tr>
-          <tr><td>速度</td><td>跳变：每种颜色停留几拍；渐变：每 N 拍色相 +1（越小越快）。</td></tr>
+          <tr><td>速度</td><td>跳变：每种颜色停留几拍（其中前 1/8 点亮、其余渐灭）；渐变：每 N 拍色相 +1（越小越快）。</td></tr>
           <tr><td>慢速 / 快速</td><td>每走一格要几帧。数值越大越慢。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
           <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。</td></tr>
@@ -2036,8 +2036,9 @@ function fxEffectName(e) {
  *   speed     : 跳变 = 每种颜色停留多少拍；渐变 = 每 N 拍相位 +1
  *   c1 / c2   : 旧字段（老存档、单色、覆盖参数仍用它们），也是 palette 的后备
  *
- * 算法约束：纯色 / 跳变 / 渐变 / 呼吸每帧只算一次颜色；彩虹每像素一次递推 + 一次
- * 查表；覆盖每像素一次比较。没有浮点，也没有除法落进像素循环。
+ * 算法约束：纯色 / 渐变 / 呼吸每帧只算一次颜色；彩虹每像素一次递推 + 一次
+ * 查表；覆盖每像素一次比较；跳变每帧一次包络（stepEnv，每分区一次除法）+ 每像素
+ * 一次乘加。没有浮点，也没有除法落进像素循环。
  * ---------------------------------------------------------------------- */
 const PAL_MAX = 8;
 function isRgb(c) { return Array.isArray(c) && c.length >= 3; }
@@ -2436,6 +2437,24 @@ function breathGain(tick, period) {
   return t < 128 ? t * 2 : (255 - t) * 2;
 }
 
+/* 跳变包络：每种颜色自己的「快速点亮 → 渐灭」。
+ * 换色那一瞬灯正好灭到底，所以看不出硬切；停留越短，亮灭与切色都跟着快。
+ *   t = 这一拍在本色停留里的位置（0 .. d-1），d = 停留拍数（「停留(拍)」）
+ *   前 1/8（至少 1 拍）：0 → 255 —— 快速点亮
+ *   剩下的拍：255 → 0 匀速渐灭，最后一拍正好 0
+ * d = 1 只有一拍、没有渐灭的余地，直接满亮（一拍一个颜色本来就是闪烁）。
+ * 全程整数、无浮点；固件里的 led_gen_step_env() 与这里逐值相同。 */
+function stepEnv(t, d) {
+  if (!(d > 0)) return 255;
+  let a = Math.floor(d / 8);            /* 点亮占几拍 */
+  if (a < 1) a = 1;
+  if (a >= d) return 255;
+  if (t < a) return Math.floor((t * 255) / a);
+  const rest = d - a;                   /* 渐灭占几拍（≥ 1） */
+  const k = Math.min(t - a, rest - 1);
+  return 255 - Math.floor((k * 255) / (rest > 1 ? rest - 1 : 1));
+}
+
 /* 把一条效果渲染到给定的 mask/hue 缓冲里。长度可以是任意值 ——
  * 真实分区用它渲染，效果台的基础排布（8/24/40/… 颗）也用它，
  * 所以缓冲必须由调用方给，不能写死用 inst 自己那个 ZONE_MAX_LEN 的。
@@ -2449,7 +2468,8 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
   const a = inst.anim, c = inst.color;
   hue.fill(0xFF, 0, len);                   /* 默认跟随效果配色；空间色相由图层自己写 */
 
-  /* 呼吸 / 覆盖是「整条效果」级：不看图层，整条点亮。 */
+  /* 呼吸 / 覆盖是「整条效果」级：不看图层，整条点亮。
+   * 跳变不在这里 —— 它只乘一个亮度包络，图层（追逐 / 填充）照旧。 */
   if (c.type === FW.COLOR.BREATH) {
     m.fill(breathGain(a.gen_tick, c.period), 0, len);
     return;
@@ -2470,6 +2490,14 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.FILL:         fillAnim(m, len, pos, a.params.direction); break;
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
     default:                   genRender(m, hue, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset); break;
+  }
+
+  /* 跳变：每种颜色先快速点亮、再渐灭（stepEnv），把包络乘到 mask 上。
+   * 换色那一瞬灯已经灭到底 —— 这就是「不硬切」的全部秘密；只乘亮度，不动 hue。
+   * (m × (env+1)) >> 8：env=255 时严丝合缝等于原值，env=0 时全灭。 */
+  if (c.type === FW.COLOR.STEP) {
+    const env = stepEnv(c.tick_cnt, c.spectrum_speed) + 1;
+    for (let i = 0; i < len; i++) m[i] = (m[i] * env) >> 8;
   }
 
   /* 效果级彩虹：只补「跟随效果配色」的灯位（图层自己写了空间色相的保留）。
@@ -2504,7 +2532,8 @@ function colorUpdate(c, tick) {
       c.current   = FW.spectrum_tbl[c.phase];
       c.secondary = FW.spectrum_tbl[(c.phase + 85) & 0xFF];
       break;
-    /* 跳变：每 speed 拍换下一个颜色。只改索引，不碰像素。 */
+    /* 跳变：每 speed 拍换下一个颜色（这儿只改索引）。亮度包络在
+     * renderZoneMaskTo / C 的 led_gen_zone_render 里乘到 mask 上。 */
     case FW.COLOR.STEP:
       if (!pal) break;
       if (++c.tick_cnt >= c.spectrum_speed) {
@@ -3329,6 +3358,19 @@ const LED_GEN_IMPL = [
 '    return (uint8_t)((t < 128u) ? (t * 2u) : ((255u - t) * 2u));',
 '}',
 '',
+'/* @stepenv@ */',
+'static uint8_t led_gen_step_env(uint16_t t, uint16_t d)',
+'{',
+'    uint16_t a, rest, k;',
+'    if (d == 0u) return 255u;',
+'    a = (uint16_t)(d / 8u); if (a == 0u) a = 1u;',
+'    if (a >= d) return 255u;',
+'    if (t < a) return (uint8_t)((uint32_t)t * 255u / (uint32_t)a);',
+'    rest = (uint16_t)(d - a);',
+'    k = (uint16_t)(t - a); if (k >= rest) k = (uint16_t)(rest - 1u);',
+'    return (uint8_t)(255u - ((uint32_t)k * 255u) / (uint32_t)((rest > 1u) ? (rest - 1u) : 1u));',
+'}',
+'',
 '/* @zonerender@ */',
 'static void led_gen_zone_render(led_gen_inst_t *I, uint8_t len, int16_t zpos,',
 '                                uint8_t *mask, uint8_t *hue)',
@@ -3367,6 +3409,11 @@ const LED_GEN_IMPL = [
 '            default:',
 '                memset(mask, 255, len); break;',
 '        }',
+'    }',
+'    /* @stepfade@ */',
+'    if (E->ctype == (uint8_t)LED_GEN_COLOR_STEP) {',
+'        uint16_t env = (uint16_t)led_gen_step_env(I->color.tick_cnt, I->color.spectrum_speed) + 1u;',
+'        for (i = 0; i < len; i++) mask[i] = (uint8_t)(((uint16_t)mask[i] * env) >> 8);',
 '    }',
 '    /* @rainbowfill@ */',
 '    /* @rainbowcalc@ */',
@@ -3574,6 +3621,8 @@ const GEN_COMMENTS = {
   huefn:  { zh:'本层在第 i 个灯位上的色相；0xFF 表示用全局配色', en:'hue of this layer at LED i; 0xFF = use the global colour' },
   hueArr: { zh:'每个灯位的颜色来源: 0x00..0xFD = spectrum_tbl 下标, 0xFE = 副色, 0xFF = 效果当前色', en:'per-LED colour source: 0x00..0xFD = spectrum_tbl index, 0xFE = secondary, 0xFF = effect current colour' },
   breath: { zh:'呼吸包络：灭 -> 亮 -> 灭（0 -> 255 -> 0）', en:'breath envelope: dark -> bright -> dark (0 -> 255 -> 0)' },
+  stepenv: { zh:'跳变包络：每种颜色先快速点亮（前 1/8 停留），再匀速渐灭到灭 —— 换色那一瞬灯已经黑到底，所以不硬切。停留越短，亮灭与切色都跟着快', en:'step envelope: each colour lights up fast (first 1/8 of the dwell) then fades linearly to black - the strip is already dark when the colour switches, so no hard cut. Shorter dwell = faster blink and faster switching' },
+  stepfade: { zh:'跳变：把包络乘到 mask 上（只乘亮度，不动颜色）；env=255 等于原值，env=0 全灭', en:'step: multiply the envelope into mask (brightness only, never the colour); env=255 keeps the value, env=0 goes dark' },
   breathmode: { zh:'呼吸 / 覆盖是整条效果级：不看图层，整条点亮', en:'breath/wipe are whole-effect modes: ignore layers, light the whole strip' },
   wipesentinel: { zh:'0xFE = 用副色：被盖住的那一段换成第二种颜色', en:'0xFE = use the secondary colour for the covered part' },
   rainbowfill: { zh:'效果级彩虹：只补「跟随效果配色」的灯位（图层自己写了色相的保留）', en:'effect-level rainbow: fill only LEDs that follow the effect colour' },
@@ -4143,7 +4192,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
-               breathGain, effPalette, effLevels, effPeriod, normalizeEffect,
+               breathGain, stepEnv, effPalette, effLevels, effPeriod, normalizeEffect,
                EFFECT_SLOTS, defaultEffects, newCustomEffect, effectAtSlot, fxEffectName,
                layerToCRow, layerNums, modesPlan, exportEffectsC, buildPatchText, mangleComment,
                LED_GEN_HAL, exportHalC,
@@ -5807,9 +5856,9 @@ function stageSync(force) {
 /* 暂停时给编辑台一帧「看得出区别」的样本。
  *
  * 编辑台默认是暂停的（stagePlaying = false），如果永远停在 tick 0：
- *   呼吸 → breathGain(0) = 0，整条全黑；
+ *   呼吸 → breathGain(0) = 0、跳变 → stepEnv(0) = 0，两条都全黑；
  *   跳变 / 覆盖 → 用的是调色板第 1 个颜色；渐变 → 相位于 0（红）——
- *   三者跟「纯色红」长得一模一样，用户会以为「改了配色没生效」。
+ *   这几样跟「纯色红」长得一模一样，用户会以为「改了配色没生效」。
  * 这里只拨预览实例的相位（不碰固件算法）；一旦按播放，
  * stageToggle() 会重新 stageSync(true) 从 tick 0 开始，语义还是固件那一套。 */
 function stageSampleFrame(inst) {
@@ -5828,9 +5877,12 @@ function stageSampleFrame(inst) {
       break;
     case FW.COLOR.STEP: {
       /* 停在一个「看得见」的颜色上（老效果的调色板第 2 色常常是黑，
-         拨过去就整条黑掉了 —— 那又成了「像没生效」） */
+         拨过去就整条黑掉了 —— 那又成了「像没生效」）；
+         同时停在包络顶点 —— tick_cnt=0 时包络正好是 0，整条全黑，一样看不出东西 */
       const idx = pal.findIndex((c, i) => i > 0 && (c.r | c.g | c.b));
-      if (idx > 0) { c.phase = idx; c.current = pal[idx]; c.tick_cnt = 0; }
+      if (idx > 0) { c.phase = idx; c.current = pal[idx]; }
+      const d = c.spectrum_speed > 0 ? c.spectrum_speed : 1;
+      c.tick_cnt = Math.min(Math.max(1, Math.floor(d / 8)), d - 1);
       break;
     }
     case FW.COLOR.SPECTRUM:
@@ -6266,12 +6318,12 @@ function syncFxColorRows(e) {
   const labS = $('#fSpeedLab'), sp = $('#fSpeed'), hint = $('#fPalHint');
   if (labS) labS.textContent = (mode === FW.COLOR.STEP) ? '停留(拍)' : '渐变速度';
   if (sp) {
-    if (mode === FW.COLOR.STEP) tip(sp, '每种颜色停留多少拍（20ms 一拍）。\n颜色个数 = 调色板里的色块数。');
+    if (mode === FW.COLOR.STEP) tip(sp, '每种颜色停留多少拍（20ms 一拍）。\n每种颜色先在这段停留的前 1/8 快速点亮，剩下的拍渐灭到黑，然后换下一个颜色 ——\n灯暗到底才换色，所以看不出硬切；停留越短，亮灭与切色都越快。');
     else tip(sp, '每 N 拍色相往前一格；越小越快。');
   }
   if (hint) {
     hint.textContent = mode === FW.COLOR.SOLID   ? '纯色只用这一个颜色；调色板里多出来的颜色只是收起来，切回跳变 / 呼吸还在。'
-      : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；每种停留几拍看「停留」。'
+      : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；每种先快速点亮、再渐灭，停留越短亮灭与切色越快。'
       : mode === FW.COLOR.BREATH                 ? '整条效果级（图层参数不参与）：一个周期换一种颜色；周期看「周期(拍)」。'
       : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：只用前 2 个颜色 —— 第 1 个是底色、第 2 个是盖上去的颜色。'
       : '渐变 / 彩虹用内置彩虹表，不需要调色板。';

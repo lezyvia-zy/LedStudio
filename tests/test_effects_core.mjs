@@ -386,7 +386,7 @@ console.log('--- 效果名：模板 / 配色 ---');
 console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
 {
   const { instNew, instApplyPreset, renderZoneMaskTo, effectColorAt,
-          breathGain, colorUpdate, effPalette, effLevels, effPeriod } = CORE;
+          breathGain, stepEnv, colorUpdate, effPalette, effLevels, effPeriod } = CORE;
   const base = { anim: FW.ANIM.STATIC, width: 10, gap: 0, slow: 8, fast: 1, speed: 1,
                  c1: [255, 0, 0], c2: [0, 0, 0] };
   const mkInst = p => { const I = instNew(); instApplyPreset(I, Object.assign({}, base, p)); return I; };
@@ -422,6 +422,31 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(S.color.current.b === 255, '跳变：6 拍后换到第 3 色');
   for (let t = 7; t <= 9; t++) colorUpdate(S.color, t);
   ok(S.color.current.r === 255, '跳变：9 拍后绕回第 1 色');
+
+  /* 跳变包络：先快速点亮、再匀速渐灭，最后一拍正好灭 —— 换色那一瞬灯就是黑的 */
+  ok(stepEnv(0, 8) === 0 && stepEnv(1, 8) === 255 && stepEnv(7, 8) === 0,
+     `跳变包络 8 拍：0 → 255 → 0（${stepEnv(0, 8)}/${stepEnv(1, 8)}/${stepEnv(7, 8)}）`);
+  {
+    const d = 12, ramp = Array.from({ length: d }, (_, t) => stepEnv(t, d));
+    ok(ramp[1] === 255 && ramp[d - 1] === 0 &&
+       ramp.slice(1).every((v, i) => i === 0 || v < ramp[i]),
+       `跳变包络 12 拍：一拍冲到顶，之后一路渐灭到底 —— ${ramp.join(',')}`);
+    ok(stepEnv(0, 1) === 255 && stepEnv(3, 1) === 255,
+       '停留只有 1 拍：没有渐灭的余地，直接满亮（= 闪烁）');
+  }
+  /* 包络乘在 mask 上：换色那一拍全灭、顶点满亮、中途已经暗下去（颜色始终不变） */
+  const S8 = mkInst({ color: FW.COLOR.STEP, speed: 8,
+                      palette: [[255, 0, 0], [0, 255, 0]] });
+  S8.color.tick_cnt = 0;
+  const sDark = render(S8, 10, 0);
+  S8.color.tick_cnt = 1;
+  const sPeak = render(S8, 10, 0);
+  S8.color.tick_cnt = 4;
+  const sMid = render(S8, 10, 0);
+  ok(sDark.m.every(v => v === 0) && sPeak.m.every(v => v === 255),
+     `跳变：停留第 0 拍全灭 / 第 1 拍满亮（${sDark.m[0]} / ${sPeak.m[0]}）`);
+  ok(sMid.m[0] > 0 && sMid.m[0] < 255,
+     `跳变：停留第 4 拍已经暗下去（${sMid.m[0]}/255）`);
 
   /* 呼吸：灭→亮→灭；一个周期一种颜色 */
   ok(breathGain(0, 12) === 0 && breathGain(6, 12) === 254 && breathGain(11, 12) === 42,

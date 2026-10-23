@@ -274,6 +274,13 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
   await new Promise(r => setTimeout(r, 700));
   ok(new Set(pixels().map(p => p.join(','))).size >= 6,
      `彩虹环暂停时画出一整圈颜色（${new Set(pixels().map(p => p.join(','))).size} 种色相）`);
+
+  /* 11d 跳变：tick 0 的包络也是 0（整条全黑），暂停时必须拨到包络顶点 */
+  fills.length = 0;
+  pick.value = '七彩跳变'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(has(p => p[0] + p[1] + p[2] > 150),
+     `跳变暂停时停在包络顶点、颜色看得见（不是全黑）：${JSON.stringify(pixels().slice(-3))}`);
 }
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');

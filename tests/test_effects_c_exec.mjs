@@ -295,6 +295,10 @@ console.log('--- 新配色模式（C 侧真跑 37 拍）---');
   ok(row.slice(0, 8).every(px => px[0] + px[1] + px[2] > 0), '彩虹分区整条点亮');
   const stepCol = row[8] && row[8].join(',');
   ok(!!stepCol && row[15] && row[15].join(',') === stepCol, '跳变分区整条同色');
+  /* 跳变包络：37 拍 = 第 3/5 拍（停留 5），早过了顶点 —— 不再是满亮，但还亮着。
+   * 跑旧行为（硬切、恒满亮）时这里会正好是 255。 */
+  ok(row[8] && row[8][0] > 0 && row[8][0] < 220,
+     `跳变在停留中途已经渐灭（第 3/5 拍 → ${row[8] && row[8][0]}/255，包络在真编译的 C 里也生效）`);
   const brCol = row[16] && row[16].join(',');
   ok(!!brCol && row[55] && row[55].join(',') === brCol, '呼吸分区整条同色');
   const wipe = new Set();
