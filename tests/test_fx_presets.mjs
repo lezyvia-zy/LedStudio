@@ -283,5 +283,53 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
      `跳变暂停时停在包络顶点、颜色看得见（不是全黑）：${JSON.stringify(pixels().slice(-3))}`);
 }
 
+/* ---- 12) 「全点亮(测配色)」：给配色当底片（整条满亮、完全静止） ---- */
+console.log('--- 全点亮(测配色) ---');
+{
+  tabBtn('fx').onclick();
+  byId.get('fxTbl').children[0].onclick();
+  const pick = byId.get('fxPresetPick');
+  ok((pick.children || []).some(o => o.value === '全点亮(测配色)'), '预置下拉里有「全点亮(测配色)」');
+
+  pick.value = '全点亮(测配色)'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const e = fxListOf(0)[0];
+  ok(e.color === CORE.FW.COLOR.SOLID && e.moves === false,
+     `套上就是纯色、不走位置：color=${e.color} moves=${e.moves}`);
+  ok(e.layers.length === 1 && e.layers[0].kind === 'fill' && e.layers[0].level === 255,
+     `一个满亮填充层：${e.layers.map(l => l.kind + '/' + l.level).join('+')}`);
+  ok(!e.layers[0].pulse_period && !e.layers[0].pulse_amp && !e.layers[0].hue_speed && !e.layers[0].cmode,
+     '不脉动、不转色、不铺空间色相（pulse / hue_speed / cmode 都是 0）');
+  ok(e.palette.length === 6, `色板预置 6 色（切跳变 / 呼吸立刻六色轮转）：${e.palette.length}`);
+
+  /* 核心渲染：任意长度、任意拍子都整条 255 —— 这就是「能当配色底片」的定义 */
+  const inst = CORE.instNew();
+  const renderE = (eff, len, tick) => {
+    CORE.simApplyEffect(inst, eff, 0);
+    inst.anim.gen_tick = tick;
+    const m = new Uint8Array(len), h = new Uint8Array(len);
+    CORE.renderZoneMaskTo(inst, m, h, len, 0);
+    return { m, h };
+  };
+  const full8 = renderE(e, 8, 0).m, full24 = renderE(e, 24, 0).m, full104 = renderE(e, 104, 0).m;
+  const all255 = m => m.every(v => v === 255);
+  ok(all255(full8) && all255(full24) && all255(full104),
+     `8 / 24 / 104 颗都是整条满亮（${full8.length} / ${full24.length} / ${full104.length} 颗全 255）`);
+  const s104 = renderE(e, 104, 37).m;
+  ok(s104.every((v, i) => v === full104[i]), '推 37 拍还是原样 —— 静止的，不是呼吸');
+
+  /* 换配色 = 换颜色算法，底片不动：彩虹 → 每颗灯色相不同、亮度仍全 255 */
+  const col = byId.get('fColor');
+  col.value = String(CORE.FW.COLOR.RAINBOW);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  const eR = fxListOf(0)[0];
+  ok(eR.color === CORE.FW.COLOR.RAINBOW && eR.layers.length === 1 && eR.layers[0].level === 255,
+     '换成彩虹：底片还是那个满亮填充层');
+  const r24 = renderE(eR, 24, 0);
+  ok(all255(r24.m) && new Set(r24.h).size >= 6,
+     `彩虹：24 颗全亮、${new Set(r24.h).size} 种色相（每颗灯不一样）`);
+}
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);
