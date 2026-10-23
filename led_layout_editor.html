@@ -126,6 +126,10 @@
 .palrow{display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-height:24px}
 .palrow input[type=color]{width:34px; height:24px; padding:0; border:1px solid var(--line); border-radius:4px; background:none}
 .palrow .palN{color:var(--dim); font-size:11px; margin-left:2px}
+/* 渐变色环：顺序里的一个锚点（色块 + 前后调序），以及整条环的预览条 */
+.gord{display:inline-flex; align-items:center; gap:1px}
+.gord button{padding:0 3px; min-width:0; font-size:11px; line-height:18px; height:24px}
+.gradramp{height:16px; border:1px solid var(--line); border-radius:4px; margin:2px 0 0 0}
 #fxPalAdd,#fxPalDel{min-width:26px; padding:2px 6px}
   label.row>span:first-child{
     flex:0 0 auto; min-width:56px; max-width:104px; color:var(--dim);
@@ -529,6 +533,20 @@
         <div class="hint">照 spim_led.c 的几类基础效果做的（追逐/摆动/呼吸/闪烁/跳变/彩虹/渐变/填充/随机闪），套完还能接着改参数。</div>
       </fieldset>
 
+      <!-- 图层紧跟在「预置效果」后面：套完模板就地加 / 调图层，不用滚到页面最下面 -->
+      <fieldset id="fxCustom">
+        <legend>图层（自定义动效）</legend>
+        <div id="fLayers"></div>
+        <div class="btnrow">
+          <button id="fxAddSpot" data-tip="加一个光点层：沿环跑的光斑。">+ 光点</button>
+          <button id="fxAddTwinkle" data-tip="加一个随机闪层：与位置无关的随机亮度。">+ 随机闪</button>
+          <button id="fxAddFill" data-tip="加一个填充层：整环同亮。配脉动就是呼吸。">+ 填充</button>
+          <button id="fxAddGrad" data-tip="加一个亮度渐变层：沿环的明暗斜坡，带起始位与旋转。">+ 亮度渐变</button>
+        </div>
+        <label class="row ck"><span>随位置前进</span><input type="checkbox" id="fMoves" data-tip="勾上 = 这个效果随时间自己跑（追逐、摆动）。&#10;不勾 = 位置不动（呼吸、靠色相旋转的彩虹）。" checked></label>
+        <div class="hint">图层逐点「取较大值」叠加：光点跑光斑、填充配脉动就是呼吸。</div>
+      </fieldset>
+
       <fieldset id="fxEdit">
         <legend>选中效果</legend>
         <label class="row"><span>名称</span><b id="fName" data-tip="自动生成，不在这里改：模板 / 配色。&#10;内建的「模板」= 固件动画名（单点追逐 / 双点追逐 / 摆动 / 填充 / 静态）；自定义的「模板」= 你最近套用的那个预置模板名（套完再调宽度、速度、相位名字都不变，自己从零搭的叫「自定义」）。&#10;名字只写进导出的 C 注释，不进固件数据。">—</b>
@@ -538,21 +556,6 @@
           <span class="hint" style="flex:1;margin:0">只是库里的编号；哪个模式用哪个效果，在「模式」页里配</span></label>
         <label class="row"><span>类型</span><span id="fKind">—</span></label>
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
-        <label class="row"><span>配色</span><select id="fColor" data-tip="颜色怎么变：&#10;纯色 = 固定一色&#10;跳变 = 几种颜色轮着来：每种先从黑「渐亮(拍)」爬到满亮、保持「亮(拍)」、再用「变暗(拍)」匀速暗下去，暗到看不见那一拍换下一种（不留全黑帧 —— 全黑一帧会闪/抖一下）—— 亮灭底下的「停留(拍)」= 渐亮 + 亮 + 变暗，自动算好填在那一格（不用手填）&#10;渐变 = 红→黄→绿→青→蓝→紫→红 平滑循环（整条同色）&#10;彩虹 = 沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）&#10;呼吸 = 灭→亮→灭，一个周期换一种颜色&#10;覆盖 = 一种颜色被另一种逐级盖掉"></select></label>
-        <label class="row" id="rowPal"><span id="fPalLab">调色板</span>
-          <span id="fPalette" class="palrow"></span>
-          <button id="fxPalAdd" data-tip="给调色板加一个颜色（最多 16 个）。">+</button>
-          <button id="fxPalDel" data-tip="删掉调色板最后一个颜色（至少留 1 个）。">−</button>
-        </label>
-        <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色；覆盖：第 1 个是底色、第 2 个是盖上去的颜色。</div>
-        <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：停留几拍 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每 N 拍色相 +1（越小越快）。"></label>
-        <label class="row" id="rowRise"><span>渐亮(拍)</span><input type="number" id="fRise" min="0" max="255" data-tip="跳变：每种颜色点亮用几拍（20ms 一拍）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
-        <label class="row" id="rowHold"><span>亮(拍)</span><input type="number" id="fHold" min="0" max="255" data-tip="跳变：渐亮到满亮之后保持几拍（20ms 一拍）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
-        <label class="row" id="rowFade"><span>变暗(拍)</span><input type="number" id="fFade" min="0" max="255" data-tip="跳变：满亮之后用几拍匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留(拍)」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数）。"></label>
-        <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
-        <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
-        <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="255" data-tip="每 N 拍整体转一格；0 = 不动。"></label>
-        <label class="row" id="rowPeriod"><span>周期(拍)</span><input type="number" id="fPeriod" min="2" max="600" data-tip="呼吸：一次「灭→亮→灭」多少拍，每过一个周期换一种颜色。&#10;覆盖：一遍颜色盖过去多少拍。"></label>
         <label class="row"><span>慢速</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要几个 20ms 节拍。数值越大越慢。" min="1" max="99"></label>
         <label class="row"><span>快速</span><input type="number" id="fFast" data-tip="快速档：播放时按音量自动切换用的那一档。" min="1" max="99"></label>
         <label class="row"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
@@ -565,17 +568,42 @@
         <label class="row"><span>间隔</span><input type="number" id="fGap" data-tip="双点追逐时两个光斑的间距。&#10;只在「双点追逐」这个动画下用得上。" min="0" max="255"></label>
       </fieldset>
 
-      <fieldset id="fxCustom">
-        <legend>图层（自定义动效）</legend>
-        <div id="fLayers"></div>
-        <div class="btnrow">
-          <button id="fxAddSpot" data-tip="加一个光点层：沿环跑的光斑。">+ 光点</button>
-          <button id="fxAddTwinkle" data-tip="加一个随机闪层：与位置无关的随机亮度。">+ 随机闪</button>
-          <button id="fxAddFill" data-tip="加一个填充层：整环同亮。配脉动就是呼吸。">+ 填充</button>
-          <button id="fxAddGrad" data-tip="加一个亮度渐变层：沿环的明暗斜坡，带起始位与旋转。">+ 亮度渐变</button>
-        </div>
-        <label class="row ck"><span>随位置前进</span><input type="checkbox" id="fMoves" data-tip="勾上 = 这个效果随时间自己跑（追逐、摆动）。&#10;不勾 = 位置不动（呼吸、靠色相旋转的彩虹）。" checked></label>
-        <div class="hint">图层逐点「取较大值」叠加：光点跑光斑、填充配脉动就是呼吸。</div>
+      <fieldset id="fxColorCfg">
+        <legend>色彩配置</legend>
+        <label class="row"><span>配色</span><select id="fColor" data-tip="颜色怎么变：&#10;纯色 = 固定一色&#10;跳变 = 几种颜色轮着来：每种先从黑「渐亮(拍)」爬到满亮、保持「亮(拍)」、再用「变暗(拍)」匀速暗下去，暗到看不见那一拍换下一种（不留全黑帧 —— 全黑一帧会闪/抖一下）—— 亮灭底下的「停留(拍)」= 渐亮 + 亮 + 变暗，自动算好填在那一格（不用手填）&#10;渐变 = 整条同色、在一条颜色环上平滑循环（默认 红→黄→绿→青→蓝→紫→红；起始色 / 顺序可改，可另存多套）&#10;彩虹 = 沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）&#10;呼吸 = 灭→亮→灭，一个周期换一种颜色&#10;覆盖 = 一种颜色被另一种逐级盖掉"></select></label>
+        <label class="row" id="rowGrad"><span>渐变</span>
+          <select id="fGrad" data-tip="用哪一条渐变（渐变色库里存的，就是「渐变-1 / 渐变-2…」）。&#10;每条渐变 = 起始色 + 2..8 个锚点颜色；效果自己记一条，模式页里给某条绑定开「覆盖参数」就能换成别的 —— 不同分区可以各走各的渐变。"></select>
+          <button id="fxGradNew" data-tip="新建一条渐变：从零开始（默认顺序 红→黄→绿→青→蓝→紫，起点红），并把这条效果切到新的那条。&#10;库里别的渐变一点都不动 —— 想再来一条「蓝起」的就在新的这条上改起始色，别先改旧的再造。">新建</button>
+          <button id="fxGradSave" data-tip="把当前这条渐变「复制」一份（渐变-2、渐变-3…），并把这条效果切到副本上，用来在这条的基础上微调。&#10;原来那条一点不动 —— 别的分区还在用它。&#10;想要一条跟这条无关的全新渐变（默认顺序 + 起点红），用左边的「新建」。">另存为</button>
+          <button id="fxGradDrop" data-tip="删掉当前这条渐变（只剩一条时不能删）。用到它的效果 / 覆盖会自动改回第一条。">删除</button>
+        </label>
+        <label class="row" id="rowGradStart"><span>起始色</span>
+          <span id="fxGradStart" class="palrow"></span>
+          <span class="hint" style="flex:1;margin:0">相位 0 就是这条颜色（等于把整条环转一下，顺序不变）</span>
+        </label>
+        <label class="row" id="rowGradOrder"><span>顺序</span>
+          <span id="fxGradOrder" class="palrow"></span>
+          <button id="fxGradAdd" data-tip="在顺序末尾加一个颜色（最多 8 个）。中间那些过渡由算法按等长自动推出来 —— 你只管定几个颜色的大致方向。">+</button>
+          <button id="fxGradSub" data-tip="删掉顺序里最后一个颜色（至少留 2 个）。">−</button>
+        </label>
+        <div class="hint" id="fxGradHint">顺序 = 颜色环上的先后：第 1 个 → 第 2 个 → … → 回到第 1 个；相邻两个之间自动补渐变。</div>
+        <div id="fxGradRamp" class="gradramp" data-tip="整条渐变色环（最左 = 起始色 = 相位 0）。播放时整条灯带同色，颜色按「速度」从左边往右走，走完一整圈回到起点。"></div>
+        <label class="row" id="rowPal"><span id="fPalLab">调色板</span>
+          <span id="fPalette" class="palrow"></span>
+          <button id="fxPalAdd" data-tip="给调色板加一个颜色（最多 16 个）。">+</button>
+          <button id="fxPalDel" data-tip="删掉调色板最后一个颜色（至少留 1 个）。">−</button>
+        </label>
+        <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色；覆盖：第 1 个是底色、第 2 个是盖上去的颜色。</div>
+        <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：停留几拍 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。想比 1 拍/级更快 → 抬下面的「步进(级)」。"></label>
+        <label class="row" id="rowGradStep"><span>步进(级)</span><input type="number" id="fGradStep" min="1" max="16" data-tip="渐变专用：每动一次在色环上前进几级（1..16，默认 1）。&#10;「速度」回答「几拍动一次」（最小 1 拍），这里回答「一次走几级」—— 想比速度 = 1 还快，就抬这个：一整圈 = 256 × 速度 ÷ 步进 拍（速度 1 + 步进 8 → 32 拍 ≈ 0.64 秒一圈；50Hz 一拍 20ms）。&#10;1 = 老行为（逐拍一级）；最大 16 —— 16 个采样点走完一圈，再多就不是「流动」而是「闪」了。&#10;只改颜色走多快，不动起始色 / 顺序。"></label>
+        <div class="hint" id="fxGradStepHint">一整圈 = 256 格 ÷ 每拍几级 × 每几拍动一次</div>
+        <label class="row" id="rowRise"><span>渐亮(拍)</span><input type="number" id="fRise" min="0" max="255" data-tip="跳变：每种颜色点亮用几拍（20ms 一拍）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
+        <label class="row" id="rowHold"><span>亮(拍)</span><input type="number" id="fHold" min="0" max="255" data-tip="跳变：渐亮到满亮之后保持几拍（20ms 一拍）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
+        <label class="row" id="rowFade"><span>变暗(拍)</span><input type="number" id="fFade" min="0" max="255" data-tip="跳变：满亮之后用几拍匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留(拍)」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数）。"></label>
+        <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
+        <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
+        <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="255" data-tip="每 N 拍整体转一格；0 = 不动。"></label>
+        <label class="row" id="rowPeriod"><span>周期(拍)</span><input type="number" id="fPeriod" min="2" max="600" data-tip="呼吸：一次「灭→亮→灭」多少拍，每过一个周期换一种颜色。&#10;覆盖：一遍颜色盖过去多少拍。"></label>
       </fieldset>
 
       <!-- 播放（常驻）：钉在这一页底部，改完效果随手就能播、一帧一帧看、换下一条巡览。
@@ -770,6 +798,9 @@
           校验页会给出提示（V33）。所以能用原效果就别覆盖，确实需要差异化时再开。</div>
 
         <h3 id="hs-layer">效果页：图层怎么调</h3>
+        <p><b>页面从上到下</b>：效果库列表 → 编辑台（基础排布）→ <b>预置效果</b>（一键套模板）→
+          <b>图层（自定义动效）</b>（套完就地加 / 调图层）→ <b>选中效果</b>（名称 / 别名 / 序号 / 类型 / 使能 / 慢速 / 快速 / 起始位）→
+          <b>内建参数</b>（只对内建效果出现）→ <b>色彩配置</b>（配色 / 调色板 / 跳变与彩虹的节奏 —— 这一块在页面最下面）→ 底部常驻播放条。</p>
         <p>效果分两类：<b>内建</b>（直接用固件原有的动画类型，参数只有动画 / 光宽 / 间隔 / 配色 / 速度）与<b>自定义</b>
           （图层合成；任何一条内建效果都能一键「转为自定义」接着改）。内建里的<b>单点追逐</b>是一条
           <b>平顶光带</b> —— 带内一律最亮、带外全灭、不带边缘衰减（每颗灯只有「减、取绝对值、比较」三步，
@@ -835,23 +866,25 @@
           </td></tr>
         </table>
 
-        <h4>效果级参数</h4>
+        <h4>效果级参数（都在页面最下面的「色彩配置」里）</h4>
         <table>
           <tr><th>参数</th><th>作用</th></tr>
           <tr><td><b>配色</b></td><td>
             <b>纯色</b>：整条固定用调色板第 1 个颜色。<br>
             <b>跳变</b>：调色板里几种颜色轮着来。每种颜色先用「渐亮(拍)」<b>匀速爬到满亮</b>（第一拍就是 255 / 渐亮、最后一拍正好满亮；0 = 一拍照跳，硬启亮），再在「亮(拍)」里<b>保持满亮</b>，然后用「变暗(拍)」<b>匀速暗下去</b>：最后一拍停在 ≈255/(变暗+1)，暗到看不见但<b>不是全黑</b>（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」），就在这一拍换下一种 —— 接缝看不出来。「停留(拍)」= 渐亮 + 亮 + 变暗，填那三行时<b>自动算好</b>，不用手填（上限 255 拍）。<br>
-            <b>渐变</b>：红→黄→绿→青→蓝→紫→红 平滑循环（整条同色），速度可调。<br>
+            <b>渐变</b>：整条同色，随时间在一条<b>颜色环</b>上平滑循环（默认顺序 红→黄→绿→青→蓝→紫→红），快慢由「速度」和「步进」两个数一起定：「速度」= 几拍动一次，「步进」= 一次在环上前进几级（一整圈 = 256 × 速度 ÷ 步进 拍）。这条环是<b>你自己存的一套渐变</b>（「渐变-1 / 渐变-2…」）：<b>起始色</b> = 相位 0 是哪个颜色（等于把整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色按先后排好，相邻两个之间由算法等长补过渡 —— 只要定几个颜色的大致方向就行。改「起始色 / 顺序」动的是<b>库里那一条</b>（用它的效果一起变）；想再来一条，用「<b>新建</b>」（从零开始：默认顺序 + 起点红，跟库里别的都不搭界）或「<b>另存为</b>」（在这条的基础上复制一份微调），原条都一点不动；再在模式页给某条绑定打开「覆盖参数」、用那张卡上的「渐变」下拉换成另一条。<br>
             <b>彩虹</b>：沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）；<b>级数</b> = 走完一轮红→红要多少颗灯（30 颗的圆环填 30，40 颗的顶环填 40）。<br>
             <b>呼吸</b>：灭→亮→灭算一个周期，一个周期换一种颜色（颜色来自调色板）。<br>
             <b>覆盖</b>：第 1 个颜色被第 2 个逐级盖掉（一遍多少拍看「周期」）。
           </td></tr>
           <tr><td>对照看配色</td><td>套预置<b>「全点亮(测配色)」</b>：一个满亮填充层，不走位置、不脉动、不铺色相 —— 整条常亮，在这里换「配色」就能直接看出六种配色的差别。</td></tr>
-          <tr><td>调色板</td><td>用户自己定的颜色，最多 16 个。纯色用第 1 个；跳变/呼吸按色块个数循环；覆盖用第 1、2 个（底色 / 盖上去的颜色）。</td></tr>
+          <tr><td>渐变（起始色 / 顺序）</td><td>只在配色 = 渐变时出现。<b>起始色</b> = 相位 0 显示哪个颜色（= 整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色，‹ › 换前后、+ − 增删，锚点之间自动等长补渐变；下面那条色带就是整条环的预览（最左 = 起始色，播放时颜色从左往右走）。<b>新建</b> = 一条全新的（默认顺序 + 起点红，跟库里别的都不搭界），<b>另存为</b> = 在当前这条的基础上复制一份（渐变-2、渐变-3…），两者都会把这条效果切到新的那条、原条一点不动；<b>删除</b>删掉当前这条（只剩一条时不给删，用到它的效果自动改回第一条）。</td></tr>
+          <tr><td>调色板</td><td>用户自己定的颜色，最多 16 个。纯色用第 1 个；跳变/呼吸按色块个数循环；覆盖用第 1、2 个（底色 / 盖上去的颜色）。渐变不用调色板。</td></tr>
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
           <tr><td>周期(拍)</td><td>呼吸：一次灭→亮→灭多少拍；覆盖：一遍颜色盖过去多少拍。</td></tr>
-          <tr><td>停留(拍)</td><td>跳变：<b>自动 = 渐亮 + 亮 + 变暗</b>（填那三行就填好，只读）；渐变：每 N 拍色相 +1（越小越快）。</td></tr>
+          <tr><td>停留(拍) / 速度(拍)</td><td>跳变：<b>自动 = 渐亮 + 亮 + 变暗</b>（填那三行就填好，只读）；渐变：每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。再快就要靠下面的「步进(级)」。</td></tr>
+          <tr><td>步进(级)</td><td>渐变专用：每动一次在色环上<b>前进几级</b>（1..16，默认 1）。「速度」最小是 1 拍 —— 想比「1 拍 1 级」更快就抬步进：速度 1 + 步进 8 = 32 拍 ≈ 0.64 秒一圈（50Hz 一拍 20ms），最大 16 ≈ 0.32 秒一圈。下面那行灰字实时算「一整圈 = 多少拍 / 多少秒」。只改颜色走多快，不动起始色 / 顺序。</td></tr>
           <tr><td>渐亮(拍) / 亮(拍) / 变暗(拍)</td><td>跳变专用：匀速爬到满亮用几拍（第一拍 = 255 / 渐亮、最后一拍正好满亮；0 = 硬启亮，一拍照跳）；满亮保持几拍；再用几拍匀速暗下去（数值越大越慢；最后一拍 ≈255/(变暗+1) 不完全黑 —— 全黑一帧就是一次闪，换色会抖一下；0 = 立刻换色）。三段加起来就是「停留(拍)」（最多 255 拍）。</td></tr>
           <tr><td>慢速 / 快速</td><td>每走一格要几帧。数值越大越慢。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
@@ -925,8 +958,8 @@
           <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>绕环彩虹</td><td>一个填充层，配色选<b>本层空间色相</b>，跨度 255，旋转 2–4。或者用效果级配色选<b>彩虹</b>（级数填成分区灯数）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
-          <tr><td>一整圈首尾相接的彩虹</td><td>效果级配色选<b>彩虹</b>，<b>级数</b>填这个分区的灯数（30 颗圆环填 30；填 30 而分区只有 8 颗，就只显示红→黄那一小段）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，选「选中效果 → 配色」。">效果页</button></td></tr>
-          <tr><td>一种颜色盖过另一种</td><td>配色选<b>覆盖</b>，调色板第 1/2 个分别是底色和盖上去的颜色，<b>周期</b>管盖得快慢。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，选「选中效果 → 配色」。">效果页</button></td></tr>
+          <tr><td>一整圈首尾相接的彩虹</td><td>效果级配色选<b>彩虹</b>，<b>级数</b>填这个分区的灯数（30 颗圆环填 30；填 30 而分区只有 8 颗，就只显示红→黄那一小段）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
+          <tr><td>一种颜色盖过另一种</td><td>配色选<b>覆盖</b>，调色板第 1/2 个分别是底色和盖上去的颜色，<b>周期</b>管盖得快慢。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
           <tr><td>彩虹在跑</td><td>外环用「彩虹环」（填充+空间色相），顶环再加一个光点层让亮点扫过。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>随机闪</td><td>一个<b>随机闪</b>层；想让它盖在底色上，再垫一个低亮度的填充层。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>旋钮光晕太窄</td><td>模式页那条绑定勾「覆盖参数」→「微调参数」→ 把光宽调大（效果页的「多长度对比」用的是你板子上真实的几条长度，先在编辑台看清再改）。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
@@ -2040,7 +2073,9 @@ function fxEffectName(e) {
  *   levels    : 彩虹 —— 走完一轮「红→…→红」要多少颗灯（>= 6，默认 30）
  *   hue_base  : 彩虹起点；hue_speed = 每 N 拍整体转一格（0 = 不转）
  *   period    : 呼吸 / 覆盖 —— 一个周期多少拍
- *   speed     : 跳变 = 每种颜色停留多少拍（= 渐亮 + 亮 + 变暗）；渐变 = 每 N 拍相位 +1
+ *   speed     : 跳变 = 每种颜色停留多少拍（= 渐亮 + 亮 + 变暗）；渐变 = 每几拍动一次
+ *   grad_step : 渐变专用 —— 每动一次前进几级（1..16，默认 1）；一圈 = 256 × speed / grad_step 拍。
+ *               speed 只管「多久动一次」，想比 speed=1 还快就抬步进（老存档没有它 = 1，行为不变）
  *   rise/hold/fade : 跳变专用，渐亮 / 满亮 / 变暗各几拍（老存档没有 rise = 0，即硬启亮）
  *   c1 / c2   : 旧字段（老存档、单色、覆盖参数仍用它们），也是 palette 的后备
  *
@@ -2057,6 +2092,165 @@ function effPalette(e) {
 }
 function effLevels(e) { return Math.max(6, Math.min(255, ((e && e.levels) | 0) || 30)); }
 function effPeriod(e) { return Math.max(2, Math.min(600, ((e && e.period) | 0) || 60)); }
+/* 渐变步进：每动一次在色环上前进几级（1..16）。
+ * 「速度」只说「几拍动一次」，最小 1 拍 —— 想在 1 拍上再快，就把这里抬起来：
+ * 一整圈 = 256 × speed / grad_step 拍（speed=1、步进 16 → 16 拍 ≈ 0.32 秒一圈）。
+ * 上限 16：一条环 256 级，每拍 16 级已经是 16 个采样点走一圈，再多就不是「流动」而是「闪」了。
+ * 老存档 / 手改 JSON 没有这个字段 → 1，行为与从前逐拍一致。 */
+const GRAD_STEP_MIN = 1, GRAD_STEP_MAX = 16;
+function effGradStep(e) {
+  const v = (e && e.grad_step) | 0;
+  return Math.max(GRAD_STEP_MIN, Math.min(GRAD_STEP_MAX, v || GRAD_STEP_MIN));
+}
+
+/* ---- 渐变色库（颜色环）----------------------------------------------------
+ * 「渐变」配色不再只吃固件内置的 spectrum_tbl，而是走用户自己存的一条 256 级颜色环：
+ *   anchors : 2..8 个颜色，按顺序首尾相接、每段等长插值。用户只要定几个颜色的大致
+ *             方向，中间的过渡由算法推出来 —— 默认 6 个锚点就是固件彩虹表的顺序：
+ *             红 → 黄 → 绿 → 青 → 蓝 → 紫 →（回到红）
+ *   start   : 起始色 —— 整条环从哪个颜色开始（把环转一下，顺序不变；默认红 = 不转）
+ * 效果用 e.grad 指一条渐变（空 = 第一条）；绑定可以在「覆盖参数」里换成另一条
+ * （渐变-1 / 渐变-2…），导出的 C 里每个效果带自己那张表的起点，固件那边不用算插值。
+ * 渲染只查表：每拍一次 c.spectrum[phase]，插值不落进像素循环（与导出的表逐字节一致）。
+ * ---------------------------------------------------------------------- */
+const GRAD_MIN = 2, GRAD_MAX = 8;
+const GRAD_DEFAULT_ANCHORS = [[255, 0, 0], [255, 255, 0], [0, 255, 0],
+                              [0, 255, 255], [0, 0, 255], [255, 0, 255]];
+/* 一条「全新」的渐变 = 默认顺序（红→黄→绿→青→蓝→紫）+ 起点红，与固件彩虹表同序。
+ * 「新建」用这个：不从库里任何一条复制，所以已有几条、被改成什么样，都不影响它。 */
+function gradDefault() {
+  return { start: GRAD_DEFAULT_ANCHORS[0].slice(),
+           anchors: GRAD_DEFAULT_ANCHORS.map(c => c.slice()) };
+}
+function defaultGradients() {
+  return { version: 1, nextId: 2,
+           list: [Object.assign({ id: 'g1', name: '渐变-1' }, gradDefault())] };
+}
+function rgbClamp(c, dflt) {
+  const d = isRgb(dflt) ? dflt : [255, 0, 0];
+  if (!isRgb(c)) return d.slice(0, 3);
+  return [Math.max(0, Math.min(255, c[0] | 0)),
+          Math.max(0, Math.min(255, c[1] | 0)),
+          Math.max(0, Math.min(255, c[2] | 0))];
+}
+/* 幂等：老存档没有 gradients、或者被手改坏了，都补成「渐变-1」 */
+function gradLib(state) {
+  if (!state) return defaultGradients();
+  let g = state.gradients;
+  if (!g || typeof g !== 'object' || !Array.isArray(g.list) || !g.list.length) {
+    state.gradients = defaultGradients();
+    g = state.gradients;
+  }
+  g.version = 1;
+  g.nextId = Math.max(1, g.nextId | 0);
+  const seen = new Set();
+  const list = [];
+  let maxId = 0;
+  g.list.forEach((x, i) => {
+    if (!x || typeof x !== 'object') return;
+    let id = String(x.id || ('g' + (i + 1)));
+    while (seen.has(id)) id = id + '_';        /* 手改存档撞 id 时也别让选择框打架 */
+    seen.add(id);
+    x.id = id;
+    if (!x.name) x.name = '渐变-' + (i + 1);
+    x.start = rgbClamp(x.start, GRAD_DEFAULT_ANCHORS[0]);
+    let A = Array.isArray(x.anchors) ? x.anchors.filter(isRgb).map(c => rgbClamp(c, [255, 0, 0])) : [];
+    if (A.length < GRAD_MIN) A = GRAD_DEFAULT_ANCHORS.map(c => c.slice());
+    x.anchors = A.slice(0, GRAD_MAX);
+    const n = parseInt(String(x.id).replace(/\D+/g, ''), 10);
+    if (n > maxId) maxId = n;
+    list.push(x);
+  });
+  g.list = list;
+  if (!g.list.length) { state.gradients = defaultGradients(); return state.gradients; }
+  /* nextId 永远比最大编号大 1：老存档里 nextId 落后（或被手改）时也不会再撞 id ——
+   * 撞 id 的后果就是「两条渐变其实是一条」，切哪个都跟着变。 */
+  g.nextId = Math.max(g.nextId | 0, maxId + 1);
+  return g;
+}
+function gradList(state) { return gradLib(state).list; }
+/* id → 渐变；找不到就退回第一条（删掉一条后留下的悬空引用也能画出来） */
+function gradById(state, id) {
+  const L = gradList(state);
+  return L.find(g => g.id === id) || L[0];
+}
+function gradAnchors(g) { return rgbAnchorsOf(g); }
+function rgbAnchorsOf(g) {
+  const A = (g && Array.isArray(g.anchors)) ? g.anchors.filter(isRgb) : [];
+  const M = (A.length >= GRAD_MIN) ? A : GRAD_DEFAULT_ANCHORS;
+  return M.slice(0, GRAD_MAX).map(c => rgbClamp(c, [255, 0, 0]));
+}
+function gradStart(g) { return rgbClamp(g && g.start, GRAD_DEFAULT_ANCHORS[0]); }
+/* 颜色环（还没按起始色旋转）：256 级，每段等长，256 除不尽的几级先给前几段 */
+function gradRamp(g) {
+  const A = gradAnchors(g), n = A.length, out = new Array(256);
+  const base = Math.floor(256 / n), rem = 256 % n;
+  let i = 0;
+  for (let s = 0; s < n; s++) {
+    const a = A[s], b = A[(s + 1) % n];
+    const w = base + (s < rem ? 1 : 0);
+    for (let k = 0; k < w && i < 256; k++, i++) {
+      out[i] = { r: Math.round(a[0] + ((b[0] - a[0]) * k) / w),
+                 g: Math.round(a[1] + ((b[1] - a[1]) * k) / w),
+                 b: Math.round(a[2] + ((b[2] - a[2]) * k) / w) };
+    }
+  }
+  return out;
+}
+/* 起始色在环上的落点：取「颜色最接近」的那一级（起始色恰好是锚点时就落在锚点上）。
+ * 相位 0 显示的就是这一级 —— 所以调起始色 = 把整条环转一下，顺序一点不变。 */
+function gradShift(g) {
+  const ramp = gradRamp(g), st = gradStart(g);
+  let best = 0, bestD = Infinity;
+  for (let i = 0; i < 256; i++) {
+    const c = ramp[i];
+    const dr = c.r - st[0], dg = c.g - st[1], db = c.b - st[2];
+    const d = dr * dr + dg * dg + db * db;
+    if (d < bestD) { bestD = d; best = i; }
+    if (d === 0) break;                        /* 命中锚点：后面不可能更近 */
+  }
+  return best;
+}
+const GRAD_CACHE = new Map();                  /* 内容 → 256 级表；同一套参数只算一次 */
+function gradTableKey(g) { return JSON.stringify([gradStart(g), gradAnchors(g)]); }
+function gradTable(g) {
+  const key = gradTableKey(g);
+  const hit = GRAD_CACHE.get(key);
+  if (hit) return hit;
+  const base = gradRamp(g), sh = gradShift(g), out = new Array(256);
+  for (let i = 0; i < 256; i++) out[i] = base[(i + sh) & 255];
+  if (GRAD_CACHE.size > 32) GRAD_CACHE.clear();
+  GRAD_CACHE.set(key, out);
+  return out;
+}
+/* 效果 → 要用的那张表（e.grad 空 / 指向已删掉的渐变 → 第一条） */
+function gradTableFor(state, eff) { return gradTable(gradById(state, eff && eff.grad)); }
+/* 另存为一条新渐变（复制 from，默认第一条），名字按编号自动取：渐变-2、渐变-3…
+ * 「新建」（从零开始的一条）传 gradDefault() 进来就行。 */
+function gradNew(state, from) {
+  const lib = gradLib(state);
+  const src = from || lib.list[0];
+  /* 编号 = nextId 起往上找第一个没用过的：老存档里 nextId 落后 / 被手改过也不会撞 id。
+   * 撞 id = 两条渐变共用同一个身份，切来切去其实是同一条（改起始色两边一起变）。 */
+  let n = Math.max(1, lib.nextId | 0);
+  while (lib.list.some(g => g.id === 'g' + n)) n++;
+  lib.nextId = n + 1;
+  const g = { id: 'g' + n, name: '渐变-' + n,
+              start: gradStart(src).slice(), anchors: gradAnchors(src).map(c => c.slice()) };
+  lib.list.push(g);
+  return g;
+}
+/* 删一条渐变：指向它的效果 / 覆盖都改指第一条，不留悬空引用（只剩一条时不给删） */
+function gradDrop(state, id) {
+  const lib = gradLib(state);
+  if (lib.list.length <= 1) return false;
+  lib.list = lib.list.filter(g => g.id !== id);
+  const keep = lib.list[0].id;
+  const fix = e => { if (e && (e.grad === id || !gradById(state, e.grad))) e.grad = keep; };
+  ((state.effects && state.effects.list) || []).forEach(fix);
+  ((state.modes && state.modes.list) || []).forEach(m => (m.binds || []).forEach(b => fix(b.override)));
+  return true;
+}
 /* 老存档 / 覆盖副本 / 手工造的效果对象都走这里补字段（幂等） */
 function normalizeEffect(e) {
   if (!e) return e;
@@ -2072,8 +2266,12 @@ function normalizeEffect(e) {
   e.hold = effStepHold(e);
   e.fade = effStepFade(e);
   if ((e.color | 0) === FW.COLOR.STEP) e.speed = stepSpeedOf(e);  /* 跳变：停留 = 渐亮 + 亮 + 变暗 */
+  e.grad_step = effGradStep(e);     /* 渐变：每动一次几级（1..16，老存档没有 = 1） */
   e.hue_base = (e.hue_base | 0) & 0xFF;
   e.hue_speed = (e.hue_speed | 0) & 0xFF;
+  /* 渐变配色用哪一条渐变（渐变色库的 id）；空 = 第一条（渐变-1）。
+   * 只归一成字符串：真正的回退在 gradById() —— 它不需要 state 也能兜住。 */
+  e.grad = (typeof e.grad === 'string') ? e.grad : (e.grad == null ? '' : String(e.grad));
   return e;
 }
 
@@ -2134,6 +2332,7 @@ function emptyProject() {
     anim: defaultAnim(),
     stage: { ringN: 24, stripN: 24, compare: false },   /* 效果编辑台的基础排布 */
     effects: defaultEffects(),
+    gradients: defaultGradients(),                     /* 渐变色库：默认一条「渐变-1」= 红→黄→绿→青→蓝→紫 */
     modes: emptyModes(),
     zones: [], leds: [], shapes: [],
   };
@@ -2567,18 +2766,26 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
 function renderZoneMask(inst, len, pos) {
   renderZoneMaskTo(inst, inst.anim.mask, inst.anim.hue, len, pos);
 }
+/* 一拍前进几级（1..16）：实例上的 grad_step 由 instApplyPreset 从效果带进来；
+ * 手工拼出来的 color 对象没有这个字段 → 1，与从前的「每拍一级」逐拍一致。 */
+function gradStepOf(c) {
+  const v = (c && c.grad_step) | 0;
+  return Math.max(GRAD_STEP_MIN, Math.min(GRAD_STEP_MAX, v || GRAD_STEP_MIN));
+}
 function colorUpdate(c, tick) {
   const pal = (c.palette && c.palette.length) ? c.palette : null;
   switch (c.type) {
     case FW.COLOR.SOLID: break;
     case FW.COLOR.SPECTRUM:
-      if (++c.tick_cnt >= c.spectrum_speed) { c.tick_cnt = 0; c.phase = (c.phase + 1) & 0xFF; }
-      c.current = FW.spectrum_tbl[c.phase];
+      if (++c.tick_cnt >= c.spectrum_speed) { c.tick_cnt = 0; c.phase = (c.phase + gradStepOf(c)) & 0xFF; }
+      /* 查效果自己那张渐变表（instApplyPreset 换进去的；没换就是固件彩虹表） */
+      c.current   = c.spectrum[c.phase];
+      c.secondary = c.spectrum[(c.phase + 85) & 0xFF];   /* 副色只有旧双色渐变用，仍旧一起算好 */
       break;
-    case FW.COLOR.GRADIENT:
-      if (++c.tick_cnt >= c.spectrum_speed) { c.tick_cnt = 0; c.phase = (c.phase + 1) & 0xFF; }
-      c.current   = FW.spectrum_tbl[c.phase];
-      c.secondary = FW.spectrum_tbl[(c.phase + 85) & 0xFF];
+    case FW.COLOR.GRADIENT:                    /* 旧双色渐变：主/副色差 85 级，老存档还认 */
+      if (++c.tick_cnt >= c.spectrum_speed) { c.tick_cnt = 0; c.phase = (c.phase + gradStepOf(c)) & 0xFF; }
+      c.current   = c.spectrum[c.phase];
+      c.secondary = c.spectrum[(c.phase + 85) & 0xFF];
       break;
     /* 跳变：每 speed 拍换下一个颜色（这儿只改索引）。亮度包络在
      * renderZoneMaskTo / C 的 led_gen_zone_render 里乘到 mask 上。 */
@@ -2625,7 +2832,10 @@ function instNew() {
             layers: [], moves: false, gen_tick: 0, offset: 0 },
     color: { type: FW.COLOR.SOLID, current: { r: 255, g: 0, b: 0 },
              secondary: { r: 0, g: 0, b: 0 }, phase: 0, tick_cnt: 0, spectrum_speed: 1,
+             grad_step: 1,
              step_rise: 0, step_hold: 1, step_fade: 0,
+             /* 渐变 / 旧双色渐变查的那张 256 级表：默认固件彩虹表，套效果时换成效果选中的渐变 */
+             spectrum: FW.spectrum_tbl,
              palette: [[255, 0, 0]], levels: 30, hue_base: 0, hue_speed: 0, period: 60 },
     speed_slow: 8, speed_fast: 1, speed_cur: 8, step_cnt: 0,
   };
@@ -2672,9 +2882,9 @@ function simInit() {
 }
 
 /* 把一条效果铺进一个实例 */
-function simApplyEffect(inst, eff, idx) {
+function simApplyEffect(inst, eff, idx, state) {
   if (!eff || !inst) return;
-  instApplyPreset(inst, effectPreset(eff, idx));
+  instApplyPreset(inst, effectPreset(eff, idx, state));
   if (eff.kind === 'custom') {
     inst.anim.layers = (eff.layers || []).map(layerNums);
     inst.anim.moves = !!eff.moves;
@@ -2702,7 +2912,7 @@ function simApplyMode(sim, state) {
     if (idx === undefined) {
       idx = insts.length; byEffect.set(key, idx);
       insts.push(instNew());
-      simApplyEffect(insts[idx], eff, effectIndex(state, b.effect));
+      simApplyEffect(insts[idx], eff, effectIndex(state, b.effect), state);
     }
     plan.push({ inst: idx, zones: bindZones(state, b) });
   }
@@ -2733,7 +2943,7 @@ function simApplySolo(sim, state, effectId) {
   if (!eff) { sim.insts = []; sim.plan = []; return null; }
   const idx  = effectIndex(state, eff.id);
   const inst = instNew();
-  simApplyEffect(inst, eff, idx);
+  simApplyEffect(inst, eff, idx, state);
   inst.eff = Math.max(0, idx);          /* 与 C 侧的 I->eff 对齐 */
   sim.insts = [inst];
   sim.plan  = [{ inst: 0, zones: state.zones.map((_, i) => i) }];
@@ -2766,14 +2976,18 @@ function simSetSpeed(sim, which) {
 }
 
 /* 效果对象 → ring_preset_t 形状（内建/自定义共用） */
-function effectPreset(eff, idx) {
+function effectPreset(eff, idx, state) {
   const mode = eff.color | 0;
   const pal = effPalette(eff);
   return {
     anim:  (eff.kind === 'custom') ? (FW.ANIM_COUNT + (idx | 0)) : (eff.anim | 0),
     color: mode,
+    /* 渐变 / 旧双色渐变：这条效果自己选的那张色环（导出 C 用的是同一张表） */
+    gradTable: (mode === FW.COLOR.SPECTRUM || mode === FW.COLOR.GRADIENT)
+                 ? gradTableFor(state, eff) : null,
     width: eff.width | 0, gap: eff.gap | 0,
     slow:  eff.slow | 0,  fast: eff.fast | 0, speed: eff.speed | 0,
+    grad_step: effGradStep(eff),
     /* 纯色的主色仍以 c1 为准（「覆盖参数」只改 c1 时立刻生效）；
        色板类模式（跳变/呼吸/覆盖/彩虹）以 palette 为准。 */
     c1: mode === FW.COLOR.SOLID ? (eff.c1 || pal[0]) : pal[0],
@@ -2956,10 +3170,14 @@ function instApplyPreset(inst, p) {
     const sp = isStep ? stepSpeedOf(p) : (p.speed > 0 ? (p.speed | 0) : 1);
     const sc = stepClamp(sp, effStepRise(p), effStepHold(p), effStepFade(p));
     inst.color.spectrum_speed = sp;
+    /* 渐变步进（每动一次几级）：跟 speed 一起装进实例 —— 两者相乘/相除才是真正的快慢 */
+    inst.color.grad_step = effGradStep(p);
     inst.color.step_rise = sc[0];
     inst.color.step_hold = sc[1];
     inst.color.step_fade = sc[2];
   }
+  /* 渐变 / 旧双色渐变查哪张表：效果选中的那条渐变（没给就用固件彩虹表） */
+  inst.color.spectrum = (p && p.gradTable) || FW.spectrum_tbl;
   inst.color.phase = 0; inst.color.tick_cnt = 0;
 
   switch (p.color | 0) {
@@ -3129,6 +3347,18 @@ function modesPlan(state) {
   if (!modes.length) modes = defaultModesFromEffects(state).list;
   const layerRows = [];
   const palRows = [];                 /* 所有效果的色板拼成一张表；效果行用 first/count 指进来 */
+  const gradRows = [];                /* 互不相同的渐变色环（每个 256 行）；效果行用 grad_first 指进来 */
+  const gradIdx = new Map();          /* 色环内容 → 起点：多条效果共用一条渐变时只存一份 */
+
+  /* 一条渐变占 256 行；同内容的只存一次（导出体积按「实际用到几条」算，不是按效果条数） */
+  const gradFirstOf = tbl => {
+    const key = JSON.stringify(tbl);
+    if (gradIdx.has(key)) return gradIdx.get(key);
+    const first = gradRows.length;
+    for (const c of tbl) gradRows.push(c);
+    gradIdx.set(key, first);
+    return first;
+  };
 
   const rowFromEffect = (e, layerRows0, name) => {
     const pal = effPalette(e);
@@ -3142,6 +3372,10 @@ function modesPlan(state) {
                    c2r: c2[0], c2g: c2[1], c2b: c2[2],
                    speed: e.speed | 0, slow: e.slow | 0, fast: e.fast | 0,
                    pal_first: palFirst, pal_count: pal.length,
+                   /* 渐变 / 旧双色渐变：该效果那张色环在 led_gen_grad 里的起点 */
+                   grad_first: (mode === FW.COLOR.SPECTRUM || mode === FW.COLOR.GRADIENT)
+                                 ? gradFirstOf(gradTableFor(state, e)) : 0,
+                   grad_step: effGradStep(e),
                    levels: effLevels(e), hue_base: e.hue_base | 0,
                    hue_speed: e.hue_speed | 0, period: effPeriod(e),
                    rise: effStepRise(e), hold: effStepHold(e), fade: effStepFade(e),
@@ -3195,7 +3429,7 @@ function modesPlan(state) {
     return { first, count, enabled: m.enabled ? 1 : 0,
              name: m.name, latin: m.latin || '' };
   });
-  return { effRows, layerRows, bindRows, mdRows, palRows };
+  return { effRows, layerRows, bindRows, mdRows, palRows, gradRows };
 }
 
 /* 生成的 C 渲染器正文。与 JS 的 genSpot/genTwinkle/genFill/genRender/pulseGain
@@ -3602,7 +3836,14 @@ const LED_GEN_IMPL = [
 '                I->color.phase.current = idx;',
 '                I->color.current = led_gen_palette[E->pal_first + idx];',
 '            } else if (E->ctype <= (uint8_t)COLOR_GRADIENT) {',
-'                color_update(&I->color);',
+'                /* @gradTick@ */',
+'                if (++I->color.tick_cnt >= I->color.spectrum_speed) {',
+'                    uint8_t gs = (E->grad_step != 0u) ? E->grad_step : 1u;',
+'                    I->color.tick_cnt = 0;',
+'                    I->color.phase.current = (int16_t)((I->color.phase.current + (int16_t)gs) & 0xFF);',
+'                }',
+'                I->color.current   = led_gen_grad[E->grad_first + (uint8_t)I->color.phase.current];',
+'                I->color.secondary = led_gen_grad[E->grad_first + (uint8_t)(I->color.phase.current + 85)];',
 '            }',
 '        }',
 '    }',
@@ -3694,6 +3935,7 @@ const GEN_COMMENTS = {
   rainbowcalc: { zh:'(i * 256 / levels) 用 q/r 递推，循环里没有除法', en:'(i * 256 / levels) via a q/r recurrence: no division in the loop' },
   solidnoop: { zh:'纯色：current 在 apply_mode 里已经定好，每拍什么都不用做', en:'solid: current is already set in apply_mode, nothing to do per frame' },
   grad:   { zh:'亮度渐变层：沿环斜坡/三角/锯齿，可带起始位与旋转', en:'brightness gradient layer: ramp/triangle/saw around the ring' },
+  gradTick: { zh:'渐变配色：每 N 拍相位 +grad_step 级（步进），查本效果那张色环表（固件内置的 spectrum_tbl 不再参与）', en:'gradient colour: +grad_step levels every N frames, looked up in this effect own ring table (the firmware spectrum_tbl is no longer involved)' },
 };
 function genImpl(zh) {
   return LED_GEN_IMPL.map(line => line.replace(/@(\w+)@/g, (m, k) => (GEN_COMMENTS[k] ? GEN_COMMENTS[k][zh ? 'zh' : 'en'] : k)));
@@ -3811,7 +4053,7 @@ function exportEffectsC(state, opt) {
   const o = Object.assign({ form: 'header', comment: 'ascii', eol: 'crlf' }, opt || {});
   const EOL = (o.eol === 'lf') ? '\n' : '\r\n';
   const zh = o.comment === 'zh';
-  const { effRows, layerRows, bindRows, mdRows, palRows } = modesPlan(state);
+  const { effRows, layerRows, bindRows, mdRows, palRows, gradRows } = modesPlan(state);
   const L = [];
   const push = (...xs) => xs.forEach(x => L.push(x));
   const gmax = v => Math.max.apply(null, v.concat([1]));
@@ -3825,13 +4067,15 @@ function exportEffectsC(state, opt) {
     effWidth: '内建光宽', effGap: '内建双点间隔',
     effCtype: '配色 0纯色/1渐变/3跳变/4彩虹/5呼吸/6覆盖（2 = 旧双色渐变）',
     effC1: '主色（纯色/覆盖的底色）', effC2: '副色（覆盖时盖上去的颜色）',
-    effSpeed: '跳变 = 每种颜色停留几拍 = 渐亮 + 亮 + 变暗（工具里自动算）；渐变 = 每 N 拍相位 +1',
+    effSpeed: '跳变 = 每种颜色停留几拍 = 渐亮 + 亮 + 变暗（工具里自动算）；渐变 = 每几拍动一次',
     effSlow: '慢速档 ticks/格', effFast: '快速档 ticks/格',
     effFirst: '该效果在图层表里的起点', effCount: '图层数（内建效果为 0）',
     effOffset: '起始位: 把动画沿环挪一段 (0..255)',
     effMoves: '是否随位置自动前进',
     effPalFirst: '该效果的色板在 led_gen_palette 里的起点',
     effPalCount: '色板颜色数（纯色/跳变/呼吸/覆盖用）',
+    effGrad: '渐变/旧双色渐变: 该效果的色环在 led_gen_grad 里的起点（一条渐变 256 行；其余配色为 0）',
+    effGradStep: '渐变/旧双色渐变: 每动一次前进几级 (1..16)；一整圈 = 256 * spectrum_speed / grad_step 拍（其余配色存着不用）',
     effLevels: '彩虹: 走完一轮红->红要多少颗灯 (>=6)',
     effHueBase: '彩虹: 色相起点 0..255',
     effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转',
@@ -3841,6 +4085,7 @@ function exportEffectsC(state, opt) {
     effFade: '跳变: 满亮之后用几拍暗下去（越大越慢；最后一拍 ≈255/(fade+1)、不落 0，换色处不闪；渐亮 + 亮 + 变暗 = spectrum_speed）',
     newColors: '新配色模式（0..2 沿用固件的 COLOR_* 枚举；3..6 由生成代码处理）',
     palRow: '色板: 每个效果一段 {r,g,b}；效果行用 pal_first/pal_count 指进来',
+    gradRow: '渐变色环: 每条渐变 256 行 {r,g,b}（红→黄→绿→青→蓝→紫→回到红，起始色已经转到相位 0）；效果行用 grad_first 指进来',
     bindEffect: '用第几个效果（led_gen_effects 下标）',
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
@@ -3887,13 +4132,15 @@ function exportEffectsC(state, opt) {
     effWidth: 'built-in light width', effGap: 'built-in dual-spot gap',
     effCtype: 'colour: 0 solid / 1 gradient / 3 step / 4 rainbow / 5 breath / 6 wipe (2 = legacy duo)',
     effC1: 'primary colour (solid / wipe base)', effC2: 'secondary colour (the one wiping over)',
-    effSpeed: 'step: ticks per colour = rise + hold + fade (computed by the tool); gradient: +1 phase every N frames',
+    effSpeed: 'step: ticks per colour = rise + hold + fade (computed by the tool); gradient: ticks between steps',
     effSlow: 'slow ticks per step', effFast: 'fast ticks per step',
     effFirst: 'start index into the layer table', effCount: 'layer count (0 for built-in effects)',
     effOffset: 'start offset: shift the animation around the ring (0..255)',
     effMoves: 'advances with the animation position',
     effPalFirst: 'start index into led_gen_palette',
     effPalCount: 'palette size (solid/step/breath/wipe)',
+    effGrad: 'gradient/legacy duo: start index of this effect grad ring in led_gen_grad (256 rows per ring; 0 for other colour modes)',
+    effGradStep: 'gradient/legacy duo: levels advanced per step (1..16); one revolution = 256 * spectrum_speed / grad_step ticks (stored but unused by other colour modes)',
     effLevels: 'rainbow: LEDs per full red->red cycle (>=6)',
     effHueBase: 'rainbow: hue start 0..255',
     effHueSpeed: 'rainbow: shift one level every N frames, 0 = static',
@@ -3903,6 +4150,7 @@ function exportEffectsC(state, opt) {
     effFade: 'step: ticks to dim from full (larger = slower; the last tick sits at about 255/(fade+1), never 0 - no dark frame at the colour switch; rise + hold + fade = spectrum_speed)',
     newColors: 'new colour modes (0..2 reuse the firmware COLOR_* enum; 3..6 are handled here)',
     palRow: 'palette rows: {r,g,b} per colour, referenced by pal_first/pal_count',
+    gradRow: 'gradient rings: 256 rows {r,g,b} per gradient (red->yellow->green->cyan->blue->magenta->red, rotated so the start colour sits at phase 0); effect rows point in with grad_first',
     bindEffect: 'which effect (index into led_gen_effects)',
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
@@ -4031,6 +4279,8 @@ function exportEffectsC(state, opt) {
        '    uint8_t step_rise;      /* ' + t.effRise + ' */',
        '    uint8_t step_hold;      /* ' + t.effHold + ' */',
        '    uint8_t step_fade;      /* ' + t.effFade + ' */',
+       '    uint16_t grad_first;    /* ' + t.effGrad + ' */',
+       '    uint8_t grad_step;      /* ' + t.effGradStep + ' */',
        '} led_gen_effect_t;',
        '',
        'typedef struct { uint8_t effect; uint16_t zone_mask; } led_gen_bind_t;  /* ' + t.bindt + ' */',
@@ -4066,6 +4316,21 @@ function exportEffectsC(state, opt) {
     push('    { 255, 0, 0 },');
   }
   push('};', '');
+  push('/* ' + t.gradRow + ' */');
+  push('static const rgb_t led_gen_grad[] = {');
+  if (gradRows.length) {
+    /* 一条渐变一段 256 行；效果行的 grad_first 直接指进来（同一张表只存一份） */
+    for (let i = 0; i < gradRows.length; i += 256) {
+      push('    /* ' + (zh ? '渐变 ' : 'gradient ') + (i / 256) + ' */');
+      for (let k = 0; k < 256; k++) {
+        const c = gradRows[i + k] || { r: 0, g: 0, b: 0 };
+        push('    { ' + (c.r | 0) + ', ' + (c.g | 0) + ', ' + (c.b | 0) + ' },');
+      }
+    }
+  } else {
+    push('    { 0, 0, 0 },');
+  }
+  push('};', '');
   push('/* ' + t.effLibNote + ' */');
   push('static const led_gen_effect_t led_gen_effects[LED_GEN_EFFECT_COUNT] = {');
   effRows.forEach((e, i) => {
@@ -4073,7 +4338,7 @@ function exportEffectsC(state, opt) {
                      e.c2r, e.c2g, e.c2b, e.speed, e.slow, e.fast,
                      e.first, e.count, e.offset, e.moves,
                      e.pal_first, e.pal_count, e.levels, e.hue_base, e.hue_speed, e.period,
-                     e.rise, e.hold, e.fade].join(', ') +
+                     e.rise, e.hold, e.fade, e.grad_first, e.grad_step].join(', ') +
          ' },   /* ' + i + ' ' + nm(e) + ' */');
   });
   push('};', '');
@@ -4273,6 +4538,11 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                layerToCRow, layerNums, modesPlan, exportEffectsC, buildPatchText, mangleComment,
                LED_GEN_HAL, exportHalC,
                PATCH_BANNER2, patchLines, genImpl, GEN_COMMENTS,
+               /* 渐变色库（颜色环）：默认表 / 查表 / 增删 / 步进 */
+               GRAD_MIN, GRAD_MAX, GRAD_DEFAULT_ANCHORS, gradDefault, defaultGradients,
+               GRAD_STEP_MIN, GRAD_STEP_MAX, effGradStep, gradStepOf,
+               gradLib, gradList, gradById, gradAnchors, gradStart, gradRamp, gradShift,
+               gradTable, gradTableFor, gradTableKey, gradNew, gradDrop, rgbClamp,
                LED_GEN_IMPL, ANIM_TOK, COLOR_TOK };
 </script>
 
@@ -5923,7 +6193,7 @@ function stageSync(force) {
   const key = (editBinding ? 'bind:' : 'eff:') + (e.id || '');
   if (stageInst && !force && stageEffectId === key) return stageInst;
   stageInst = instNew();
-  simApplyEffect(stageInst, e, effectIndex(state, e.id));
+  simApplyEffect(stageInst, e, effectIndex(state, e.id), state);
   if (!stagePlaying) stageSampleFrame(stageInst);
   stageEffectId = key;
   return stageInst;
@@ -5963,10 +6233,10 @@ function stageSampleFrame(inst) {
     }
     case FW.COLOR.SPECTRUM:
     case FW.COLOR.GRADIENT:
-      /* 相位移到绿：不要跟默认的红撞脸 */
+      /* 相位移到整条环的 1/3 处：不要跟起始色（默认红）撞脸，又能一眼看出顺序 */
       c.phase = 85;
-      c.current = FW.spectrum_tbl[85];
-      c.secondary = FW.spectrum_tbl[(85 + 85) & 0xFF];
+      c.current   = c.spectrum[85];
+      c.secondary = c.spectrum[(85 + 85) & 0xFF];
       break;
     default: break;
   }
@@ -6021,7 +6291,11 @@ function renderFxList() {
     shown++;
     const tr = document.createElement('tr');
     if (i === selFx) tr.className = 'sel';
-    const c = effPalette(e)[0] || [255, 0, 0];
+    /* 渐变效果的色块 = 那条渐变的起始色（不是调色板第 1 色）：两条效果各用一条渐变时，
+       列表里也能看出区别 —— 否则两行长得一模一样，像是「换渐变没生效」 */
+    const c = ((e.color | 0) === FW.COLOR.SPECTRUM)
+      ? gradStart(gradById(state, e.grad))
+      : (effPalette(e)[0] || [255, 0, 0]);
     tr.innerHTML = '<td><span class="sw" style="background:' + rgbHex(c) + '"></span></td>' +
       '<td class="num">' + (e.enabled ? e.slot : '<s>' + e.slot + '</s>') + '</td>' +
       '<td>' + e.name + '</td>' +
@@ -6156,7 +6430,7 @@ function renderLayers() {
     /* 配色模式 + 波形 + 方向/往返 */
     row.appendChild(layerRow('本层取色', selInput(CMODE_NAME, () => L.cmode ? 1 : 0,
       v => { L.cmode = +v; fxLive(); },
-      '跟随效果配色：这一层用「选中效果 → 配色」算出来的颜色。\n本层空间色相：这一层自己算（每颗灯不同色），会盖掉效果级配色 —— 老存档/老预置的兼容路径，新做效果优先用效果级「彩虹」。')));
+      '跟随效果配色：这一层用「色彩配置 → 配色」（页面最下面那块）算出来的颜色。\n本层空间色相：这一层自己算（每颗灯不同色），会盖掉效果级配色 —— 老存档/老预置的兼容路径，新做效果优先用效果级「彩虹」。')));
     if (L.kind !== 'twinkle') {
       row.appendChild(layerRow('波形', selInput(WAVE_NAME, () => L.wave | 0,
         v => { L.wave = +v; fxLive(); },
@@ -6386,6 +6660,205 @@ function palDelColor() {
   status(`调色板剩 ${e.palette.length} 个颜色`);
 }
 
+/* ---- 渐变色库编辑器（效果级）---------------------------------------------
+ * 「渐变」配色用的是一条 256 级颜色环：起始色 + 2..8 个锚点（顺序 = 环上的先后）。
+ * 这里改的是 state.gradients 里的那一条 —— 所有引用它的效果 / 绑定一起变；
+ * 「新建」= 一条全新的（默认顺序 + 起点红），「另存为」= 复制当前这条，
+ * 都不会动库里已有的那几条；再在模式页给绑定开覆盖参数选它。
+ * ---------------------------------------------------------------------- */
+function gradTarget() {
+  const e = editTarget();
+  if (!e) return null;
+  const g = gradById(state, e.grad);
+  if (g && e.grad !== g.id) e.grad = g.id;      /* 空 / 指向已删掉的那条 → 落回第一条 */
+  return g;
+}
+/* 预览条的 CSS：从 256 级表里取 24 个采样点插成一条 linear-gradient */
+function gradRampCss(tbl) {
+  const n = 24, st = [];
+  for (let i = 0; i < n; i++) {
+    const c = tbl[Math.floor((i * 256) / n)];
+    st.push('rgb(' + c.r + ',' + c.g + ',' + c.b + ') ' + Math.round((i * 100) / (n - 1)) + '%');
+  }
+  return 'linear-gradient(90deg,' + st.join(',') + ')';
+}
+/* 下拉里每条渐变后面挂起始色（#rrggbb）：两条只差起始色时也分得清谁是谁。
+ * 单独一个小函数 —— 改颜色时只刷选项文字，不重建下拉（重建会把正在拖的取色器拆掉）。 */
+function gradSyncOptNames() {
+  const box = $('#fGrad');
+  if (!box) return;
+  const opts = box.options || box.children || [];
+  for (let i = 0; i < opts.length; i++) {
+    const o = opts[i];
+    if (!o) continue;
+    const x = gradById(state, o.value);
+    o.textContent = (x.name || x.id) + '（' + rgbHex(gradStart(x)) + '）';
+  }
+  const cur = gradTarget();
+  if (cur && box.children && box.children.length) box.value = cur.id;
+}
+/* full=true 连控件一起重建；改颜色时传 false —— 别把正在拖的那个取色器拆了 */
+function renderGrad(e, full) {
+  const g = gradTarget();
+  if (!g) return;
+  if (full !== false) {
+    const box = $('#fGrad');
+    if (box) {
+      box.innerHTML = '';
+      gradLib(state).list.forEach(x => {
+        const o = document.createElement('option');
+        o.value = x.id;
+        /* 名字后面挂起始色：两条渐变只差起始色时，下拉里也分得清（不然看着都叫"渐变-x"） */
+        o.textContent = (x.name || x.id) + '（' + rgbHex(gradStart(x)) + '）';
+        box.appendChild(o);
+      });
+      box.value = g.id;
+    }
+    const start = $('#fxGradStart');
+    if (start) {
+      start.innerHTML = '';
+      const inp = document.createElement('input');
+      inp.type = 'color';
+      inp.value = rgbHex(gradStart(g));
+      tip(inp, '起始色：渐变从哪个颜色开始（相位 0）。改它 = 把整条环转一下，顺序一点不变。');
+      inp.oninput = () => {
+        const t = gradTarget(); if (!t) return;
+        t.start = hexRgb(inp.value);
+        fxLive(); renderGrad(editTarget(), false);
+        /* 报一句是改到哪一条：免得「明明选的是渐变-2，怎么渐变-1 也变了」这种误会 */
+        status('「' + t.name + '」起始色 = ' + rgbHex(t.start) + '（相位 0 从这儿开始，顺序不变）');
+      };
+      start.appendChild(inp);
+    }
+    const order = $('#fxGradOrder');
+    if (order) {
+      order.innerHTML = '';
+      const A = gradAnchors(g);
+      A.forEach((c, i) => {
+        const w = document.createElement('span');
+        w.className = 'gord';
+        const up = document.createElement('button');
+        up.textContent = '‹';
+        up.disabled = (i === 0);
+        tip(up, '往前挪一位（换渐变顺序）');
+        up.onclick = () => gradMove(i, -1);
+        const inp = document.createElement('input');
+        inp.type = 'color';
+        inp.value = rgbHex(c);
+        tip(inp, '顺序里的第 ' + (i + 1) + ' 个颜色');
+        inp.oninput = () => {
+          const t = gradTarget(); if (!t) return;
+          t.anchors[i] = hexRgb(inp.value);
+          fxLive(); renderGrad(editTarget(), false);
+          status('「' + t.name + '」顺序第 ' + (i + 1) + ' 个 = ' + rgbHex(t.anchors[i]));
+        };
+        const dn = document.createElement('button');
+        dn.textContent = '›';
+        dn.disabled = (i === A.length - 1);
+        tip(dn, '往后挪一位（换渐变顺序）');
+        dn.onclick = () => gradMove(i, 1);
+        w.appendChild(up); w.appendChild(inp); w.appendChild(dn);
+        order.appendChild(w);
+      });
+      const n = document.createElement('span');
+      n.className = 'palN';
+      n.textContent = A.length + ' 色' + (A.length >= GRAD_MAX ? '（上限）' : '');
+      order.appendChild(n);
+    }
+  }
+  const ramp = $('#fxGradRamp');
+  if (ramp) ramp.style.background = gradRampCss(gradTable(g));
+  const hint = $('#fxGradHint');
+  if (hint) {
+    const A = gradAnchors(g);
+    /* 开头点名「正在编辑哪一条」+ 起始色：切换 / 另存为之后一眼能看出改的是不是这条 */
+    hint.textContent = '正在编辑「' + (g.name || g.id) + '」（起点 ' + rgbHex(gradStart(g)) + '）· ' +
+      '顺序 = 颜色环上的先后：' + A.map(c => rgbHex(c)).join(' → ') +
+      ' → 回到起点（' + rgbHex(A[0]) + '）；相邻两个之间自动补渐变。';
+  }
+  /* 只改了颜色（full=false）：下拉没重建，但选项上的起始色要跟着换 —— 否则
+     「正在编辑」写着 #0000ff，下拉里还挂着 #ff0000，看着就像两条混一块了 */
+  if (full === false) gradSyncOptNames();
+}
+function gradMove(i, d) {
+  const g = gradTarget(); if (!g) return;
+  const A = gradAnchors(g), j = i + d;
+  if (j < 0 || j >= A.length) return;
+  const t = A[i]; A[i] = A[j]; A[j] = t;
+  g.anchors = A;
+  fxLive(); renderGrad(editTarget(), true);
+  status('渐变顺序：' + A.map(c => rgbHex(c)).join(' → '));
+}
+function gradPick(id) {
+  const e = editTarget(); if (!e) return;
+  const g = gradById(state, id);
+  e.grad = g.id;
+  fxLive(); renderGrad(e, true);
+  status('这条效果改用「' + g.name + '」（起点 ' + rgbHex(gradStart(g)) + '）');
+}
+/* 新建一条渐变：从零开始（默认顺序 + 起点红），先把这条效果切过去，用户再去改起始色 / 顺序。
+ * 与「另存为」的区别：另存为是复制当前这条；新建跟库里任何一条都无关 ——
+ * 所以要一条「蓝起的渐变-3」，别先把渐变-2 改成蓝再另存（那样渐变-2 也变蓝了）。 */
+function gradNewBlank() {
+  const e = editTarget(); if (!e) return;
+  const g = gradNew(state, gradDefault());
+  e.grad = g.id;
+  fxLive(); syncFxEdit();
+  status('新建了「' + g.name + '」（默认顺序，起点 ' + rgbHex(gradStart(g)) + '）并切到它 —— ' +
+         '别的渐变一点没动；接着改起始色 / 顺序只写进这一条', 'ok');
+}
+function gradSaveAs() {
+  const e = editTarget(); if (!e) return;
+  const cur = gradTarget();
+  const g = gradNew(state, cur);
+  e.grad = g.id;
+  fxLive(); syncFxEdit();
+  status('已另存为「' + g.name + '」并切到它 —— 「' + cur.name + '」一点没动；' +
+         '接下来改的起始色 / 顺序只写进「' + g.name + '」', 'ok');
+}
+function gradDropCur() {
+  const e = editTarget(); if (!e) return;
+  const cur = gradTarget();
+  if (!gradDrop(state, cur.id)) { status('至少要留一条渐变，这条删不得', 'warn'); return; }
+  e.grad = gradById(state, e.grad).id;
+  fxLive(); syncFxEdit();
+  status('已删掉「' + cur.name + '」，用到它的效果都改回第一条', 'ok');
+}
+function gradAddColor() {
+  const g = gradTarget(); if (!g) return;
+  const A = gradAnchors(g);
+  if (A.length >= GRAD_MAX) { status('顺序最多 ' + GRAD_MAX + ' 个颜色', 'warn'); return; }
+  const pick = [[255, 255, 255], [255, 255, 0], [0, 255, 255], [255, 0, 255],
+                [255, 128, 0], [128, 0, 255], [0, 255, 128], [64, 64, 64]];
+  A.push(pick[A.length % pick.length].slice());
+  g.anchors = A;
+  fxLive(); renderGrad(editTarget(), true);
+  status('顺序加了第 ' + A.length + ' 个颜色');
+}
+function gradSubColor() {
+  const g = gradTarget(); if (!g) return;
+  const A = gradAnchors(g);
+  if (A.length <= GRAD_MIN) { status('顺序至少要留 ' + GRAD_MIN + ' 个颜色', 'warn'); return; }
+  A.pop(); g.anchors = A;
+  fxLive(); renderGrad(editTarget(), true);
+  status('顺序剩 ' + A.length + ' 个颜色');
+}
+
+/* 「步进」那行下面的一句读数：把 速度 × 步进 折算成一整圈多少拍 / 多少秒 ——
+ * 省得用户自己算「256 ÷ 步进 × 速度」。只刷文字，不碰输入框（正在输入时不能失焦）。 */
+function gradStepHint(e) {
+  const el = $('#fxGradStepHint');
+  if (!el) return;
+  if (!e) { el.textContent = ''; return; }
+  const sp = Math.max(1, (e.speed | 0) || 1);
+  const gs = effGradStep(e);
+  const ticks = Math.ceil((256 * sp) / gs);
+  const ms = ticks * 20;                       /* 固件一拍 20ms（50Hz） */
+  el.textContent = '一整圈 = 256 格 ÷ 每拍 ' + gs + ' 级 × ' + sp + ' 拍/次 = ' + ticks + ' 拍 ≈ ' +
+    (ms >= 1000 ? (ms / 1000).toFixed(2) + ' 秒' : ms + ' 毫秒') + '（50Hz 一拍 20ms）' +
+    (gs === 1 ? '；抬「步进」就能比这更快' : '');
+}
+
 /* 按配色模式显示/隐藏参数行，并把「速度」那一格的标题换成该模式的说法 */
 function syncFxColorRows(e) {
   const mode = e ? (e.color | 0) : FW.COLOR.SOLID;
@@ -6395,6 +6868,14 @@ function syncFxColorRows(e) {
   const cap = palFixed(mode);
   const have = e ? (e.palette || []).length : 0;
   show('rowPal', uses);
+  /* 渐变：整条环的参数行（用哪条 / 起始色 / 顺序 / 预览条） */
+  const isGrad = (mode === FW.COLOR.SPECTRUM);
+  show('rowGrad', isGrad);
+  show('rowGradStart', isGrad);
+  show('rowGradOrder', isGrad);
+  const grRamp = $('#fxGradRamp'), grHint = $('#fxGradHint');
+  if (grRamp) grRamp.style.display = isGrad ? '' : 'none';
+  if (grHint) grHint.style.display = isGrad ? '' : 'none';
   /* 色块由 renderPalette() 按模式收起；加减按钮只在「放几个由你定」时给，
    * 覆盖还差第 2 个颜色时留一个 +（点一下补齐），补齐后自己就收起来 */
   show('fxPalAdd', uses && (cap <= 0 || have < cap));
@@ -6402,6 +6883,11 @@ function syncFxColorRows(e) {
   const lab = $('#fPalLab');
   if (lab) lab.textContent = (mode === FW.COLOR.SOLID && uses) ? '颜色' : '调色板';
   show('rowSpeed', mode === FW.COLOR.STEP || mode === FW.COLOR.SPECTRUM || mode === FW.COLOR.GRADIENT);
+  /* 步进：只有「渐变 / 旧双色渐变」用得上（速度 = 几拍动一次，步进 = 一次走几级） */
+  const isGradColor = (mode === FW.COLOR.SPECTRUM || mode === FW.COLOR.GRADIENT);
+  show('rowGradStep', isGradColor);
+  const gsh = $('#fxGradStepHint');
+  if (gsh) gsh.style.display = isGradColor ? '' : 'none';
   show('rowRise', mode === FW.COLOR.STEP);
   show('rowHold', mode === FW.COLOR.STEP);
   show('rowFade', mode === FW.COLOR.STEP);
@@ -6410,19 +6896,22 @@ function syncFxColorRows(e) {
   show('rowHueSpeed', mode === FW.COLOR.RAINBOW);
   show('rowPeriod', mode === FW.COLOR.BREATH || mode === FW.COLOR.WIPE);
   const labS = $('#fSpeedLab'), sp = $('#fSpeed'), hint = $('#fPalHint');
-  if (labS) labS.textContent = (mode === FW.COLOR.STEP) ? '停留(拍)' : '渐变速度';
+  if (labS) labS.textContent = (mode === FW.COLOR.STEP) ? '停留(拍)' : '速度(拍)';
   if (sp) {
     /* 跳变的停留是算出来的（渐亮 + 亮 + 变暗），不让手填 —— 填了也会被下一次重算盖掉 */
     sp.readOnly = (mode === FW.COLOR.STEP);
     if (mode === FW.COLOR.STEP) tip(sp, '自动 = 渐亮(拍) + 亮(拍) + 变暗(拍)：改那三行就会自己算好（20ms 一拍），这一格不用管 ——\n三段拼满整个颜色周期，中间不留黑拍。');
-    else tip(sp, '每 N 拍色相往前一格；越小越快。');
+    else tip(sp, '每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。想比「1 拍/级」更快 → 抬下面的「步进(级)」。');
   }
+  if (isGradColor) gradStepHint(e);
   if (hint) {
     hint.textContent = mode === FW.COLOR.SOLID   ? '纯色只用这一个颜色；调色板里多出来的颜色只是收起来，切回跳变 / 呼吸还在。'
       : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；「停留」= 渐亮 + 亮 + 变暗，自动算 —— 只调「渐亮(拍)」「亮(拍)」「变暗(拍)」三行。'
       : mode === FW.COLOR.BREATH                 ? '整条效果级（图层参数不参与）：一个周期换一种颜色；周期看「周期(拍)」。'
       : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：只用前 2 个颜色 —— 第 1 个是底色、第 2 个是盖上去的颜色。'
-      : '渐变 / 彩虹用内置彩虹表，不需要调色板。';
+      : (mode === FW.COLOR.SPECTRUM)
+        ? '渐变用上面选的那条色环（起始色 / 顺序都能改；「新建」一条全新的、「另存为」复制一条给别的分区用）；彩虹才用内置彩虹表。'
+        : '渐变 / 彩虹用内置彩虹表，不需要调色板。';
     /* 图层自己算色相时会盖过效果配色 —— 不点明就像「改了配色没反应」 */
     const hueLayers = (e && e.kind === 'custom')
       ? (e.layers || []).map((l, i) => ({ l, i })).filter(x => x.l.en && x.l.cmode) : [];
@@ -6431,6 +6920,8 @@ function syncFxColorRows(e) {
         ' 层的「本层取色」是空间色相，会盖过这里选的配色。';
     }
   }
+  /* 渐变那几行（选择 / 起始色 / 顺序 / 预览条）跟着一起刷 */
+  if (isGrad) renderGrad(e, true);
 }
 
 /* 跳变：停留 = 渐亮 + 亮 + 变暗 —— 填这三段时把「停留」算好填回去（用户不用管周期，也没有黑尾巴）。
@@ -6452,8 +6943,9 @@ function syncFxEdit() {
   const e = editTarget();
   const on = !!e;
   /* 名称不在这一串里 —— 它只读（自动生成），不用跟着禁用 / 启用 */
-  const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSpeed','fRise','fHold','fFade',
-               'fLevels','fHueBase','fHueSpeed','fPeriod',
+  const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSpeed','fGradStep','fRise','fHold','fFade',
+               'fLevels','fHueBase','fHueSpeed','fPeriod','fGrad',
+               'fxGradNew','fxGradSave','fxGradDrop','fxGradAdd','fxGradSub',
                'fAnim','fWidth','fGap','fMoves','fOffset','fxPresetApply','fxPresetPick'];
   ids.forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
   $('#fxBuiltin').style.display = (on && e.kind !== 'custom') ? '' : 'none';
@@ -6482,6 +6974,7 @@ function syncFxEdit() {
   $('#fHueSpeed').value = e.hue_speed;
   $('#fPeriod').value = e.period;
   $('#fSlow').value = e.slow; $('#fFast').value = e.fast; $('#fSpeed').value = e.speed;
+  $('#fGradStep').value = e.grad_step;
   $('#fRise').value = e.rise; $('#fHold').value = e.hold; $('#fFade').value = e.fade;
   $('#fOffset').value = e.offset | 0;
   if (e.kind === 'custom') { $('#fMoves').checked = !!e.moves; renderLayers(); }
@@ -6632,6 +7125,14 @@ function buildFxPanel() {
   });
   $('#fxPalAdd').onclick = () => palAddColor();
   $('#fxPalDel').onclick = () => palDelColor();
+  /* 渐变色库：选一条 / 新建 / 另存为 / 删除 / 顺序增删 */
+  const gsel = $('#fGrad');
+  if (gsel) gsel.onchange = () => gradPick(gsel.value);
+  const gnw = $('#fxGradNew');  if (gnw) gnw.onclick = () => gradNewBlank();
+  const gsv = $('#fxGradSave'); if (gsv) gsv.onclick = () => gradSaveAs();
+  const gdr = $('#fxGradDrop'); if (gdr) gdr.onclick = () => gradDropCur();
+  const gad = $('#fxGradAdd');  if (gad) gad.onclick = () => gradAddColor();
+  const gsb = $('#fxGradSub');  if (gsb) gsb.onclick = () => gradSubColor();
 
   $('#fxTbl').onclick = null;
   /* F2：列表过滤框 —— 只重画列表，不碰任何效果数据 */
@@ -6646,7 +7147,7 @@ function buildFxPanel() {
     fxFilterClear();                       /* F2：刚建好就要看得见 —— 过滤不挡新效果 */
     syncSlots();
     resetSim(); fxStruct();
-    status('已在末尾追加自定义效果（模式 ' + e.slot + '）；在下面加图层');
+    status('已在末尾追加自定义效果（模式 ' + e.slot + '）；在「图层（自定义动效）」里加图层');
   };
   const moveFx = d => {
     const L = fxList(), i = selFx, j = i + d;
@@ -6675,7 +7176,7 @@ function buildFxPanel() {
     e.latin = (e.latin || 'FX' + e.slot).replace(/_?\d*$/, '') + '_CUSTOM';
     fxFilterClear();                       /* F2：刚改完的那条要看得见 */
     resetSim(); fxStruct();
-    status('已转为自定义动效，在下面加图层');
+    status('已转为自定义动效，在「图层（自定义动效）」里加图层');
   };
   $('#fxCopy').onclick = () => {
     const e = selEffect(); if (!e) return;
@@ -6752,7 +7253,13 @@ function buildFxPanel() {
   bind('fSpeed', e => {
     const x = editTarget(); if (!x || (x.color | 0) === FW.COLOR.STEP) return;
     x.speed = Math.max(0, Math.min(255, +e.target.value || 0));
-    fxLive();
+    fxLive(); gradStepHint(x);
+  });
+  /* 步进：每动一次前进几级（1..16）—— 渐变想比「速度 = 1」更快就抬它 */
+  bind('fGradStep', e => {
+    const x = editTarget(); if (!x) return;
+    x.grad_step = Math.max(GRAD_STEP_MIN, Math.min(GRAD_STEP_MAX, +e.target.value || GRAD_STEP_MIN));
+    fxLive(); gradStepHint(x);
   });
   /* 渐亮 / 亮 / 变暗：改哪个都把「停留」重算一遍（= 渐亮 + 亮 + 变暗） */
   bind('fRise',  e => {
@@ -6966,6 +7473,38 @@ function renderBinds() {
     };
     const lb = document.createElement('span'); lb.textContent = '覆盖参数';
     ov.appendChild(cb); ov.appendChild(lb); r3.appendChild(ov);
+
+    /* 渐变：这条绑定跑哪一条（只有渐变配色才有）。换它会自动打开「覆盖参数」——
+     * 改的是这份绑定自己的副本，效果库里的原效果和别的绑定都不受影响。
+     * 这就是「同一个渐变效果，分区 A 用渐变-1、分区 B 用渐变-2」的入口。 */
+    const effB = resolveEffect(state, b);
+    if (effB && (effB.color | 0) === FW.COLOR.SPECTRUM) {
+      const gr = document.createElement('label');
+      gr.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-right:8px';
+      const gl = document.createElement('span'); gl.textContent = '渐变';
+      const gs = document.createElement('select');
+      gradList(state).forEach(g => {
+        const o = document.createElement('option');
+        o.value = g.id;
+        o.textContent = g.name + '（' + rgbHex(gradStart(g)) + '）';   /* 挂起始色：只差起始色也分得清 */
+        gs.appendChild(o);
+      });
+      gs.value = gradById(state, effB.grad).id;
+      tip(gs, '这条绑定用哪条渐变（渐变色库里的「渐变-1 / 渐变-2…」）。&#10;换它会顺手打开「覆盖参数」（复制一份这个效果），效果库里的原效果和别的绑定不受影响 —— 同一个效果绑到不同分区就能各走各的渐变。');
+      gs.onchange = () => {
+        const src = resolveEffect(state, { effect: b.effect });
+        if (!src) return;
+        if (!b.override) {
+          b.override = clone(src);
+          b.override.name = (src.name || '') + '（覆盖）';
+        }
+        b.override.grad = gs.value;
+        mdLive(); mdStruct();
+        status('这条绑定的渐变改成「' + gradById(state, gs.value).name + '」', 'ok');
+      };
+      gr.appendChild(gl); gr.appendChild(gs);
+      r3.appendChild(gr);
+    }
 
     if (b.override) {
       const tune = document.createElement('button');
@@ -7421,6 +7960,7 @@ function bindProject() {
   /* 老存档迁移：以前是 anim.preset（FW.presets 的下标），现在是效果 id */
   if (!state.effects) state.effects = defaultEffects();
   (state.effects.list || []).forEach(normalizeEffect);
+  gradLib(state);                      /* 渐变色库：老存档没有就补一条「渐变-1」（默认顺序） */
   /* 模式层是后加的：老存档按「一个效果一个模式、覆盖全部分区」补出来，行为不变 */
   if (!state.modes || !state.modes.list || !state.modes.list.length) {
     state.modes = defaultModesFromEffects(state);

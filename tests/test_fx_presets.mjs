@@ -148,8 +148,8 @@ ok(/0, 255, 2, 0, 1, 1 \}/.test(out),
 
 const eblk = out.slice(out.indexOf('static const led_gen_effect_t'));
 const eblkRows = (eblk.match(/^    \{.*\},/gm) || []);
-ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
-   '效果行 = kind=1, 1 个图层, moves=1, 末尾带渐亮/亮/变暗三列: ' + (eblkRows[0] || '(无)'));
+ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
+   '效果行 = kind=1, 1 个图层, moves=1, 末尾带渐亮/亮/变暗 + 渐变两列（grad_first / grad_step）: ' + (eblkRows[0] || '(无)'));
 
 
 /* ---- 8) 起始位也能存 ---- */
@@ -258,7 +258,7 @@ console.log('--- 新配色（效果级）---');
   col.value = String(CORE.FW.COLOR.SPECTRUM);
   col.onchange({ target: col });
   await new Promise(r => setTimeout(r, 700));
-  ok(!show('rowPal') && show('rowSpeed'), '渐变：用内置彩虹表（无调色板），只留速度');
+  ok(!show('rowPal') && show('rowSpeed'), '渐变：不要调色板（走自己的色环），只留速度');
   ok(byId.get('fSpeed').readOnly === false, '渐变时「速度」又能手填了（只读只属于跳变）');
 
   pick.value = '多色呼吸'; click('fxPresetApply');

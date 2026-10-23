@@ -96,6 +96,13 @@ st.modes.list.push({ id:'mE', name:'新配色', latin:'NEW_COLORS', enabled:true
           { effect:A.id,    zones:[4] } ] });
 st.modes.list.push({ id:'mF', name:'渐亮跳变', latin:'STEP_RISE', enabled:true,
                      binds:[{ effect:RISE.id, zones:[] }] });
+/* 渐变步进：速度 = 1（每拍动一次）、步进 = 8（一次走 8 级）。
+ * 生成代码里那句「每拍 +grad_step」就是靠这一条真跑一遍 —— 老写法（写死 +1）在这里相位只有 37。 */
+const GSTEP = mkFx(8, [Object.assign({}, LAYER_FILL)]);
+GSTEP.color = CORE.FW.COLOR.SPECTRUM;
+GSTEP.speed = 1; GSTEP.grad_step = 8;
+st.modes.list.push({ id:'mG', name:'渐变步进', latin:'GRAD_STEP', enabled:true,
+                     binds:[{ effect:GSTEP.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -327,7 +334,31 @@ console.log('--- 新配色模式（C 侧真跑 37 拍）---');
      `渐亮跳变：整条同色、第 1/6 拍亮度 ${row[0] && row[0][0]}/254（渐亮段在真编译的 C 里生效）`);
 }
 
-/* ---------- 4a) 内建单点追逐：真编译出来的 C 画的是平顶光带，且没调平台原语 ---------- */
+/* 渐变步进：C 侧跑 37 拍 = 相位 (37 × 8) & 0xFF = 40 级（写死 +1 的老写法只会到 37）。
+ * 整条同色（满亮填充层），并且与 JS 预览逐字节一致；把步进改回 1 就对不上 —— 证明这条断言有区分度。 */
+{
+  const row = cModes[6] || [];
+  const uniq = new Set(row.map(px => px.join(',')));
+  ok(row.length === FW.LED_COUNT && uniq.size === 1,
+     `渐变步进：整条同色（${uniq.size} 种像素值）`);
+  const gi = st.effects.list.findIndex(e => e.id === GSTEP.id);
+  ok(gi > 0, `渐变步进那条效果在导出表第 ${gi} 行`);
+  const runJs = step => {
+    const s = JSON.parse(JSON.stringify(st));
+    s.effects.list[gi].grad_step = step;
+    s.anim.modeId = s.modes.list[6].id;
+    const sim = simInit(); simApplyMode(sim, s); simSetSpeed(sim, 'slow');
+    for (let t = 0; t < TICKS; t++) simTick(sim, s, false);
+    return Array.from({ length: FW.LED_COUNT },
+      (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
+  };
+  const cRow = row.map(px => px.join(',')).join('|');
+  ok(cRow === runJs(8), '渐变步进：C 侧（真编译）与 JS 预览逐字节一致');
+  ok(cRow !== runJs(1),
+     '步进 8 与步进 1 跑同样 37 拍，帧确实不一样（上面那条不是空断言）');
+}
+
+
 console.log('--- 内建单点追逐：生成代码自画（平顶、不调平台原语） ---');
 {
   const genH = fs.readFileSync(path.join(dir, 'led_effects_gen.h'), 'utf8');

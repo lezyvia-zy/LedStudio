@@ -67,7 +67,7 @@
 
 | 判据 | 断言位置 |
 |---|---|
-| ① `led_gen_hal.h` 里**没有任何平台符号**（含附录 A 账本里那 28 个、`led_ring.h` 之类），只 include `<stdint.h>` | `test_gen_independence` 1) 4) |
+| ① `led_gen_hal.h` 里**没有任何平台符号**（含附录 A 账本里那 27 个、`led_ring.h` 之类），只 include `<stdint.h>` | `test_gen_independence` 1) 4) |
 | ② 契约与本文档**双向一致**：契约标识、版本宏、`LED_GEN_HAL_IMPLEMENTS`、5 个实现函数、2 个入口、产物名，文档里缺一条就红 | `test_gen_independence` 2) 3) |
 | ③ 现有生成物与平台的耦合**不许悄悄变多**：账本外的平台符号一出现就红（附录 A） | `test_gen_independence` 4) |
 | ④ 真编译：平台照契约实现那 5 个函数 → 编过并跑起来；平台声明的版本与工具不符 → **必须编不过** | `test_gen_independence` 5) |
@@ -188,12 +188,20 @@ else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 2
 
 ## 附录 A：当前耦合账本（第 ② 步之后清零）
 
-过渡期这版 `led_effects_gen.h` 还在用平台这 28 个符号。**这是账本，不是许可**：
+过渡期这版 `led_effects_gen.h` 还在用平台这 27 个符号。**这是账本，不是许可**：
 `tests/test_gen_independence.mjs` 会断言「导出物里的平台符号 ⊆ 本表」，冒出新的立刻红。
 第 ② 步做完后，把本表清空、这一节改成「**无耦合（引擎自洽）**」，测试会跟着收紧。
 
 > 2026-10-16 起少了一条：内建单点追逐的渲染改成生成代码自带（`led_gen_anim_chase_single()`，
 > 平顶光带），不再调平台的 `anim_render_chase_single()` —— 账本 29 → 28。
+>
+> 2026-10-23 起再少一条：渐变色不再走平台的 `color_update()`，改成查工具导出的
+> `led_gen_grad[]`（每个用到的渐变色环 256 行 `{r,g,b}`，效果行用 `grad_first` 指进来）——
+> 账本 28 → 27。自定义渐变 / 起始色因此不需要固件侧改任何代码。
+>
+> 同日：`led_gen_effect_t` **末尾多了一列** `uint8_t grad_step`（渐变的「步进」= 每动一次前进几级，
+> 1..16；`spectrum_speed` 仍是「几拍动一次」）。它只是生成物自己那张常量表里的字段，**不碰任何平台
+> 符号**（账本仍是 27）；固件侧照旧「重新覆盖生成的 `led_effects_gen.h`」，一行都不用改。
 
 | 类别 | 符号 | 为什么会用到 |
 |---|---|---|
@@ -218,9 +226,8 @@ else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 2
 | | `COLOR_SOLID` | 配色类型（纯色） |
 | | `COLOR_GRADIENT` | 配色类型（旧的「双色渐变」= 相位 +85；新配色 3..6 由生成代码处理，不叫这个枚举） |
 | | `EASE_OUT_QUAD` | 位置插值的缓动类型 |
-| 函数（7） | `anim_set` | 起一段关键帧插值 |
+| 函数（6） | `anim_set` | 起一段关键帧插值 |
 | | `anim_update` | 推进插值 |
-| | `color_update` | 推进颜色循环 |
 | | `ring_set_position` | 位置推进（生成代码另有一份带回绕修正的） |
 | | `anim_render_chase_dual` | 内建渲染原语（双点追逐直接调它，行为与平台一致） |
 | | `anim_render_swing` | 同上（摆动） |

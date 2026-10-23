@@ -30,9 +30,10 @@ const LEDGER = [
   'LED_COUNT', 'RING_SIZE', 'ZONE_MAX', 'ZONE_MAX_LEN', 'RING_PRESET_COUNT', 'LED_EFFECTS_GEN_RENDER',
   'ANIM_CHASE_SINGLE', 'ANIM_CHASE_DUAL', 'ANIM_SWING', 'ANIM_FILL',
   'COLOR_SOLID', 'COLOR_GRADIENT', 'EASE_OUT_QUAD',
-  'anim_set', 'anim_update', 'color_update', 'ring_set_position',
+  'anim_set', 'anim_update', 'ring_set_position',
   /* 单点追逐的渲染不再借平台原语：生成代码自带 led_gen_anim_chase_single()（平顶光带）。
-     账本因此从 29 条降到 28 条 —— 导出物里那 4 个 anim_render_* 只剩 3 个被调用。 */
+     账本因此从 29 条降到 28 条 —— 导出物里那 4 个 anim_render_* 只剩 3 个被调用。
+     2026-10-23 起渐变改查工具导出的 led_gen_grad[]，不再调平台的 color_update()：28 → 27。 */
   'anim_render_chase_dual', 'anim_render_swing', 'anim_render_fill',
 ];
 const EMPTY_MARK = '无耦合（引擎自洽）';

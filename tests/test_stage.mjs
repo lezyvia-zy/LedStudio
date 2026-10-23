@@ -489,6 +489,25 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
      '「模板」与「套用」并成一行（跟在标签列后面，不再单独占一行）');
   ok(/\.btnrow\{[^}]*display:\s*flex/.test(html) && /\.btnrow>\s*\.lb\{[^}]*min-width:56px/.test(html),
      '行内标签与其它行的标签列同宽（56px），整页左边缘对齐');
+
+  /* 12b) 排布：图层紧跟「预置效果」，色彩配置沉到页面最下面（2026-10-23 用户要求） */
+  const at = name => paneFx.indexOf('<legend>' + name + '</legend>');
+  const order = ['预置效果（一键套用到选中效果）', '图层（自定义动效）', '选中效果', '内建参数', '色彩配置'];
+  const pos = order.map(at);
+  ok(pos.every(v => v > 0) && pos.every((v, n) => n === 0 || v > pos[n - 1]),
+     `效果页五块从上到下：${order.join(' → ')}（位置 ${pos.join(' , ')}）`);
+  const blockOf = name => paneFx.slice(at(name), paneFx.indexOf('</fieldset>', at(name)));
+  const cfg = blockOf('色彩配置');
+  ok(['fColor', 'fPalette', 'fPalHint', 'fSpeed', 'fRise', 'fHold', 'fFade',
+      'fLevels', 'fHueBase', 'fHueSpeed', 'fPeriod'].every(id => cfg.includes('id="' + id + '"')),
+     '「色彩配置」里收着配色 / 调色板 / 停留与渐亮亮暗 / 级数 / 色相（跳变·彩虹·呼吸的节奏都在这一块）');
+  const sel = blockOf('选中效果');
+  ok(!/id="fColor"|id="fPalette"/.test(sel) &&
+     ['fName', 'fLatin', 'fMode', 'fKind', 'fEn', 'fSlow', 'fFast', 'fOffset'].every(id => sel.includes('id="' + id + '"')),
+     '「选中效果」只剩身份与档位（名称 / 别名 / 序号 / 类型 / 使能 / 慢速 / 快速 / 起始位）');
+  const lay = blockOf('图层（自定义动效）');
+  ok(['fLayers', 'fxAddSpot', 'fxAddTwinkle', 'fxAddFill', 'fxAddGrad', 'fMoves'].every(id => lay.includes('id="' + id + '"')),
+     '「图层（自定义动效）」整块搬到了「预置效果」下面，内容一件没少');
 }
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
