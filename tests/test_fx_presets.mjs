@@ -269,6 +269,40 @@ console.log('--- 新配色（效果级）---');
   ok(show('rowPeriod') && show('rowPal') && !show('rowSpeed'), '呼吸：周期 + 调色板');
   ok(palN() === 3 && show('fxPalAdd') && show('fxPalDel'),
      `呼吸：3 种颜色都画出来，加减还留着（${palN()} 色）`);
+  /* 呼吸 = 对称的跳变：只有「渐亮=变暗」和「亮」两行，周期自动 = 渐亮×2 + 亮（只读） */
+  ok(show('rowRise') && show('rowHold') && !show('rowFade'),
+     '呼吸：渐亮 / 亮 两行都在，没有「变暗」那一行（渐亮 = 渐暗）');
+  ok(byId.get('fRiseLab').textContent === '渐亮=变暗(拍)',
+     `呼吸：渐亮那一格的标题换成「渐亮=变暗(拍)」（${byId.get('fRiseLab').textContent}）`);
+  {
+    const fr = byId.get('fRise').value, fh = byId.get('fHold').value, fp = byId.get('fPeriod');
+    ok(fp.value === String(+fr * 2 + +fh) && fp.readOnly === true,
+       `呼吸：周期只读、自动 = 渐亮 ${fr} × 2 + 亮 ${fh} = ${fp.value}`);
+    byId.get('fRise').value = '10';
+    byId.get('fRise').oninput({ target: byId.get('fRise') });
+    ok(fp.value === String(+fh + 20),
+       `呼吸：渐亮改成 10 拍 → 周期当场算成 ${fp.value}（= 10 × 2 + ${fh}）`);
+    await new Promise(r => setTimeout(r, 700));    /* 存盘是防抖的，读存档前等一拍 */
+    const eB2 = fxListOf(0)[0];       /* 存档是新解析出来的对象，断言得重新取一次 */
+    ok(eB2.b_rise === 10 && eB2.period === (+fh + 20),
+       `呼吸：两个数落盘（b_rise=${eB2.b_rise} / period=${eB2.period}）`);
+    ok(eB2.b_hold === 0 && eB2.rise === eB.rise && eB2.hold === eB.hold,
+       `呼吸的数存在 b_rise / b_hold 上（${eB2.b_rise} / ${eB2.b_hold}），跳变的 rise/hold 没动（${eB2.rise} / ${eB2.hold}）`);
+  }
+  pick.value = '多色呼吸'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  {
+    const eB3 = fxListOf(0)[0];
+    ok(eB3.period === 60 && eB3.b_rise === 30 && eB3.b_hold === 0 && byId.get('fRise').value === '30',
+       `重新套呼吸预置：回到 period 60 / 渐亮 30 / 亮 0（${eB3.period} / ${eB3.b_rise} / ${eB3.b_hold}）—— 上一次改的 10 没赖着`);
+  }
+  col.value = String(CORE.FW.COLOR.STEP);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  ok(show('rowFade') && byId.get('fPeriod').readOnly === false,
+     '切回跳变：「变暗」那一行回来、周期又能手填了');
+  ok(byId.get('fRiseLab').textContent === '渐亮(拍)',
+     `切回跳变：渐亮标题还原（${byId.get('fRiseLab').textContent}）`);
 
   pick.value = '颜色覆盖'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));

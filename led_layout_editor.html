@@ -657,8 +657,8 @@
         <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：停留几拍 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。想比 1 拍/级更快 → 抬下面的「步进(级)」。"></label>
         <label class="row" id="rowGradStep"><span>步进(级)</span><input type="number" id="fGradStep" min="1" max="16" data-tip="渐变专用：每动一次在色环上前进几级（1..16，默认 1）。&#10;「速度」回答「几拍动一次」（最小 1 拍），这里回答「一次走几级」—— 想比速度 = 1 还快，就抬这个：一整圈 = 256 × 速度 ÷ 步进 拍（速度 1 + 步进 8 → 32 拍 ≈ 0.64 秒一圈；50Hz 一拍 20ms）。&#10;1 = 老行为（逐拍一级）；最大 16 —— 16 个采样点走完一圈，再多就不是「流动」而是「闪」了。&#10;只改颜色走多快，不动起始色 / 顺序。"></label>
         <div class="hint" id="fxGradStepHint">一整圈 = 256 格 ÷ 每拍几级 × 每几拍动一次</div>
-        <label class="row" id="rowRise"><span>渐亮(拍)</span><input type="number" id="fRise" min="0" max="255" data-tip="跳变：每种颜色点亮用几拍（20ms 一拍）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
-        <label class="row" id="rowHold"><span>亮(拍)</span><input type="number" id="fHold" min="0" max="255" data-tip="跳变：渐亮到满亮之后保持几拍（20ms 一拍）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
+        <label class="row" id="rowRise"><span id="fRiseLab">渐亮(拍)</span><input type="number" id="fRise" min="0" max="255" data-tip="跳变：每种颜色点亮用几拍（20ms 一拍）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
+        <label class="row" id="rowHold"><span id="fHoldLab">亮(拍)</span><input type="number" id="fHold" min="0" max="255" data-tip="跳变：渐亮到满亮之后保持几拍（20ms 一拍）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
         <label class="row" id="rowFade"><span>变暗(拍)</span><input type="number" id="fFade" min="0" max="255" data-tip="跳变：满亮之后用几拍匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留(拍)」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数）。"></label>
         <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
         <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
@@ -934,7 +934,7 @@
             <b>跳变</b>：调色板里几种颜色轮着来。每种颜色先用「渐亮(拍)」<b>匀速爬到满亮</b>（第一拍就是 255 / 渐亮、最后一拍正好满亮；0 = 一拍照跳，硬启亮），再在「亮(拍)」里<b>保持满亮</b>，然后用「变暗(拍)」<b>匀速暗下去</b>：最后一拍停在 ≈255/(变暗+1)，暗到看不见但<b>不是全黑</b>（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」），就在这一拍换下一种 —— 接缝看不出来。「停留(拍)」= 渐亮 + 亮 + 变暗，填那三行时<b>自动算好</b>，不用手填（上限 255 拍）。<br>
             <b>渐变</b>：整条同色，随时间在一条<b>颜色环</b>上平滑循环（默认顺序 红→黄→绿→青→蓝→紫→红），快慢由「速度」和「步进」两个数一起定：「速度」= 几拍动一次，「步进」= 一次在环上前进几级（一整圈 = 256 × 速度 ÷ 步进 拍）。这条环是<b>你自己存的一套渐变</b>（「渐变-1 / 渐变-2…」）：<b>起始色</b> = 相位 0 是哪个颜色（等于把整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色按先后排好，相邻两个之间由算法等长补过渡 —— 只要定几个颜色的大致方向就行。改「起始色 / 顺序」动的是<b>库里那一条</b>（用它的效果一起变）；想再来一条，用「<b>新建</b>」（从零开始：默认顺序 + 起点红，跟库里别的都不搭界）或「<b>另存为</b>」（在这条的基础上复制一份微调），原条都一点不动；再在模式页给某条绑定打开「覆盖参数」、用那张卡上的「渐变」下拉换成另一条。<br>
             <b>彩虹</b>：沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）；<b>级数</b> = 走完一轮红→红要多少颗灯（30 颗的圆环填 30，40 颗的顶环填 40）。<br>
-            <b>呼吸</b>：灭→亮→灭算一个周期，一个周期换一种颜色（颜色来自调色板）。<br>
+            <b>呼吸</b>：<b>暗→亮→暗</b>算一个周期，一个周期换一种颜色（颜色来自调色板）。用的就是跳变那套包络，只是<b>渐亮和渐暗一样长</b>：只填「渐亮=变暗(拍)」和「亮(拍)」两行，「周期(拍)」= 渐亮 × 2 + 亮 <b>自动算好</b>。同样<b>不落全黑</b> —— 最暗那一拍停在 ≈255/(渐亮+1)，换色就在那儿发生，接缝看不出「抖一下」。<br>
             <b>覆盖</b>：第 1 个颜色被第 2 个逐级盖掉（一遍多少拍看「周期」）。
           </td></tr>
           <tr><td>对照看配色</td><td>套预置<b>「全点亮(测配色)」</b>：一个满亮填充层，不走位置、不脉动、不铺色相 —— 整条常亮，在这里换「配色」就能直接看出六种配色的差别。</td></tr>
@@ -943,10 +943,10 @@
           <tr><td>取色面板</td><td>点任何一个色块（调色板 / 渐变起始色 / 渐变顺序 / 分区颜色）都弹同一个面板：<b>色环</b>上点或拖 = 直接选色相（出来就是满饱和、满亮度 —— 灯珠要的就是这种纯色，环顶红 → 顺时针黄、绿、青、蓝、紫）；要灰、要暗、要白，才展开<b>「▸ 高级设置」</b>里的二维色图（横轴 = 饱和，最左是灰；纵轴 = 亮度，最下是黑），或者在色号框里直接敲 <b>#RRGGBB</b>（<b>#0f0</b> 这种三位简写也认）。点面板外面 / 按 Esc / 再点同一个色块收起；改一下立即生效，拖着的时候编辑台 / 灯板当场跟着变。</td></tr>
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
-          <tr><td>周期(拍)</td><td>呼吸：一次灭→亮→灭多少拍；覆盖：一遍颜色盖过去多少拍。</td></tr>
+          <tr><td>周期(拍)</td><td>呼吸：<b>自动 = 渐亮(=变暗) × 2 + 亮</b>（只读，改上面两行就自己算好）；覆盖：一遍颜色盖过去多少拍。</td></tr>
           <tr><td>停留(拍) / 速度(拍)</td><td>跳变：<b>自动 = 渐亮 + 亮 + 变暗</b>（填那三行就填好，只读）；渐变：每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。再快就要靠下面的「步进(级)」。</td></tr>
           <tr><td>步进(级)</td><td>渐变专用：每动一次在色环上<b>前进几级</b>（1..16，默认 1）。「速度」最小是 1 拍 —— 想比「1 拍 1 级」更快就抬步进：速度 1 + 步进 8 = 32 拍 ≈ 0.64 秒一圈（50Hz 一拍 20ms），最大 16 ≈ 0.32 秒一圈。下面那行灰字实时算「一整圈 = 多少拍 / 多少秒」。只改颜色走多快，不动起始色 / 顺序。</td></tr>
-          <tr><td>渐亮(拍) / 亮(拍) / 变暗(拍)</td><td>跳变专用：匀速爬到满亮用几拍（第一拍 = 255 / 渐亮、最后一拍正好满亮；0 = 硬启亮，一拍照跳）；满亮保持几拍；再用几拍匀速暗下去（数值越大越慢；最后一拍 ≈255/(变暗+1) 不完全黑 —— 全黑一帧就是一次闪，换色会抖一下；0 = 立刻换色）。三段加起来就是「停留(拍)」（最多 255 拍）。</td></tr>
+          <tr><td>渐亮(拍) / 亮(拍) / 变暗(拍)</td><td>跳变专用：匀速爬到满亮用几拍（第一拍 = 255 / 渐亮、最后一拍正好满亮；0 = 硬启亮，一拍照跳）；满亮保持几拍；再用几拍匀速暗下去（数值越大越慢；最后一拍 ≈255/(变暗+1) 不完全黑 —— 全黑一帧就是一次闪，换色会抖一下；0 = 立刻换色）。三段加起来就是「停留(拍)」（最多 255 拍）。<br>呼吸只出现前两行：<b>渐亮 = 变暗</b>（对称），「亮(拍)」照旧，周期自动 = 渐亮 × 2 + 亮。</td></tr>
           <tr><td>慢速 / 快速</td><td>每走一格要几帧。数值越大越慢。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
           <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。</td></tr>
@@ -2133,11 +2133,13 @@ function fxEffectName(e) {
  *   palette   : 用户自定义色板（最多 16 个）—— 纯色 / 跳变 / 呼吸 / 覆盖用
  *   levels    : 彩虹 —— 走完一轮「红→…→红」要多少颗灯（>= 6，默认 30）
  *   hue_base  : 彩虹起点；hue_speed = 每 N 拍整体转一格（0 = 不转）
- *   period    : 呼吸 / 覆盖 —— 一个周期多少拍
+ *   period    : 呼吸 / 覆盖 —— 一个周期多少拍（呼吸的周期是算出来的：渐亮 × 2 + 亮）
  *   speed     : 跳变 = 每种颜色停留多少拍（= 渐亮 + 亮 + 变暗）；渐变 = 每几拍动一次
  *   grad_step : 渐变专用 —— 每动一次前进几级（1..16，默认 1）；一圈 = 256 × speed / grad_step 拍。
  *               speed 只管「多久动一次」，想比 speed=1 还快就抬步进（老存档没有它 = 1，行为不变）
  *   rise/hold/fade : 跳变专用，渐亮 / 满亮 / 变暗各几拍（老存档没有 rise = 0，即硬启亮）
+ *   b_rise/b_hold  : 呼吸专用，渐亮（= 渐暗）/ 满亮各几拍 —— 对称包络，周期 = b_rise × 2 + b_hold
+ *                    （老存档没有它们：按老三角波摊成 period/2 + 0，外观不变，只是换色那一拍不再全黑）
  *   c1 / c2   : 旧字段（老存档、单色、覆盖参数仍用它们），也是 palette 的后备
  *
  * 算法约束：纯色 / 渐变 / 呼吸每帧只算一次颜色；彩虹每像素一次递推 + 一次
@@ -2322,7 +2324,14 @@ function normalizeEffect(e) {
   const pal = e.palette.filter(isRgb).map(c => [c[0] | 0, c[1] | 0, c[2] | 0]).slice(0, PAL_MAX);
   e.palette = pal.length ? pal : [[255, 0, 0]];
   e.levels = effLevels(e);
-  e.period = effPeriod(e);
+  /* 呼吸：周期 = 渐亮(=渐暗) × 2 + 亮 —— 三段里首尾一样长，落成两行具体值存着
+   * （老存档只有 period 的，按老三角波摊成 period/2 + 0，外观不变）；
+   * 其余配色：周期就是外面填的那个（渐变 / 跳变 / 彩虹用不到）。 */
+  {
+    const bp = ((e.color | 0) === FW.COLOR.BREATH) ? breathPlan(e) : null;
+    e.period = bp ? bp.period : effPeriod(e);
+    if (bp) { e.b_rise = bp.rise; e.b_hold = bp.hold; }
+  }
   e.rise = effStepRise(e);          /* 跳变：渐亮 / 亮 / 变暗各几拍（其余配色用不到，一并存着） */
   e.hold = effStepHold(e);
   e.fade = effStepFade(e);
@@ -2701,12 +2710,40 @@ function genRender(mask, hue, len, pos, layers, tick, offset) {
   }
 }
 
-/* 呼吸包络：一次「灭 → 亮 → 灭」= 0 → 255 → 0。
- * 与 pulseGain 的三角波相位差半拍（那个是一上来就满亮）。period=0 视为不呼吸。 */
-function breathGain(tick, period) {
-  if (!period) return 255;
-  const t = Math.floor(((tick % period) * 256) / period);   /* 0..255 */
-  return t < 128 ? t * 2 : (255 - t) * 2;
+/* 呼吸包络：一次「暗 → 亮 → 暗」，用的就是跳变那一套（stepEnv）——
+ * 只是渐亮和渐暗一样长：
+ *   r = 渐亮(=渐暗) 拍数：从 255/(r+1) 匀速爬到满亮，最后一拍正好 255
+ *   h = 亮 拍数：满亮保持 h 拍（0 = 爬满就开始暗下去，标准的三角呼吸）
+ *   周期 = r + h + r（界面上的「周期(拍)」就是它，改上面两行自动算）
+ * **不落全黑**：最后一拍停在 ≈255/(r+1)，就在那一拍换色 —— 留一个全黑帧的话，
+ * 50Hz 下就是一次 20ms 的闪，换色处会「抖一下」（和跳变同一个坑）。
+ * 老存档只有 period：按老三角波摊成 渐亮 = 渐暗 = period/2、亮 = 0 ——
+ * 波形与旧版逐拍几乎一样，只是换色那一拍（周期起点，旧版是 0）抬到 ≈255/(r+1)，黑帧没了。
+ * 整条效果级：不看图层，整条点亮。 */
+function effBreathRise(e) {
+  if (e && e.b_rise != null) return Math.max(0, Math.min(255, e.b_rise | 0));
+  return Math.max(1, Math.floor(effPeriod(e) / 2));      /* 老存档：老三角波的渐亮那一半 */
+}
+function effBreathHold(e) {
+  if (e && e.b_hold != null) return Math.max(0, Math.min(255, e.b_hold | 0));
+  return Math.max(0, effPeriod(e) - 2 * effBreathRise(e));
+}
+/* 呼吸的周期上限（与 effPeriod 的 600 一致）。超了先压「亮」（渐亮=渐暗 是对称骨架，不能破），
+ * 还超才把渐亮对半砍 —— 与界面上的 breathSyncPeriod() 用的是同一套算法。 */
+const BREATH_PERIOD_MAX = 600;
+function breathPlan(e) {
+  let r = effBreathRise(e), h = effBreathHold(e);
+  if (2 * r > BREATH_PERIOD_MAX) r = BREATH_PERIOD_MAX >> 1;
+  if (2 * r + h > BREATH_PERIOD_MAX) h = BREATH_PERIOD_MAX - 2 * r;
+  const d = Math.max(2, 2 * r + h);
+  return { rise: r, hold: h, fade: r, period: d };      /* fade 恒等于 rise —— 这就是「呼吸」的定义 */
+}
+/* 一拍该多亮（0..255）。stepEnv 的对称特例：r = fade = rise、h = period - 2*rise。
+ * 与固件里的 led_gen_breath() 逐值相同。 */
+function breathEnv(tick, period, rise) {
+  const per  = Math.max(2, Math.min(BREATH_PERIOD_MAX, (period | 0) || 60));
+  const r    = Math.max(0, Math.min(255, rise | 0, per >> 1));   /* 渐亮不超过半个周期，暗段才留得下 */
+  return stepEnv((tick | 0) % per, per, r, per - 2 * r, r);
 }
 
 /* 跳变包络：每种颜色「渐亮 → 满亮 → 渐暗 → 在最暗那一拍换色」。
@@ -2761,6 +2798,19 @@ function effStepFade(e) {
 function stepSpeedOf(e) {
   return Math.max(1, Math.min(255, effStepRise(e) + effStepHold(e) + effStepFade(e)));
 }
+/* 导出 / 套实例时的「包络四元组」：
+ *   跳变 → 渐亮 / 亮 / 变暗（周期 = 停留）；
+ *   呼吸 → 渐亮 / 亮 / 渐暗(=渐亮)（周期 = 渐亮×2 + 亮，自己算）。
+ * 两者都塞进 step_rise / step_hold / step_fade —— 固件结构体不用动，
+ * led_gen_breath() 直接拿这三段当对称包络用。其余配色：周期照旧，三段是跳变的旧值（用不到）。 */
+function effShape(e) {
+  if ((e.color | 0) === FW.COLOR.BREATH) {
+    const b = breathPlan(e);
+    return { rise: b.rise, hold: b.hold, fade: b.fade, period: b.period, symmetric: true };
+  }
+  return { rise: effStepRise(e), hold: effStepHold(e), fade: effStepFade(e),
+           period: effPeriod(e), symmetric: false };
+}
 
 /* 把一条效果渲染到给定的 mask/hue 缓冲里。长度可以是任意值 ——
  * 真实分区用它渲染，效果台的基础排布（8/24/40/… 颗）也用它，
@@ -2778,7 +2828,8 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
   /* 呼吸 / 覆盖是「整条效果」级：不看图层，整条点亮。
    * 跳变不在这里 —— 它只乘一个亮度包络，图层（追逐 / 填充）照旧。 */
   if (c.type === FW.COLOR.BREATH) {
-    m.fill(breathGain(a.gen_tick, c.period), 0, len);
+    /* 对称包络（渐亮 = 渐暗）：一拍一个值，不落全黑 —— 换色那一拍灯已经暗到看不见 */
+    m.fill(breathEnv(a.gen_tick, c.period, c.step_rise), 0, len);
     return;
   }
   if (c.type === FW.COLOR.WIPE) {
@@ -3040,6 +3091,7 @@ function simSetSpeed(sim, which) {
 function effectPreset(eff, idx, state) {
   const mode = eff.color | 0;
   const pal = effPalette(eff);
+  const sh = effShape(eff);          /* 跳变：渐亮/亮/暗 + 停留；呼吸：渐亮/亮/渐亮 + 周期 */
   return {
     anim:  (eff.kind === 'custom') ? (FW.ANIM_COUNT + (idx | 0)) : (eff.anim | 0),
     color: mode,
@@ -3055,8 +3107,12 @@ function effectPreset(eff, idx, state) {
     c2: mode === FW.COLOR.WIPE ? (pal[1] || eff.c2 || pal[0])
                                : (eff.c2 || pal[1] || [0, 0, 0]),
     palette: pal, levels: effLevels(eff),
-    hue_base: eff.hue_base | 0, hue_speed: eff.hue_speed | 0, period: effPeriod(eff),
-    rise: effStepRise(eff), hold: effStepHold(eff), fade: effStepFade(eff),
+    hue_base: eff.hue_base | 0, hue_speed: eff.hue_speed | 0,
+    period: sh.period, rise: sh.rise, hold: sh.hold, fade: sh.fade,
+    /* 呼吸：形状是由 b_rise/b_hold 定出来的，装实例时得能拿回这两个数（否则只剩 period，
+     * breathPlan 只能按「老存档 period/2 + 0」摊，用户填的「亮(拍)」就丢了） */
+    b_rise: sh.symmetric ? sh.rise : undefined,
+    b_hold: sh.symmetric ? sh.hold : undefined,
   };
 }
 
@@ -3225,12 +3281,18 @@ function instApplyPreset(inst, p) {
   inst.color.hue_speed = (p.hue_speed | 0) & 0xFF;
   inst.color.period = p.period > 0 ? (p.period | 0) : 60;
   /* 跳变：停留 = 渐亮 + 亮 + 变暗（三段拼成整个周期 —— 界面上也是这么算的）；
+   * 呼吸：周期 = 渐亮(=渐暗) × 2 + 亮（对称包络，同样三段，只是首尾一样长）；
    * 其余配色照旧用「速度」那一格。夹紧兜底：老存档 / 手改 JSON 里三段比停留长时压回停留。 */
   {
-    const isStep = (p.color | 0) === FW.COLOR.STEP;
+    const isStep   = (p.color | 0) === FW.COLOR.STEP;
+    const isBreath = (p.color | 0) === FW.COLOR.BREATH;
+    const bp = isBreath ? breathPlan(p) : null;
     const sp = isStep ? stepSpeedOf(p) : (p.speed > 0 ? (p.speed | 0) : 1);
-    const sc = stepClamp(sp, effStepRise(p), effStepHold(p), effStepFade(p));
+    const sc = bp ? [bp.rise, bp.hold, bp.fade]
+                  : stepClamp(sp, effStepRise(p), effStepHold(p), effStepFade(p));
     inst.color.spectrum_speed = sp;
+    /* 呼吸的「周期」也是算出来的（渐亮×2 + 亮）：与界面上的「周期(拍)」同一套 */
+    if (bp) inst.color.period = bp.period;
     /* 渐变步进（每动一次几级）：跟 speed 一起装进实例 —— 两者相乘/相除才是真正的快慢 */
     inst.color.grad_step = effGradStep(p);
     inst.color.step_rise = sc[0];
@@ -3424,6 +3486,7 @@ function modesPlan(state) {
   const rowFromEffect = (e, layerRows0, name) => {
     const pal = effPalette(e);
     const mode = e.color | 0;
+    const sh = effShape(e);          /* 跳变：渐亮/亮/暗 + 停留；呼吸：渐亮/亮/渐亮 + 周期 */
     const c1 = (mode === FW.COLOR.SOLID) ? (e.c1 || pal[0]) : pal[0];
     const c2 = (mode === FW.COLOR.WIPE) ? (pal[1] || e.c2 || pal[0])
                                         : (e.c2 || pal[1] || [0, 0, 0]);
@@ -3438,8 +3501,9 @@ function modesPlan(state) {
                                  ? gradFirstOf(gradTableFor(state, e)) : 0,
                    grad_step: effGradStep(e),
                    levels: effLevels(e), hue_base: e.hue_base | 0,
-                   hue_speed: e.hue_speed | 0, period: effPeriod(e),
-                   rise: effStepRise(e), hold: effStepHold(e), fade: effStepFade(e),
+                   hue_speed: e.hue_speed | 0,
+                   /* 包络：跳变三段 + 停留；呼吸 = 渐亮/亮/渐亮 + 周期（周期自己算） */
+                   period: sh.period, rise: sh.rise, hold: sh.hold, fade: sh.fade,
                    name: name || e.name, latin: e.latin || '' };
     if (e.kind !== 'custom')
       return Object.assign(base, { kind: 0, anim: e.anim | 0, width: e.width | 0, gap: e.gap | 0,
@@ -3705,15 +3769,6 @@ const LED_GEN_IMPL = [
 '    }',
 '}',
 '',
-'/* @breath@ */',
-'static uint8_t led_gen_breath(uint16_t tick, uint16_t period)',
-'{',
-'    uint32_t t;',
-'    if (period == 0u) return 255u;',
-'    t = ((uint32_t)(tick % period) * 256u) / (uint32_t)period;',
-'    return (uint8_t)((t < 128u) ? (t * 2u) : ((255u - t) * 2u));',
-'}',
-'',
 '/* @stepenv@ */',
 'static uint8_t led_gen_step_env(uint16_t t, uint16_t d, uint16_t r, uint16_t h, uint16_t f)',
 '{',
@@ -3730,6 +3785,16 @@ const LED_GEN_IMPL = [
 '    return (uint8_t)(255u - ((uint32_t)(k + 1u) * 255u) / (uint32_t)(f + 1u));',
 '}',
 '',
+'/* @breath@ */',
+'/* @breathimpl@ */',
+'static uint8_t led_gen_breath(uint16_t tick, uint16_t period, uint8_t rise)',
+'{',
+'    uint16_t d = (period != 0u) ? period : 60u;',
+'    uint16_t r = (uint16_t)rise;',
+'    if (r > (uint16_t)(d / 2u)) r = (uint16_t)(d / 2u);',
+'    return led_gen_step_env((uint16_t)(tick % d), d, r, (uint16_t)(d - 2u * r), r);',
+'}',
+'',
 '/* @zonerender@ */',
 'static void led_gen_zone_render(led_gen_inst_t *I, uint8_t len, int16_t zpos,',
 '                                uint8_t *mask, uint8_t *hue)',
@@ -3739,7 +3804,7 @@ const LED_GEN_IMPL = [
 '    /* @breathmode@ */',
 '    if (E->ctype == (uint8_t)LED_GEN_COLOR_BREATH) {',
 '        memset(hue, 0xFF, len);',
-'        memset(mask, led_gen_breath(I->anim.gen_tick, E->period), len);',
+'        memset(mask, led_gen_breath(I->anim.gen_tick, E->period, E->step_rise), len);',
 '        return;',
 '    }',
 '    if (E->ctype == (uint8_t)LED_GEN_COLOR_WIPE) {',
@@ -3987,7 +4052,8 @@ const GEN_COMMENTS = {
   chasegen:    { zh:'内建单点追逐由生成代码自己画（平顶光带），不再调平台的同名原语', en:'the built-in single chase is drawn here (flat top); the platform primitive of the same name is no longer called' },
   huefn:  { zh:'本层在第 i 个灯位上的色相；0xFF 表示用全局配色', en:'hue of this layer at LED i; 0xFF = use the global colour' },
   hueArr: { zh:'每个灯位的颜色来源: 0x00..0xFD = spectrum_tbl 下标, 0xFE = 副色, 0xFF = 效果当前色', en:'per-LED colour source: 0x00..0xFD = spectrum_tbl index, 0xFE = secondary, 0xFF = effect current colour' },
-  breath: { zh:'呼吸包络：灭 -> 亮 -> 灭（0 -> 255 -> 0）', en:'breath envelope: dark -> bright -> dark (0 -> 255 -> 0)' },
+  breath: { zh:'呼吸包络：暗 -> 亮 -> 暗（首尾停在 ≈255/(渐亮+1)，不落全黑）', en:'breath envelope: dark -> bright -> dark (ends at about 255/(rise+1), never 0)' },
+  breathimpl: { zh:'呼吸 = 对称的跳变：渐亮(=渐暗) = step_rise 拍，周期里剩下的都算「亮」—— 直接复用 led_gen_step_env，逐值与预览一致', en:'breath = symmetric step: rise (= fade) = step_rise ticks, the rest of the cycle is hold; reuses led_gen_step_env, tick-for-tick equal to the preview' },
   stepenv: { zh:'跳变包络：每种颜色先用 r 拍从黑匀速爬到满亮（「渐亮(拍)」，0 = 一拍照跳到满亮），再满亮保持 h 拍（「亮(拍)」），再用 f 拍匀速暗下去（「变暗(拍)」），最后一拍停在 ≈255/(f+1) —— 不落到 0（全黑一帧在 50Hz 下就是一次闪，换色会抖一下），换色就在这一拍。r + h + f 就是「停留(拍)」，工具里填这三行时自动算，正常不会剩下黑拍；万一 r + h + f 比停留短（老存档 / 手改），多出来的拍黑着等换色', en:'step envelope: over r ticks the colour ramps linearly from black to full brightness (the rise; 0 = hard on), then holds full for h ticks, then fades linearly over f ticks and stops at about 255/(f+1) - never at 0 (one fully dark frame at 50 Hz reads as a flicker at the colour switch); the colour changes on that tick. r + h + f is the dwell (the tool computes it as you type). If r + h + f is shorter than the dwell (old data / hand-edited JSON), the extra ticks stay dark until the colour switches' },
   stepfade: { zh:'跳变：把包络乘到 mask 上（只乘亮度，不动颜色）；env=255 等于原值，env=0 全灭', en:'step: multiply the envelope into mask (brightness only, never the colour); env=255 keeps the value, env=0 goes dark' },
   breathmode: { zh:'呼吸 / 覆盖是整条效果级：不看图层，整条点亮', en:'breath/wipe are whole-effect modes: ignore layers, light the whole strip' },
@@ -4140,10 +4206,10 @@ function exportEffectsC(state, opt) {
     effLevels: '彩虹: 走完一轮红->红要多少颗灯 (>=6)',
     effHueBase: '彩虹: 色相起点 0..255',
     effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转',
-    effPeriod: '呼吸/覆盖: 一个周期多少拍',
-    effRise: '跳变: 每种颜色点亮用几拍（第一拍 = 255/rise、最后一拍满亮；0 = 硬启亮；渐亮 + 亮 + 变暗 = spectrum_speed）',
-    effHold: '跳变: 满亮保持几拍（0 = 不保持；渐亮爬到满亮那一拍也算满亮）',
-    effFade: '跳变: 满亮之后用几拍暗下去（越大越慢；最后一拍 ≈255/(fade+1)、不落 0，换色处不闪；渐亮 + 亮 + 变暗 = spectrum_speed）',
+    effPeriod: '呼吸/覆盖: 一个周期多少拍（呼吸 = 渐亮×2 + 亮，算出来的）',
+    effRise: '跳变: 每种颜色点亮用几拍（第一拍 = 255/rise、最后一拍满亮；0 = 硬启亮；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸: 渐亮(=渐暗) 几拍（对称包络）',
+    effHold: '跳变: 满亮保持几拍（0 = 不保持；渐亮爬到满亮那一拍也算满亮）；呼吸: 满亮保持几拍（周期 = 渐亮×2 + 亮）',
+    effFade: '跳变: 满亮之后用几拍暗下去（越大越慢；最后一拍 ≈255/(fade+1)、不落 0，换色处不闪；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸不用它（生成代码里 = step_rise）',
     newColors: '新配色模式（0..2 沿用固件的 COLOR_* 枚举；3..6 由生成代码处理）',
     palRow: '色板: 每个效果一段 {r,g,b}；效果行用 pal_first/pal_count 指进来',
     gradRow: '渐变色环: 每条渐变 256 行 {r,g,b}（红→黄→绿→青→蓝→紫→回到红，起始色已经转到相位 0）；效果行用 grad_first 指进来',
@@ -4205,10 +4271,10 @@ function exportEffectsC(state, opt) {
     effLevels: 'rainbow: LEDs per full red->red cycle (>=6)',
     effHueBase: 'rainbow: hue start 0..255',
     effHueSpeed: 'rainbow: shift one level every N frames, 0 = static',
-    effPeriod: 'breath/wipe: ticks per cycle',
-    effRise: 'step: ticks to go from black to full brightness (0 = hard on; rise + hold + fade = spectrum_speed)',
-    effHold: 'step: ticks held at full brightness (0 = no hold; the tick that reaches full counts too)',
-    effFade: 'step: ticks to dim from full (larger = slower; the last tick sits at about 255/(fade+1), never 0 - no dark frame at the colour switch; rise + hold + fade = spectrum_speed)',
+    effPeriod: 'breath/wipe: ticks per cycle (breath = rise*2 + hold, computed)',
+    effRise: 'step: ticks to go from black to full brightness (0 = hard on; rise + hold + fade = spectrum_speed); breath: rise (= fade) ticks, symmetric envelope',
+    effHold: 'step: ticks held at full brightness (0 = no hold; the tick that reaches full counts too); breath: ticks held, cycle = rise*2 + hold',
+    effFade: 'step: ticks to dim from full (larger = slower; the last tick sits at about 255/(fade+1), never 0 - no dark frame at the colour switch; rise + hold + fade = spectrum_speed); breath: not used (equals step_rise)',
     newColors: 'new colour modes (0..2 reuse the firmware COLOR_* enum; 3..6 are handled here)',
     palRow: 'palette rows: {r,g,b} per colour, referenced by pal_first/pal_count',
     gradRow: 'gradient rings: 256 rows {r,g,b} per gradient (red->yellow->green->cyan->blue->magenta->red, rotated so the start colour sits at phase 0); effect rows point in with grad_first',
@@ -4593,7 +4659,8 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
-               breathGain, stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
+               breathEnv, breathPlan, effBreathRise, effBreathHold, effShape, BREATH_PERIOD_MAX,
+               stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
                effPalette, effLevels, effPeriod, normalizeEffect,
                EFFECT_SLOTS, defaultEffects, newCustomEffect, effectAtSlot, fxEffectName,
                layerToCRow, layerNums, modesPlan, exportEffectsC, buildPatchText, mangleComment,
@@ -4660,7 +4727,7 @@ function tipInit() {
   window.addEventListener('scroll', tipHide, true);
 }
 /* 造控件时顺手挂说明 */
-function tip(node, text) { if (text && node.setAttribute) node.setAttribute('data-tip', text); return node; }
+function tip(node, text) { if (node && text && node.setAttribute) node.setAttribute('data-tip', text); return node; }
 
 const $ = s => document.querySelector(s);
 const cv = $('#cv'), ctx = cv.getContext('2d');
@@ -6268,7 +6335,7 @@ function stageSync(force) {
 /* 暂停时给编辑台一帧「看得出区别」的样本。
  *
  * 编辑台默认是暂停的（stagePlaying = false），如果永远停在 tick 0：
- *   呼吸 → breathGain(0) = 0 全黑、跳变 → 用调色板第 1 个颜色、渐变 → 相位于 0（红）——
+ *   呼吸 → 包络刚起步（≈255/渐亮，很暗）、跳变 → 用调色板第 1 个颜色、渐变 → 相位于 0（红）——
  *   这几样跟「纯色红」长得一模一样，用户会以为「改了配色没生效」。
  * 这里只拨预览实例的相位（不碰固件算法）；一旦按播放，
  * stageToggle() 会重新 stageSync(true) 从 tick 0 开始，语义还是固件那一套。 */
@@ -6277,8 +6344,10 @@ function stageSampleFrame(inst) {
   const per = c.period > 0 ? c.period : 60;
   switch (c.type) {
     case FW.COLOR.BREATH:
-      /* 包络顶点：颜色看得到（呼吸的「灭」那一半留给播放） */
-      inst.anim.gen_tick = Math.floor(per / 2);
+      /* 包络顶点：颜色看得到（呼吸的「暗」那一半留给播放）。
+         取法与跳变一致：有「亮(拍)」就停在满亮第 0 拍，只有渐亮就停在爬满的那一拍 */
+      inst.anim.gen_tick = (c.step_hold | 0) > 0 ? (c.step_rise | 0)
+                                                : Math.max(0, (c.step_rise | 0) - 1);
       c.phase = Math.floor(inst.anim.gen_tick / per) % Math.max(1, pal.length);
       if (pal.length) c.current = pal[c.phase];
       break;
@@ -6641,6 +6710,13 @@ function applyPreset(name) {
   e.rise = (made.rise != null) ? (made.rise | 0) : effStepRise(made);
   e.hold = (made.hold != null) ? (made.hold | 0) : effStepHold(made);
   e.fade = (made.fade != null) ? (made.fade | 0) : effStepFade(made);
+  /* 呼吸：模板没写 b_rise / b_hold 就按它的 period 摊成老三角波（period/2 + 0）——
+   * 不重置的话，上一条效果留下的 b_rise 会把模板的 period 覆掉（套了「多色呼吸」却不是 60 拍） */
+  if ((e.color | 0) === FW.COLOR.BREATH) {
+    const per0 = made.period || 60;
+    e.b_rise = (made.b_rise != null) ? (made.b_rise | 0) : Math.max(1, Math.floor(per0 / 2));
+    e.b_hold = (made.b_hold != null) ? (made.b_hold | 0) : Math.max(0, per0 - 2 * e.b_rise);
+  }
   if ((e.color | 0) === FW.COLOR.STEP) e.speed = stepSpeedOf(e);   /* 跳变：停留 = 渐亮 + 亮 + 变暗 */
   e.layers = JSON.parse(JSON.stringify(made.layers));
   if (!e.offset) e.offset = 0;
@@ -7188,8 +7264,20 @@ function gradStepHint(e) {
     (gs === 1 ? '；抬「步进」就能比这更快' : '');
 }
 
+/* 参数行原始提示：切配色时会临时换文案（同一格两种说法），切回来要能还原。
+ * 惰性取第一次见到的 data-tip（UI 测试的 DOM 桩没有 document.getElementById，只能走 $）。 */
+const FX_TIP0 = {};
+function fxTip0(id) {
+  if (!(id in FX_TIP0)) {
+    const el = $('#' + id);
+    FX_TIP0[id] = (el && el.getAttribute) ? (el.getAttribute('data-tip') || '') : '';
+  }
+  return FX_TIP0[id];
+}
 /* 按配色模式显示/隐藏参数行，并把「速度」那一格的标题换成该模式的说法 */
 function syncFxColorRows(e) {
+  /* 先把这几行的原始提示缓存下来（下面可能临时换成呼吸的说法） */
+  ['fRise', 'fHold', 'fFade', 'fPeriod', 'fSpeed'].forEach(fxTip0);
   const mode = e ? (e.color | 0) : FW.COLOR.SOLID;
   const show = (id, on) => { const el = $('#' + id); if (el) el.style.display = on ? '' : 'none'; };
   const uses = (mode === FW.COLOR.SOLID || mode === FW.COLOR.STEP ||
@@ -7217,9 +7305,27 @@ function syncFxColorRows(e) {
   show('rowGradStep', isGradColor);
   const gsh = $('#fxGradStepHint');
   if (gsh) gsh.style.display = isGradColor ? '' : 'none';
-  show('rowRise', mode === FW.COLOR.STEP);
-  show('rowHold', mode === FW.COLOR.STEP);
-  show('rowFade', mode === FW.COLOR.STEP);
+  /* 跳变 / 呼吸 共用「渐亮 / 亮」两行：呼吸的渐亮 = 渐暗（对称包络），所以没有「变暗(拍)」那一行，
+   * 周期 = 渐亮 × 2 + 亮，自动算好（只读）。标签与提示跟着配色换 —— 同一格两种说法。 */
+  const isStepColor   = (mode === FW.COLOR.STEP);
+  const isBreathColor = (mode === FW.COLOR.BREATH);
+  show('rowRise', isStepColor || isBreathColor);
+  show('rowHold', isStepColor || isBreathColor);
+  show('rowFade', isStepColor);
+  const riseLab = $('#fRiseLab'), holdLab = $('#fHoldLab');
+  if (riseLab) riseLab.textContent = isBreathColor ? '渐亮=变暗(拍)' : '渐亮(拍)';
+  if (holdLab) holdLab.textContent = '亮(拍)';
+  const riseIn = $('#fRise'), holdIn = $('#fHold'), perIn = $('#fPeriod');
+  if (isBreathColor) {
+    tip(riseIn, '呼吸：一次「暗 → 亮」用几拍（20ms 一拍）；「亮 → 暗」用同样多拍 —— 对称，所以只填这一格。\n第 1 拍 = 255 / 渐亮、最后一拍正好满亮；最暗那一拍停在 ≈255/(渐亮+1)，不落到全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。\n0 = 一拍到满亮、一拍全灭（硬闪）。\n填完「周期(拍)」会自动 = 渐亮 × 2 + 亮。');
+    tip(holdIn, '呼吸：满亮之后保持几拍（20ms 一拍）。\n0 = 爬满立刻开始暗下去（标准的三角呼吸）。\n填完「周期(拍)」会自动 = 渐亮 × 2 + 亮。');
+    tip(perIn, '自动 = 渐亮(=变暗) × 2 + 亮：改上面两行就会自己算好（20ms 一拍），这一格不用手填。');
+  } else {
+    tip(riseIn, fxTip0('fRise'));
+    tip(holdIn, fxTip0('fHold'));
+    tip(perIn, fxTip0('fPeriod'));
+  }
+  if (perIn) perIn.readOnly = isBreathColor;
   show('rowLevels', mode === FW.COLOR.RAINBOW);
   show('rowHueBase', mode === FW.COLOR.RAINBOW);
   show('rowHueSpeed', mode === FW.COLOR.RAINBOW);
@@ -7268,6 +7374,20 @@ function stepSyncSpeed(x) {
   }
   return sp;
 }
+/* 呼吸：周期 = 渐亮(=渐暗) × 2 + 亮 —— 改上面两行时把它算好填回去（与 breathPlan 同一套算法）。
+ * 周期是 12 位以下的字段（≤600）：加起来更长时先压「亮」，对称的渐亮=渐暗 尽量保。 */
+function breathSyncPeriod(x) {
+  if (!x || (x.color | 0) !== FW.COLOR.BREATH) return 0;
+  const want = effBreathRise(x) * 2 + effBreathHold(x);
+  const b = breathPlan(x);
+  x.period = b.period;
+  const el = $('#fPeriod');
+  if (el) el.value = b.period;
+  if (want > b.period) {
+    status(`渐亮(=变暗) ${b.rise} × 2 + 亮 ${effBreathHold(x)} = ${want} 拍，超过 ${BREATH_PERIOD_MAX}（周期上限）：实际按渐亮 ${b.rise} / 亮 ${b.hold} 播`, 'warn');
+  }
+  return b.period;
+}
 function syncFxEdit() {
   const e = editTarget();
   const on = !!e;
@@ -7301,10 +7421,16 @@ function syncFxEdit() {
   $('#fLevels').value = e.levels;
   $('#fHueBase').value = e.hue_base;
   $('#fHueSpeed').value = e.hue_speed;
-  $('#fPeriod').value = e.period;
+  /* 呼吸的两行是它自己的字段（b_rise / b_hold），周期由它们算出来（只读）；
+   * 跳变照旧用 rise / hold / fade（停留 = 三段之和） */
+  const isBreathFx = (e.color | 0) === FW.COLOR.BREATH;
+  const bs = isBreathFx ? breathPlan(e) : null;
+  $('#fPeriod').value = bs ? bs.period : e.period;
   $('#fSlow').value = e.slow; $('#fFast').value = e.fast; $('#fSpeed').value = e.speed;
   $('#fGradStep').value = e.grad_step;
-  $('#fRise').value = e.rise; $('#fHold').value = e.hold; $('#fFade').value = e.fade;
+  $('#fRise').value = bs ? bs.rise : e.rise;
+  $('#fHold').value = bs ? bs.hold : e.hold;
+  $('#fFade').value = e.fade;
   $('#fOffset').value = e.offset | 0;
   if (e.kind === 'custom') { $('#fMoves').checked = !!e.moves; renderLayers(); }
   else { $('#fAnim').value = e.anim; $('#fWidth').value = e.width; $('#fGap').value = e.gap; }
@@ -7590,16 +7716,21 @@ function buildFxPanel() {
     x.grad_step = Math.max(GRAD_STEP_MIN, Math.min(GRAD_STEP_MAX, +e.target.value || GRAD_STEP_MIN));
     fxLive(); gradStepHint(x);
   });
-  /* 渐亮 / 亮 / 变暗：改哪个都把「停留」重算一遍（= 渐亮 + 亮 + 变暗） */
+  /* 渐亮 / 亮 / 变暗：跳变时改哪个都把「停留」重算一遍（= 渐亮 + 亮 + 变暗）；
+   * 呼吸时这两行是它自己的 b_rise / b_hold（渐亮 = 渐暗），改完把「周期」重算一遍。 */
   bind('fRise',  e => {
     const x = editTarget(); if (!x) return;
-    x.rise = Math.max(0, Math.min(255, +e.target.value || 0));
-    stepSyncSpeed(x); fxLive();
+    const v = Math.max(0, Math.min(255, +e.target.value || 0));
+    if ((x.color | 0) === FW.COLOR.BREATH) { x.b_rise = v; breathSyncPeriod(x); }
+    else { x.rise = v; stepSyncSpeed(x); }
+    fxLive();
   });
   bind('fHold',  e => {
     const x = editTarget(); if (!x) return;
-    x.hold = Math.max(0, Math.min(255, +e.target.value || 0));
-    stepSyncSpeed(x); fxLive();
+    const v = Math.max(0, Math.min(255, +e.target.value || 0));
+    if ((x.color | 0) === FW.COLOR.BREATH) { x.b_hold = v; breathSyncPeriod(x); }
+    else { x.hold = v; stepSyncSpeed(x); }
+    fxLive();
   });
   bind('fFade',  e => {
     const x = editTarget(); if (!x) return;
@@ -7615,6 +7746,7 @@ function buildFxPanel() {
   bind('fHueSpeed', e => { const x = editTarget(); if (x) { x.hue_speed = Math.max(0, Math.min(255, +e.target.value || 0)); fxLive(); } });
   bind('fPeriod',   e => {
     const x = editTarget(); if (!x) return;
+    if ((x.color | 0) === FW.COLOR.BREATH) return;   /* 呼吸的周期 = 渐亮×2 + 亮，是算出来的（只读） */
     x.period = Math.max(2, Math.min(600, +e.target.value || 60));
     fxLive();
   });

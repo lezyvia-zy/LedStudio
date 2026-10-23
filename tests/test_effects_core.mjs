@@ -386,8 +386,9 @@ console.log('--- 效果名：模板 / 配色 ---');
 console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
 {
   const { instNew, instApplyPreset, renderZoneMaskTo, effectColorAt,
-          breathGain, stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
-          colorUpdate, effPalette, effLevels, effPeriod } = CORE;
+          breathEnv, breathPlan, effBreathRise, effBreathHold,
+          stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
+          colorUpdate, effPalette, effLevels, effPeriod, effectPreset } = CORE;
   const base = { anim: FW.ANIM.STATIC, width: 10, gap: 0, slow: 8, fast: 1, speed: 1,
                  c1: [255, 0, 0], c2: [0, 0, 0] };
   const mkInst = p => { const I = instNew(); instApplyPreset(I, Object.assign({}, base, p)); return I; };
@@ -535,9 +536,35 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(rOn0.m[0] > 0 && rOn0.m[0] < rOn1.m[0] && rOn1.m[0] < 255 && rOn3.m.every(v => v === 255),
      `跳变：渐亮第 0/1/3 拍 = ${rOn0.m[0]}/${rOn1.m[0]}/${rOn3.m[0]}（连续爬亮，第 0 拍不再白黑一下）`);
 
-  /* 呼吸：灭→亮→灭；一个周期一种颜色 */
-  ok(breathGain(0, 12) === 0 && breathGain(6, 12) === 254 && breathGain(11, 12) === 42,
-     `呼吸包络 0/6/11 拍 = ${breathGain(0,12)}/${breathGain(6,12)}/${breathGain(11,12)}`);
+  /* 呼吸：对称包络（渐亮 = 渐暗），一个周期一种颜色；首尾都**不落全黑** */
+  const bp12 = breathPlan({ color: FW.COLOR.BREATH, period: 12 });
+  ok(bp12.rise === 6 && bp12.hold === 0 && bp12.fade === 6 && bp12.period === 12,
+     `呼吸计划（老存档 only period=12）：渐亮=渐暗 ${bp12.rise} / 亮 ${bp12.hold} / 周期 ${bp12.period}`);
+  ok(bp12.fade === bp12.rise, '呼吸的渐暗恒等于渐亮（对称包络 —— 这就是它和跳变的唯一区别）');
+  const bg = t => breathEnv(t, 12, 6);
+  ok(bg(0) === 42 && bg(5) === 255 && bg(6) === 219 && bg(11) === 37,
+     `呼吸包络 0/5/6/11 拍 = ${bg(0)}/${bg(5)}/${bg(6)}/${bg(11)}（5 拍满亮，6 拍起变暗）`);
+  ok(bg(0) > 0 && bg(11) > 0,
+     `呼吸首尾都不落到全黑（${bg(0)} / ${bg(11)}）—— 全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」`);
+  ok(Math.abs(bg(11) - bg(0)) <= 6,
+     `周期接缝几乎连续（11 拍 ${bg(11)} → 下一周期 0 拍 ${bg(0)}，差 ${Math.abs(bg(11) - bg(0))}）`);
+  const bpP = breathPlan({ color: FW.COLOR.BREATH, period: 60, b_rise: 10, b_hold: 8 });
+  ok(bpP.period === 28 && bpP.rise === 10 && bpP.hold === 8,
+     `呼吸周期 = 渐亮×2 + 亮（10×2 + 8 = ${bpP.period}）`);
+  ok(breathEnv(10, 28, 10) === 255 && breathEnv(17, 28, 10) === 255 && breathEnv(18, 28, 10) < 255,
+     '呼吸：渐亮第 10 拍起满亮，「亮(拍)」里保持，之后开始暗下去');
+  /* 效果对象 → effectPreset → instApplyPreset：用户填的 10 / 8 必须原样到实例
+   * （effectPreset 只带 period 的话，breathPlan 会按老存档摊成 14 / 0 —— 亮(拍) 就白填了） */
+  {
+    const eBx = { color: FW.COLOR.BREATH, period: 60, b_rise: 10, b_hold: 8,
+                  palette: [[255,0,0],[0,255,0]], c1: [255,0,0], c2: [0,255,0],
+                  level: 0, levels: 30, hue_base: 0, hue_speed: 0, slow: 8, fast: 1, speed: 0 };
+    const IBx = instNew();
+    instApplyPreset(IBx, effectPreset(eBx, 0, {}));
+    ok(IBx.color.period === 28 && IBx.color.step_rise === 10 && IBx.color.step_hold === 8 &&
+       IBx.color.step_fade === 10,
+       `呼吸装实例：周期 ${IBx.color.period} / 渐亮 ${IBx.color.step_rise} / 亮 ${IBx.color.step_hold} / 暗 ${IBx.color.step_fade}（10 / 8 没丢）`);
+  }
   const B = mkInst({ color: FW.COLOR.BREATH, period: 12,
                      palette: [[255,0,0],[0,255,0],[0,0,255]] });
   colorUpdate(B.color, 0);
@@ -546,8 +573,11 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(B.color.current.g === 255, '呼吸：第 2 个周期换第 2 色');
   colorUpdate(B.color, 24);
   ok(B.color.current.b === 255, '呼吸：第 3 个周期换第 3 色');
-  const breathShot = render(B, 10, 6);
-  ok(breathShot.m.every(v => v === 254), '呼吸：半周期时整条最亮（254）');
+  const breathShot = render(B, 10, 5);
+  ok(breathShot.m.every(v => v === 255), '呼吸：满亮那一拍整条 255');
+  const breathDark = render(B, 10, 11);
+  ok(breathDark.m.every(v => v > 0 && v < 60),
+     `呼吸：周期末拍整条暗但没灭（${breathDark.m[0]}）—— 换色发生在这一拍`);
 
   /* 覆盖：第二种颜色从 0 号灯开始逐级盖过去（0xFE = 用副色） */
   const W = mkInst({ color: FW.COLOR.WIPE, period: 10,
