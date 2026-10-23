@@ -124,8 +124,58 @@
   label.row{display:flex; align-items:center; gap:6px; margin:3px 0; min-width:0}
 /* 调色板：一排色块 + 增删键（颜色数就是跳变/呼吸的颜色个数） */
 .palrow{display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-height:24px}
-.palrow input[type=color]{width:34px; height:24px; padding:0; border:1px solid var(--line); border-radius:4px; background:none}
 .palrow .palN{color:var(--dim); font-size:11px; margin-left:2px}
+/* 取色：色块按钮 + 贴着色块弹出的取色面板 ------------------------------------
+ * 这是 RGB 灯珠，「灰 / 暗」几乎用不到 —— 面板主体是色环（点 / 拖 = 选色相，
+ * 出来就是满饱和 + 满亮度），原生取色框那张二维色图（饱和度 × 亮度）收进
+ * 「高级设置」，展开才出现。色块对外仍是 el.value / el.oninput，调用方不用改。 */
+.cchip{display:inline-block; width:34px; height:24px; border:1px solid var(--line);
+       border-radius:4px; background:#000; cursor:pointer; vertical-align:middle}
+.cchip:hover{border-color:var(--pri-line)}
+.cchip:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.cchip-off{opacity:.35; cursor:not-allowed}
+.gord .cchip{width:30px}
+#cpPop{position:fixed; z-index:97; display:none; width:200px; padding:10px;
+       background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+       box-shadow:0 8px 28px #0008}
+#cpHead{display:flex; align-items:center; justify-content:space-between; margin:-2px 0 6px;
+        font-size:12px; color:var(--dim)}
+#cpX{border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:4px;
+     width:18px; height:18px; line-height:1; padding:0; cursor:pointer; font-size:12px}
+#cpX:hover{color:var(--fg); border-color:var(--pri-line)}
+#cpRingWrap{position:relative; width:148px; height:148px; margin:0 auto 8px; touch-action:none}
+/* 色环：0° = 正上方 = 红，顺时针 黄(60) 绿(120) 青(180) 蓝(240) 洋红(300)。
+ * conic-gradient 的 from 0deg 就是 12 点方向（不是数学极坐标的 3 点！），
+ * 必须和 cpBindDrag 里 atan2(dx, -dy) 的基准一致 —— 写成 from -90deg 会把红挪到左边，
+ * 环上看到的颜色就和选出来的差 90°。
+ * 每 60° 一个色标：sRGB 线性插值在这段里正好等于 HSV 纯色相（红→黄中点 =(255,128,0) = hue 30），
+ * 所以环上任意角度的像素色 == 该角度的纯色。 */
+#cpRing{position:absolute; inset:0; border-radius:50%; cursor:crosshair;
+        background:conic-gradient(from 0deg,#f00 0deg,#ff0 60deg,#0f0 120deg,#0ff 180deg,#00f 240deg,#f0f 300deg,#f00 360deg);
+        -webkit-mask:radial-gradient(circle at 50% 50%, transparent 0 44px, #000 45px);
+                mask:radial-gradient(circle at 50% 50%, transparent 0 44px, #000 45px)}
+#cpHol{position:absolute; left:50%; top:50%; width:88px; height:88px; margin:-44px 0 0 -44px;
+       border-radius:50%; border:1px solid var(--line); background:var(--panel2); pointer-events:none}
+#cpCur{position:absolute; left:50%; top:50%; width:66px; height:66px; margin:-33px 0 0 -33px;
+       border-radius:50%; box-shadow:inset 0 0 0 1px #0006; pointer-events:none}
+#cpDot{position:absolute; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%;
+       border:2px solid #fff; box-shadow:0 0 0 1px #000a; pointer-events:none}
+#cpHex{width:100%; height:22px; margin:0 0 6px; padding:1px 4px; border-radius:4px;
+       border:1px solid var(--line); background:var(--panel); color:var(--fg);
+       font:12px/1.4 Consolas,monospace; text-transform:uppercase}
+#cpAdv{width:100%; text-align:left; height:24px; padding:2px 6px; font-size:12px;
+       border:1px solid var(--line); background:var(--panel); color:var(--fg);
+       border-radius:4px; cursor:pointer}
+#cpAdv:hover{border-color:var(--pri-line)}
+#cpAdvBody{margin:6px 0 0; padding-top:6px; border-top:1px dashed var(--line)}
+#cpSvWrap{position:relative; width:148px; height:110px; margin:0 auto; touch-action:none; cursor:crosshair}
+#cpSvBase{position:absolute; inset:0; border-radius:4px; overflow:hidden; background:#f00}
+#cpSvW{position:absolute; inset:0; background:linear-gradient(to right,#fff,#fff0)}
+#cpSvB{position:absolute; inset:0; background:linear-gradient(to top,#000,#0000)}
+#cpSvDot{position:absolute; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%;
+         border:2px solid #fff; box-shadow:0 0 0 1px #000a; pointer-events:none}
+#cpKv{display:flex; gap:8px; color:var(--dim); font-size:11px; margin-top:4px}
+#cpHint{color:var(--dim); font-size:11px; line-height:1.4; margin-top:2px}
 /* 渐变色环：顺序里的一个锚点（色块 + 前后调序），以及整条环的预览条 */
 .gord{display:inline-flex; align-items:center; gap:1px}
 .gord button{padding:0 3px; min-width:0; font-size:11px; line-height:18px; height:24px}
@@ -347,7 +397,7 @@
         <label class="row"><span>别名(ASCII)</span><input type="text" id="zLatin" placeholder="导出 C 注释用"></label>
         <label class="row"><span>start</span><input type="number" id="zStart" min="0"></label>
         <label class="row"><span>count</span><input type="number" id="zCount" min="1"></label>
-        <label class="row"><span>颜色</span><input type="color" id="zColor" style="width:40px;padding:0;height:22px"></label>
+        <label class="row"><span>颜色</span><span id="zColor" class="cchip" data-tip="点一下打开取色面板：色环上点 / 拖 = 选色相（出来就是满饱和、满亮度）；要灰、要暗再展开「高级设置」里的二维色图，或直接敲色号。"></span></label>
         <div class="row" style="margin:2px 0 4px"><span></span><span id="zPalette" style="display:flex;gap:3px;flex-wrap:wrap;align-items:center"></span></div>
         <label class="row ck"><span>使能</span><input type="checkbox" id="zEn" checked></label>
         <label class="row"><span>实体方向</span><span id="zDir" class="num">—</span></label>
@@ -880,6 +930,7 @@
           <tr><td>对照看配色</td><td>套预置<b>「全点亮(测配色)」</b>：一个满亮填充层，不走位置、不脉动、不铺色相 —— 整条常亮，在这里换「配色」就能直接看出六种配色的差别。</td></tr>
           <tr><td>渐变（起始色 / 顺序）</td><td>只在配色 = 渐变时出现。<b>起始色</b> = 相位 0 显示哪个颜色（= 整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色，‹ › 换前后、+ − 增删，锚点之间自动等长补渐变；下面那条色带就是整条环的预览（最左 = 起始色，播放时颜色从左往右走）。<b>新建</b> = 一条全新的（默认顺序 + 起点红，跟库里别的都不搭界），<b>另存为</b> = 在当前这条的基础上复制一份（渐变-2、渐变-3…），两者都会把这条效果切到新的那条、原条一点不动；<b>删除</b>删掉当前这条（只剩一条时不给删，用到它的效果自动改回第一条）。</td></tr>
           <tr><td>调色板</td><td>用户自己定的颜色，最多 16 个。纯色用第 1 个；跳变/呼吸按色块个数循环；覆盖用第 1、2 个（底色 / 盖上去的颜色）。渐变不用调色板。</td></tr>
+          <tr><td>取色面板</td><td>点任何一个色块（调色板 / 渐变起始色 / 渐变顺序 / 分区颜色）都弹同一个面板：<b>色环</b>上点或拖 = 直接选色相（出来就是满饱和、满亮度 —— 灯珠要的就是这种纯色，环顶红 → 顺时针黄、绿、青、蓝、紫）；要灰、要暗、要白，才展开<b>「▸ 高级设置」</b>里的二维色图（横轴 = 饱和，最左是灰；纵轴 = 亮度，最下是黑），或者在色号框里直接敲 <b>#RRGGBB</b>（<b>#0f0</b> 这种三位简写也认）。点面板外面 / 按 Esc / 再点同一个色块收起；改一下立即生效，拖着的时候编辑台 / 灯板当场跟着变。</td></tr>
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
           <tr><td>周期(拍)</td><td>呼吸：一次灭→亮→灭多少拍；覆盖：一遍颜色盖过去多少拍。</td></tr>
@@ -4546,6 +4597,9 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                LED_GEN_IMPL, ANIM_TOK, COLOR_TOK };
 </script>
 
+<!-- 取色面板的宿主：面板本身是 position:fixed，挂在这儿只为了有处可放（也方便测试按 id 找） -->
+<div id="cpHost"></div>
+
 <script id="ui">
 /* ============================================================================
  * 界面层 —— 画布、交互、面板
@@ -5812,12 +5866,14 @@ function syncZoneEdit() {
   $('#btnZoneUp').disabled   = !on || selZone <= 0;
   $('#btnZoneDown').disabled = !on || selZone >= state.zones.length - 1;
   renderZoneCheck();                   /* Z2：就地体检（没选中时顺手清掉上一次的提示与描红） */
-  if (!on) { $('#zDir').textContent = '—'; return; }
+  if (!on) { $('#zDir').textContent = '—'; if (cpChip === $('#zColor')) cpClose(); return; }
   $('#zName').value = z.name;
   $('#zLatin').value = z.latin || '';
   $('#zStart').value = z.start;
   $('#zCount').value = z.count;
   $('#zColor').value = z.color;
+  /* 面板正开着就跟着换到新分区的颜色（不然色环还停在上一段的色相上） */
+  if (cpChip === $('#zColor')) cpSetHex(z.color);
   $('#zEn').checked = !!z.enabled;
   const d = deriveZoneDir(state, z);
   $('#zDir').textContent = (d === 'cw' ? '顺时针 (CW)' : d === 'ccw' ? '逆时针 (CCW)' : '无法判定（近似共线）');
@@ -6599,19 +6655,282 @@ function palFixed(color) {
   return -1;
 }
 
+/* ---- 取色：色环（基础）+ 二维色图（高级设置）-------------------------------
+ * 这是 RGB 灯珠：「灰 / 暗」几乎用不到，用户要的基本就是「哪个色相」——
+ * 所以取色面板的主体是色环（点 / 拖 = 选色相，出来就是满饱和 + 满亮度），
+ * 原生 <input type=color> 那张二维色图（饱和度 × 亮度）收进「高级设置」，收起时不画。
+ * 色块（.cchip）对外保持原生 input 那一套用法（el.value / el.oninput / el.disabled），
+ * 所以调色板 / 渐变起始色 / 渐变顺序 / 分区颜色的调用方一行都不用改。
+ * 老存档里的灰、暗色照样读得进来（色环位置保持上一次的色相），要改就展开高级设置。
+ * ---------------------------------------------------------------------- */
+let cpHsv = { h: 0, s: 1, v: 1 };     /* 面板当前的颜色（色相 0..360，饱和 / 亮度 0..1） */
+let cpChip = null;                    /* 面板正在编辑哪个色块（null = 收起了） */
+let cpUI = null;                      /* 面板控件缓存（第一次打开时才建） */
+
+function cpClamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+/* HSV → RGB（h 0..360，s / v 0..1）：色环上一圈就是 h，s / v 固定 1 时出来就是纯色 */
+function hsvToRgb(h, s, v) {
+  h = ((h % 360) + 360) % 360;
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+/* RGB → HSV；色相在灰 / 黑上没有意义（s 或 v 为 0 时给 0），调用方自己决定要不要沿用旧色相 */
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d > 0) {
+    if (mx === r) h = 60 * (((g - b) / d + 6) % 6);
+    else if (mx === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  return [((h % 360) + 360) % 360, mx > 0 ? d / mx : 0, mx];
+}
+/* 认 #rgb / #rrggbb（带不带 # 都行），非法给 null —— 面板色号框和色块赋值都走它 */
+function colorHexRgb(s) {
+  let t = String(s == null ? '' : s).trim().replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/i.test(t)) t = t[0] + t[0] + t[1] + t[1] + t[2] + t[2];
+  return /^[0-9a-f]{6}$/i.test(t) ? hexRgb(t) : null;
+}
+
+/* 一个色块。用法和原生 <input type=color> 一样：el.value（#rrggbb）、el.oninput、el.disabled；
+ * el.__cp 是给测试（及以后脚本化改色）留的门 —— 不用鼠标也能设色相 / 饱和亮度 / 色号。 */
+function wireColorChip(el, hex) {
+  if (!el) return null;
+  if (!el.classList.contains('cchip')) el.classList.add('cchip');
+  el.tabIndex = 0;
+  let v = '#ff0000';
+  const put = h => { v = h; if (el.style) el.style.background = h; };
+  Object.defineProperty(el, 'value', {
+    configurable: true,
+    get: () => v,
+    set: h => { const c = colorHexRgb(h); if (c) put(rgbHex(c)); },   /* 认不出的值当没写（和原生 input 一样） */
+  });
+  /* .disabled 只在这个色块上用（分区没选中时 syncZoneEdit 会把它置灰）：
+   * 拦在 click 里，别让它真去开面板 */
+  Object.defineProperty(el, 'disabled', {
+    configurable: true,
+    get: () => el.classList.contains('cchip-off'),
+    set: d => { if (d) el.classList.add('cchip-off'); else el.classList.remove('cchip-off'); },
+  });
+  el.onclick = () => {
+    if (el.disabled) return;
+    /* 再点同一个色块 = 收起（帮助页 / 提示都这么写） */
+    if (cpChip === el && cpUI && cpUI.pop.style.display !== 'none') { cpClose(); return; }
+    cpOpen(el);
+  };
+  /* 色块是个 <span>，键盘也得能开：回车 / 空格 = 点一下 */
+  el.onkeydown = e => {
+    if (!e) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      if (e.preventDefault) e.preventDefault();
+      if (el.onclick) el.onclick();
+    }
+  };
+  /* __cp 的每个动作都先「认领」这个色块：面板状态跟着它的颜色走，
+   * 免得刚在别的色块上把亮度拖到 0，回头设色相却出来一片黑 */
+  const useMe = () => { if (cpChip !== el) { cpChip = el; cpSetHex(el.value); } };
+  el.__cp = {
+    hue: h => { useMe(); cpHsv.h = ((h % 360) + 360) % 360; cpPaint(true); },
+    sv: (s, vv) => { useMe(); cpHsv.s = cpClamp01(+s); cpHsv.v = cpClamp01(+vv); cpPaint(true); },
+    setHex: h => { cpChip = el; cpSetHex(h, true); return v; },
+    open: () => cpOpen(el),
+    close: cpClose,
+    get isOpen() { return cpChip === el && !!cpUI && cpUI.pop.style.display === 'block'; },
+    get hex() { return v; },
+    get hsv() { return { h: cpHsv.h, s: cpHsv.s, v: cpHsv.v }; },
+  };
+  const c = colorHexRgb(hex);
+  put(c ? rgbHex(c) : '#ff0000');
+  return el;
+}
+function colorChip(hex) { return wireColorChip(document.createElement('span'), hex); }
+
+/* 面板：色环 → 色号框 → 「高级设置」（二维色图 + 读数）。收起时二维图不画、不占位。 */
+function cpBuild() {
+  if (cpUI) return cpUI;
+  const host = $('#cpHost') || document.body;
+  const el = (tag, id, cls, parent, text) => {
+    const d = document.createElement(tag);
+    if (id) d.id = id;
+    if (cls) d.className = cls;
+    if (text != null) d.textContent = text;
+    if (parent) parent.appendChild(d);
+    return d;
+  };
+  const pop = el('div', 'cpPop', '', null); pop.style.display = 'none';
+  if (host && host.appendChild) host.appendChild(pop);
+
+  const head = el('div', 'cpHead', '', pop);
+  el('span', '', '', head, '取色');
+  const x = el('button', 'cpX', '', head, '×');
+  x.type = 'button';
+
+  const ringW = el('div', 'cpRingWrap', '', pop);
+  const ring = el('div', 'cpRing', '', ringW);
+  el('div', 'cpHol', '', ringW);
+  const cur = el('div', 'cpCur', '', ringW);
+  const dot = el('div', 'cpDot', '', ringW);
+
+  const hexIn = el('input', 'cpHex', '', pop);
+  hexIn.type = 'text'; hexIn.maxLength = 7; hexIn.spellcheck = false;
+
+  const adv = el('button', 'cpAdv', '', pop, '▸ 高级设置');
+  adv.type = 'button';
+  const body = el('div', 'cpAdvBody', '', pop); body.style.display = 'none';
+  const svWrap = el('div', 'cpSvWrap', '', body);
+  const svBase = el('div', 'cpSvBase', '', svWrap);
+  el('div', 'cpSvW', '', svBase);
+  el('div', 'cpSvB', '', svBase);
+  const svDot = el('div', 'cpSvDot', '', svWrap);
+  const kv = el('div', 'cpKv', '', body);
+  const kH = el('span', 'cpKH', '', kv);
+  const kS = el('span', 'cpKS', '', kv);
+  const kV = el('span', 'cpKV', '', kv);
+  el('div', 'cpHint', '', body, '横轴最左 = 灰度（本项目很少用），纵轴往下 = 变暗；白 / 黑也在这儿。');
+
+  x.onclick = cpClose;
+  adv.onclick = cpToggleAdv;
+  hexIn.oninput = () => { if (colorHexRgb(hexIn.value)) cpSetHex(hexIn.value, true); };
+
+  /* 拖动：环上取色相、二维图上取饱和 / 亮度（和画布拖动同一套 pointer 事件） */
+  cpBindDrag(ring, e => {
+    const r = ringW.getBoundingClientRect();
+    const dx = (e.clientX || 0) - (r.left + r.width / 2), dy = (e.clientY || 0) - (r.top + r.height / 2);
+    if (Math.hypot(dx, dy) < 52) return;            /* 环中间那个洞（当前色块）不认 */
+    cpHsv.h = ((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360;
+    cpPaint(true);
+  });
+  cpBindDrag(svWrap, e => {
+    const r = svWrap.getBoundingClientRect();
+    cpHsv.s = cpClamp01(((e.clientX || 0) - r.left - 6) / ((r.width || 148) - 12));
+    cpHsv.v = cpClamp01(1 - ((e.clientY || 0) - r.top - 6) / ((r.height || 110) - 12));
+    cpPaint(true);
+  });
+
+  return (cpUI = { pop, ringW, ring, cur, dot, hexIn, adv, body, svWrap, svBase, svDot, kH, kS, kV });
+}
+function cpBindDrag(el, fn) {
+  if (!el || !el.addEventListener) return;
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (el.setPointerCapture && e.pointerId != null) el.setPointerCapture(e.pointerId);
+    fn(e);
+    const mv = ev => fn(ev);
+    const up = () => {
+      el.removeEventListener('pointermove', mv);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+    el.addEventListener('pointermove', mv);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+}
+function cpToggleAdv() {
+  if (!cpUI) return;
+  const open = cpUI.body.style.display === 'none';
+  cpUI.body.style.display = open ? '' : 'none';
+  cpUI.adv.textContent = (open ? '▾' : '▸') + ' 高级设置';
+  if (open) cpPlace();                 /* 展开会变高：重新贴边，别顶出窗口 */
+}
+
+/* 把当前颜色画到面板上；emit=true 时顺手写回色块并回调一次（拖动时一路回调 = 实时预览）。
+ * 面板还没建（headless / 没点开过）时跳过画面部分，只写色块 —— 测试就是这么用的。 */
+function cpPaint(emit) {
+  const rgb = hsvToRgb(cpHsv.h, cpHsv.s, cpHsv.v), hex = rgbHex(rgb);
+  if (cpUI) {
+    const pure = rgbHex(hsvToRgb(cpHsv.h, 1, 1));
+    cpUI.cur.style.background = hex;                       /* 环中间 = 当前色 */
+    const rad = (cpHsv.h * Math.PI) / 180, R = 61;
+    cpUI.dot.style.left = (74 + R * Math.sin(rad)) + 'px';
+    cpUI.dot.style.top = (74 - R * Math.cos(rad)) + 'px';
+    cpUI.dot.style.background = pure;
+    /* 正在色号框里打字就别抢它的光标 */
+    if (document.activeElement !== cpUI.hexIn) cpUI.hexIn.value = hex;
+    cpUI.svBase.style.background = pure;                   /* 二维图跟着色相换底色 */
+    cpUI.svDot.style.left = (6 + cpHsv.s * 136) + 'px';    /* 光点留 6px 边，贴边时不被切一半 */
+    cpUI.svDot.style.top = (6 + (1 - cpHsv.v) * 98) + 'px';
+    cpUI.kH.textContent = '色相 ' + Math.round(cpHsv.h) + '°';
+    cpUI.kS.textContent = '饱和 ' + Math.round(cpHsv.s * 100) + '%';
+    cpUI.kV.textContent = '亮度 ' + Math.round(cpHsv.v * 100) + '%';
+  }
+  if (emit && cpChip) {
+    cpChip.value = hex;
+    if (cpChip.oninput) cpChip.oninput({ target: cpChip });
+  }
+  return hex;
+}
+/* 从色号取色（打开面板 / 色号框 / 老存档都走这里）：灰和黑没有色相，
+ * 环上的位置保持不动 —— 免得一选灰色，色环的指针「跳」到红去、再拉一下就变红。 */
+function cpSetHex(hex, emit) {
+  const c = colorHexRgb(hex);
+  if (!c) return false;
+  const hsv = rgbToHsv(c[0], c[1], c[2]);
+  if (hsv[1] >= 0.02 && hsv[2] > 0.02) cpHsv.h = hsv[0];
+  cpHsv.s = hsv[1]; cpHsv.v = hsv[2];
+  cpPaint(!!emit);
+  return true;
+}
+/* 贴着色块放：右边放不下翻到左边，上下夹在窗口里 */
+function cpPlace() {
+  if (!cpUI || !cpChip) return;
+  const r = cpChip.getBoundingClientRect ? cpChip.getBoundingClientRect() : { left: 0, top: 0, right: 0 };
+  const pr = cpUI.pop.getBoundingClientRect ? cpUI.pop.getBoundingClientRect() : { width: 200, height: 360 };
+  const vw = window.innerWidth || 1280, vh = window.innerHeight || 800;
+  let left = (r.right || 0) + 8, top = (r.top || 0) - 4;
+  if (left + (pr.width || 200) > vw - 8) left = (r.left || 0) - (pr.width || 200) - 8;
+  if (top + (pr.height || 360) > vh - 8) top = vh - (pr.height || 360) - 8;
+  cpUI.pop.style.left = Math.max(8, left) + 'px';
+  cpUI.pop.style.top = Math.max(8, top) + 'px';
+}
+function cpOpen(chip) {
+  if (!chip) return;
+  cpBuild();
+  cpChip = chip;
+  cpSetHex(chip.value);
+  cpUI.pop.style.display = 'block';
+  cpPlace();
+}
+function cpClose() {
+  if (cpUI) cpUI.pop.style.display = 'none';
+  cpChip = null;
+}
+/* 点面板外面 / Esc 收起。点别的色块不算「外面」—— 交给它自己的 onclick 换目标，
+ * 这里要是先关掉，紧接着 onclick 又打开，会闪一下。 */
+(function initCpDismiss() {
+  if (typeof document.addEventListener !== 'function') return;
+  document.addEventListener('pointerdown', e => {
+    if (!cpUI || cpUI.pop.style.display === 'none') return;
+    const t = e.target;
+    if (cpUI.pop.contains && cpUI.pop.contains(t)) return;
+    if (t && t.classList && t.classList.contains('cchip')) return;
+    cpClose();
+  }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cpClose(); });
+})();
+
+
+
 function renderPalette(e) {
   const box = $('#fPalette');
   if (!box) return;
+  cpClose();                       /* 色块要重建了：面板挂在旧色块上，先收起 */
   box.innerHTML = '';
   if (!e) return;
   normalizeEffect(e);
   const cap = palFixed(e.color);
   const n = cap > 0 ? Math.min(cap, e.palette.length) : e.palette.length;
   e.palette.slice(0, n).forEach((c, i) => {
-    const inp = document.createElement('input');
-    inp.type = 'color';
-    inp.value = rgbHex(c);
-    tip(inp, '第 ' + (i + 1) + ' 个颜色');
+    const inp = colorChip(rgbHex(c));      /* 色块：点开是色环，灰 / 暗在「高级设置」里 */
+    tip(inp, '第 ' + (i + 1) + ' 个颜色（点一下选色环）');
     inp.oninput = () => {
       const rgb = hexRgb(inp.value);
       e.palette[i] = rgb;
@@ -6697,11 +7016,12 @@ function gradSyncOptNames() {
   const cur = gradTarget();
   if (cur && box.children && box.children.length) box.value = cur.id;
 }
-/* full=true 连控件一起重建；改颜色时传 false —— 别把正在拖的那个取色器拆了 */
+/* full=true 连控件一起重建；改颜色时传 false —— 别把正在拖的那个取色面板拆了 */
 function renderGrad(e, full) {
   const g = gradTarget();
   if (!g) return;
   if (full !== false) {
+    cpClose();                    /* 起始色 / 顺序的色块要重建了，面板先收起 */
     const box = $('#fGrad');
     if (box) {
       box.innerHTML = '';
@@ -6717,9 +7037,7 @@ function renderGrad(e, full) {
     const start = $('#fxGradStart');
     if (start) {
       start.innerHTML = '';
-      const inp = document.createElement('input');
-      inp.type = 'color';
-      inp.value = rgbHex(gradStart(g));
+      const inp = colorChip(rgbHex(gradStart(g)));
       tip(inp, '起始色：渐变从哪个颜色开始（相位 0）。改它 = 把整条环转一下，顺序一点不变。');
       inp.oninput = () => {
         const t = gradTarget(); if (!t) return;
@@ -6742,10 +7060,8 @@ function renderGrad(e, full) {
         up.disabled = (i === 0);
         tip(up, '往前挪一位（换渐变顺序）');
         up.onclick = () => gradMove(i, -1);
-        const inp = document.createElement('input');
-        inp.type = 'color';
-        inp.value = rgbHex(c);
-        tip(inp, '顺序里的第 ' + (i + 1) + ' 个颜色');
+        const inp = colorChip(rgbHex(c));
+        tip(inp, '顺序里的第 ' + (i + 1) + ' 个颜色（点一下选色环）');
         inp.oninput = () => {
           const t = gradTarget(); if (!t) return;
           t.anchors[i] = hexRgb(inp.value);
@@ -8436,6 +8752,9 @@ function resyncZoneCount(z) {
     sh.laid = true;
   }
 }
+/* 分区颜色是静态 HTML 里的色块（#zColor）：先把它按「取色面板的色块」接通，
+ * 再挂回调。放到 boot() 之前执行 —— syncZoneEdit 一上来就会写 .value。 */
+wireColorChip($('#zColor'), '#ff0000');
 $('#zColor').oninput = e => { const z = state.zones[selZone]; if (z) { z.color = e.target.value; render(); renderZoneList(); saveStore(); } };
 $('#zEn').onchange   = e => { const z = state.zones[selZone]; if (z) { z.enabled = e.target.checked; afterChange(); } };
 $('#btnDelLed').onclick = () => { if (sel.size) { snapshot(); state.leds = state.leds.filter(l => !sel.has(l.n)); sel.clear(); afterChange(); } };

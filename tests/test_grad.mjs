@@ -354,8 +354,10 @@ const gsel = byId.get('fGrad');
 ok((gsel.children || []).length === 1 && gsel.value === 'g1',
    `渐变下拉里 1 条（${(gsel.children || []).map(o => o.textContent).join('/')}）`);
 const startBox = byId.get('fxGradStart');
-ok((startBox.children || []).length === 1 && startBox.children[0].type === 'color',
-   '起始色是一个取色块');
+ok((startBox.children || []).length === 1 &&
+   startBox.children[0].classList.contains('cchip') &&
+   /^#[0-9a-f]{6}$/.test(startBox.children[0].value),
+   '起始色是一个取色块（色环取色，值仍是 #rrggbb）');
 const ordBox = byId.get('fxGradOrder');
 const sw = () => (ordBox.children || []).filter(c => c.className === 'gord');
 ok(sw().length === 6, `顺序渲染出 6 个锚点（实际 ${sw().length}）`);

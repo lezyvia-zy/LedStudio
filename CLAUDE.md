@@ -70,13 +70,13 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 文件结构（详见 HANDOFF §1）
 
-- `led_layout_editor.html` —— 工具本体（唯一交付物）；`tests/` —— node 直接跑的 24 个套件；`tools/extract_fw_tables.py` —— 从固件源码重抽查表；`docs/` —— `firmware-contract.md`（契约 v1）、`module-audit.md`（体检索引）+ `audit/`（按模块分的正文）、`CHANGELOG.md`（历史变更）。
+- `led_layout_editor.html` —— 工具本体（唯一交付物）；`tests/` —— node 直接跑的 26 个套件；`tools/extract_fw_tables.py` —— 从固件源码重抽查表；`docs/` —— `firmware-contract.md`（契约 v1）、`module-audit.md`（体检索引）+ `audit/`（按模块分的正文）、`CHANGELOG.md`（历史变更）。
 - HTML 内部**刻意分两个 `<script>`**：`id="core"`（不碰 DOM 的纯逻辑）与 `id="ui"`（画布/交互/面板）。因为 core 不碰 DOM，测试能 `new Function(...)` 直接抽出来在 node 跑。
 - core 末尾有一份**手写导出清单** `const CORE = { … }` —— 往里加函数/常量**必须**同步（见坑 13）；改 core 之后务必跑 `node tests/run_all.mjs`。
 
 ## 测试怎么组织的
 
-25 个套件、1575 项断言。五类：
+26 个套件、1640 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -156,7 +156,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 当前状态与接下来的事
 
-工具本体功能完整、1575 项断言全绿（`node tests/run_all.mjs` 实测 25 套件 / 1575 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1640 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1640 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

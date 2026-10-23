@@ -170,7 +170,7 @@ console.log('--- 新配色（效果级）---');
   const col = byId.get('fColor');
   const pick = byId.get('fxPresetPick');
   const show = id => (byId.get(id).style.display !== 'none');
-  const palN = () => (byId.get('fPalette').children || []).filter(c => c.type === 'color').length;
+  const palN = () => (byId.get('fPalette').children || []).filter(c => c.classList && c.classList.contains('cchip')).length;
 
   pick.value = '彩虹环'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));

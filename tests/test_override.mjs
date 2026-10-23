@@ -207,7 +207,7 @@ byId.get('mdTbl').children[0].onclick(); await wait(700);
   colSel.onchange({ target: colSel });
   await wait(70);
   fills.length = 0;
-  const sw0 = (byId.get('fPalette').children || []).find(c => c.type === 'color');
+  const sw0 = (byId.get('fPalette').children || []).find(c => c.classList && c.classList.contains('cchip'));
   ok(!!sw0, '微调时调色板色块在');
   sw0.value = '#0000ff';
   sw0.oninput();
