@@ -199,6 +199,26 @@ console.log('--- 新配色（效果级）---');
   await new Promise(r => setTimeout(r, 700));
   ok(fxListOf(0)[0].palette.length === n0, `删一个颜色：回到 ${n0}`);
 
+  /* 纯色：调色板只留 1 个可选色；多出来的「收起」而不是删掉 */
+  const nPal = fxListOf(0)[0].palette.length;
+  col.value = String(CORE.FW.COLOR.SOLID);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  ok(palN() === 1, `纯色只画 1 个色块（原本 ${nPal} 个）：${palN()}`);
+  ok(byId.get('fPalLab').textContent === '颜色',
+     `纯色那一行的标题改成「颜色」：${byId.get('fPalLab').textContent}`);
+  ok(!show('fxPalAdd') && !show('fxPalDel'), '纯色：加 / 减颜色按钮都收起');
+  ok(fxListOf(0)[0].palette.length === nPal, '收起不是删掉：存档里的颜色个数没变');
+  {
+    const tag = (byId.get('fPalette').children || []).find(c => c.className === 'palN');
+    ok(!!tag && /收起/.test(tag.textContent), `色数标签说明「收起了几个」：${tag && tag.textContent}`);
+  }
+  col.value = String(CORE.FW.COLOR.STEP);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 700));
+  ok(palN() === nPal && show('fxPalAdd') && show('fxPalDel'),
+     `切回跳变：收起的颜色与加减按钮都回来（${palN()} 色）`);
+
   col.value = String(CORE.FW.COLOR.SPECTRUM);
   col.onchange({ target: col });
   await new Promise(r => setTimeout(r, 700));
@@ -210,12 +230,16 @@ console.log('--- 新配色（效果级）---');
   ok(eB.color === CORE.FW.COLOR.BREATH && eB.period === 60 && eB.palette.length === 3,
      `呼吸预置：period=${eB.period} / ${eB.palette.length} 色`);
   ok(show('rowPeriod') && show('rowPal') && !show('rowSpeed'), '呼吸：周期 + 调色板');
+  ok(palN() === 3 && show('fxPalAdd') && show('fxPalDel'),
+     `呼吸：3 种颜色都画出来，加减还留着（${palN()} 色）`);
 
   pick.value = '颜色覆盖'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   const eW = fxListOf(0)[0];
   ok(eW.color === CORE.FW.COLOR.WIPE && eW.period === 80 && eW.palette.length === 2,
      `覆盖预置：period=${eW.period} / ${eW.palette.length} 色`);
+  ok(palN() === 2, `覆盖只用前 2 个颜色，就只画 2 个色块：${palN()}`);
+  ok(!show('fxPalAdd') && !show('fxPalDel'), '覆盖：2 个颜色齐了，+ / − 都收起');
 }
 
 /* ---- 11) 暂停时也要「看得出改了配色」 ---- */

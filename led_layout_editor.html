@@ -537,7 +537,7 @@
         <label class="row"><span>类型</span><span id="fKind">—</span></label>
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
         <label class="row"><span>配色</span><select id="fColor" data-tip="颜色怎么变：&#10;纯色 = 固定一色&#10;跳变 = 几种颜色按固定拍数整条切换（颜色个数 = 调色板里的颜色数）&#10;渐变 = 红→黄→绿→青→蓝→紫→红 平滑循环（整条同色）&#10;彩虹 = 沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）&#10;呼吸 = 灭→亮→灭，一个周期换一种颜色&#10;覆盖 = 一种颜色被另一种逐级盖掉"></select></label>
-        <label class="row" id="rowPal"><span>调色板</span>
+        <label class="row" id="rowPal"><span id="fPalLab">调色板</span>
           <span id="fPalette" class="palrow"></span>
           <button id="fxPalAdd" data-tip="给调色板加一个颜色（最多 8 个）。">+</button>
           <button id="fxPalDel" data-tip="删掉调色板最后一个颜色（至少留 1 个）。">−</button>
@@ -6173,13 +6173,27 @@ function applyPreset(name) {
  * 覆盖取第 1、2 个（底色 / 盖上去的颜色），纯色只用第 1 个。
  * 改色块只落 e.palette，同时把 c1/c2 同步一份（老字段、覆盖参数、列表色块都读它）。
  * ---------------------------------------------------------------------- */
+
+/* 这种配色模式**真正用得到**几个色：纯色 1 个、覆盖 2 个；
+ * 跳变 / 呼吸 0 = 不固定（用户想放几个就几个）；不用调色板的模式返回 -1。
+ * 纯色 / 覆盖多出来的颜色只是「收起」，数据留着 —— 切回跳变 / 呼吸原样回来。 */
+function palFixed(color) {
+  const m = color | 0;
+  if (m === FW.COLOR.SOLID) return 1;
+  if (m === FW.COLOR.WIPE) return 2;
+  if (m === FW.COLOR.STEP || m === FW.COLOR.BREATH) return 0;
+  return -1;
+}
+
 function renderPalette(e) {
   const box = $('#fPalette');
   if (!box) return;
   box.innerHTML = '';
   if (!e) return;
   normalizeEffect(e);
-  e.palette.slice(0, PAL_MAX).forEach((c, i) => {
+  const cap = palFixed(e.color);
+  const n = cap > 0 ? Math.min(cap, e.palette.length) : e.palette.length;
+  e.palette.slice(0, n).forEach((c, i) => {
     const inp = document.createElement('input');
     inp.type = 'color';
     inp.value = rgbHex(c);
@@ -6193,15 +6207,22 @@ function renderPalette(e) {
     };
     box.appendChild(inp);
   });
-  const n = document.createElement('span');
-  n.className = 'palN';
-  n.textContent = e.palette.length + ' 色';
-  box.appendChild(n);
+  const n2 = document.createElement('span');
+  n2.className = 'palN';
+  /* 收起几个也说出来：免得以为「切到纯色把我的颜色弄丢了」 */
+  n2.textContent = n + ' 色' + (e.palette.length > n ? '（另 ' + (e.palette.length - n) + ' 个收起）' : '');
+  box.appendChild(n2);
 }
 
 function palAddColor() {
   const e = editTarget(); if (!e) return;
   normalizeEffect(e);
+  const cap = palFixed(e.color);
+  /* cap 0 = 跳变 / 呼吸（放几个由你定）；1 / 2 = 纯色 / 覆盖，满了就不给加 */
+  if (cap > 0 && e.palette.length >= cap) {
+    status('「' + (FW.COLOR_NAME[e.color | 0] || '这种配色') + '」只用 ' + cap + ' 个颜色，不用再加', 'warn');
+    return;
+  }
   if (e.palette.length >= PAL_MAX) { status('调色板最多 ' + PAL_MAX + ' 个颜色', 'warn'); return; }
   const pick = [[255,255,255],[0,255,255],[255,255,0],[255,0,255],[0,255,0],[0,0,255],[255,128,0],[128,0,255]];
   const c = pick[e.palette.length % pick.length].slice();
@@ -6213,6 +6234,8 @@ function palAddColor() {
 function palDelColor() {
   const e = editTarget(); if (!e) return;
   normalizeEffect(e);
+  const cap = palFixed(e.color);
+  if (cap > 0) { status('「' + (FW.COLOR_NAME[e.color | 0] || '这种配色') + '」要用 ' + cap + ' 个颜色，删不得', 'warn'); return; }
   if (e.palette.length <= 1) { status('调色板至少留 1 个颜色', 'warn'); return; }
   e.palette.pop();
   if (e.palette.length < 2) e.c2 = [0, 0, 0];
@@ -6224,26 +6247,33 @@ function palDelColor() {
 function syncFxColorRows(e) {
   const mode = e ? (e.color | 0) : FW.COLOR.SOLID;
   const show = (id, on) => { const el = $('#' + id); if (el) el.style.display = on ? '' : 'none'; };
-  const pal = (mode === FW.COLOR.SOLID || mode === FW.COLOR.STEP ||
-               mode === FW.COLOR.BREATH || mode === FW.COLOR.WIPE);
-  show('rowPal', pal);
-  show('fxPalAdd', pal); show('fxPalDel', pal);
+  const uses = (mode === FW.COLOR.SOLID || mode === FW.COLOR.STEP ||
+                mode === FW.COLOR.BREATH || mode === FW.COLOR.WIPE);
+  const cap = palFixed(mode);
+  const have = e ? (e.palette || []).length : 0;
+  show('rowPal', uses);
+  /* 色块由 renderPalette() 按模式收起；加减按钮只在「放几个由你定」时给，
+   * 覆盖还差第 2 个颜色时留一个 +（点一下补齐），补齐后自己就收起来 */
+  show('fxPalAdd', uses && (cap <= 0 || have < cap));
+  show('fxPalDel', uses && cap <= 0);
+  const lab = $('#fPalLab');
+  if (lab) lab.textContent = (mode === FW.COLOR.SOLID && uses) ? '颜色' : '调色板';
   show('rowSpeed', mode === FW.COLOR.STEP || mode === FW.COLOR.SPECTRUM || mode === FW.COLOR.GRADIENT);
   show('rowLevels', mode === FW.COLOR.RAINBOW);
   show('rowHueBase', mode === FW.COLOR.RAINBOW);
   show('rowHueSpeed', mode === FW.COLOR.RAINBOW);
   show('rowPeriod', mode === FW.COLOR.BREATH || mode === FW.COLOR.WIPE);
-  const lab = $('#fSpeedLab'), sp = $('#fSpeed'), hint = $('#fPalHint');
-  if (lab) lab.textContent = (mode === FW.COLOR.STEP) ? '停留(拍)' : '渐变速度';
+  const labS = $('#fSpeedLab'), sp = $('#fSpeed'), hint = $('#fPalHint');
+  if (labS) labS.textContent = (mode === FW.COLOR.STEP) ? '停留(拍)' : '渐变速度';
   if (sp) {
     if (mode === FW.COLOR.STEP) tip(sp, '每种颜色停留多少拍（20ms 一拍）。\n颜色个数 = 调色板里的色块数。');
     else tip(sp, '每 N 拍色相往前一格；越小越快。');
   }
   if (hint) {
-    hint.textContent = mode === FW.COLOR.SOLID   ? '纯色只用调色板第 1 个颜色。'
+    hint.textContent = mode === FW.COLOR.SOLID   ? '纯色只用这一个颜色；调色板里多出来的颜色只是收起来，切回跳变 / 呼吸还在。'
       : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；每种停留几拍看「停留」。'
       : mode === FW.COLOR.BREATH                 ? '整条效果级（图层参数不参与）：一个周期换一种颜色；周期看「周期(拍)」。'
-      : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：第 1 个是底色、第 2 个是盖上去的颜色。'
+      : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：只用前 2 个颜色 —— 第 1 个是底色、第 2 个是盖上去的颜色。'
       : '渐变 / 彩虹用内置彩虹表，不需要调色板。';
     /* 图层自己算色相时会盖过效果配色 —— 不点明就像「改了配色没反应」 */
     const hueLayers = (e && e.kind === 'custom')
