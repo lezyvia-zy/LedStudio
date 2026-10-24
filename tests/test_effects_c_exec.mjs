@@ -103,6 +103,34 @@ GSTEP.color = CORE.FW.COLOR.SPECTRUM;
 GSTEP.speed = 1; GSTEP.grad_step = 8;
 st.modes.list.push({ id:'mG', name:'渐变步进', latin:'GRAD_STEP', enabled:true,
                      binds:[{ effect:GSTEP.id, zones:[] }] });
+/* 覆盖的两个新参数：渐变方式 + 覆盖灯数（只有前 12 颗参与）。
+ * 上面那条 WIP 是「整条 + 纯色」，这条把另一种方式和「等级」也真跑一遍 ——
+ * 逐字节比对（每个模式都比）同时守着 JS 与生成的 C 在这两条路径上完全一致。 */
+const WGR = mkFx(9, [Object.assign({}, LAYER_FILL)]);
+WGR.color = CORE.FW.COLOR.WIPE; WGR.period = 10;
+WGR.cover_mode = 1; WGR.cover_span = 12;
+WGR.palette = [[0,0,255],[255,120,0]];
+WGR.c1 = WGR.palette[0].slice(); WGR.c2 = WGR.palette[1].slice();
+st.modes.list.push({ id:'mH', name:'渐变覆盖', latin:'WIPE_GRAD', enabled:true,
+                     binds:[{ effect:WGR.id, zones:[] }] });
+/* 覆盖的方向 + 混合铺法：单向（每趟都从同一头推）+ 每组 2 趟（组 0 纯色、组 1 渐变）。
+ * 37 拍 → 第 4 趟（3/2 = 1 → 渐变）；单向所以这一趟从第 1 颗开始扫 —— 往返的话
+ * 第 4 趟会从另一头开始，第 1 颗会停在上一趟的起点。生成代码里 oneway / grp 两支靠它跑。 */
+const WMX = mkFx(10, [Object.assign({}, LAYER_FILL)]);
+WMX.color = CORE.FW.COLOR.WIPE; WMX.period = 10;
+WMX.cover_mode = 2; WMX.cover_group = 2; WMX.cover_dir = 1;
+WMX.palette = [[0,0,255],[255,120,0]];
+WMX.c1 = WMX.palette[0].slice(); WMX.c2 = WMX.palette[1].slice();
+st.modes.list.push({ id:'mI', name:'混合覆盖', latin:'WIPE_MIX', enabled:true,
+                     binds:[{ effect:WMX.id, zones:[] }] });
+/* 多色覆盖：调色板 4 个颜色 —— 第 r 趟用 pal[r] 当底、pal[r+1]（回绕）盖上去。
+ * 37 拍 → 第 3 趟（0 起 3）→ 颜色对 pal[3] / pal[0]；生成代码里「按趟取颜色」那一支靠它跑。 */
+const W4 = mkFx(11, [Object.assign({}, LAYER_FILL)]);
+W4.color = CORE.FW.COLOR.WIPE; W4.period = 10;
+W4.palette = [[0,0,255],[255,120,0],[0,255,0],[255,0,255]];
+W4.c1 = W4.palette[0].slice(); W4.c2 = W4.palette[1].slice();
+st.modes.list.push({ id:'mJ', name:'多色覆盖', latin:'WIPE_MULTI', enabled:true,
+                     binds:[{ effect:W4.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -328,6 +356,34 @@ console.log('--- 新配色模式（C 侧真跑 37 拍）---');
   ok(wipe.size === 2, `覆盖分区正好 2 种颜色（${[...wipe].join(' | ')}）`);
   ok([...wipe].some(c => { const p = rgb(c); return p[0] > 200 && p[1] > 80 && p[2] < 10; }),
      '覆盖的第二种颜色来自调色板第 2 个（橙色）');
+  /* 覆盖的两个新参数：渐变方式（位置渐变）+ 覆盖灯数（只有前 12 颗参与）。
+   * 37 拍 → 第 3 趟：参与的那 12 颗是「蓝 → 橙」的位置渐变，第 13 颗起一直是底色。 */
+  const gradRow = cModes[7] || [];
+  const part = new Set(), rest = new Set();
+  for (let i = 16; i < 28; i++) part.add(gradRow[i] && gradRow[i].join(','));
+  for (let i = 28; i < 56; i++) rest.add(gradRow[i] && gradRow[i].join(','));
+  ok(part.size >= 6, `渐变覆盖：前 12 颗出现 ${part.size} 种颜色（位置渐变真在 C 里铺开）`);
+  ok(rest.size === 1, `覆盖灯数 12：第 13 颗起只有 ${rest.size} 种颜色（一直是底色）`);
+  ok(part.size > 1 && [...part].some(c => c !== [...rest][0]),
+     '参与的那 12 颗铺出了与底色不同的颜色（位置渐变真在 C 里铺开，不是整段底色）');
+  /* 多色覆盖：37 拍 = 第 3 趟 → 本趟颜色对 pal[3]（品红）底 / pal[0]（蓝）盖。
+   * 第 1 个分区 8 颗、往返、这一趟从右往左：末颗已被本趟扫到（蓝），首颗还是上一趟盖的（品红）。 */
+  const mRow = cModes[st.modes.list.length - 1] || [];
+  const mc = i => (mRow[i] || []);
+  ok(mc(7)[0] === 0 && mc(7)[1] === 0 && mc(7)[2] > 200,
+     `多色覆盖：第 3 趟盖第 1 个颜色（第 8 颗 ${mc(7).join(',')}）`);
+  ok(mc(0)[0] > 200 && mc(0)[1] < 60 && mc(0)[2] > 200,
+     `多色覆盖：上一趟那片是第 4 个颜色（第 1 颗 ${mc(0).join(',')}）`);
+  /* 覆盖的方向 + 混合：37 拍 = 第 4 趟（每组 2 趟 → 3/2 = 1 = 渐变），单向 → 这一趟从第 1 颗
+   * 开始扫，所以第 1 颗是本轮渐变起点（副色）；往返的话第 4 趟从另一头开始，第 1 颗是主色。 */
+  const mixRow = cModes[8] || [];
+  const mixFirst = mixRow[0] || [0, 0, 0];
+  ok(mixFirst[0] > 200 && mixFirst[1] > 80 && mixFirst[2] < 10,
+     `单向覆盖：第 4 趟从第 1 颗起步（第 1 颗 = 本轮渐变起点 ${mixFirst.join(',')} = 副色）`);
+  const mixCols = new Set();
+  for (let i = 0; i < 40; i++) mixCols.add(mixRow[i] && mixRow[i].join(','));
+  ok(mixCols.size >= 8,
+     `混合覆盖的第 4 趟（组 1 = 渐变）铺开 ${mixCols.size} 种颜色（位置渐变在 C 里铺开）`);
 }
 /* 渐亮跳变：C 里跑 37 拍 = 第 1/6 拍（渐亮 3），包络爬到 170，乘进满档 mask（254）后是 169 ——
  * 渐亮分支真的执行了（rise = 0 时这里会是满亮 254） */

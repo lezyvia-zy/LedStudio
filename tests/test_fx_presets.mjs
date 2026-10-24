@@ -315,6 +315,8 @@ console.log('--- 新配色（效果级）---');
   await new Promise(r => setTimeout(r, 700));
   ok(show('rowFade') && byId.get('fPeriod').readOnly === false,
      '切回跳变：「变暗」那一行回来、周期又能手填了');
+  ok(!show('rowCoverDir') && !show('rowCoverSpan') && !show('rowCoverMode') && !show('rowCoverGroup'),
+     '切回跳变：覆盖那几行收起（只有覆盖配色才用得上）');
   ok(byId.get('fRiseLab').textContent === '渐亮(拍)',
      `切回跳变：渐亮标题还原（${byId.get('fRiseLab').textContent}）`);
 
@@ -323,8 +325,50 @@ console.log('--- 新配色（效果级）---');
   const eW = fxListOf(0)[0];
   ok(eW.color === CORE.FW.COLOR.WIPE && eW.period === 80 && eW.palette.length === 2,
      `覆盖预置：period=${eW.period} / ${eW.palette.length} 色`);
-  ok(palN() === 2, `覆盖只用前 2 个颜色，就只画 2 个色块：${palN()}`);
-  ok(!show('fxPalAdd') && !show('fxPalDel'), '覆盖：2 个颜色齐了，+ / − 都收起');
+  ok(palN() === 2, `覆盖预置自带 2 个颜色，先画 2 个色块：${palN()}`);
+  ok(show('fxPalAdd') && show('fxPalDel'),
+     '覆盖：和跳变 / 呼吸一样能加能删（颜色按趟轮换，最多 16 个）');
+  /* 加到第 3 个颜色 → 写进效果（第 3 趟就会用它盖上去） */
+  click('fxPalAdd');
+  await new Promise(r => setTimeout(r, 900));
+  ok(fxListOf(0)[0].palette.length === 3 && palN() === 3,
+     `覆盖加第 3 个颜色：${fxListOf(0)[0].palette.length} 个 / ${palN()} 个色块`);
+  /* 删到只剩 2 个就守住（一个当底色、一个盖上去） */
+  click('fxPalDel');
+  await new Promise(r => setTimeout(r, 900));
+  ok(fxListOf(0)[0].palette.length === 2, `覆盖删回 2 个：${fxListOf(0)[0].palette.length} 个`);
+  click('fxPalDel');
+  await new Promise(r => setTimeout(r, 900));
+  const stWipeMin = byId.get('status').textContent;
+  ok(fxListOf(0)[0].palette.length === 2 && /至少/.test(stWipeMin),
+     `覆盖只剩 2 个就删不动（${stWipeMin}）`);
+  /* 覆盖的四行参数：覆盖灯数（等级）+ 方向 + 方式（纯色 / 渐变 / 混合）+ 每组趟数（混合才有） */
+  ok(show('rowCoverDir') && show('rowCoverSpan') && show('rowCoverMode'),
+     '覆盖：显示「覆盖方向」「覆盖灯数」「覆盖方式」三行');
+  ok(!show('rowCoverGroup'), '覆盖方式 = 纯色：分组那一行先不出（只有混合才用）');
+  ok(byId.get('fPeriodLab').textContent === '速度(拍/趟)',
+     `覆盖：周期那一行改叫「速度(拍/趟)」（${byId.get('fPeriodLab').textContent}）`);
+  const elSpan = byId.get('fCoverSpan');
+  elSpan.value = '16'; elSpan.oninput({ target: elSpan });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].cover_span === 16, `覆盖灯数写进效果（${fxListOf(0)[0].cover_span}）`);
+  const elMode = byId.get('fCoverMode');
+  elMode.value = '1'; elMode.onchange({ target: elMode });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].cover_mode === 1, `覆盖方式写进效果（${fxListOf(0)[0].cover_mode} = 渐变）`);
+  ok(!show('rowCoverGroup'), '覆盖方式 = 渐变：分组那一行还是不出');
+  const elDir = byId.get('fCoverDir');
+  elDir.value = '1'; elDir.onchange({ target: elDir });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].cover_dir === 1, `覆盖方向写进效果（${fxListOf(0)[0].cover_dir} = 单向）`);
+  elMode.value = '2'; elMode.onchange({ target: elMode });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].cover_mode === 2 && show('rowCoverGroup'),
+     '覆盖方式 = 混合：写进效果，并且多出「每组趟数」一行');
+  const elGrp = byId.get('fCoverGroup');
+  elGrp.value = '3'; elGrp.oninput({ target: elGrp });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].cover_group === 3, `每组趟数写进效果（${fxListOf(0)[0].cover_group}）`);
 
   pick.value = '七彩跳变'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));

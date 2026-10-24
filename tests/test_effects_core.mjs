@@ -605,16 +605,125 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(breathDark.m.every(v => v > 0 && v < 60),
      `呼吸：周期末拍整条暗但没灭（${breathDark.m[0]}）—— 换色发生在这一拍`);
 
-  /* 覆盖：第二种颜色从 0 号灯开始逐级盖过去（0xFE = 用副色） */
+  /* 覆盖 = 连环扫：一趟 period 拍扫完 S 颗（0 = 整条），方向左右交替，
+   * tint（hue[]）**相对本趟的颜色对**：0 = 本趟底色（= 上一趟盖上的色）、255 = 本趟盖色。
+   * 颜色对由 colorUpdate 按趟号从调色板轮换（第 r 趟 = pal[r] 底 / pal[r+1] 盖）。 */
   const W = mkInst({ color: FW.COLOR.WIPE, period: 10,
                      palette: [[0,0,255],[255,120,0]] });
   const w0 = render(W, 10, 0);
-  ok(w0.m.every(v => v === 255) && w0.h.every(v => v === 0xFF), '覆盖：0 拍时还是底色');
+  ok(w0.h[0] === 255 && w0.h.slice(1).every(v => v === 0),
+     '覆盖：第 0 拍第 1 颗已经换成盖色（连环扫从这里起步）');
   const w5 = render(W, 10, 5);
-  ok(w5.h.slice(0, 5).every(v => v === 0xFE) && w5.h.slice(5).every(v => v === 0xFF),
-     '覆盖：半程时前 5 颗换成第二种颜色');
+  ok(w5.h.slice(0, 6).every(v => v === 255) && w5.h.slice(6).every(v => v === 0),
+     '覆盖：半程时前 6 颗是盖色，后面还是底色');
+  colorUpdate(W.color, 5);
   const wc = effectColorAt(W, 0, 10, w5.h);
-  ok(wc.r === 255 && wc.g === 120 && wc.b === 0, `覆盖：被盖住那段用副色（${wc.r},${wc.g},${wc.b}）`);
+  ok(wc.r === 255 && wc.g === 120 && wc.b === 0, `覆盖：被盖住那段用第 0 趟的盖色（${wc.r},${wc.g},${wc.b}）`);
+  const w9 = render(W, 10, 9);
+  ok(w9.h.every(v => v === 255), '覆盖：一趟扫满时整条都是盖色（不再差最后一颗）');
+  const w10 = render(W, 10, 10);
+  ok(w10.h[9] === 255 && w10.h.slice(0, 9).every(v => v === 0),
+     '覆盖：第 2 趟从另一头起步（末颗先换成本趟盖色，其余还是本趟底色 —— 方向交替，不是整条跳回）');
+  const w15 = render(W, 10, 15);
+  ok(w15.h.slice(0, 4).every(v => v === 0) && w15.h.slice(4).every(v => v === 255),
+     '覆盖：第 2 趟半程 —— 右半已换成盖色，左半还是上一趟的盖色（= 本趟底色）');
+  const w19 = render(W, 10, 19);
+  ok(w19.h.every(v => v === 255), '覆盖：第 2 趟扫满 = 整条换成第 1 个颜色（一个完整来回）');
+  /* 第 2 趟的颜色对换成「第 2 个当底色、第 1 个盖上去」—— 两色轮换时就是老行为 */
+  colorUpdate(W.color, 19);
+  ok(W.color.current.r === 255 && W.color.current.g === 120 && W.color.secondary.b === 255,
+     '覆盖：第 2 趟颜色对反过来（底色 = 第 2 个、盖色 = 第 1 个）');
+
+  /* 覆盖灯数（等级）：40 颗的分区只让前 4 颗参与，其余一直底色 */
+  const WS = mkInst({ color: FW.COLOR.WIPE, period: 10, cover_span: 4,
+                      palette: [[0,0,255],[255,120,0]] });
+  const ws9 = render(WS, 10, 9);
+  ok(ws9.h.slice(0, 4).every(v => v === 255) && ws9.h.slice(4).every(v => v === 0),
+     '覆盖灯数 4：一趟扫满只盖前 4 颗，第 5 颗起一直是底色');
+
+  /* 覆盖方式 = 渐变：扫过的区域铺「底色 → 盖色」的位置渐变，一趟一换面
+   * （tint 恒为位置 g；第 2 趟颜色对反过来，所以视觉上渐变方向也跟着翻） */
+  const WG = mkInst({ color: FW.COLOR.WIPE, period: 10, cover_mode: 1,
+                      palette: [[0,0,255],[255,120,0]] });
+  const wg9 = render(WG, 10, 9);
+  ok(wg9.h[0] === 0 && wg9.h[9] === 255 && wg9.h[4] > 90 && wg9.h[4] < 140,
+     `渐变覆盖：扫满后是位置渐变（${wg9.h[0]} / ${wg9.h[4]} / ${wg9.h[9]}）`);
+  const wg19 = render(WG, 10, 19);
+  ok(wg19.h[0] === 0 && wg19.h[9] === 255,
+     '渐变覆盖：第 2 趟还是按位置铺，颜色对反过来 → 渐变方向也翻面');
+  colorUpdate(WG.color, 9);
+  const wmid = effectColorAt(WG, 4, 10, wg9.h);
+  ok(wmid.r > 90 && wmid.r < 130 && wmid.g > 30 && wmid.g < 80 && wmid.b > 120 && wmid.b < 170,
+     `渐变覆盖：中间那颗是两色插值（${wmid.r},${wmid.g},${wmid.b}）`);
+
+  /* 覆盖方向 = 单向：每趟都从同一头开始（颜色仍一趟一换）—— 第 2 趟不再从另一头起步 */
+  const WO = mkInst({ color: FW.COLOR.WIPE, period: 10, cover_dir: 1,
+                      palette: [[0,0,255],[255,120,0]] });
+  const wo0 = render(WO, 10, 0);
+  ok(wo0.h[0] === 255 && wo0.h.slice(1).every(v => v === 0),
+     '单向覆盖：第 1 趟照旧从第 1 颗起步');
+  const wo10 = render(WO, 10, 10);
+  ok(wo10.h[0] === 255 && wo10.h.slice(1).every(v => v === 0),
+     '单向覆盖：第 2 趟还是从第 1 颗起步（每趟都从同一头推过去，不是来回）');
+  const wo19 = render(WO, 10, 19);
+  ok(wo19.h.every(v => v === 255), '单向覆盖：第 2 趟扫满 = 整条换成第 1 个颜色（一个单向循环）');
+
+  /* 覆盖方式 = 混合：每 cover_group 趟换一次铺法、从纯色开始（前几组纯色、后几组渐变） */
+  const WM = mkInst({ color: FW.COLOR.WIPE, period: 10, cover_mode: 2, cover_group: 2,
+                      palette: [[0,0,255],[255,120,0]] });
+  const wm9 = render(WM, 10, 9);
+  ok(wm9.h.every(v => v === 255), '混合覆盖：第 1 组（纯色）扫满 = 整条硬边盖色');
+  const wm19 = render(WM, 10, 19);
+  ok(wm19.h.every(v => v === 255), '混合覆盖：第 2 趟还是纯色（每组 2 趟）—— 整条硬边换成下一种颜色');
+  const wm29 = render(WM, 10, 29);
+  ok(wm29.h[4] > 90 && wm29.h[4] < 140,
+     `混合覆盖：第 3 趟换招铺位置渐变（中间第 5 颗 ${wm29.h[4]}，纯色时只会是 0 / 255）`);
+  /* 换招那一帧：上一趟扫到的灯还是纯色、这一趟扫到的灯是渐变 —— 两种铺法同屏 */
+  const wm25 = render(WM, 10, 25);
+  ok(wm25.h[3] > 60 && wm25.h[3] < 110 && wm25.h.slice(6).every(v => v === 0),
+     `混合覆盖：换招那一帧同屏有渐变段（第 4 颗 ${wm25.h[3]}）+ 上一趟的纯色段（后 4 颗 = 本趟底色）`);
+  const WM1 = mkInst({ color: FW.COLOR.WIPE, period: 10, cover_mode: 2, cover_group: 1,
+                       palette: [[0,0,255],[255,120,0]] });
+  const wm1_19 = render(WM1, 10, 19);
+  ok(wm1_19.h[4] > 90 && wm1_19.h[4] < 140,
+     `混合覆盖（每组 1 趟）：第 2 趟就换成渐变（第 5 颗 ${wm1_19.h[4]}）`);
+
+  /* 多色覆盖：调色板放 4 个颜色 → 第 r 趟用 pal[r] 当底、pal[r+1]（回绕）盖上去。
+   * 这就是「调色板要多种颜色」的全部含义：放几个轮几个，最多 16 个。 */
+  const WP = mkInst({ color: FW.COLOR.WIPE, period: 10,
+                      palette: [[0,0,255],[255,120,0],[0,255,0],[255,0,255]] });
+  const colAt = (tick, i, len) => {
+    WP.anim.gen_tick = tick;
+    colorUpdate(WP.color, tick);
+    const m = new Uint8Array(len), h = new Uint8Array(len);
+    renderZoneMaskTo(WP, m, h, len, 0);
+    return { c: effectColorAt(WP, i, len, h), h };
+  };
+  const P0 = colAt(9, 0, 10), P1 = colAt(19, 0, 10), P2 = colAt(29, 0, 10), P3 = colAt(39, 0, 10);
+  ok(P0.c.r === 255 && P0.c.g === 120 && P0.c.b === 0 &&
+     P1.c.r === 0 && P1.c.g === 255 && P1.c.b === 0 &&
+     P2.c.r === 255 && P2.c.g === 0 && P2.c.b === 255 &&
+     P3.c.r === 0 && P3.c.g === 0 && P3.c.b === 255,
+     `多色覆盖：4 个颜色逐趟轮换（第 1~4 趟分别盖 ${[P0, P1, P2, P3].map(x => `${x.c.r},${x.c.g},${x.c.b}`).join(' | ')}）`);
+  /* 换趟那一帧：「这一趟刚盖的」是本趟盖色，「上一趟盖的」正好是本趟底色 —— 接缝不跳色 */
+  const N2 = colAt(21, 0, 10), N2back = colAt(21, 5, 10);
+  ok(N2.c.r === 255 && N2.c.g === 0 && N2.c.b === 255 && N2back.c.g === 255 && N2back.c.r === 0,
+     '多色覆盖：换趟帧里上一趟那片就是本趟底色（颜色连续，不是硬跳）');
+  /* 只有 2 个颜色时就是老行为：主色 / 副色轮着盖 */
+  colorUpdate(W.color, 0);
+  ok(W.color.current.b === 255 && W.color.secondary.r === 255,
+     '两色覆盖：第 1 趟 = 第 1 个当底、第 2 个盖（与老版逐帧一致）');
+
+  /* 覆盖参数的兜底：老存档没有 → 整条 + 纯色 + 往返 + 每组 1 趟 */
+  ok(CORE.effCoverSpan({}) === 0 && CORE.effCoverSpan({ cover_span: 999 }) === 64 &&
+     CORE.effCoverSpan({ cover_span: -3 }) === 0, '覆盖灯数夹在 0..64，缺省 0 = 整条');
+  ok(CORE.effCoverMode({}) === 0 && CORE.effCoverMode({ cover_mode: 1 }) === 1 &&
+     CORE.effCoverMode({ cover_mode: 2 }) === 2 && CORE.effCoverMode({ cover_mode: 7 }) === 0,
+     '覆盖方式只有 0 纯色 / 1 渐变 / 2 混合（别的值回落纯色）');
+  ok(CORE.effCoverDir({}) === 0 && CORE.effCoverDir({ cover_dir: 1 }) === 1 &&
+     CORE.effCoverDir({ cover_dir: -5 }) === 0, '覆盖方向只有 0 往返 / 1 单向，缺省往返');
+  ok(CORE.effCoverGroup({}) === 1 && CORE.effCoverGroup({ cover_group: 0 }) === 1 &&
+     CORE.effCoverGroup({ cover_group: 99 }) === 16, '混合的每组趟数夹在 1..16，缺省 1');
 
   /* 字段兜底 */
   ok(effPalette({ c1: [1,2,3] }).length === 2, '老效果没有 palette → 用 c1/c2 兜底');
