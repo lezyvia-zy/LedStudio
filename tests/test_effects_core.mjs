@@ -536,23 +536,49 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(rOn0.m[0] > 0 && rOn0.m[0] < rOn1.m[0] && rOn1.m[0] < 255 && rOn3.m.every(v => v === 255),
      `跳变：渐亮第 0/1/3 拍 = ${rOn0.m[0]}/${rOn1.m[0]}/${rOn3.m[0]}（连续爬亮，第 0 拍不再白黑一下）`);
 
-  /* 呼吸：对称包络（渐亮 = 渐暗），一个周期一种颜色；首尾都**不落全黑** */
+  /* 呼吸：对称包络（渐亮 = 渐暗）+ 平滑曲线，一个周期一种颜色；首尾都**不落全黑** */
   const bp12 = breathPlan({ color: FW.COLOR.BREATH, period: 12 });
   ok(bp12.rise === 6 && bp12.hold === 0 && bp12.fade === 6 && bp12.period === 12,
      `呼吸计划（老存档 only period=12）：渐亮=渐暗 ${bp12.rise} / 亮 ${bp12.hold} / 周期 ${bp12.period}`);
   ok(bp12.fade === bp12.rise, '呼吸的渐暗恒等于渐亮（对称包络 —— 这就是它和跳变的唯一区别）');
   const bg = t => breathEnv(t, 12, 6);
-  ok(bg(0) === 42 && bg(5) === 255 && bg(6) === 219 && bg(11) === 37,
-     `呼吸包络 0/5/6/11 拍 = ${bg(0)}/${bg(5)}/${bg(6)}/${bg(11)}（5 拍满亮，6 拍起变暗）`);
+  ok(bg(0) === 51 && bg(5) === 255 && bg(6) === 255 && bg(11) === 51,
+     `呼吸包络 0/5/6/11 拍 = ${bg(0)}/${bg(5)}/${bg(6)}/${bg(11)}（第 5 拍爬满，第 6 拍起逐拍镜像回去）`);
   ok(bg(0) > 0 && bg(11) > 0,
      `呼吸首尾都不落到全黑（${bg(0)} / ${bg(11)}）—— 全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」`);
-  ok(Math.abs(bg(11) - bg(0)) <= 6,
-     `周期接缝几乎连续（11 拍 ${bg(11)} → 下一周期 0 拍 ${bg(0)}，差 ${Math.abs(bg(11) - bg(0))}）`);
+  ok(bg(11) === bg(0),
+     `周期接缝连续（末拍 ${bg(11)} = 首拍 ${bg(0)}，换色处亮度不跳）`);
+  /* 出厂手感（渐亮 40 / 亮 10 = 1.8 秒一个来回）：曲线要「两端慢、中段快」——
+   * 线性斜坡的每拍步长恒为 255/40 ≈ 6，暗部每一步都是「亮度翻倍」，看着才一格一格跳。 */
+  {
+    const bd = t => breathEnv(t, 90, 40);
+    const up = [];
+    for (let t = 0; t < 40; t++) up.push(bd(t));
+    let mono = true, maxStep = 0;
+    for (let i = 1; i < up.length; i++) {
+      if (up[i] < up[i - 1]) mono = false;
+      if (up[i] - up[i - 1] > maxStep) maxStep = up[i] - up[i - 1];
+    }
+    ok(mono && up[0] > 0 && up[0] <= 8,
+       `呼吸：渐亮段只升不降、首拍 ${up[0]}/255（不黑 —— 换色就在这一拍）`);
+    ok((up[1] - up[0]) <= 3 && maxStep >= 7,
+       `呼吸：平滑曲线 —— 起步 ${up[0]}→${up[1]}（几乎不动），中段一拍 ${maxStep} 级（台阶挪到人眼最不敏感的亮度 128 附近）`);
+    ok(bd(39) === 255 && bd(40) === 255 && bd(89) === up[0],
+       `呼吸：顶点 ${bd(39)}/${bd(40)} 满亮，末拍 ${bd(89)} = 首拍 ${up[0]}（接缝连续）`);
+    let mirror = true;
+    for (let k = 0; k < 40; k++) if (bd(89 - k) !== bd(k)) mirror = false;
+    ok(mirror, '呼吸：渐暗段是渐亮段逐拍镜像（渐亮 = 渐暗，只填一格）');
+    ok(breathEnv(0, 2, 1) === 255 && breathEnv(1, 2, 1) === 128,
+       '呼吸极限：渐亮 1 拍 + 周期 2 拍 → 一拍满亮、一拍半亮（曲线在这里没有暗段，不能看着像常亮）');
+    ok(breathEnv(0, 60, 0) === 255 && breathEnv(30, 60, 0) === 255,
+       '呼吸：渐亮 0 拍 = 一直满亮（老存档 r = 0 的行为不变）');
+  }
   const bpP = breathPlan({ color: FW.COLOR.BREATH, period: 60, b_rise: 10, b_hold: 8 });
   ok(bpP.period === 28 && bpP.rise === 10 && bpP.hold === 8,
      `呼吸周期 = 渐亮×2 + 亮（10×2 + 8 = ${bpP.period}）`);
-  ok(breathEnv(10, 28, 10) === 255 && breathEnv(17, 28, 10) === 255 && breathEnv(18, 28, 10) < 255,
-     '呼吸：渐亮第 10 拍起满亮，「亮(拍)」里保持，之后开始暗下去');
+  ok(breathEnv(8, 28, 10) < 255 && breathEnv(9, 28, 10) === 255 && breathEnv(17, 28, 10) === 255 &&
+     breathEnv(18, 28, 10) === 255 && breathEnv(19, 28, 10) < 255,
+     '呼吸：渐亮第 9 拍起满亮，「亮(拍)」里保持，之后开始暗下去');
   /* 效果对象 → effectPreset → instApplyPreset：用户填的 10 / 8 必须原样到实例
    * （effectPreset 只带 period 的话，breathPlan 会按老存档摊成 14 / 0 —— 亮(拍) 就白填了） */
   {

@@ -264,8 +264,8 @@ console.log('--- 新配色（效果级）---');
   pick.value = '多色呼吸'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   const eB = fxListOf(0)[0];
-  ok(eB.color === CORE.FW.COLOR.BREATH && eB.period === 60 && eB.palette.length === 3,
-     `呼吸预置：period=${eB.period} / ${eB.palette.length} 色`);
+  ok(eB.color === CORE.FW.COLOR.BREATH && eB.period === 90 && eB.palette.length === 3,
+     `呼吸预置：period=${eB.period} / ${eB.palette.length} 色（出厂手感 渐亮 40 + 亮 10）`);
   ok(show('rowPeriod') && show('rowPal') && !show('rowSpeed'), '呼吸：周期 + 调色板');
   ok(palN() === 3 && show('fxPalAdd') && show('fxPalDel'),
      `呼吸：3 种颜色都画出来，加减还留着（${palN()} 色）`);
@@ -286,15 +286,29 @@ console.log('--- 新配色（效果级）---');
     const eB2 = fxListOf(0)[0];       /* 存档是新解析出来的对象，断言得重新取一次 */
     ok(eB2.b_rise === 10 && eB2.period === (+fh + 20),
        `呼吸：两个数落盘（b_rise=${eB2.b_rise} / period=${eB2.period}）`);
-    ok(eB2.b_hold === 0 && eB2.rise === eB.rise && eB2.hold === eB.hold,
+    ok(eB2.b_hold === 10 && eB2.rise === eB.rise && eB2.hold === eB.hold,
        `呼吸的数存在 b_rise / b_hold 上（${eB2.b_rise} / ${eB2.b_hold}），跳变的 rise/hold 没动（${eB2.rise} / ${eB2.hold}）`);
   }
   pick.value = '多色呼吸'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   {
     const eB3 = fxListOf(0)[0];
-    ok(eB3.period === 60 && eB3.b_rise === 30 && eB3.b_hold === 0 && byId.get('fRise').value === '30',
-       `重新套呼吸预置：回到 period 60 / 渐亮 30 / 亮 0（${eB3.period} / ${eB3.b_rise} / ${eB3.b_hold}）—— 上一次改的 10 没赖着`);
+    ok(eB3.period === 90 && eB3.b_rise === 40 && eB3.b_hold === 10 && byId.get('fRise').value === '40',
+       `重新套呼吸预置：回到 period 90 / 渐亮 40 / 亮 10（${eB3.period} / ${eB3.b_rise} / ${eB3.b_hold}）—— 上一次改的 10 没赖着`);
+  }
+  /* 第一次切到呼吸（这一条从没设过 b_rise）：落出厂手感 40 / 10，而不是空着的 period/2 = 30。
+   * 老存档不在此列 —— 它们加载时 b_rise 已经被 normalizeEffect 落成具体值了。 */
+  {
+    const e0 = fxListOf(0)[0];
+    e0.b_rise = undefined; e0.b_hold = undefined;
+    col.value = String(CORE.FW.COLOR.SOLID);
+    col.onchange({ target: col });
+    col.value = String(CORE.FW.COLOR.BREATH);
+    col.onchange({ target: col });
+    await new Promise(r => setTimeout(r, 700));
+    const eN = fxListOf(0)[0];
+    ok(eN.b_rise === 40 && eN.b_hold === 10 && eN.period === 90 && byId.get('fRise').value === '40',
+       `第一次切到呼吸：落出厂手感 渐亮 40 / 亮 10 / 周期 ${eN.period} 拍（不是空着的 period/2）`);
   }
   col.value = String(CORE.FW.COLOR.STEP);
   col.onchange({ target: col });
