@@ -359,7 +359,7 @@ console.log('--- 新配色（效果级）---');
   ok(fxListOf(0)[0].cover_dir === 1, `覆盖方向写进效果（${fxListOf(0)[0].cover_dir} = 单向）`);
 
   /* 「+渐变」：加一个两端渐变条目 —— 6 个数、画成胶囊、左右两半各一个色块 */
-  ok(show('fxPalAddGrad'), '覆盖：显示「+渐变」按钮（跳变 / 呼吸 / 覆盖都能放任意条目数）');
+  ok(show('fxPalAddGrad'), '覆盖：显示「+渐变」按钮（渐变条目是覆盖独有的铺法）');
   const nGrad = fxListOf(0)[0].palette.length;
   click('fxPalAddGrad');
   await new Promise(r => setTimeout(r, 900));
@@ -405,6 +405,40 @@ console.log('--- 新配色（效果级）---');
   await new Promise(r => setTimeout(r, 900));
   ok(fxListOf(0)[0].palette[nGrad].length === 6 && palCells()[nGrad].classList.contains('grad'),
      '再变回渐变：又是 6 个数 + 胶囊');
+
+  /* 渐变条目只属于覆盖：切到跳变 → 「+渐变」收起、条目按首端纯色显示、面板里也没有切换按钮 */
+  col.value = String(CORE.FW.COLOR.STEP);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 800));
+  ok(!show('fxPalAddGrad'),
+     '跳变：不显示「+渐变」（跳变只有纯色条目）');
+  const stepCell = palCells()[nGrad];
+  ok(stepCell && !stepCell.classList.contains('grad') && stepCell.children.length === 1 &&
+     /00ff00|rgb\(0, 255, 0\)/i.test(String(stepCell.style.background)),
+     `跳变：原来的渐变条目按首端色显示成普通色块（${stepCell && stepCell.style.background}）`);
+  ok(!/含渐变/.test(byId.get('fPalette').textContent),
+     `跳变：色块后面不再写「含渐变」（${byId.get('fPalette').textContent}）`);
+  stepCell.children[0].__cp.open();
+  const exStep = byId.get('cpExtra');
+  ok(!stepCell.children[0].__cpExtra && (!exStep || exStep.style.display === 'none'),
+     '跳变：取色面板底部没有「改成两端渐变」这一行');
+  ok(fxListOf(0)[0].palette[nGrad].length === 6,
+     '跳变：数据里那个 6 数条目还在（只是不显示，切回覆盖不丢）');
+
+  /* 呼吸同样没有渐变入口 */
+  col.value = String(CORE.FW.COLOR.BREATH);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 800));
+  ok(!show('fxPalAddGrad') && palCells().every(c => !c.classList.contains('grad')),
+     '呼吸：不显示「+渐变」，条目也都是普通色块');
+
+  /* 切回覆盖：胶囊和入口都回来 */
+  col.value = String(CORE.FW.COLOR.WIPE);
+  col.onchange({ target: col });
+  await new Promise(r => setTimeout(r, 800));
+  ok(show('fxPalAddGrad') && palCells()[nGrad].classList.contains('grad') &&
+     palCells()[nGrad].children.length === 2,
+     '切回覆盖：胶囊与「+渐变」都回来（跳变里没被压成纯色）');
 
   pick.value = '七彩跳变'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));

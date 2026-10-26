@@ -14,12 +14,12 @@
 **改动**：
 - core：条目两种形态 —— `[r,g,b]` 纯色 / `[r,g,b,r,g,b]` 两端渐变（`PAL_GRAD_LEN` / `palIsGrad` / `effPaletteRaw`；`effPalette` 仍只取首端三色，其他配色零变化）。`coverTint()` → **`coverEntry()`**：`hue[i]` 从 tint 改成**条目索引** `(ri + 1) % n`（第 0 趟之前 / 未参与 = 0）；`wipeColorAt()` → **`wipeEntryAt(c, idx, i, S)`**（纯色条目两端同色 → 硬边；渐变条目按 `i·256/(S-1)` 铺位置渐变，端点精确、中间 `>>8`）+ `wipeSpan()`。`colorUpdate` 的 WIPE 只留 `phase` / `current`；`inst.color.paletteB` 存末端色，`effectPreset` 传 `effPaletteRaw`。`normalizeEffect` **一次性迁移**旧 `cover_mode`（1 → 渐变链 `[pal[i] → pal[i+1]]`；2 → 按 `cover_group` 分组、第 0 组留纯色），迁完置 0 / 1（幂等）。
 - 导出：`led_gen_palette` 每条目 **2 行**（首端 / 末端；纯色条目两行相同），STEP / BREATH 取 `pal_first + 2*idx`（行为不变）；WIPE 的 `zone_render` 输出条目索引，`render_mode` 按条目两端 + 位置 `t` 插值；`E->gap` / `E->hue_speed` **归还**（不再表示铺法 / 组数），仍借 `width` / `hue_base`（灯数 / 方向），**结构体一列没加**。
-- 界面：删「覆盖方式」「每组趟数」两行；调色板加「**+渐变**」（`#fxPalAddGrad`），渐变条目画成胶囊（`linear-gradient(90deg,A,B)`，左右两半各是一个色块）；取色面板底部多一个「改回纯色 / 改成两端渐变」按钮（`#cpExtra`，只有调色板条目挂 `__cpExtra`）。
+- 界面：删「覆盖方式」「每组趟数」两行；调色板加「**+渐变**」（`#fxPalAddGrad`），渐变条目画成胶囊（`linear-gradient(90deg,A,B)`，左右两半各是一个色块）；取色面板底部多一个「改回纯色 / 改成两端渐变」按钮（`#cpExtra`，只有调色板条目挂 `__cpExtra`）。**两者都只在「覆盖」出现**（用户实测后要求：「怎么跳变和呼吸的调色板也加入了渐变色设置，这两个是不需要的吧」）—— `syncFxColorRows` 里 `show('fxPalAddGrad', mode === FW.COLOR.WIPE)`，`renderPalette` 的 `canGrad = color === WIPE`（跳变 / 呼吸把 6 数条目按首端色显示成普通 `.palcell`、不挂 `__cpExtra`、色块后面也不写「含渐变」；数据不改 —— 切回覆盖还是胶囊），`palAddGrad` / `palSetGrad` 另各加一条 `color !== WIPE` 守卫。
 - 文案：`#fPalHint` / `#fPeriod` 提示 / 帮助页 / README / `fx.md` / `invariants.md` 第 10 条 / CLAUDE.md 第 32 条 / `GEN_COMMENTS`（zh + en）/ `palRow` 注释。
 
-**测试**：`test_effects_core` 覆盖段重写（条目索引 6 组 / 渐变条目首尾 + 中间 + 单颗退化 / 迁移 3 组 / `palIsGrad` + `effPaletteRaw`），`test_fx_presets`（两行仍在、`fCoverMode` / `fCoverGroup` 元素不存在、`+渐变` 6 个数 + 胶囊 + 左右两半分别改色 + 面板来回切纯色 / 渐变），`test_effects_c_exec`（WGR 改渐变条目、WMX → 单向 + 渐变条目；11 模式真编译逐字节），`test_color` / `test_override` 的调色板取值改成展开 `.palcell`。全量 26 套件 / 1726 项 / 0 FAIL。
+**测试**：`test_effects_core` 覆盖段重写（条目索引 6 组 / 渐变条目首尾 + 中间 + 单颗退化 / 迁移 3 组 / `palIsGrad` + `effPaletteRaw`），`test_fx_presets`（两行仍在、`fCoverMode` / `fCoverGroup` 元素不存在、`+渐变` 6 个数 + 胶囊 + 左右两半分别改色 + 面板来回切纯色 / 渐变 + **切到跳变 / 呼吸时按钮收起、条目按首端色显示、面板无切换按钮、切回覆盖又变胶囊**），`test_effects_c_exec`（WGR 改渐变条目、WMX → 单向 + 渐变条目；11 模式真编译逐字节），`test_color` / `test_override` 的调色板取值改成展开 `.palcell`。全量 26 套件 / 1733 项 / 0 FAIL。
 
-**影响**（含坑号 31 / 32、`invariants` 第 10 条）：老存档零迁移（3 数条目原样；`cover_mode` 非 0 的旧档一次性翻译成渐变条目，之后字段只是留着不读）。**已知取舍**：渐变位置按**灯位** `i` 而非扫描顺序，所以往返第 2 趟的渐变方向不像旧版那样随方向翻面；「扫到的新样子 = 条目本身」意味着旧版 `255-g` 的「反向渐变」不再存在；跳变 / 呼吸看到渐变条目只取左端色。
+**影响**（含坑号 31 / 32、`invariants` 第 10 条）：老存档零迁移（3 数条目原样；`cover_mode` 非 0 的旧档一次性翻译成渐变条目，之后字段只是留着不读）。**已知取舍**：渐变位置按**灯位** `i` 而非扫描顺序，所以往返第 2 趟的渐变方向不像旧版那样随方向翻面；「扫到的新样子 = 条目本身」意味着旧版 `255-g` 的「反向渐变」不再存在；跳变 / 呼吸看到渐变条目只取左端色，**且那边不出现 +渐变 / 面板切换（渐变是覆盖独有的铺法）**。
 
 ---
 

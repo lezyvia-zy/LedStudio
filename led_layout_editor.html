@@ -661,7 +661,7 @@
         <div class="row" id="rowPal"><span id="fPalLab">调色板</span>
           <span id="fPalette" class="palrow"></span>
           <button id="fxPalAdd" data-tip="给调色板加一个纯色条目（最多 16 个）。">+</button>
-          <button id="fxPalAddGrad" data-tip="给调色板加一个「两端渐变」条目：覆盖扫到它时铺成 左色 → 右色 的位置渐变（最多 16 个条目）。&#10;加完点胶囊的左右两半分别选两端的颜色。">+渐变</button>
+          <button id="fxPalAddGrad" data-tip="给调色板加一个「两端渐变」条目（只有「覆盖」用得上）：覆盖扫到它时铺成 左色 → 右色 的位置渐变（最多 16 个条目）。&#10;加完点胶囊的左右两半分别选两端的颜色。跳变 / 呼吸的调色板只用纯色条目，这个按钮在那边不出现。">+渐变</button>
           <button id="fxPalDel" data-tip="删掉调色板最后一个条目（覆盖至少留 2 个，其余至少留 1 个）。">−</button>
         </div>
         <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色（渐变条目只取左端色）；覆盖：条目按趟轮换（第 r 趟盖第 r+1 个，回绕），条目是纯色就整块盖过去、是 [A→B] 就铺位置渐变 —— 几个条目就轮几个。</div>
@@ -952,7 +952,7 @@
           </td></tr>
           <tr><td>对照看配色</td><td>套预置<b>「全点亮(测配色)」</b>：一个满亮填充层，不走位置、不脉动、不铺色相 —— 整条常亮，在这里换「配色」就能直接看出六种配色的差别。</td></tr>
           <tr><td>渐变（起始色 / 顺序）</td><td>只在配色 = 渐变时出现。<b>起始色</b> = 相位 0 显示哪个颜色（= 整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色，‹ › 换前后、+ − 增删，锚点之间自动等长补渐变；下面那条色带就是整条环的预览（最左 = 起始色，播放时颜色从左往右走）。<b>新建</b> = 一条全新的（默认顺序 + 起点红，跟库里别的都不搭界），<b>另存为</b> = 在当前这条的基础上复制一份（渐变-2、渐变-3…），两者都会把这条效果切到新的那条、原条一点不动；<b>删除</b>删掉当前这条（只剩一条时不给删，用到它的效果自动改回第一条）。</td></tr>
-          <tr><td>调色板</td><td>用户自己定的一串<b>条目</b>，最多 16 个。纯色用第 1 个；跳变/呼吸按条目个数循环（渐变条目只取左端色）；覆盖也按条目个数轮换 —— 第 r 趟盖第 r+2 个（回绕），所以放 3 个以上每趟就换一种样子。条目有两种形态：<b>纯色</b>（点「+」加，一个色块）和<b>两端渐变</b>（点「<b>+渐变</b>」加，画成胶囊：左半 = 首色、右半 = 末色，各自可点；整条底就是 A→B 的渐变预览）。渐变条目在覆盖里铺成位置渐变，在跳变/呼吸里只当左端那个纯色用。渐变（颜色环）不用调色板。</td></tr>
+          <tr><td>调色板</td><td>用户自己定的一串<b>条目</b>，最多 16 个。纯色用第 1 个；跳变/呼吸按条目个数循环（渐变条目只取左端色）；覆盖也按条目个数轮换 —— 第 r 趟盖第 r+2 个（回绕），所以放 3 个以上每趟就换一种样子。条目有两种形态：<b>纯色</b>（点「+」加，一个色块）和<b>两端渐变</b>（点「<b>+渐变</b>」加，画成胶囊：左半 = 首色、右半 = 末色，各自可点；整条底就是 A→B 的渐变预览）。渐变条目在覆盖里铺成位置渐变，在跳变/呼吸里只当左端那个纯色用（所以「<b>+渐变</b>」和取色面板里那个切换按钮<b>只在覆盖时出现</b>；切到跳变 / 呼吸时，原来的渐变条目按左端色画成普通色块，数据不丢，切回覆盖又是胶囊）。渐变（颜色环）不用调色板。</td></tr>
           <tr><td>取色面板</td><td>点任何一个色块（调色板 / 渐变起始色 / 渐变顺序 / 分区颜色）都弹同一个面板：<b>色环</b>上点或拖 = 直接选色相（出来就是满饱和、满亮度 —— 灯珠要的就是这种纯色，环顶红 → 顺时针黄、绿、青、蓝、紫）；要灰、要暗、要白，才展开<b>「▸ 高级设置」</b>里的二维色图（横轴 = 饱和，最左是灰；纵轴 = 亮度，最下是黑），或者在色号框里直接敲 <b>#RRGGBB</b>（<b>#0f0</b> 这种三位简写也认）。点面板外面 / 按 Esc / 再点同一个色块收起；改一下立即生效，拖着的时候编辑台 / 灯板当场跟着变。</td></tr>
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
@@ -7304,8 +7304,8 @@ function cpClose() {
 
 
 /* 调色板一行：纯色条目 = 一个色块；两端渐变条目 = 一个胶囊（底色就是 A→B 的渐变预览，
- * 左右两半各是一块透明热区，点哪半就改哪端）。「条目是纯色还是渐变」就是覆盖的铺法，
- * 面板底部的按钮随时能把一个条目在两种形态之间来回切（见 palSetGrad）。 */
+ * 左右两半各是一块透明热区，点哪半就改哪端）。「条目是纯色还是渐变」就是覆盖的铺法 ——
+ * 只有「覆盖」会显示 / 编辑渐变；跳变 / 呼吸把 6 数条目当首端那个纯色用（数据留着不丢）。 */
 function renderPalette(e) {
   const box = $('#fPalette');
   if (!box) return;
@@ -7314,15 +7314,16 @@ function renderPalette(e) {
   if (!e) return;
   normalizeEffect(e);
   const cap = palFixed(e.color);
+  const canGrad = (e.color | 0) === FW.COLOR.WIPE;
   const n = cap > 0 ? Math.min(cap, e.palette.length) : e.palette.length;
   e.palette.slice(0, n).forEach((c, i) => {
-    const grad = palIsGrad(c);
+    const grad = canGrad && palIsGrad(c);
     const cell = document.createElement('span');
     cell.className = 'palcell' + (grad ? ' grad' : '');
     /* 底板：纯色 = 单色，渐变 = A → B 的横向渐变（就是这一趟扫过去的样子） */
     const paint = () => {
       const cc = e.palette[i];
-      cell.style.background = palIsGrad(cc)
+      cell.style.background = (canGrad && palIsGrad(cc))
         ? 'linear-gradient(90deg,' + rgbHex(cc.slice(0, 3)) + ',' + rgbHex(cc.slice(3, 6)) + ')'
         : rgbHex(cc);
     };
@@ -7342,12 +7343,16 @@ function renderPalette(e) {
     ca.classList.add('palA');
     tip(ca, grad
       ? '第 ' + (i + 1) + ' 个条目（左端 = 首色）：点一下选色；面板底部可以改回纯色'
-      : '第 ' + (i + 1) + ' 个颜色（点一下选色环；面板底部可以把它改成两端渐变）');
+      : canGrad
+        ? '第 ' + (i + 1) + ' 个颜色（点一下选色环；面板底部可以把它改成两端渐变）'
+        : '第 ' + (i + 1) + ' 个颜色（点一下选色环）');
     ca.oninput = () => setEnd(0, hexRgb(ca.value));
-    /* 取色面板底部那个「纯色 ↔ 渐变」按钮：只给调色板条目挂 */
-    ca.__cpExtra = grad
-      ? { label: '改回纯色（只留左端色）', run: () => palSetGrad(i, false) }
-      : { label: '把本条目改成两端渐变', run: () => palSetGrad(i, true) };
+    /* 取色面板底部那个「纯色 ↔ 渐变」按钮：只给覆盖的调色板条目挂 */
+    if (canGrad) {
+      ca.__cpExtra = grad
+        ? { label: '改回纯色（只留左端色）', run: () => palSetGrad(i, false) }
+        : { label: '把本条目改成两端渐变', run: () => palSetGrad(i, true) };
+    }
     cell.appendChild(ca);
     if (grad) {
       const cb = colorChip(rgbHex(c.slice(3, 6)));
@@ -7364,7 +7369,7 @@ function renderPalette(e) {
   n2.className = 'palN';
   /* 收起几个也说出来：免得以为「切到纯色把我的颜色弄丢了」 */
   n2.textContent = n + ' 个' + (e.palette.length > n ? '（另 ' + (e.palette.length - n) + ' 个收起）' : '')
-                 + (e.palette.slice(0, n).some(palIsGrad) ? ' · 含渐变' : '');
+                 + (canGrad && e.palette.slice(0, n).some(palIsGrad) ? ' · 含渐变' : '');
   box.appendChild(n2);
 }
 
@@ -7390,12 +7395,13 @@ function palAddColor() {
 }
 
 /* 加一个两端渐变条目（+渐变）：左端接着上一个条目的末端色（视觉连续），右端挑一个色。
- * 覆盖扫到这个条目时就是「左色 → 右色」的位置渐变。 */
+ * 覆盖扫到这个条目时就是「左色 → 右色」的位置渐变 —— 别的配色没有这个铺法，直接不理。 */
 const PAL_GRAD_PICK = [[255,255,255],[0,255,255],[255,255,0],[255,0,255],
                        [0,255,0],[0,0,255],[255,128,0],[128,0,255]];
 function palAddGrad() {
   const e = editTarget(); if (!e) return;
   normalizeEffect(e);
+  if ((e.color | 0) !== FW.COLOR.WIPE) { status('渐变条目只有「覆盖」用得上', 'warn'); return; }
   const cap = palFixed(e.color);
   if (cap > 0) {
     status('「' + (FW.COLOR_NAME[e.color | 0] || '这种配色') + '」只有一个颜色，用不上渐变条目', 'warn');
@@ -7411,10 +7417,12 @@ function palAddGrad() {
 }
 
 /* 把一个条目在「纯色」和「两端渐变」之间切换（取色面板底部的按钮）。
+ * 只有「覆盖」有渐变铺法，别的配色直接不理。
  * 转成渐变时右端默认取下一个条目的首色 —— 那样「这一趟的盖色」正好接上「下一趟的底色」。 */
 function palSetGrad(i, on) {
   const e = editTarget(); if (!e) return;
   normalizeEffect(e);
+  if ((e.color | 0) !== FW.COLOR.WIPE) return;
   const c = e.palette[i];
   if (!c) return;
   if (on && !palIsGrad(c)) {
@@ -7674,8 +7682,9 @@ function syncFxColorRows(e) {
   /* 色块由 renderPalette() 按模式收起；加减按钮只在「放几个由你定」时给，
    * 覆盖还差第 2 个颜色时留一个 +（点一下补齐），补齐后自己就收起来 */
   show('fxPalAdd', uses && (cap <= 0 || have < cap));
-  /* +渐变 只在「放几个由你定」的配色（跳变 / 呼吸 / 覆盖）里给 —— 纯色只有一个颜色，用不上 */
-  show('fxPalAddGrad', uses && cap <= 0);
+  /* +渐变 只给覆盖：「沿灯位铺开」是覆盖独有的铺法 —— 跳变 / 呼吸的调色板只有纯色条目
+   * （就算数据里留着渐变条目，那边也只按首端色显示、且不给改渐变的入口） */
+  show('fxPalAddGrad', mode === FW.COLOR.WIPE);
   show('fxPalDel', uses && cap <= 0);
   const lab = $('#fPalLab');
   if (lab) lab.textContent = (mode === FW.COLOR.SOLID && uses) ? '颜色' : '调色板';
