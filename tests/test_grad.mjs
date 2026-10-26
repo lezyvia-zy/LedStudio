@@ -11,7 +11,8 @@ const CORE = new Function(coreSrc + '\n; return CORE;')();
 const { FW, gradTable, gradRamp, gradShift, gradTableFor, gradLib, gradList, gradById,
         gradNew, gradDrop, gradDefault, defaultGradients, normalizeEffect, projectFromPreset,
         PRESET_SP3122D, exportEffectsC, modesPlan, simApplyEffect, instNew, colorUpdate,
-        effGradStep, GRAD_STEP_MIN, GRAD_STEP_MAX, GRAD_MIN, GRAD_MAX, GRAD_DEFAULT_ANCHORS } = CORE;
+        effGradStep, GRAD_STEP_MIN, GRAD_STEP_MAX, GRAD_SPEED_MAX, GRAD_SPEED_CUT,
+        GRAD_MIN, GRAD_MAX, GRAD_DEFAULT_ANCHORS } = CORE;
 
 let fails = 0;
 const ok = (c, m) => { console.log((c ? '  PASS  ' : '  FAIL  ') + m); if (!c) fails++; };
@@ -416,6 +417,47 @@ console.log('--- B1b) 「步进(级)」：渐变才有；抬上去就把一整�
   gs4.value = '1'; gs4.oninput({ target: gs4 });
   await sleep(700);
   ok(fxListOf(0)[0].grad_step === 1 && (fxListOf(0)[0].speed | 0) === 1, '复原成速度 1 / 步进 1');
+}
+
+console.log('--- B1c) 「速度」在渐变下只认 1..16（一圈几十分钟 = 看着像没生效）---');
+{
+  /* 用户实测报的现象：「选了渐变，编辑台 / 灯板的颜色一直不变」。
+   * 根因不在渐变本身（色环算法 / 渲染都正常），而是「速度」这一格多义：跳变下它是算出来的
+   * 「停留(拍)」（30~60），切到渐变后被当成「每 N 拍走 1 级」→ 一圈 5 分钟。 */
+  ok(String(byId.get('fSpeed').max) === String(GRAD_SPEED_MAX),
+     `渐变下「速度」的上限 = ${byId.get('fSpeed').max}（其余配色仍 255）`);
+  const sp2 = byId.get('fSpeed');
+  sp2.value = '60'; sp2.oninput({ target: sp2 });
+  await sleep(700);
+  ok((fxListOf(0)[0].speed | 0) === GRAD_SPEED_MAX,
+     `渐变下填 60 夹到 ${fxListOf(0)[0].speed}（一圈 82 秒；60 拍会是一圈 307 秒）`);
+  const sp3 = byId.get('fSpeed');
+  sp3.value = '0'; sp3.oninput({ target: sp3 });
+  await sleep(700);
+  ok((fxListOf(0)[0].speed | 0) === 1, `渐变下填 0 兜底成 ${fxListOf(0)[0].speed}（不能「每 0 拍动一次」）`);
+  /* 模拟真实的切换路径：先在覆盖下写一个大数（覆盖用「周期」，这一格是自由的），再切到渐变 */
+  colSel.value = String(FW.COLOR.WIPE);
+  colSel.onchange({ target: colSel });
+  await sleep(30);
+  ok(String(byId.get('fSpeed').max) === '255', '覆盖下「速度」上限放回 255（覆盖扫多快看「周期(拍/趟)」）');
+  const sp4 = byId.get('fSpeed');
+  sp4.value = '60'; sp4.oninput({ target: sp4 });
+  await sleep(700);
+  ok((fxListOf(0)[0].speed | 0) === 60, `覆盖下 60 原样存住（${fxListOf(0)[0].speed}）`);
+  colSel.value = String(FW.COLOR.SPECTRUM);
+  colSel.onchange({ target: colSel });
+  await sleep(700);
+  ok((fxListOf(0)[0].speed | 0) === GRAD_SPEED_CUT,
+     `切到渐变那一刻 60 被收进 ${fxListOf(0)[0].speed}（一圈 20 秒，一眼看得出在动；60 拍是 307 秒）`);
+  ok(/渐变的速度/.test(String((byId.get('status') || {}).textContent || '')),
+     '状态栏说清了为什么改：' + String((byId.get('status') || {}).textContent || '').slice(0, 40));
+  /* 复原成 1 拍/次 + 1 级，后面的用例按老样子跑 */
+  const sp5 = byId.get('fSpeed');
+  sp5.value = '1'; sp5.oninput({ target: sp5 });
+  const gs5 = byId.get('fGradStep');
+  gs5.value = '1'; gs5.oninput({ target: gs5 });
+  await sleep(700);
+  ok((fxListOf(0)[0].speed | 0) === 1 && fxListOf(0)[0].grad_step === 1, '复原成速度 1 / 步进 1');
 }
 
 console.log('--- B2) 另存为渐变-2 + 起始色 + 自定义顺序 ---');
