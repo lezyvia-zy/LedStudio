@@ -132,6 +132,13 @@ W4.palette = [[0,0,255],[255,120,0],[0,255,0],[255,0,255]];
 W4.c1 = W4.palette[0].slice(); W4.c2 = W4.palette[1].slice();
 st.modes.list.push({ id:'mJ', name:'多色覆盖', latin:'WIPE_MULTI', enabled:true,
                      binds:[{ effect:W4.id, zones:[] }] });
+/* 光点间距：3 个点、固定中心距 4 颗（均布的话 24 灯是 8 颗，两者渲染差别很大）。
+ * 各分区长度不同（8 / 24 / 104），顺手把「按 RING_SIZE 等比缩放」那一支也跑一遍，
+ * 生成代码与预览必须逐字节一致。 */
+const ASPACE = mkFx(12, [{ kind:'spot', count:3, width:2, phase:0, falloff:'cos', spacing:4,
+                           pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0 }]);
+st.modes.list.push({ id:'mK', name:'光点间距', latin:'SPOT_SPACING', enabled:true,
+                     binds:[{ effect:ASPACE.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -369,7 +376,7 @@ console.log('--- 新配色模式（C 侧真跑 37 拍）---');
      '参与的那 12 颗铺出了与底色不同的颜色（位置渐变真在 C 里铺开，不是整段底色）');
   /* 多色覆盖：37 拍 = 第 3 趟 → 本趟颜色对 pal[3]（品红）底 / pal[0]（蓝）盖。
    * 第 1 个分区 8 颗、往返、这一趟从右往左：末颗已被本趟扫到（蓝），首颗还是上一趟盖的（品红）。 */
-  const mRow = cModes[st.modes.list.length - 1] || [];
+  const mRow = cModes[st.modes.list.findIndex(m => m.id === 'mJ')] || [];
   const mc = i => (mRow[i] || []);
   ok(mc(7)[0] === 0 && mc(7)[1] === 0 && mc(7)[2] > 200,
      `多色覆盖：第 3 趟盖第 1 个颜色（第 8 颗 ${mc(7).join(',')}）`);

@@ -5,8 +5,8 @@
 
 ## 13. 有意为之，不要「顺手改」（改这些等于改产品语义）
 
-1. **「音乐来了」是手动布尔，不是真 FFT**：它模拟的是固件那条 `ring_set_audio_level()`（帮助页 639–642 已说明）。要接真音频，接口就是 `syncPreviewSpeed` / `speedWhich`。
-2. **判档是保守的**：`fast >= slow` 时一律慢档，与打补丁前行为一致（`ringIsFast` 1531 / `led_gen_tick` 的 C 侧表达式）。要"更激进"就是改判据 —— 那必须 C/JS 同步 + 跑真编译。
+1. **「音乐来了」模拟的是固件那条链路，不是真 FFT**：`A().fft` = `mainAppCt.FFTLevel`（0..255，界面上的「音乐音量」滑杆），`ringSpeedFromAudio()` = 固件 `ring_set_audio_level()` 里那一句 **`FFTLevel > LED_FFT_THRESHOLD(=4)` → 快档、否则慢档**（「大于」不是「大于等于」）。点「音乐来了」只是让 `fftDemoLevel(tick)` 按鼓点自己跳（50 拍一轮、真实时间、不受播放倍率影响）；要接真音频，改的是这条注入（`simSetAudioLevel`），**不要**绕过它直接写 `speed_cur`。
+2. **判档是保守的**：`fast >= slow` 时一律慢档，与打补丁前行为一致（`ringIsFast` / `led_gen_tick` 的 C 侧表达式）。要"更激进"就是改判据 —— 那必须 C/JS 同步 + 跑真编译。
 3. **`ring->speed_slow / speed_fast` 只是判档参考**：各效果用自己配的 `fast/slow`（firmware-contract.md 第三节），不要改回"ring 级覆盖实例级"。
 4. **`zones: []` = 覆盖全部分区**（`bindZones`）：新增分区能自动跟上，这是特性；要表达「一个分区都不跑」得用 `b.none = true`（模式页「全不选」），**不能**再用空数组 —— 否则「全取消」会被当成「全部分区」，画面反而全亮。
 5. **覆盖参数是完整效果副本**（`resolveEffect`）：改原效果不会影响已覆盖的绑定，`V33` 只提示不合并。
@@ -16,6 +16,8 @@
 9. **只改帧内容的操作必须走 `applyFrame()`**（坑 2）；**`S()` 懒建 sim 必须套用模式**（坑 3）。
 10. **每灯颜色源只用 `hue[]` 一个字节编码**（`renderZoneMaskTo` / C 的 `led_gen_hue[]`）：`0xFF` = 效果当前色、`0x00..0xFD` = `spectrum_tbl` 下标（**只由效果级彩虹填** —— 图层不再写色相，「本层取色」2026-10-26 已退休，见坑 34）；**覆盖模式是唯一例外** —— 它把 `hue[]` 当**调色板条目索引**（`0..n-1`，`n` = 条目数 ≤ 16）：灯 i 最后是被哪一趟盖上的，就显示那一趟盖的那个条目（`0` = 第 0 趟之前的初始底色，也是「不参与覆盖」的灯的值），索引按 `n` 回绕。**别再退回 0..255 的 tint** —— 条目是纯色就整块硬边、是 `[A→B]` 就沿灯位铺位置渐变，「本趟 / 上一趟」的区分由「取哪个条目」自然表达（旧 tint 的 `ri == r0` / `255-g` 那套已经删了）。逐灯取色在 `wipeEntryAt(c, idx, i, S)`（实例上 `palette` = 各条目首端、`paletteB` = 末端；`S` 由 `wipeSpan()` 夹紧，与 `coverEntry()` 共用），`colorUpdate()` 的覆盖分支只维护 `phase` / `current`（列表色块与暂停样本帧用），`⌊gen_tick / period⌋ % n` —— **别把颜色对固定成 `pal[0]` / `pal[1]`**，否则第 3 个条目起永远轮不到。**`cover_mode` / `cover_group` 已退休**：老存档由 `normalizeEffect()` 一次性翻译成渐变条目（`1` → `[pal[i] → pal[i+1]]` 链、`2` → 按 `cover_group` 分组、第 0 组留纯色），迁完置 0 / 1，之后不再读；`cover_dir` = 1（单向）仍在用。覆盖的判断必须排在查表之前；0xFD 以下都可能被彩虹算出来，别再占别的哨兵值。纯色 / 渐变 / 呼吸每帧只算一次颜色，彩虹（q/r 递推，无除法）碰像素；覆盖每像素一次乘加（`wipeEntryAt` / C 里 `pa/pb` 那段插值，`>> 8`，**无除法**）；跳变除了换索引还要乘一个亮度包络（`stepEnv` / C 的 `led_gen_step_env`，每分区一次除法 + 每像素一次乘加）—— 除法绝不能挪进像素循环。**跳变不能退回「硬切」，也不能落全黑**：包络最后一拍停在 ≈`255/(fade+1)`（不是 0）—— 灯已经暗到看不见，但留一个全黑帧在 50Hz 下就是一次闪，换色处会「抖一下」。呼吸同理（`breathEnv` / C 的 `led_gen_breath`，坑 30）：它是「渐亮 = 渐暗」的对称包络 + **smoothstep 曲线**（`u = (t+1)·256/r` → `u²(3-2u)/65536`，两端导数为 0）—— **别改回线性**（暗部每拍「亮度翻倍」= 看着一格一格跳，就是 2026-10-24「生硬」那条），也别破坏「第 `r` 拍正好满亮」「渐暗逐拍镜像（末拍 = 首拍）」这两条：接缝上一跳，换色处就又「抖一下」。
 11. **编辑台的「暂停帧」是取样，播放必须从 tick 0 起**：`stageSampleFrame()` 只拨暂停预览实例的相位（否则呼吸 = 包络刚起步（≈255/渐亮，很暗）、跳变 / 覆盖 = 第 1 色、渐变 = 红，跟纯色一模一样，看着像「改了配色没生效」）；`stageToggle()` 先落 `stagePlaying` 再 `stageSync()`，样本帧**不能**带进播放、更不能进 C —— 导出与 `test_effects_c_exec` 的逐字节比对仍以 tick 0 为准。编辑台的实例一律按 `editTarget()` 建（微调「覆盖参数」时画覆盖，不是库里 id 相同的原效果），缓存键带 `eff:` / `bind:` 前缀，别退回只看 `e.id`。
+12. **速度档只有一个入口：ring 级 `speed_cur`**（`simSetAudioLevel()` / `simSetSpeed()` → `simSyncSpeed()`）。手动档与「自动（跟着音乐）」都必须先写这个 ring 级字段再广播给实例；**别在 UI 里直接改某个实例的 `speed_cur`**，否则效果编辑台（`stageSetSpeed()`）与灯板会走两条路。切档**只改 `speed_cur`、不动 `step_cnt`**（正在走的这一格不能跳）；`simSetAudioLevel()` 把音量夹在 0..255。固件侧写入者仍是 `spimled_service.c` 的 `ring_set_audio_level(&g_ring, mainAppCt.FFTLevel)` —— 那是**老 SPI RGB 灯功能（`CFG_FUNC_SPI_RGB_EN`）**就有的联动，与 `CFG_FUNC_LED_RING_EN` 无关，别按后者去改。
+13. **`spacing`（图层「间距」）只在 > 0 时改变排布**：0 = 按 `count` 均布（`rd / count`，老存档一个字段都没有也是这个分支 —— **别给均布分支加「至少 1 颗灯」的夹紧**，`count > len` 时老行为本来就小于 1 颗灯）；> 0 = 固定中心距 `zoneScaled(spacing) * 256`，此时才夹「≥ 1 颗灯」。同一份逻辑三处必须一起改：`genSpot()`、C 模板 `led_gen_spot()`、`layerNums()`（`led_gen_layer_t` 的第 18 列、**追加在末尾**，前面的列不许挪位）。间距 × 点数超过环长时后几个点会绕回盖到前几个上（取最大值），这是允许的，不要加「自动收窄」。
 
 ---
 

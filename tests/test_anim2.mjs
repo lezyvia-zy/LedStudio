@@ -188,22 +188,53 @@ await new Promise(r => setTimeout(r, 100));
 ok(pre.value === pick, '切回项目0 又回到它自己选的模式');
 
 
-/* ---- D) 速度档「自动（跟着音乐）」的接线与存盘 ---- */
+/* ---- D) 速度档 / 音乐音量（FFTLevel）→ 快慢档的接线与存盘 ---- */
 const spd = byId.get('aSpeed'), aud = byId.get('aAudio');
+const fft = byId.get('aFft'), ftxt = byId.get('aFftTxt');
+/* 手动档：滑杆与按钮都灰掉，读数是「手动 …」 */
+spd.value = 'slow'; spd.onchange();
+await new Promise(r => setTimeout(r, 100));
+ok(fft.disabled === true && aud.disabled === true, '手动慢/快档时音量滑杆与「音乐来了」都灰掉');
+ok(/手动/.test(ftxt.textContent), `手动档读数：${ftxt.textContent}`);
+
+/* 自动档：音量 0 = 慢档 */
 spd.value = 'auto'; spd.onchange();
 await new Promise(r => realST(r, 70));
 ok(animOf(0).speed === 'auto', '速度档改成了 auto');
-ok(aud.disabled === false, '自动档下「音乐来了」按钮可用');
+ok(fft.disabled === false && aud.disabled === false, '自动档下音量滑杆与「音乐来了」都可用');
+fft.value = '0'; fft.oninput();
+ok(/慢档/.test(ftxt.textContent), `音量 0 → 慢档：${ftxt.textContent}`);
+/* 阈值边界：4 还是慢、5 就快（固件判的是「大于」LED_FFT_THRESHOLD，不是大于等于） */
+fft.value = '4'; fft.oninput();
+ok(/慢档/.test(ftxt.textContent), `音量 4（= 阈值）还是慢档：${ftxt.textContent}`);
+fft.value = '5'; fft.oninput();
+ok(/快档/.test(ftxt.textContent), `音量 5（> 阈值）切快档：${ftxt.textContent}`);
+await new Promise(r => realST(r, 70));      /* 等自动保存落地（animOf 读的是存档快照） */
+ok(animOf(0).fft === 5, `音量 5 也存进了存档（fft = ${animOf(0).fft}）`);
+
+/* 端到端：单步「前进几个节拍」= 当前档位（该效果自己的 slow / fast） */
+fft.value = '0'; fft.oninput();
+byId.get('aStep').onclick();
+const stepSlow = byId.get('status').textContent;
+fft.value = '120'; fft.oninput();
+byId.get('aStep').onclick();
+const stepFast = byId.get('status').textContent;
+const nSlow = +((stepSlow.match(/前进 (\d+) 个/) || [])[1] || 0);
+const nFast = +((stepFast.match(/前进 (\d+) 个/) || [])[1] || 0);
+ok(nSlow > 1 && nFast === 1,
+   `单步节拍数跟着音量档位走：慢档 ${nSlow} 拍 / 快档 ${nFast} 拍（「${stepSlow}」/「${stepFast}」）`);
+
+/* 「音乐来了」= 让音量自己跳（档位仍由音量决定，不再是一个布尔直接切快档） */
 aud.onclick();
 await new Promise(r => realST(r, 70));
 ok(animOf(0).audio === true, '「音乐来了」状态存住了（audio = true）');
-ok(aud.classList.contains('on') && /快档/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
+ok(aud.classList.contains('on') && /自己跳/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
 aud.onclick();
 await new Promise(r => realST(r, 70));
-ok(animOf(0).audio === false, '再点一下回慢档（audio = false）');
+ok(animOf(0).audio === false, '再点一下停（audio = false）');
 spd.value = 'slow'; spd.onchange();
 await new Promise(r => setTimeout(r, 100));
-ok(aud.disabled === true, '手动慢/快档时「音乐来了」按钮灰掉');
+ok(aud.disabled === true, '回手动档后「音乐来了」又灰掉');
 
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');

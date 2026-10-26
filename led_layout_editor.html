@@ -496,12 +496,14 @@
         </select></label>
         <label class="row"><span>选哪个</span><select id="aPreset"></select></label>
         <div class="hint" id="aTargetHint"></div>
-        <label class="row"><span>速度档</span><select id="aSpeed" data-tip="用固件里的哪一档速度（慢=产品里空闲时，快=有声音时）。&#10;「自动」= 跟着音乐：样机上由 ring_set_audio_level() 按音量在慢/快之间切，工具里用下面那个按钮模拟。">
+        <label class="row"><span>速度档</span><select id="aSpeed" data-tip="用固件里的哪一档速度（慢=产品里空闲时，快=有声音时）。&#10;「自动」= 跟着音乐：样机上 spimled_service.c 每 20ms 调 ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)，FFTLevel 大于阈值 4（LED_FFT_THRESHOLD）就切快档、否则慢档 —— 下面那根「音乐音量」滑杆就是 FFTLevel。&#10;这条联动是老 SPI RGB 灯功能（CFG_FUNC_SPI_RGB_EN）本来就有的，与 LED_RING 那套无关。">
           <option value="slow">慢速 (speed_slow)</option>
           <option value="fast">快速 (speed_fast)</option>
           <option value="auto">自动（跟着音乐）</option>
         </select></label>
-        <label class="row"><span></span><button id="aAudio" data-tip="只在「自动」档下生效：模拟样机上有声音，固件把 ring->speed_cur 切到快档。&#10;样机上这条线是 spimled_service.c 每 20ms 调 ring_set_audio_level()，按 FFTLevel 改档。">音乐来了（切快档）</button></label>
+        <label class="row"><span>音乐音量</span><input type="range" id="aFft" min="0" max="255" step="1" value="0" data-tip="FFTLevel 0..255 —— 就是固件里的 mainAppCt.FFTLevel（音乐越响 / 节奏越强越高）。&#10;固件拿它跟 LED_FFT_THRESHOLD(=4) 比：大于 4 切快档，小于等于 4 走慢档。&#10;只在「速度档 = 自动」时起作用；拖它等于手动模拟「音乐一会儿有一会儿没有」。">
+          <b id="aFftTxt" style="flex:0 0 auto; min-width:104px; font-weight:400; color:var(--dim)">0 → 慢档</b></label>
+        <label class="row"><span></span><button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 播放时 FFTLevel 按鼓点自己跳（重音冲高 → 衰减），动画就会跟着忽快忽慢。&#10;样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()，按 FFTLevel 改 ring->speed_cur。">音乐来了（音量自己跳）</button></label>
         <label class="row"><span>播放倍率</span><select id="aRate" data-tip="播放倍率：把时间整体拉慢/加快，只影响预览，不影响导出的参数。">
           <option value="0.25">0.25× 慢动作</option>
           <option value="0.5">0.5×</option>
@@ -987,15 +989,22 @@
         <table>
           <tr><th>控件</th><th>作用</th></tr>
           <tr><td>选哪个</td><td>选要预览的模式 / 效果。</td></tr>
-          <tr><td>速度档 / 播放倍率</td><td>速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>（样机上有声音就切快档，见下）；倍率是把播放时间整体拉慢/加快，方便观察。</td></tr>
+          <tr><td>速度档 / 音乐音量 / 播放倍率</td><td>速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>：音量滑杆就是固件里的 <code>mainAppCt.FFTLevel</code>，<b>大于阈值 4 切快档</b>、小于等于 4 走慢档（见下）；倍率是把播放时间整体拉慢/加快，方便观察。</td></tr>
           <tr><td>播放 / 单步 / 归零</td><td>单步走一格（固件的 speed_cur 个节拍），归零回到起始帧。</td></tr>
           <tr><td>方向修正</td><td>关 = 当前固件的真实表现；开 = 按各分区实际绕行方向反向映射（配 reverse 补丁后的表现）。它下面那行会显示每个分区此刻亮到几号灯。</td></tr>
           <tr><td>显示</td><td>编号 / 圆圈灯位 / 方向箭头 / 动效帧 四个开关，播放中也能随时切。</td></tr>
         </table>
-        <div class="hint"><b>「自动」速度档与「音乐来了」按钮</b>：样机上「有声音就变快」是固件本来就有的链路 ——
-          <code>spimled_service.c</code> 每 20ms 调 <code>ring_set_audio_level()</code>，按音量把速度档在慢/快之间切。
-          选「自动」后，点一下「音乐来了」就相当于那一刻有声音：效果立刻变快，再点一下回慢档。
-          预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），在这里看到的快慢就是样机上的快慢。</div>
+        <div class="hint"><b>「自动」速度档 / 音乐音量 / 「音乐来了」按钮</b>：这是<b>老 SPI RGB 灯功能
+          （<code>CFG_FUNC_SPI_RGB_EN</code>）本来就有的联动</b>，与 <code>CFG_FUNC_LED_RING_EN</code> 那套无关 ——
+          固件 <code>spimled_service.c</code> 每 20ms 调
+          <code>ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)</code>：<b>FFTLevel 大于 <code>LED_FFT_THRESHOLD</code>(=4)
+          就切快档，小于等于就慢档</b>。<br>
+          「音乐音量」滑杆就是 <code>FFTLevel</code> 本身：拖到 4 以下是慢档，5 以上是快档 —— 拖一下就能看到
+          <b>同一段动画突然变快 / 变慢</b>；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代，
+          写 <code>ring-&gt;speed_cur</code> 的仍然是它，生成代码每拍从这个 ring 级档位同步进各实例。<br>
+          点「音乐来了」= 模拟音乐一直在放：播放时 FFTLevel 按鼓点自己跳（重音冲高 → 余音衰减），
+          动画就会跟着忽快忽慢。预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），
+          在这里看到的快慢就是样机上的快慢。</div>
 
         <h3 id="hs-export">导出与固件</h3>
         <p>导出都在一个<b>独立窗口</b>里做：在「导出」页签点「动效头文件…」「排布表 C…」「HAL 接口…」「导出 JSON…」把它打开。
@@ -2104,9 +2113,11 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 /* 每个项目独立的动画播放设置（跟着项目一起存盘，互不影响） */
 function defaultAnim() {
   return { preset: 0, speed: 'slow', rate: 1, fix: true, playing: false,
-           /* audio：仅 speed='auto' 时有效 —— 模拟「样机上有声音」，
-            * 正是固件 ring_set_audio_level() 把 ring->speed_cur 切到快档那一下 */
-           audio: false,
+           /* fft：模拟固件 mainAppCt.FFTLevel（0..255）。speed='auto' 时拿它跟
+            *     LED_FFT_THRESHOLD(=4) 比：大于就是快档、否则慢档（老 SPI RGB 灯功能
+            *     里 ring_set_audio_level() 就是这一句）。
+            * audio：模拟「音乐一直在放」—— 播放时 fft 按鼓点自己跳，能看到快慢来回切。 */
+           fft: 0, audio: false,
            showNum: true, showRing: true, showArrow: true, showFrame: true,
            previewTarget: 'mode', soloEffectId: '' };
 }
@@ -2675,7 +2686,11 @@ function bouncePos(p, span) {
   return t < span ? t : two - t;
 }
 
-/* 光点层：count 个光点沿环均布，随 pos 移动（可往返） */
+/* 光点层：count 个光点沿环排布，随 pos 移动（可往返）。
+ * spacing = 相邻两点的中心间距（灯位数，按 24 灯标称再等比缩放；0 = 按 count 均布）。
+ * 「多点追逐」想要几个点聚在一段上一起跑、或者拉得很开时调它 —— 均布只有「整环 ÷ 点数」
+ * 这一个值，实际画面经常不是均布的。间距 × (count-1) 超过环长时，后面的点会绕回来盖到
+ * 前面的点上（取最大值，只会更亮，不会画错）。 */
 function genSpot(mask, len, pos, L, gain) {
   const count = L.count;
   if (!count) return;
@@ -2684,7 +2699,11 @@ function genSpot(mask, len, pos, L, gain) {
   const hw     = halfW * 256;
   const rd     = len * 256;
   const half   = len * 128;
-  const step   = Math.floor(rd / count);
+  /* 间距：0 = 均布（老行为）；> 0 = 固定中心距，至少 1 颗灯（分区太小时 zoneScaled 会缩成 0） */
+  const step   = (L.spacing > 0)
+               ? Math.max(1, zoneScaled(L.spacing, len, 0)) * 256
+               : Math.floor(rd / count);
+
   const dir    = L.direction ? 1 : -1;
   const phOff  = L.phase * len;                 /* phase 是整环的 0..255 分数 → 16.8 单位 */
   const p0     = L.bounce ? bouncePos(pos, rd) : pos;
@@ -3174,6 +3193,9 @@ function simInit() {
      * 生成代码每拍从这里判断「现在该快还是该慢」—— 预览必须走同一条路径，
      * 否则预览和导出的代码就不是同一件事。 */
     speed_slow: 8, speed_fast: 1, speed_cur: 8,
+    /* 模拟 mainAppCt.FFTLevel（0..255）：固件每 20ms 拿它跟 LED_FFT_THRESHOLD 比一次，
+     * 决定 ring->speed_cur 是慢档还是快档。预览/测试都从这里喂 simSetAudioLevel()。 */
+    audio_level: 0,
     gen_tick: 0, power_on: true, fb: new Uint8Array(FW.LED_COUNT * 3),
   };
 }
@@ -3271,6 +3293,27 @@ function simSetSpeed(sim, which) {
   sim.speed_cur = (which === 'fast') ? sim.speed_fast : sim.speed_slow;
   simSyncSpeed(sim);
 }
+
+/* —— 音乐 → 速度档（固件 ring_set_audio_level() 的那一句判据）——————————————
+ * 固件：spimled_service.c 每 20ms 调
+ *           ring_set_audio_level(&g_ring, mainAppCt.FFTLevel);
+ *       里面就一句：FFTLevel 大于 LED_FFT_THRESHOLD(=4) → 快档，否则慢档。
+ *       「大于」不是「大于等于」：正好等于 4 还算安静。
+ * 这条联动是**老 SPI RGB 灯功能（CFG_FUNC_SPI_RGB_EN）本来就有**的：
+ *       打补丁把 ring_tick() 换成 led_gen_tick() 之后，写 speed_cur 的还是它，
+ *       生成代码每拍从这个 ring 级档位同步进各实例 —— 所以工具这边要能模拟
+ *       「音量跳一下、档位跟着跳」，而不只是一个「有没有声音」的布尔。
+ * 返回值是夹到 0..255 之后的音量，界面拿它显示。 */
+function ringSpeedFromAudio(r, level) {
+  return ((level | 0) > FW.LED_FFT_THRESHOLD) ? r.speed_fast : r.speed_slow;
+}
+function simSetAudioLevel(sim, level) {
+  sim.audio_level = Math.max(0, Math.min(255, level | 0));
+  sim.speed_cur   = ringSpeedFromAudio(sim, sim.audio_level);
+  simSyncSpeed(sim);
+  return sim.audio_level;
+}
+
 
 /* 效果对象 → ring_preset_t 形状（内建/自定义共用） */
 function effectPreset(eff, idx, state) {
@@ -3648,6 +3691,7 @@ function layerNums(L) {
        不用删掉再调回来，也不会让 C 表的行号漂移（F5）。 */
     en: L.en === 0 ? 0 : 1,
     count: L.count | 0, width: L.width | 0, phase: L.phase | 0,
+    spacing: L.spacing | 0,          /* 相邻光点中心距（灯位，0 = 按 count 均布） */
     falloff: fall < 0 ? 0 : fall,
     pulse_period: L.pulse_period | 0, pulse_amp: L.pulse_amp | 0,
     wave: L.wave | 0,                /* 形状（三角/方波/锯齿）：界面上不暴露，只由预置给 */
@@ -3856,7 +3900,9 @@ const LED_GEN_IMPL = [
 '    hw     = (uint16_t)((uint16_t)half_w * 256u);',
 '    rd     = (int32_t)len * 256;',
 '    half   = (int32_t)len * 128;',
-'    step   = rd / (int32_t)L->count;',
+'    step   = (L->spacing > 0u) ? ((int32_t)led_gen_scaled(L->spacing, len, 0u) * 256)',
+'                               : (rd / (int32_t)L->count);',
+'    if ((L->spacing > 0u) && (step < 256)) step = 256;   /* at least one LED (tiny zones scale to 0) */',
 '    dir    = (L->flags & 1u) ? 1 : -1;',
 '    ph_off = (int32_t)L->phase * (int32_t)len;',
 '    p0     = (L->flags & 2u) ? led_gen_bounce((int32_t)pos, rd) : (int32_t)pos;',
@@ -4488,7 +4534,7 @@ function exportEffectsC(state, opt) {
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
     modeEn: '该模式是否启用',
-    layRow: '每行: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags}（图层不带颜色，取色全在效果级配色里）,',
+    layRow: '每行: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing}（图层不带颜色，取色全在效果级配色里）,',
     instType: '一个效果实例的运行状态。同一条效果被多个分区引用时共用一个实例 = 相位同步',
     applyMode: '切模式：按绑定表建实例（同一效果只建一次）',
     genTick: '每帧推进一次：所有实例各推进各的',
@@ -4511,6 +4557,7 @@ function exportEffectsC(state, opt) {
     lrotate: '渐变: 每 N 帧推进一格',
     lwave: '脉动的形状: TRI 三角(呼吸) / SQUARE 方波(闪烁) / SAW 锯齿(渐亮后瞬灭) —— 界面上不暴露，只由预置给',
     lflags: 'bit0: 方向, bit1: 往返',
+    lspacing: 'SPOT: 相邻光点的中心距（按 RING_SIZE 标称，随分区等比缩放）；0 = 按光点数均布',
     layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
     ringNote2: 'led_ring.h 里原来那句 #define RING_PRESET_COUNT 9 请整句注释掉。',
@@ -4549,7 +4596,7 @@ function exportEffectsC(state, opt) {
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
     modeEn: 'mode enabled',
-    layRow: 'rows: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags} (layers carry no colour: colours come from the effect-level colour mode),',
+    layRow: 'rows: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing} (layers carry no colour: colours come from the effect-level colour mode),',
     instType: 'runtime state of one effect instance. Zones sharing an effect share the instance = synchronised',
     applyMode: 'switch mode: build instances from the bind table (one per distinct effect)',
     genTick: 'called once per frame: advance every instance',
@@ -4572,6 +4619,7 @@ function exportEffectsC(state, opt) {
     lrotate: 'gradient: advance every N frames',
     lwave: 'pulse shape: TRI (breathe) / SQUARE (flash) / SAW (dim then snap back) - not exposed in the UI, set by presets only',
     lflags: 'bit0: direction, bit1: ping-pong',
+    lspacing: 'SPOT: centre distance between neighbouring spots in RING_SIZE units (0 = evenly spread by count)',
     layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
     ringNote2: 'The original #define RING_PRESET_COUNT 9 in led_ring.h must be commented out.',
@@ -4640,6 +4688,7 @@ function exportEffectsC(state, opt) {
        '    uint8_t rotate;        /* ' + t.lrotate + ' */',
        '    uint8_t wave;          /* ' + t.lwave + ' */',
        '    uint8_t flags;         /* ' + t.lflags + ' */',
+       '    uint8_t spacing;       /* ' + t.lspacing + ' */',
        '} led_gen_layer_t;',
        '',
        'typedef struct {',
@@ -4686,11 +4735,11 @@ function exportEffectsC(state, opt) {
     for (const R of layerRows) {
       push('    { ' + [R.kind, R.en, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
-                       R.wave, R.flags].join(', ') + ' },');
+                       R.wave, R.flags, R.spacing].join(', ') + ' },');
     }
     push('};');
   } else {
-    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
+    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
   }
   push('');
   push('/* ' + t.palRow + ' */');
@@ -4911,6 +4960,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                colorUpdate, simInit, instApplyPreset, simApplyEffect, simApplyMode,
                simSetSpeed, simSetupPreset, simApplySolo, instTick, instAdvances, simTick, modeOf, effectById, effectIndex,
                ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
+               ringSpeedFromAudio, simSetAudioLevel,
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
                FALL, LAYER, WAVE, pulseGain, bouncePos,
@@ -5075,28 +5125,58 @@ let undoStack = [], redoStack = [];
  * 两处各按自己的倍率走（A().rate / stage.rate），谁也不拖累谁。
  * 「从头开始计时」一律走 resetClock()。 */
 let acc = 0, accS = 0, lastT = 0;
-function resetClock() { lastT = performance.now(); acc = 0; accS = 0; }
+let fftAcc = 0, fftTickN = 0;      /* 「音乐来了」的节拍累加器（真实时间，不受播放倍率影响） */
+function resetClock() { lastT = performance.now(); acc = 0; accS = 0; fftAcc = 0; fftTickN = 0; }
 const sims = new Map();        /* 每个项目一份动画运行时状态，键 = 项目 id */
 
 /* 当前项目的动画设置（老存档没有 anim 字段，这里兜底补上） */
 function A() {
   if (!state.anim) state.anim = defaultAnim();
-  return state.anim;
+  const a = state.anim;
+  /* 老存档迁移（幂等）：以前只有一个「音乐来了」布尔 —— 那时按下去 = 音乐在响 = 快档。
+   * 现在拆成两个：fft（FFTLevel 本身）+ audio（让音量自己跳）。老 true 迁成满音量，
+   * 打开老工程立刻还是快档，不会莫名其妙变慢。 */
+  if (a.fft == null) { a.fft = a.audio ? 255 : 0; a.audio = false; }
+  return a;
 }
-/* 当前该用哪一档速度。auto = 跟着「音乐来了」按钮，
- * 也就是固件里 ring_set_audio_level() 按音量切的那一档。 */
+/* 当前该用哪一档速度。auto = 固件那句判据：
+ *   ring_set_audio_level() 里「FFTLevel > LED_FFT_THRESHOLD ? 快 : 慢」。 */
 function speedWhich() {
   const a = A();
-  return (a.speed === 'auto') ? (a.audio ? 'fast' : 'slow') : (a.speed || 'slow');
+  if (a.speed !== 'auto') return a.speed || 'slow';
+  return ((a.fft | 0) > FW.LED_FFT_THRESHOLD) ? 'fast' : 'slow';
 }
-/* 把当前档位同步给预览：只改速度档，不动相位 / step_cnt（切档瞬间不跳帧） */
-function syncPreviewSpeed(s) { simSetSpeed(s || S(), speedWhich()); }
-/* 「音乐来了」按钮的外观：只有自动档下才有意义，其它档灰掉 */
+/* 把当前档位同步给预览：只改速度档，不动相位 / step_cnt（切档瞬间不跳帧）。
+ * 自动档走 simSetAudioLevel()（等价 ring_set_audio_level()：先按音量判档再广播），
+ * 手动档走 simSetSpeed()（等于直接指定档位，样机上碰不到，调效果时好复现）。 */
+function syncPreviewSpeed(s) {
+  const a = A(), sim = s || S();
+  if (a.speed === 'auto') simSetAudioLevel(sim, a.fft | 0);
+  else                    simSetSpeed(sim, a.speed || 'slow');
+}
+/* 速度档那一行的外观：音量滑杆 + 读数（含阈值判定）+ 「音乐来了」按钮 */
 function syncAudioBtn() {
-  const a = A(), on = !!a.audio, b = $('#aAudio');
-  b.textContent = on ? '音乐来了：快档（点掉回慢档）' : '音乐来了（切快档）';
-  b.classList.toggle('on', on);
-  b.disabled = (a.speed !== 'auto');
+  const a = A(), auto = a.speed === 'auto';
+  const lvl = Math.max(0, Math.min(255, a.fft | 0));
+  const fast = auto && lvl > FW.LED_FFT_THRESHOLD;
+  const t = $('#aFftTxt'), r = $('#aFft'), b = $('#aAudio');
+  if (r) { r.value = lvl; r.disabled = !auto; }        /* 自动跳时滑杆跟着当前音量走 */
+  if (t) t.textContent = auto ? `${lvl} → ${fast ? '快档' : '慢档'}（阈值 ${FW.LED_FFT_THRESHOLD}）`
+                              : `手动 ${a.speed === 'fast' ? '快档' : '慢档'}`;
+  if (b) {
+    b.textContent = a.audio ? '音乐来了：音量自己跳（点掉停）' : '音乐来了（音量自己跳）';
+    b.classList.toggle('on', !!a.audio);
+    b.disabled = !auto;
+  }
+}
+/* 模拟音乐的 FFTLevel：50 拍（1 秒 @ 20ms）一个循环 —— 前 6 拍重音冲高，
+ * 再 20 拍余音衰减回 0，剩下 24 拍安静。形状是算出来的、不用随机：
+ * 每次播放看到的一样，也方便对着「快档那 26 拍 / 慢档那 24 拍」数格子。 */
+function fftDemoLevel(tick) {
+  const p = ((tick | 0) % 50 + 50) % 50;
+  if (p < 6)  return Math.min(255, 210 + p * 7);          /* 210..245 → 快档 */
+  if (p < 26) return Math.max(0, (26 - p) * 10);          /* 200..10 → 前 19 拍仍 > 4 */
+  return 0;
 }
 /* 当前项目的动画运行时。第一次取用时就按模式铺好实例 ——
  * 少了这一步，开局点任何只重画不推进的按钮（比如方向修正）都会面对空实例表，
@@ -5108,7 +5188,7 @@ function S() {
     s = simInit();
     sims.set(id, s);
     simDirty = false;
-    if (state) { simApplyMode(s, state); simSetSpeed(s, speedWhich()); }
+    if (state) { simApplyMode(s, state); syncPreviewSpeed(s); }
   }
   return s;
 }
@@ -5124,7 +5204,7 @@ function resetSim() {
   const s = S();
   if (A().previewTarget === 'effect') simApplySolo(s, state, A().soloEffectId);
   else                                simApplyMode(s, state);
-  simSetSpeed(s, speedWhich());
+  syncPreviewSpeed(s);
   return s;
 }
 let selZone = 0;
@@ -5433,6 +5513,9 @@ function renderStage() {
   ctx.fillText((stagePlaying ? '播放中' : '已暂停') +
     ` · 位置 ${zIdx}/${st.ringN} 颗` +
     ` · ${inst.speed_cur} 拍走 1 格（快档 ${inst.speed_fast} / 慢档 ${inst.speed_slow}）` +
+    (A().speed === 'auto'
+      ? ` · FFTLevel ${A().fft | 0}（阈值 ${FW.LED_FFT_THRESHOLD} → ${speedWhich() === 'fast' ? '快档' : '慢档'}）`
+      : ' · 手动档') +
     ` · 倍率 ${stageRate()}×` +
     ` · 第 ${selFx + 1}/${fxList().length} 条`, 24, 44);
   ctx.fillStyle = TC.dim || TC.label;
@@ -6364,15 +6447,24 @@ function buildAnimPanel() {
     A().previewTarget = $('#aTarget').value;
     resetSim(); fillPresetSelect(); applyFrame(); saveStore();
   };
-  /* 速度档：auto 时快慢由下面那个「音乐来了」按钮决定
-   * （对应固件 ring_set_audio_level() 切 ring->speed_cur 那一下） */
+  /* 速度档：auto 时按「音乐音量」(FFTLevel) 判快慢（对应固件 ring_set_audio_level()） */
   $('#aSpeed').onchange = () => {
     A().speed = $('#aSpeed').value;
     syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
   };
+  /* FFTLevel 滑杆：拖动就是手动模拟「音乐一会儿响一会儿静」 */
+  $('#aFft').oninput = () => {
+    A().fft = Math.max(0, Math.min(255, +$('#aFft').value || 0));
+    A().audio = false;                 /* 手一拖就接管，别再让自动跳盖掉 */
+    syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+  };
+  $('#aFft').onchange = () => saveStore();
+  /* 「音乐来了」= 播放时让 FFTLevel 按鼓点自己跳（暂停时音量不动，看不出变化） */
   $('#aAudio').onclick = () => {
     A().audio = !A().audio;
     syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+    status(A().audio ? '音乐来了：播放起来，音量会按鼓点跳，动画跟着忽快忽慢'
+                     : '音乐停了：音量停在当前值（拖滑杆可手动改）');
   };
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };
   $('#aPlay').onclick   = () => { playToggle(!A().playing); saveStore(); };
@@ -6506,18 +6598,37 @@ function loop(t) {
   if (!boardOn && !stageOn) { acc = 0; accS = 0; return; }
   const dt = Math.min(t - lastT, 200);         /* 标签页切回来时不要疯狂追帧 */
   lastT = t;
+  /* 「音乐来了」：FFTLevel 按**真实时间**走（20ms 一拍），与预览倍率无关 ——
+   * 音乐不会因为你放慢预览就变慢。两边预览用的是同一个值，跟固件里那个全局
+   * mainAppCt.FFTLevel 一样；每拍用它走一遍 ring_set_audio_level() 的判据。 */
+  const audioOn = (A().speed === 'auto') && !!A().audio;
+  if (audioOn) {
+    fftAcc += dt;
+    while (fftAcc >= 20) { fftAcc -= 20; fftTickN++; }
+    A().fft = fftDemoLevel(fftTickN);
+  }
   if (boardOn) {
     acc += dt;
     const tickMs = 20 / (A().rate || 1);
+    const s = S();
     let guard = 0;
-    while (acc >= tickMs && guard++ < 500) { acc -= tickMs; simTick(S(), state, fixOn()); }
+    while (acc >= tickMs && guard++ < 500) {
+      acc -= tickMs;
+      if (audioOn) simSetAudioLevel(s, A().fft);   /* 换档 → 广播到各实例的 speed_cur */
+      simTick(s, state, fixOn());
+    }
   } else acc = 0;                              /* 停着的那边别攒时间 */
   if (stageOn) {
     accS += dt;
     const tickMs = 20 / stageRate();
     let guard = 0;
-    while (accS >= tickMs && guard++ < 500) { accS -= tickMs; instTick(stageInst); }
+    while (accS >= tickMs && guard++ < 500) {
+      accS -= tickMs;
+      if (audioOn) stageSetSpeed(stageInst);
+      instTick(stageInst);
+    }
   } else accS = 0;
+  if (audioOn) syncAudioBtn();          /* 读数 / 滑杆跟着音量走（每帧只写文本，不重画灯板） */
   render();
   maybeFixDiag();
   requestAnimationFrame(loop);
@@ -6534,7 +6645,9 @@ const FALL_NAME = [['cos','余弦窗'], ['linear','线性'], ['hard','硬边'], 
  * 脉动的形状固定三角（= 呼吸），「一亮一灭 / 渐暗后跳回」请用配色「跳变」。 */
 const LAYER_FIELDS = {
   spot: [
-    ['光点数','count',1,32], ['光宽','width',1,255], ['相位','phase',0,255],
+    ['光点数','count',1,32], ['光宽','width',1,255],
+    ['间距','spacing',0,255,'0 = 按光点数均布（整环 ÷ 点数）。\n> 0 = 相邻两点的中心相隔几颗灯 —— 想让几个点聚在一起跑就调小，想拉开就调大。\n只对光点层有用；间距 × 点数超过环长时，后面的点会绕回来叠在前面的点上。'],
+    ['相位','phase',0,255],
     ['脉动周期','pulse_period',0,255,'0 = 不脉动（三角 = 呼吸）'], ['脉动深度','pulse_amp',0,255],
   ],
   twinkle: [
@@ -6579,6 +6692,15 @@ function stageParams() {
 /* 编辑台的播放倍率（老工程里的 stage 没有 rate，兜底 1× = 固件节拍 20ms）。
  * 它与「动画」页的 A().rate 分开算：播放条上调倍率不该把灯板预览也带快。 */
 function stageRate() { return +stageParams().rate || 1; }
+/* 编辑台的实例也跟着当前速度档跑：档位信号来自 ring（手动档 / FFTLevel 判档），
+ * 各效果仍用自己配的 fast/slow —— 与灯板预览、生成代码走同一条链。
+ * 「音乐来了」播放时每拍调一次，编辑台里也能看到快慢切换。 */
+function stageSetSpeed(inst) {
+  if (!inst) return;
+  const r = { speed_slow: inst.speed_slow, speed_fast: inst.speed_fast,
+              speed_cur: (speedWhich() === 'fast') ? inst.speed_fast : inst.speed_slow };
+  inst.speed_cur = instSpeedFromRing(inst, r);
+}
 /* 按当前选中的效果重建编辑台实例；换效果才重置进度，改参数则保留 */
 function stageSync(force) {
   /* 用 editTarget()：微调某条绑定的「覆盖参数」时，编辑台要画那份覆盖，
@@ -6587,9 +6709,10 @@ function stageSync(force) {
   if (!e) { stageInst = null; stageEffectId = null; return null; }
   /* 缓存的键要区分「原效果」和「覆盖」—— 两者 id 相同，只看 id 会一直画旧快照 */
   const key = (editBinding ? 'bind:' : 'eff:') + (e.id || '');
-  if (stageInst && !force && stageEffectId === key) return stageInst;
+  if (stageInst && !force && stageEffectId === key) { stageSetSpeed(stageInst); return stageInst; }
   stageInst = instNew();
   simApplyEffect(stageInst, e, effectIndex(state, e.id), state);
+  stageSetSpeed(stageInst);
   if (!stagePlaying) stageSampleFrame(stageInst);
   stageEffectId = key;
   return stageInst;
@@ -6655,7 +6778,7 @@ function selEffect() { return fxList()[selFx] || null; }
 function mkLayer(kind) {
   const base = { kind, en:1, pulse_period:0, pulse_amp:0, direction:1, bounce:0,
                  spans:0, rotate:0, lo:0, hi:255, level:255, density:48, rate:4,
-                 count:1, width:8, phase:0, falloff:'cos' };
+                 count:1, width:8, phase:0, falloff:'cos', spacing:0 };
   return base;
 }
 
@@ -6884,7 +7007,9 @@ const FX_PRESETS = [
   { name:'双点追逐',        make: () => ({ moves:true, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('spot'),  { count:2, width:6, falloff:'cos' }) ] }) },
   { name:'多点追逐(4)',     make: () => ({ moves:true, color:1, c1:[255,0,0], slow:10, fast:1, speed:2,
-      layers:[ Object.assign(mkLayer('spot'),  { count:4, width:4, falloff:'cos' }) ] }) },
+      /* spacing 6 @24 灯 = 整环 ÷ 4（等比缩放到别的分区就是均布）；
+       * 想「4 个点聚成一段一起跑」把「间距」调小，「拉开」调大。 */
+      layers:[ Object.assign(mkLayer('spot'),  { count:4, width:4, spacing:6, falloff:'cos' }) ] }) },
   { name:'拖尾彗星',        make: () => ({ moves:true, color:0, c1:[0,180,255], slow:10, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('spot'),  { count:1, width:12, falloff:'tail' }) ] }) },
   { name:'摆动(往返)',      make: () => ({ moves:true, color:0, c1:[255,120,0], slow:12, fast:1, speed:0,

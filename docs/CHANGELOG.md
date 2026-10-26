@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-10-26 —— 多点追逐加「间距」+ 快慢档接上 FFTLevel（跟着音乐变）
+
+**动机**（用户原话）：「你提到的间距这个想法很好，可以加上。……在固件中，【mainAppCt.FFTLevel】这个变量就是来决定动画快慢切换的，它是一个类似于音乐节奏变化的变量。当大于某一个设定值，动画就变快速，小于等于时就慢速……老的算法，是指【CFG_FUNC_SPI_RGB_EN】这个功能，而不是【CFG_FUNC_LED_RING_EN】，切记这一点。」
+
+**改动**：
+- **图层「间距」**（`spacing`）：`genSpot()` 里 `step = spacing > 0 ? zoneScaled(spacing)*256 : rd/count` —— 0 = 按点数均布（老行为，字段缺省也是它），> 0 = 固定中心距（「4 个点聚成一段一起跑」这类）。界面在「光宽」后加一格「间距」（0..255，0 = 均布）；导出 `led_gen_layer_t` **末尾新增一列**（17 → 18），C 模板 `led_gen_spot()` 同步；预置「多点追逐(4)」写 `spacing: 6`（24 灯均布值）。
+- **FFTLevel → 速度档**：core 新增 `ringSpeedFromAudio(r, level)`（`level > FW.LED_FFT_THRESHOLD`(=4) → fast，否则 slow）与 `simSetAudioLevel(sim, level)`（等价 `ring_set_audio_level()`：写 ring 级 `speed_cur` 再广播）；`simInit()` 加 `audio_level`。
+- **界面**：「速度档」下面新增 **「音乐音量」滑杆**（= FFTLevel 0..255）+ 实时读数「`N → 快档/慢档（阈值 4）`」；「音乐来了」改成「音量自己跳」（`fftDemoLevel()`：50 拍一轮、真实时间、不受播放倍率影响），播放时灯板与效果编辑台同时换档；`A().fft` 随项目存盘，老存档 `audio:true` 幂等迁成 `fft=255`；编辑台标题栏显示当前 FFTLevel 与档位。
+
+**测试**：`test_effects_core` 新增 §4b（spacing：均布 / 聚拢 / 拉开 / 等比缩放 / 缺字段等价）与 §9b（阈值边界 4→慢 5→快、夹 0..255、退化配置、切档不动 `step_cnt`）；`test_anim2` D 段改成「滑杆 → 读数 → 单步节拍数」（慢 12 拍 / 快 1 拍）；`test_effects_c` 数 18 列并断言 `spacing` 字段注释；`test_fx_presets` §14 改数 6 个数字框；`test_effects_c_exec` 新增「光点间距」模式（3 点 / 间距 4，分区 8 / 24 / 104）逐字节比对；`test_help` 断着 FFTLevel / 阈值 / `CFG_FUNC_SPI_RGB_EN` 三个词；`test_fx_presets` 新增 §15（4 项：预置带 `spacing=6` → 改「间距」格落到图层 → 3 与均布画出来不一样）。全量 26 套件 / **1787 项** / 0 FAIL。
+
+**影响**：`docs/audit/fx.md` 新增 F13（间距）/ F14（FFTLevel 联动）；`invariants.md` 第 1 条改写 + 新增第 12 / 13 条；导出头文件**多 1 列**（`spacing`，追加在末尾，前面的列没动）。固件侧不需要新补丁：写 `ring->speed_cur` 的仍是 `spimled_service.c` 的 `ring_set_audio_level()`（老 SPI RGB 灯功能里那条），生成代码每拍照旧从 ring 级同步。
+
+---
+
 ## 2026-10-26 —— 动画与色彩分离：图层的「本层取色 / 波形」退休
 
 **动机**（用户原话）：「【本层取色】这个选项，我觉得不需要了。因为所有的动画色彩管理都是在【色彩配置】中，就是想做到动画和色彩分离。还有【波形】这个选项似乎也是多余的。……最后所有的动画算法以及色彩管理都是以此工具为准的。」

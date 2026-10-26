@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1760 项断言。五类：
+26 个套件、1787 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -170,7 +170,11 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 
 
-工具本体功能完整、1760 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1760 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+35. **速度档必须经过 `mainAppCt.FFTLevel` 这条链，不是「有声音」布尔**（2026-10-26，用户「在固件中，【mainAppCt.FFTLevel】这个变量就是来决定动画快慢切换的，它是一个类似于音乐节奏变化的变量。当大于某一个设定值，动画就变快速，小于等于时就慢速……老的算法，是指【CFG_FUNC_SPI_RGB_EN】这个功能，而不是【CFG_FUNC_LED_RING_EN】，切记这一点」）：以前「自动」档下面只有一个「音乐来了」按钮，按下去直接把 `ring->speed_cur` 定成快档 —— 固件里真正的判据（`FFTLevel > LED_FFT_THRESHOLD ? 快 : 慢`）在界面上完全看不见，也没法演示「音乐一段响一段静，动画忽快忽慢」。现在：① `A().fft` = `mainAppCt.FFTLevel`（0..255），界面是「音乐音量」滑杆；`speedWhich()` 只在 `speed === 'auto'` 时拿 `fft > FW.LED_FFT_THRESHOLD(=4)` 判档（**「大于」，等于 4 还是慢**）；② 判完一律走 `simSetAudioLevel(sim, fft)` → 写 ring 级 `speed_cur` → `simSyncSpeed()` 广播（等价固件 `ring_set_audio_level()`；**不许**在 UI 里直接改实例的 `speed_cur`，效果编辑台用 `stageSetSpeed()` 走同一条链）；③ 切档**只改 `speed_cur`、不动 `step_cnt`**（正在走的这一格不能跳），`audio_level` 夹在 0..255；④ 「音乐来了」= `fftDemoLevel(tick)` 按鼓点自己跳（50 拍一轮、按**真实时间** 20ms 一拍，不受播放倍率影响 —— 音乐不会因为你放慢预览就变慢），灯板与编辑台共用同一个值；⑤ 老存档只有 `audio` 布尔 → `A()` 里幂等迁成 `fft = audio ? 255 : 0`（打开老工程立刻还是快档）；⑥ 判档仍保守：`fast >= slow` 一律慢档（`ringIsFast()`，与生成代码的 C 表达式一致）。`test_effects_core` §9b（阈值边界 / 夹紧 / 退化 / 不动 `step_cnt`）与 `test_anim2` D 段（滑杆 → 读数 → 单步节拍数）守着。
+
+36. **光点的「间距」= `spacing`，0 是均布（老行为）**（2026-10-26，用户「你提到的间距这个想法很好，可以加上」）：`genSpot()` 里 `count` 个点原先只能严格均布（`step = rd / count`），「4 个点聚成一小段一起跑」做不出来。现在 `step = (spacing > 0) ? max(1, zoneScaled(spacing)) * 256 : rd / count`：**0 / 缺字段 = 均布**（`normalizeEffect` 不补这个字段也不会变行为，`test_effects_core` 4b 断着「逐值相同」），**只有 `spacing > 0` 那一支才夹「至少 1 颗灯」** —— 均布分支在 `count > len` 时本来就是小子 1 颗灯，给它加夹紧会悄悄改老效果。三处必须一起改：`genSpot()` / C 模板 `led_gen_spot()`（`if ((L->spacing > 0u) && (step < 256)) step = 256;`）/ `layerNums()`；导出 `led_gen_layer_t` 的 `spacing` 是**末尾第 18 列**（前面 17 列一个都不许挪位，`test_effects_c` 数着列数、`test_effects_c_exec` 逐字节比）。间距 × 点数超过环长时后几个点会绕回盖到前几个上（取最大值），这是允许的，别加「自动收窄」。
+
+工具本体功能完整、1787 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1787 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

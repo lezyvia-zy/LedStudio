@@ -76,10 +76,12 @@ const lay = h2.slice(h2.indexOf('static const led_gen_layer_t'), h2.indexOf('};'
 ok((lay.match(/^    \{/gm) || []).length === 1, '图层表 1 行');
 ok(!/hue_spread|hue_speed|cmode|LED_GEN_CMODE/.test(lay) && !/LED_GEN_CMODE/.test(h2),
    '图层行里没有 hue_spread / hue_speed / cmode（取色归效果级配色）');
-/* F5: 字段顺序 kind, en, count, ...（en 紧跟 kind），末尾是 wave, flags */
+/* F5: 字段顺序 kind, en, count, ...（en 紧跟 kind），末尾是 wave, flags, spacing */
 const layRows = (lay.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
-ok(layRows.length === 1 && layRows[0].length === 17 && layRows[0][0] === 2 && layRows[0][1] === 1,
-   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 17 个 / 2 / 1）`);
+ok(layRows.length === 1 && layRows[0].length === 18 && layRows[0][0] === 2 && layRows[0][1] === 1,
+   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 18 个 / 2 / 1）`);
+ok(/uint8_t spacing;\s+\/\* SPOT: centre distance/.test(h2),
+   '结构体末尾多了 spacing（光点间距，0 = 按 count 均布）');
 
 console.log('--- 内建「单点追逐」由生成代码自画（不再调平台原语，平顶光带）---');
 ok(hdr.includes('static void led_gen_anim_chase_single(uint8_t *mask, uint8_t len, int16_t pos, uint8_t width)'),
@@ -143,8 +145,8 @@ console.log('--- F5) 图层「启用」：旁路的层照样写进表里，只�
   const l5 = h5.slice(h5.indexOf('static const led_gen_layer_t'),
                       h5.indexOf('};', h5.indexOf('static const led_gen_layer_t')));
   const r5 = (l5.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
-  ok(r5.length === 2 && r5.every(r => r.length === 17) && r5[0][1] === 0 && r5[1][1] === 1,
-     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 17）`);
+  ok(r5.length === 2 && r5.every(r => r.length === 18) && r5[0][1] === 0 && r5[1][1] === 1,
+     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 18）`);
   ok(r5[0][0] === 2 && r5[1][0] === 2, '两层都还是填充图层（kind=2），表行数不因旁路而变');
   const zh5 = exportEffectsC(st3, { form:'header', comment:'zh', eol:'lf' });
   ok(/被旁路的层/.test(zh5), '中文注释模式下那条 continue 的说明是中文（ASCII 模式走英文，见上面整体检查）');

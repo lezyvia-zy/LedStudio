@@ -11,7 +11,7 @@ const mk = len => new Uint8Array(len);
 /* 图层不再产色（「本层取色」退休）：原语只写 mask，不碰 hue[] */
 const SP = (m, len, pos, L, g) => genSpot(m, len, pos,
   Object.assign({ kind:'spot', count:1, width:8, phase:0, falloff:FALL.COS, pulse_period:0,
-                  pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1 }, L), g || 255);
+                  pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1, spacing:0 }, L), g || 255);
 
 /* ---- 1) SPOT(count=1, 硬边, 无脉动) 仍必须逐字节等于 chaseSingle ----
  * 内建「单点追逐」= 一条平顶光带（带内一律 255，带外 0，无边缘衰减），
@@ -126,6 +126,45 @@ console.log('--- 多点与拖尾 ---');
   ok(peak === 255, '拖尾头部达 255');
   ok(back > front, `单边拖尾：头后方 ${back} > 前方 ${front}`);
 }
+
+/* ---- 4b) 光点间距（spacing）：0 = 均布，> 0 = 固定中心距 ----
+ * 「多点追逐」要几个点聚成一段一起跑时用 —— 均布只有「整环 ÷ 点数」一个值。 */
+console.log('--- 光点间距（spacing）---');
+{
+  const len = 24;
+  /* 均布：4 个点相隔 24/4 = 6 颗（genSpot 只做 max 叠亮、不清屏，每个 case 用新 mask） */
+  const m = mk(len);
+  SP(m, len, 0, { count: 4, width: 1, falloff: FALL.HARD, spacing: 0 });
+  const at = [];
+  for (let i = 0; i < len; i++) if (m[i] > 0) at.push(i);
+  ok(at.join(',') === '0,6,12,18', `spacing=0（均布）：亮点在 ${at.join(',')}`);
+  /* 固定间距 3 颗：4 个点挤在前 12 颗里 */
+  const m3 = mk(len);
+  SP(m3, len, 0, { count: 4, width: 1, falloff: FALL.HARD, spacing: 3 });
+  const at3 = [];
+  for (let i = 0; i < len; i++) if (m3[i] > 0) at3.push(i);
+  ok(at3.join(',') === '0,3,6,9', `spacing=3：亮点在 ${at3.join(',')}（聚成一段）`);
+  /* 间距大于均布值：点拉开到 8 颗 → 0/8/16 加上绕回来盖在 0 上的第 4 个 */
+  const m8 = mk(len);
+  SP(m8, len, 0, { count: 4, width: 1, falloff: FALL.HARD, spacing: 8 });
+  const at8 = [];
+  for (let i = 0; i < len; i++) if (m8[i] > 0) at8.push(i);
+  ok(at8.join(',') === '0,8,16', `spacing=8：亮点在 ${at8.join(',')}（第 4 个绕回 0，取最大值）`);
+  /* 按 24 灯标称等比缩放：同样 spacing=6 到 48 灯的分区 = 12 颗 */
+  const m48 = mk(48);
+  SP(m48, 48, 0, { count: 4, width: 1, falloff: FALL.HARD, spacing: 6 });
+  const at48 = [];
+  for (let i = 0; i < 48; i++) if (m48[i] > 0) at48.push(i);
+  ok(at48.join(',') === '0,12,24,36', `48 灯分区：spacing=6 等比缩放成 12 颗 → ${at48.join(',')}`);
+  /* 间距调成 0 / 不填 = 老存档行为（均布），逐字节不变 */
+  const a0 = mk(len), aOld = mk(len);
+  const baseL = { count: 3, width: 4, phase: 0, falloff: FALL.COS, pulse_period: 0, pulse_amp: 0,
+                  wave: 0, direction: 1, bounce: 0 };
+  genSpot(a0,   len, 100, Object.assign({ spacing: 0 }, baseL), 255);
+  genSpot(aOld, len, 100, baseL, 255);              /* 老存档：压根没有 spacing 字段 */
+  ok(a0.join(',') === aOld.join(','), 'spacing=0 与「没有 spacing 字段」（老存档）逐值相同');
+}
+
 
 /* ---- 5) FILL 呼吸 ---- */
 console.log('--- 填充 / 呼吸 ---');
@@ -315,6 +354,40 @@ console.log('--- 速度档（ring 级 → 实例）---');
   sim.speed_slow = 8; sim.speed_fast = 8; sim.speed_cur = 8;
   simSyncSpeed(sim);
   ok(sim.insts[0].speed_cur === 8, '参数退化（fast == slow）时按慢档走，不切档');
+}
+
+/* ---- 9b) 音乐音量 → 速度档：FFTLevel > LED_FFT_THRESHOLD（固件那句判据）---- */
+console.log('--- FFTLevel → 速度档（> 阈值才快）---');
+{
+  const { FW, simInit, instNew, ringSpeedFromAudio, simSetAudioLevel, simTick } = CORE;
+  ok(FW.LED_FFT_THRESHOLD === 4, `阈值就是固件的 LED_FFT_THRESHOLD = ${FW.LED_FFT_THRESHOLD}`);
+  const sim = simInit();
+  sim.insts = [Object.assign(instNew(), { speed_slow: 8, speed_fast: 1, speed_cur: 8 })];
+  ok(sim.audio_level === 0, 'ring 级音频电平从 0 起步（安静）');
+  ok(ringSpeedFromAudio(sim, 0) === 8 && ringSpeedFromAudio(sim, 4) === 8,
+     '0 / 4（等于阈值）还是慢档 —— 判据是「大于」，不是「大于等于」');
+  ok(ringSpeedFromAudio(sim, 5) === 1 && ringSpeedFromAudio(sim, 255) === 1,
+     '5 / 255（大于阈值）切快档');
+  /* 走一遍 simSetAudioLevel()：音量本身、ring 级档位、各实例 speed_cur 一起变 */
+  simSetAudioLevel(sim, 40);
+  ok(sim.audio_level === 40 && sim.speed_cur === 1 && sim.insts[0].speed_cur === 1,
+     '音量 40 → ring 级 1、实例 speed_cur 也变成 1（等价 ring_set_audio_level()）');
+  /* 每个 8 拍走一格；切回安静后一次走满 8 拍 */
+  simSetAudioLevel(sim, 0);
+  ok(sim.audio_level === 0 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
+     '音乐停了（音量 0）→ 回到慢档 8');
+  /* 夹到 0..255，别让界面传负数/超界把判据弄反 */
+  ok(simSetAudioLevel(sim, -5) === 0 && simSetAudioLevel(sim, 999) === 255,
+     '音量夹在 0..255（-5 → 0、999 → 255）');
+  /* 退化配置（fast 不小于 slow）时，即便音量很大也走慢档 —— 与 C 的判据一致 */
+  sim.insts[0].speed_fast = 8; sim.insts[0].speed_slow = 8;
+  simSetAudioLevel(sim, 200);
+  ok(sim.insts[0].speed_cur === 8, 'fast == slow 时音量再大也不切档（与 ringIsFast 同一条判据）');
+  /* 换档不改 step_cnt：相位不跳（固件每拍只写 speed_cur） */
+  sim.insts[0].speed_fast = 1; sim.insts[0].speed_slow = 8;
+  sim.insts[0].step_cnt = 3;
+  simSetAudioLevel(sim, 200);
+  ok(sim.insts[0].step_cnt === 3, '切档不重置 step_cnt（正在走的这一格不会跳）');
 }
 
 

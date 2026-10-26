@@ -643,7 +643,7 @@ console.log('--- 单点追逐（第一个逐个优化的模板）---');
   ok(!('cmode' in e.layers[0]) && !('hue_speed' in e.layers[0]) && !('hue_spread' in e.layers[0]),
      '图层里没有 cmode / hue_*（取色归效果配色）');
 
-  /* 图层卡：3 个下拉（衰减 / 方向 / 往返）+ 5 个数字框（点数 / 宽 / 相位 / 脉动周期 / 深度） */
+  /* 图层卡：3 个下拉（衰减 / 方向 / 往返）+ 6 个数字框（点数 / 宽 / 间距 / 相位 / 脉动周期 / 深度） */
   const box = byId.get('fLayers').children[0];
   const sel = [], num = [];
   (function walk(n) { (n.children || []).forEach(c => {
@@ -651,7 +651,7 @@ console.log('--- 单点追逐（第一个逐个优化的模板）---');
     if (c.tagName === 'INPUT' && c.type === 'number') num.push(c);
     walk(c); }); })(box);
   ok(sel.length === 3, `光点层只剩 3 个下拉（衰减 / 方向 / 往返），实际 ${sel.length}`);
-  ok(num.length === 5, `数字框 5 个（光点数 / 光宽 / 相位 / 脉动周期 / 深度），实际 ${num.length}`);
+  ok(num.length === 6, `数字框 6 个（光点数 / 光宽 / 间距 / 相位 / 脉动周期 / 深度），实际 ${num.length}`);
 
   /* 颜色只由效果配色决定：整环 hue 全是 0xFF 哨兵 */
   const inst = CORE.instNew();
@@ -685,6 +685,52 @@ console.log('--- 单点追逐（第一个逐个优化的模板）---');
   const cr = brightColor([255, 0, 0]), cg = brightColor([0, 255, 0]);
   ok(cr === '255,0,0' && cg === '0,255,0',
      `同一份图层换配色：红 ${cr} / 绿 ${cg}（颜色不再分散在图层里）`);
+}
+
+/* ---- §15) 多点追逐：图层「间距」从预设一路进到渲染 ----
+ * 用户 2026-10-26：「你提到的间距这个想法很好，可以加上」—— 0 = 均布（老行为），
+ * 调小 = 几个点聚成一段一起跑，调大 = 拉开。 */
+console.log('--- 多点追逐：间距 ---');
+{
+  const list0b = () => fxListOf(0);
+  const rowAtb = i => byId.get('fxTbl').children[i].onclick();
+  const bi2 = list0b().findIndex(e => e.kind !== 'custom');
+  rowAtb(bi2);
+  const pick2 = byId.get('fxPresetPick');
+  pick2.value = '多点追逐(4)';
+  const apply2 = byId.get('fxPresetApply');
+  if (apply2 && apply2.onclick) apply2.onclick();
+  await new Promise(r => setTimeout(r, 400));
+  const e2 = list0b()[bi2];
+  ok(e2.layers.length === 1 && e2.layers[0].count === 4, `4 个光点（${e2.layers[0].count} 个）`);
+  ok(e2.layers[0].spacing === 6, `预置带上间距 = ${e2.layers[0].spacing}（24 灯均布值）`);
+
+  /* 图层卡上的「间距」数字框真的接在这个字段上（顺序：点数 / 光宽 / 间距 / 相位 / 周期 / 深度） */
+  const box2 = byId.get('fLayers').children[0];
+  const nums2 = [];
+  (function walk(n) { (n.children || []).forEach(c => {
+    if (c.tagName === 'INPUT' && c.type === 'number') nums2.push(c);
+    walk(c); }); })(box2);
+  const spacingInput = nums2.find(el => String(el.value) === '6');   /* 初始只有「间距」是 6 */
+  if (spacingInput && spacingInput.oninput) {
+    spacingInput.value = '3'; spacingInput.oninput();
+  }
+  await new Promise(r => setTimeout(r, 400));       /* fxListOf 读的是存档快照，等防抖落盘 */
+  ok(list0b()[bi2].layers[0].spacing === 3,
+     `改「间距」格 → 图层 spacing = ${list0b()[bi2].layers[0].spacing}（数字框 ${nums2.map(el => el.value).join('/')}）`);
+
+  const dots = sp => {
+    const x = JSON.parse(JSON.stringify(list0b()[bi2]));
+    x.layers[0].spacing = sp;
+    const ins = CORE.instNew();
+    CORE.simApplyEffect(ins, x, 0);
+    const m = new Uint8Array(24), h = new Uint8Array(24);
+    CORE.renderZoneMaskTo(ins, m, h, 24, 0);
+    const at = []; for (let i = 0; i < 24; i++) if (m[i] > 200) at.push(i);
+    return at.join(',');
+  };
+  const d0 = dots(0), d3 = dots(3);
+  ok(d0 !== d3, `间距 3 与均布画出来不一样：均布 ${d0} / 间距 3 ${d3}`);
 }
 
 
