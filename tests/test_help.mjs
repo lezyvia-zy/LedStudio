@@ -68,6 +68,21 @@ ok(!html.includes('selInput(WAVE_NAME') && !html.includes('selInput(CMODE_NAME')
   ok(/overflow:\s*auto/.test(paneCss), '.pane 设了 overflow:auto（长内容能滚动）: ' + paneCss);
   const rightCss = (html.match(/#right\{[^}]*\}/) || [''])[0];
   ok(/min-height:\s*0/.test(rightCss), '#right 设了 min-height:0（flex 子项才能收缩出滚动条）');
+
+  /* ---- 预览条：速度档 / 音量 / 音乐来了 是「共享变量源」----
+     它必须在 #right 里，但**不能属于任何一个 .pane** —— 否则就变成某一页的私有控件，
+     另一页看不到；而且同一个控件只能有 1 份，否则两页各存一份"音乐状态"就打架。 */
+  const pbAt = rightHtml.indexOf('id="previewBar"');
+  const firstPaneAt = rightHtml.indexOf('class="pane');
+  ok(pbAt > 0, '预览条 #previewBar 在右侧栏里');
+  ok(pbAt > 0 && firstPaneAt > 0 && pbAt < firstPaneAt,
+     '预览条排在第一个 .pane 之前（不属于任何一页，效果页与动画页共用）');
+  ['aSpeed', 'aFft', 'aFftTxt', 'aAudio'].forEach(id => {
+    const n = (html.match(new RegExp('id="' + id + '"', 'g')) || []).length;
+    ok(n === 1, `#${id} 全页只有 1 个（${n} 个 —— 两页共用同一份，不会出现两份状态）`);
+  });
+  ok(/PREVIEW_BAR_PANES\s*=\s*\['fx',\s*'anim'\]/.test(html),
+     '预览条在效果页与动画页露面（模式页等做整板预览时再把 mode 加进 PREVIEW_BAR_PANES）');
 }
 
 

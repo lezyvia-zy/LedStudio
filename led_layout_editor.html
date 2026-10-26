@@ -68,6 +68,20 @@
     color:var(--dim); cursor:pointer; font:inherit; font-size:12px;
   }
   #tabs button.on{color:var(--fg); border-bottom-color:var(--accent)}
+  /* 预览条（常驻）：音乐 → 速度档 那一组**变量源**，不归任何一页 ——
+     效果页（看基础动画随音乐怎么变）与动画页（看整板）共用同一份 state.anim，
+     所以拖一次音量两边一起换档。它压在页签下面不动，只在有预览画布的两页露面
+     （.hide 由 syncPreviewBar() 切；模式页等优化时把 'mode' 加进那张表）。 */
+  #previewBar{
+    flex:0 0 auto; padding:5px 8px 6px; border-bottom:1px solid var(--line);
+    display:flex; flex-direction:column; gap:3px; background:var(--panel);
+  }
+  #previewBar .pr{display:flex; align-items:center; gap:6px; min-width:0}
+  #previewBar .pr>span.lb{flex:0 0 40px; font-size:12px; color:var(--dim)}
+  #previewBar select{flex:1 1 auto; min-width:0}
+  #previewBar input[type=range]{flex:1 1 auto; min-width:56px; margin:0}
+  #previewBar #aFftTxt{flex:0 0 auto; font-weight:400; font-size:11px; color:var(--dim); white-space:nowrap}
+  #previewBar button{flex:0 0 auto; font-size:12px}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
   .pane.on{display:block}
   /* 效果页的「播放」条：钉在这一页底部（翻多长都看得见、一像素都不动）——
@@ -395,6 +409,26 @@
       <button data-tab="help">帮助</button>
     </div>
 
+    <!-- 预览条：音乐 → 速度档的**变量源**（state.anim.speed / fft / audio）。
+         效果页与动画页共用这一份 —— 音量一拖，编辑台与灯板同时换档。
+         模式页暂不露面（等优化模式页时把 'mode' 加进 syncPreviewBar() 那张表）。 -->
+    <div id="previewBar" class="hide">
+      <div class="pr"><span class="lb">速度档</span>
+        <select id="aSpeed" data-tip="用固件里的哪一档速度（慢=产品里空闲时，快=有声音时）。&#10;「自动」= 跟着音乐：样机上 spimled_service.c 每 20ms 调 ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)，FFTLevel 大于阈值 4（LED_FFT_THRESHOLD）就切快档、否则慢档 —— 下面那根「音量」滑杆就是 FFTLevel。&#10;这条联动是老 SPI RGB 灯功能（CFG_FUNC_SPI_RGB_EN）本来就有的，与 LED_RING 那套无关。&#10;效果页和动画页共用这一个开关：在这儿改，编辑台和灯板一起换档。">
+          <option value="slow">慢速 (speed_slow)</option>
+          <option value="fast">快速 (speed_fast)</option>
+          <option value="auto">自动（跟着音乐）</option>
+        </select>
+      </div>
+      <div class="pr"><span class="lb">音量</span>
+        <input type="range" id="aFft" min="0" max="255" step="1" value="0" data-tip="FFTLevel 0..255 —— 就是固件里的 mainAppCt.FFTLevel（音乐越响 / 节奏越强越高）。&#10;固件拿它跟 LED_FFT_THRESHOLD(=4) 比：大于 4 切快档，小于等于 4 走慢档。&#10;只在「速度档 = 自动」时起作用；拖它等于手动模拟「音乐一会儿有一会儿没有」。&#10;暂停状态下拖一下，效果页的编辑台会当场换档（不用先按播放）。">
+        <b id="aFftTxt">0 → 慢档</b>
+      </div>
+      <div class="pr"><span class="lb"></span>
+        <button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 播放时 FFTLevel 按鼓点自己跳（重音冲高 → 衰减），动画就会跟着忽快忽慢。&#10;样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()，按 FFTLevel 改 ring->speed_cur。&#10;效果页按播放、或直接拖上面那根滑杆，看到的都是同一份音量。">音乐来了（音量自己跳）</button>
+      </div>
+    </div>
+
     <div class="pane on" data-pane="zones">
       <fieldset>
         <legend>板级参数（每个项目独立）</legend>
@@ -496,14 +530,7 @@
         </select></label>
         <label class="row"><span>选哪个</span><select id="aPreset"></select></label>
         <div class="hint" id="aTargetHint"></div>
-        <label class="row"><span>速度档</span><select id="aSpeed" data-tip="用固件里的哪一档速度（慢=产品里空闲时，快=有声音时）。&#10;「自动」= 跟着音乐：样机上 spimled_service.c 每 20ms 调 ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)，FFTLevel 大于阈值 4（LED_FFT_THRESHOLD）就切快档、否则慢档 —— 下面那根「音乐音量」滑杆就是 FFTLevel。&#10;这条联动是老 SPI RGB 灯功能（CFG_FUNC_SPI_RGB_EN）本来就有的，与 LED_RING 那套无关。">
-          <option value="slow">慢速 (speed_slow)</option>
-          <option value="fast">快速 (speed_fast)</option>
-          <option value="auto">自动（跟着音乐）</option>
-        </select></label>
-        <label class="row"><span>音乐音量</span><input type="range" id="aFft" min="0" max="255" step="1" value="0" data-tip="FFTLevel 0..255 —— 就是固件里的 mainAppCt.FFTLevel（音乐越响 / 节奏越强越高）。&#10;固件拿它跟 LED_FFT_THRESHOLD(=4) 比：大于 4 切快档，小于等于 4 走慢档。&#10;只在「速度档 = 自动」时起作用；拖它等于手动模拟「音乐一会儿有一会儿没有」。">
-          <b id="aFftTxt" style="flex:0 0 auto; min-width:104px; font-weight:400; color:var(--dim)">0 → 慢档</b></label>
-        <label class="row"><span></span><button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 播放时 FFTLevel 按鼓点自己跳（重音冲高 → 衰减），动画就会跟着忽快忽慢。&#10;样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()，按 FFTLevel 改 ring->speed_cur。">音乐来了（音量自己跳）</button></label>
+        <div class="hint">「速度档 / 音量 / 音乐来了」搬到页签下面那条常驻<b>预览条</b>里了：效果页与这一页共用同一份 —— 在效果页拖音量，编辑台当场换档；在这儿拖，灯板当场换档。</div>
         <label class="row"><span>播放倍率</span><select id="aRate" data-tip="播放倍率：把时间整体拉慢/加快，只影响预览，不影响导出的参数。">
           <option value="0.25">0.25× 慢动作</option>
           <option value="0.5">0.5×</option>
@@ -983,24 +1010,27 @@
           在效果页按下播放，这页的灯板不会跟着动；在这里暂停，也不会影响效果页的编辑台。
           在效果页改参数也<b>不会重置</b>这里的动画进度。</div>
         <div class="hint"><b>在效果页就能看</b>：效果页的「播放」是就地播中央那个编辑台，不用跳页 ——
-          边改参数边看结果。要对到真实灯板，就在上面把「预览对象」选成<b>单独一个效果</b>、再选好那一条
+          边改参数边看结果。<b>「速度档 / 音量 / 音乐来了」在页签下面那条常驻「预览条」里</b>，
+          效果页与这一页<b>共用同一份</b>：在任意一页拖音量，两边的档位一起变（效果页看基础动画本身，
+          这一页看整板映射之后）。要对到真实灯板，就在上面把「预览对象」选成<b>单独一个效果</b>、再选好那一条
           （效果页原来那个「在灯板上看」按钮<b>暂挂起</b>，等「模式」模块完成后回来做）。<br>
           单独预览只是看，<b>不会改动</b>工程里任何模式的分区分配。</div>
         <table>
           <tr><th>控件</th><th>作用</th></tr>
           <tr><td>选哪个</td><td>选要预览的模式 / 效果。</td></tr>
-          <tr><td>速度档 / 音乐音量 / 播放倍率</td><td>速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>：音量滑杆就是固件里的 <code>mainAppCt.FFTLevel</code>，<b>大于阈值 4 切快档</b>、小于等于 4 走慢档（见下）；倍率是把播放时间整体拉慢/加快，方便观察。</td></tr>
+          <tr><td>速度档 / 音量（预览条）</td><td>在<b>页签下面那条常驻条</b>里，效果页与这一页共用同一份。速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>：音量滑杆就是固件里的 <code>mainAppCt.FFTLevel</code>，<b>大于阈值 4 切快档</b>、小于等于 4 走慢档（见下）。</td></tr>
+          <tr><td>播放倍率</td><td>只影响这一页的灯板预览（效果页的编辑台有它自己那一条倍率），不改导出参数。</td></tr>
           <tr><td>播放 / 单步 / 归零</td><td>单步走一格（固件的 speed_cur 个节拍），归零回到起始帧。</td></tr>
           <tr><td>方向修正</td><td>关 = 当前固件的真实表现；开 = 按各分区实际绕行方向反向映射（配 reverse 补丁后的表现）。它下面那行会显示每个分区此刻亮到几号灯。</td></tr>
           <tr><td>显示</td><td>编号 / 圆圈灯位 / 方向箭头 / 动效帧 四个开关，播放中也能随时切。</td></tr>
         </table>
-        <div class="hint"><b>「自动」速度档 / 音乐音量 / 「音乐来了」按钮</b>：这是<b>老 SPI RGB 灯功能
+        <div class="hint"><b>「自动」速度档 / 音量 / 「音乐来了」按钮</b>（都在页签下面那条预览条里，<b>效果页也看得见、也能拖</b>）：这是<b>老 SPI RGB 灯功能
           （<code>CFG_FUNC_SPI_RGB_EN</code>）本来就有的联动</b>，与 <code>CFG_FUNC_LED_RING_EN</code> 那套无关 ——
           固件 <code>spimled_service.c</code> 每 20ms 调
           <code>ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)</code>：<b>FFTLevel 大于 <code>LED_FFT_THRESHOLD</code>(=4)
           就切快档，小于等于就慢档</b>。<br>
-          「音乐音量」滑杆就是 <code>FFTLevel</code> 本身：拖到 4 以下是慢档，5 以上是快档 —— 拖一下就能看到
-          <b>同一段动画突然变快 / 变慢</b>；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代，
+          「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到 4 以下是慢档，5 以上是快档 —— 拖一下就能看到
+          <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代，
           写 <code>ring-&gt;speed_cur</code> 的仍然是它，生成代码每拍从这个 ring 级档位同步进各实例。<br>
           点「音乐来了」= 模拟音乐一直在放：播放时 FFTLevel 按鼓点自己跳（重音冲高 → 余音衰减），
           动画就会跟着忽快忽慢。预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），
@@ -5164,7 +5194,8 @@ function syncAudioBtn() {
   if (t) t.textContent = auto ? `${lvl} → ${fast ? '快档' : '慢档'}（阈值 ${FW.LED_FFT_THRESHOLD}）`
                               : `手动 ${a.speed === 'fast' ? '快档' : '慢档'}`;
   if (b) {
-    b.textContent = a.audio ? '音乐来了：音量自己跳（点掉停）' : '音乐来了（音量自己跳）';
+    /* 文案短一点：它住在 300px 宽的常驻预览条里，长句会把滑杆挤没 */
+    b.textContent = a.audio ? '音乐来了：自己跳（点掉停）' : '音乐来了（音量自己跳）';
     b.classList.toggle('on', !!a.audio);
     b.disabled = !auto;
   }
@@ -6206,8 +6237,20 @@ function renderProjList() {
 }
 
 /* ---------- 面板 ---------- */
+
+/* 预览条（速度档 / 音量 / 音乐来了）在哪些页露面：效果页（看基础动画随音乐怎么变）
+ * 与动画页（看整板映射后的整体效果）。它**不归任何一页** —— 只读写同一份
+ * state.anim（speed / fft / audio），所以两页的档位永远一致，不存在两份"音乐状态"。
+ * 模式页等做整板预览时，把 'mode' 加进这张表就行（一行）。 */
+const PREVIEW_BAR_PANES = ['fx', 'anim'];
+function syncPreviewBar() {
+  const pb = $('#previewBar');
+  if (pb) pb.classList.toggle('hide', PREVIEW_BAR_PANES.indexOf(curPane) < 0);
+}
+
 function tab(name) {
   curPane = name;
+  syncPreviewBar();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
   if (name === 'exp' && exportIsOpen()) showExportKind(expKind);   /* 窗口开着就顺手刷新一遍 */
