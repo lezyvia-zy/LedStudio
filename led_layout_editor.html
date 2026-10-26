@@ -135,6 +135,16 @@
 /* 调色板：一排色块 + 增删键（颜色数就是跳变/呼吸的颜色个数） */
 .palrow{display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-height:24px}
 .palrow .palN{color:var(--dim); font-size:11px; margin-left:2px}
+/* 调色板条目：纯色 = 一个色块；两端渐变 = 一个胶囊，底色就是 A→B 的渐变预览，
+ * 左右两半各是一个透明热区（点哪半改哪端的颜色）—— 所以「一个条目」看起来是
+ * 一条渐变，而不是两个并排的颜色。 */
+.palcell{display:inline-flex; align-items:center; height:26px; border-radius:4px;
+         border:1px solid var(--line); overflow:hidden}
+.palcell.grad{width:72px}
+.palcell.grad .cchip{width:36px; height:24px; border:0; border-radius:0;
+                     background:transparent !important; cursor:pointer}
+.palcell.grad .cchip:hover{outline:1px solid var(--pri-line); outline-offset:-2px}
+.palcell.grad .cchip.palA{border-right:1px dashed #0009}
 /* 取色：色块按钮 + 贴着色块弹出的取色面板 ------------------------------------
  * 这是 RGB 灯珠，「灰 / 暗」几乎用不到 —— 面板主体是色环（点 / 拖 = 选色相，
  * 出来就是满饱和 + 满亮度），原生取色框那张二维色图（饱和度 × 亮度）收进
@@ -173,10 +183,10 @@
 #cpHex{width:100%; height:22px; margin:0 0 6px; padding:1px 4px; border-radius:4px;
        border:1px solid var(--line); background:var(--panel); color:var(--fg);
        font:12px/1.4 Consolas,monospace; text-transform:uppercase}
-#cpAdv{width:100%; text-align:left; height:24px; padding:2px 6px; font-size:12px;
+#cpAdv,#cpExtra{width:100%; text-align:left; height:24px; padding:2px 6px; font-size:12px;
        border:1px solid var(--line); background:var(--panel); color:var(--fg);
        border-radius:4px; cursor:pointer}
-#cpAdv:hover{border-color:var(--pri-line)}
+#cpAdv:hover,#cpExtra:hover{border-color:var(--pri-line)}
 #cpAdvBody{margin:6px 0 0; padding-top:6px; border-top:1px dashed var(--line)}
 #cpSvWrap{position:relative; width:148px; height:110px; margin:0 auto; touch-action:none; cursor:crosshair}
 #cpSvBase{position:absolute; inset:0; border-radius:4px; overflow:hidden; background:#f00}
@@ -190,7 +200,7 @@
 .gord{display:inline-flex; align-items:center; gap:1px}
 .gord button{padding:0 3px; min-width:0; font-size:11px; line-height:18px; height:24px}
 .gradramp{height:16px; border:1px solid var(--line); border-radius:4px; margin:2px 0 0 0}
-#fxPalAdd,#fxPalDel{min-width:26px; padding:2px 6px}
+#fxPalAdd,#fxPalAddGrad,#fxPalDel{min-width:26px; padding:2px 6px}
   label.row>span:first-child{
     flex:0 0 auto; min-width:56px; max-width:104px; color:var(--dim);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -650,10 +660,11 @@
         <div id="fxGradRamp" class="gradramp" data-tip="整条渐变色环（最左 = 起始色 = 相位 0）。播放时整条灯带同色，颜色按「速度」从左边往右走，走完一整圈回到起点。"></div>
         <div class="row" id="rowPal"><span id="fPalLab">调色板</span>
           <span id="fPalette" class="palrow"></span>
-          <button id="fxPalAdd" data-tip="给调色板加一个颜色（最多 16 个）。">+</button>
-          <button id="fxPalDel" data-tip="删掉调色板最后一个颜色（至少留 1 个）。">−</button>
+          <button id="fxPalAdd" data-tip="给调色板加一个纯色条目（最多 16 个）。">+</button>
+          <button id="fxPalAddGrad" data-tip="给调色板加一个「两端渐变」条目：覆盖扫到它时铺成 左色 → 右色 的位置渐变（最多 16 个条目）。&#10;加完点胶囊的左右两半分别选两端的颜色。">+渐变</button>
+          <button id="fxPalDel" data-tip="删掉调色板最后一个条目（覆盖至少留 2 个，其余至少留 1 个）。">−</button>
         </div>
-        <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色；覆盖：颜色按趟轮换（第 r 趟用第 r 个当底色、第 r+1 个盖上去，回绕），几个颜色就轮几个。</div>
+        <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色（渐变条目只取左端色）；覆盖：条目按趟轮换（第 r 趟盖第 r+1 个，回绕），条目是纯色就整块盖过去、是 [A→B] 就铺位置渐变 —— 几个条目就轮几个。</div>
         <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：停留几拍 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。想比 1 拍/级更快 → 抬下面的「步进(级)」。"></label>
         <label class="row" id="rowGradStep"><span>步进(级)</span><input type="number" id="fGradStep" min="1" max="16" data-tip="渐变专用：每动一次在色环上前进几级（1..16，默认 1）。&#10;「速度」回答「几拍动一次」（最小 1 拍），这里回答「一次走几级」—— 想比速度 = 1 还快，就抬这个：一整圈 = 256 × 速度 ÷ 步进 拍（速度 1 + 步进 8 → 32 拍 ≈ 0.64 秒一圈；50Hz 一拍 20ms）。&#10;1 = 老行为（逐拍一级）；最大 16 —— 16 个采样点走完一圈，再多就不是「流动」而是「闪」了。&#10;只改颜色走多快，不动起始色 / 顺序。"></label>
         <div class="hint" id="fxGradStepHint">一整圈 = 256 格 ÷ 每拍几级 × 每几拍动一次</div>
@@ -665,8 +676,6 @@
         <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="255" data-tip="每 N 拍整体转一格；0 = 不动。"></label>
         <label class="row" id="rowCoverDir"><span>覆盖方向</span><select id="fCoverDir" data-tip="往返：盖满之后从另一头把底色盖回来（第 2 趟反向、第 3 趟再反回来），来回交替不停。&#10;单向：每趟都从同一头推过去 —— 盖满后颜色换一种、再从这一头重新盖一遍（像跑马灯从头刷过去）。&#10;两种都是连环的：颜色一趟一换（底色 / 盖色），所以永远不会整条「跳回」；「覆盖灯数」以外的那几颗一直是底色。"><option value="0">往返（来回）</option><option value="1">单向</option></select></label>
         <label class="row" id="rowCoverSpan"><span>覆盖灯数</span><input type="number" id="fCoverSpan" min="0" max="64" data-tip="覆盖等级：一趟最多扫过多少颗灯（0 = 整条分区）。&#10;填 16 就只在前面 16 颗之间来回盖，后面的灯一直保持底色 —— 一条 40 颗的顶环看着就像只有前 16 颗在动。&#10;超过分区灯数按整条算，最大 64。"></label>
-        <label class="row" id="rowCoverMode"><span>覆盖方式</span><select id="fCoverMode" data-tip="纯色：一整块颜色扫过去，边界是硬边（固件的「纯色覆盖」）。&#10;渐变：扫过的区域铺成「底色 → 盖色」的位置渐变，一趟一换面（固件的「渐变色覆盖」，就是 PixelColorCover 用 GradTbl 铺的那种）。&#10;混合：两种轮着来 —— 先「每组趟数」趟纯色、再同样趟数渐变，然后回到纯色……&#10;不管选哪种都是连环的（盖满就换下一趟、颜色一趟一换），方向由上面的「覆盖方向」定。"><option value="0">纯色</option><option value="1">渐变</option><option value="2">混合（纯色 ↔ 渐变）</option></select></label>
-        <label class="row" id="rowCoverGroup"><span>每组趟数</span><input type="number" id="fCoverGroup" min="1" max="16" data-tip="只有「覆盖方式 = 混合」时才用：连着几趟用同一种铺法，这一组扫完就换另一种（第一组永远是纯色）。&#10;1 = 每趟都换（纯色 → 渐变 → 纯色…）；2 = 纯色连着 2 趟、再渐变连着 2 趟…；最大 16。&#10;所以「前几组纯色、后几组变成渐变」就是这儿的组数定的 —— 一个模式里两种铺法都能看到。"></label>
         <label class="row" id="rowPeriod"><span id="fPeriodLab">周期(拍)</span><input type="number" id="fPeriod" min="2" max="600" data-tip="呼吸：一次「灭→亮→灭」多少拍，每过一个周期换一种颜色。&#10;覆盖：一趟（从一头扫到另一头）多少拍 —— 越小越快。往返两趟 = 一个完整的来回。"></label>
       </fieldset>
 
@@ -939,11 +948,11 @@
             <b>渐变</b>：整条同色，随时间在一条<b>颜色环</b>上平滑循环（默认顺序 红→黄→绿→青→蓝→紫→红），快慢由「速度」和「步进」两个数一起定：「速度」= 几拍动一次，「步进」= 一次在环上前进几级（一整圈 = 256 × 速度 ÷ 步进 拍）。这条环是<b>你自己存的一套渐变</b>（「渐变-1 / 渐变-2…」）：<b>起始色</b> = 相位 0 是哪个颜色（等于把整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色按先后排好，相邻两个之间由算法等长补过渡 —— 只要定几个颜色的大致方向就行。改「起始色 / 顺序」动的是<b>库里那一条</b>（用它的效果一起变）；想再来一条，用「<b>新建</b>」（从零开始：默认顺序 + 起点红，跟库里别的都不搭界）或「<b>另存为</b>」（在这条的基础上复制一份微调），原条都一点不动；再在模式页给某条绑定打开「覆盖参数」、用那张卡上的「渐变」下拉换成另一条。<br>
             <b>彩虹</b>：沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）；<b>级数</b> = 走完一轮红→红要多少颗灯（30 颗的圆环填 30，40 颗的顶环填 40）。<br>
             <b>呼吸</b>：<b>暗→亮→暗</b>算一个周期，一个周期换一种颜色（颜色来自调色板）。骨骼就是跳变那套包络，只是<b>渐亮和渐暗一样长</b>、而且走<b>平滑曲线</b>（起步慢、中段快、到顶自然减速）：只填「渐亮=变暗(拍)」和「亮(拍)」两行，「周期(拍)」= 渐亮 × 2 + 亮 <b>自动算好</b>。出厂手感是 40 / 10（1.8 秒一个来回）；20 拍以下会看出一格一格的台阶。同样<b>不落全黑</b> —— 最暗那一拍停在 ≈255/(渐亮+1)，换色就在那儿发生，接缝看不出「抖一下」。<br>
-            <b>覆盖</b>：<b>连环扫</b> —— 第 2 个颜色从一头把第 1 个盖过去，盖满之后换第 1 个颜色接着盖（<b>不会</b>整条跳回底色）。<b>覆盖方向</b>：<b>往返</b> = 盖满就从另一头盖回来，来回交替；<b>单向</b> = 每趟都从同一头重新推过去（像跑马灯从头刷）。一趟多少拍看「<b>速度(拍/趟)</b>」，越小越快。<b>覆盖灯数</b> = 这一趟最多扫过多少颗灯（0 = 整条分区；40 颗的顶环填 16，就只有前面 16 颗在动，后面的灯一直是底色）—— 这就是「覆盖等级」。<b>覆盖方式</b>：<b>纯色</b> = 一整块颜色扫过去（硬边）；<b>渐变</b> = 扫过的区域铺成「底色 → 盖色」的位置渐变，一趟一换面；<b>混合</b> = 两种轮着来 —— 先「<b>每组趟数</b>」趟纯色、再同样趟数渐变、然后回到纯色，所以同一个模式里前几组是纯色、后几组变成渐变（纯色 / 渐变对应固件的「纯色覆盖」「渐变色覆盖」，混用是工具这边组合出来的）。
+            <b>覆盖</b>：<b>连环扫</b> —— 第 2 个<b>条目</b>从一头把第 1 个盖过去，盖满之后换下一个条目接着盖（<b>不会</b>整条跳回底色）。<b>覆盖方向</b>：<b>往返</b> = 盖满就从另一头盖回来，来回交替；<b>单向</b> = 每趟都从同一头重新推过去（像跑马灯从头刷）。一趟多少拍看「<b>速度(拍/趟)</b>」，越小越快。<b>覆盖灯数</b> = 这一趟最多扫过多少颗灯（0 = 整条分区；40 颗的顶环填 16，就只有前面 16 颗在动，后面的灯一直是初始底色）—— 这就是「覆盖等级」。<b>扫过去是一整块还是渐变，看调色板里那个条目</b>：纯色条目 = 一整块颜色（硬边）；<b>[A→B]</b> 条目 = 沿灯位铺 A → B 的位置渐变（「<b>+渐变</b>」加一个，胶囊左右两半分别选两端的颜色；取色面板底部随时能把一个条目改成纯色、或再改回渐变）。两种条目可以混在一个调色板里，于是同一个模式里有的趟是硬边、有的趟是渐变。
           </td></tr>
           <tr><td>对照看配色</td><td>套预置<b>「全点亮(测配色)」</b>：一个满亮填充层，不走位置、不脉动、不铺色相 —— 整条常亮，在这里换「配色」就能直接看出六种配色的差别。</td></tr>
           <tr><td>渐变（起始色 / 顺序）</td><td>只在配色 = 渐变时出现。<b>起始色</b> = 相位 0 显示哪个颜色（= 整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色，‹ › 换前后、+ − 增删，锚点之间自动等长补渐变；下面那条色带就是整条环的预览（最左 = 起始色，播放时颜色从左往右走）。<b>新建</b> = 一条全新的（默认顺序 + 起点红，跟库里别的都不搭界），<b>另存为</b> = 在当前这条的基础上复制一份（渐变-2、渐变-3…），两者都会把这条效果切到新的那条、原条一点不动；<b>删除</b>删掉当前这条（只剩一条时不给删，用到它的效果自动改回第一条）。</td></tr>
-          <tr><td>调色板</td><td>用户自己定的颜色，最多 16 个。纯色用第 1 个；跳变/呼吸按色块个数循环；覆盖也按色块个数轮换 —— 第 r 趟用第 r+1 个当底色、第 r+2 个（回绕）盖上去（也就是每一趟的盖色正好是下一趟的底色），所以放 3 个以上每趟就换一种颜色（只放 2 个就是「主色 / 盖色」来回换）。渐变不用调色板。</td></tr>
+          <tr><td>调色板</td><td>用户自己定的一串<b>条目</b>，最多 16 个。纯色用第 1 个；跳变/呼吸按条目个数循环（渐变条目只取左端色）；覆盖也按条目个数轮换 —— 第 r 趟盖第 r+2 个（回绕），所以放 3 个以上每趟就换一种样子。条目有两种形态：<b>纯色</b>（点「+」加，一个色块）和<b>两端渐变</b>（点「<b>+渐变</b>」加，画成胶囊：左半 = 首色、右半 = 末色，各自可点；整条底就是 A→B 的渐变预览）。渐变条目在覆盖里铺成位置渐变，在跳变/呼吸里只当左端那个纯色用。渐变（颜色环）不用调色板。</td></tr>
           <tr><td>取色面板</td><td>点任何一个色块（调色板 / 渐变起始色 / 渐变顺序 / 分区颜色）都弹同一个面板：<b>色环</b>上点或拖 = 直接选色相（出来就是满饱和、满亮度 —— 灯珠要的就是这种纯色，环顶红 → 顺时针黄、绿、青、蓝、紫）；要灰、要暗、要白，才展开<b>「▸ 高级设置」</b>里的二维色图（横轴 = 饱和，最左是灰；纵轴 = 亮度，最下是黑），或者在色号框里直接敲 <b>#RRGGBB</b>（<b>#0f0</b> 这种三位简写也认）。点面板外面 / 按 Esc / 再点同一个色块收起；改一下立即生效，拖着的时候编辑台 / 灯板当场跟着变。</td></tr>
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
@@ -2134,7 +2143,11 @@ function fxEffectName(e) {
 /* ---- 配色（效果级）------------------------------------------------------
  * 六种模式共用一套字段：
  *   color     : FW.COLOR.*（0 纯色 / 1 渐变 / 3 跳变 / 4 彩虹 / 5 呼吸 / 6 覆盖）
- *   palette   : 用户自定义色板（最多 16 个）—— 纯色 / 跳变 / 呼吸 / 覆盖用
+ *   palette   : 用户自定义条目（最多 16 个）—— 纯色 / 跳变 / 呼吸 / 覆盖用。
+ *               条目两种形态：[r,g,b] 纯色；[r,g,b,r,g,b] 两端渐变（覆盖扫到它时铺位置渐变）。
+ *               其他配色只取条目首端的三色（见 effPalette）。
+ *   cover_span / cover_dir : 覆盖 —— 一趟最多扫几颗（0 = 整条）/ 方向（0 往返、1 单向）；
+ *               扫过去是纯色还是渐变由条目本身决定（老字段 cover_mode / cover_group 已退休）
  *   levels    : 彩虹 —— 走完一轮「红→…→红」要多少颗灯（>= 6，默认 30）
  *   hue_base  : 彩虹起点；hue_speed = 每 N 拍整体转一格（0 = 不转）
  *   period    : 呼吸 / 覆盖 —— 一个周期多少拍（呼吸的周期是算出来的：渐亮 × 2 + 亮）
@@ -2150,38 +2163,41 @@ function fxEffectName(e) {
  * 查表；覆盖每像素一次比较；跳变每帧一次包络（stepEnv，每分区一次除法）+ 每像素
  * 一次乘加。没有浮点，也没有除法落进像素循环。
  * ---------------------------------------------------------------------- */
-const PAL_MAX = 16;                 /* 一个效果最多几个颜色（+ 按钮的上限；C 侧 pal_count 是 8 位，够） */
+const PAL_MAX = 16;                 /* 一个效果最多几个条目（+ 按钮的上限；C 侧 pal_count 是 8 位，够） */
+/* 调色板条目有两种形态：纯色 [r,g,b]，两端渐变 [r1,g1,b1, r2,g2,b2]（首端 → 末端）。
+ * 一个条目就是一个「样子」：覆盖扫到它时，纯色条目是一整块硬边盖过去，渐变条目沿灯位
+ * 铺 A → B 的位置渐变 —— 所以「覆盖方式」这个参数退休了（见 coverEntry）。
+ * 其他配色（纯色 / 跳变 / 呼吸 / 彩虹）只取条目首端那三个数，行为与从前一致。 */
+const PAL_GRAD_LEN = 6;
 function isRgb(c) { return Array.isArray(c) && c.length >= 3; }
-function effPalette(e) {
+function palIsGrad(c) { return Array.isArray(c) && c.length >= PAL_GRAD_LEN; }
+/* 归一化条目：3 个数 = 纯色，6 个数 = 渐变；老存档全是 3 个 → 零迁移。
+ * 没有 palette 时用 c1 / c2 兜底（老效果对象走这一支）。 */
+function effPaletteRaw(e) {
   const p = (e && Array.isArray(e.palette)) ? e.palette.filter(isRgb).slice(0, PAL_MAX) : [];
-  if (p.length) return p.map(c => [c[0] | 0, c[1] | 0, c[2] | 0]);
-  return [(e && e.c1) || [255, 0, 0], (e && e.c2) || [0, 0, 0]];
+  if (p.length) return p.map(c => palIsGrad(c)
+    ? [c[0] | 0, c[1] | 0, c[2] | 0, c[3] | 0, c[4] | 0, c[5] | 0]
+    : [c[0] | 0, c[1] | 0, c[2] | 0]);
+  return [((e && e.c1) || [255, 0, 0]).slice(0, 3), ((e && e.c2) || [0, 0, 0]).slice(0, 3)];
 }
+/* 首端三色：跳变 / 呼吸 / 彩虹、列表色块、导出的 c1 / c2 都只认它 */
+function effPalette(e) { return effPaletteRaw(e).map(c => [c[0], c[1], c[2]]); }
 function effLevels(e) { return Math.max(6, Math.min(255, ((e && e.levels) | 0) || 30)); }
 function effPeriod(e) { return Math.max(2, Math.min(600, ((e && e.period) | 0) || 60)); }
-/* 覆盖（连环）：参与覆盖的灯数 + 两种铺法（可混用）+ 方向。
- *   cover_span  : 一趟扫过多少颗灯（0 = 整条；超过分区长度按整条算）。这就是「覆盖等级」——
- *                 40 颗的分区填 16，就只在前 16 颗之间来回盖，后面 24 颗一直是底色。
- *   cover_mode  : 0 = 纯色（一整块颜色扫过去）
- *                 1 = 渐变（扫过的区域是「底色 → 盖色」的位置渐变）
- *                 2 = 混合（每 cover_group 趟换一次铺法，从纯色开始 —— 前几组纯色、后几组渐变）
- *   cover_dir   : 0 = 往返（盖满后从另一头盖回来）/ 1 = 单向（每趟都从同一头推过去）
- *   cover_group : 混合时每组几趟（1..16，默认 1 = 每趟换)
- * 老存档没有这几个字段 → 整条 + 纯色 + 往返 + 1，正好是旧版「整条被第二种颜色盖掉」的样子
- * （区别只在于新版盖满之后会再用第一种盖回来，不再整条跳回）。 */
-const COVER_SPAN_MAX = 64, COVER_GROUP_MAX = 16;
+/* 覆盖（连环）：参与覆盖的灯数 + 方向。
+ *   cover_span : 一趟扫过多少颗灯（0 = 整条；超过分区长度按整条算）。这就是「覆盖等级」——
+ *                40 颗的分区填 16，就只在前 16 颗之间来回盖，后面 24 颗一直是初始底色。
+ *   cover_dir  : 0 = 往返（盖满后从另一头盖回来）/ 1 = 单向（每趟都从同一头推过去）
+ * 铺法不再有参数：扫到的那颗灯长什么样，由**那一趟盖的调色板条目**决定 ——
+ * 条目是纯色就是硬边，条目是 [A→B] 就铺位置渐变（见 coverEntry / wipeEntryAt）。
+ * 老存档的 cover_mode / cover_group 已退休：normalizeEffect 会把旧数据一次性翻译成
+ * 渐变条目（见那里的迁移注释），之后这两个字段只是留着不读。
+ * 老存档没有 span / dir → 整条 + 往返，正好是旧版「整条被下一种颜色盖掉」的样子 */
+const COVER_SPAN_MAX = 64;
 function effCoverSpan(e) {
   return Math.max(0, Math.min(COVER_SPAN_MAX, (e && e.cover_span) | 0));
 }
 function effCoverDir(e) { return ((e && e.cover_dir) | 0) >= 1 ? 1 : 0; }
-function effCoverMode(e) {
-  const v = (e && e.cover_mode) | 0;
-  return (v === 1 || v === 2) ? v : 0;
-}
-function effCoverGroup(e) {
-  const v = (e && e.cover_group) | 0;
-  return Math.max(1, Math.min(COVER_GROUP_MAX, v || 1));
-}
 /* 渐变步进：每动一次在色环上前进几级（1..16）。
  * 「速度」只说「几拍动一次」，最小 1 拍 —— 想在 1 拍上再快，就把这里抬起来：
  * 一整圈 = 256 × speed / grad_step 拍（speed=1、步进 16 → 16 拍 ≈ 0.32 秒一圈）。
@@ -2348,8 +2364,26 @@ function normalizeEffect(e) {
   if (!Array.isArray(e.palette) || !e.palette.length) {
     e.palette = [(e.c1 || [255, 0, 0]).slice(), (e.c2 || [0, 0, 0]).slice()];
   }
-  const pal = e.palette.filter(isRgb).map(c => [c[0] | 0, c[1] | 0, c[2] | 0]).slice(0, PAL_MAX);
+  const pal = effPaletteRaw(e);
   e.palette = pal.length ? pal : [[255, 0, 0]];
+  /* 覆盖的铺法退休（现在由「条目本身是纯色还是渐变」决定）。老存档 cover_mode 非 0 时
+   * 在这里一次性翻译成渐变条目，迁完把 cover_mode 落成 0 —— 幂等，不会反复转：
+   *   cover_mode = 1（整条渐变）→ 条目 i 变成 [pal[i] → pal[i+1]] 的渐变链，
+   *                              就是旧的「本趟底色 → 本趟盖色」位置渐变；
+   *   cover_mode = 2（混合）    → 按 cover_group 分组：第 0 组留纯色、第 1 组起转渐变。 */
+  if ((e.cover_mode | 0) === 1 || (e.cover_mode | 0) === 2) {
+    const cm = e.cover_mode | 0;
+    const grp = Math.max(1, Math.min(16, (e.cover_group | 0) || 1));
+    const n0 = e.palette.length;
+    e.palette = e.palette.map((c, i) => {
+      if (palIsGrad(c)) return c;
+      if (cm === 2 && ((Math.floor(i / grp) & 1) === 0)) return c;
+      const nx = e.palette[(i + 1) % n0];
+      return [c[0], c[1], c[2], nx[0], nx[1], nx[2]];
+    });
+    e.cover_mode = 0;
+    e.cover_group = 1;
+  }
   e.levels = effLevels(e);
   /* 呼吸：周期 = 渐亮(=渐暗) × 2 + 亮 —— 三段里首尾一样长，落成两行具体值存着
    * （老存档只有 period 的，按老三角波摊成 period/2 + 0 —— 周期不变、曲线软化）；
@@ -2369,12 +2403,11 @@ function normalizeEffect(e) {
   /* 渐变配色用哪一条渐变（渐变色库的 id）；空 = 第一条（渐变-1）。
    * 只归一成字符串：真正的回退在 gradById() —— 它不需要 state 也能兜住。 */
   e.grad = (typeof e.grad === 'string') ? e.grad : (e.grad == null ? '' : String(e.grad));
-  /* 覆盖：参与覆盖的灯数（0 = 整条）+ 铺法（0 纯色 / 1 渐变 / 2 混合）+ 方向（0 往返 / 1 单向）
-   * + 混合的每组趟数；老存档没有 → 整条 + 纯色 + 往返（只有「盖满之后接着用第 1 色盖回来」是新行为）。 */
+  /* 覆盖：参与覆盖的灯数（0 = 整条）+ 方向（0 往返 / 1 单向）；铺法看条目本身，
+   * cover_mode / cover_group 已退休（上面迁移过就落成 0 / 1，不再读）。
+   * 老存档没有 → 整条 + 往返（只有「盖满之后接着用下一个条目盖回来」是新行为）。 */
   e.cover_span = effCoverSpan(e);
   e.cover_dir = effCoverDir(e);
-  e.cover_mode = effCoverMode(e);
-  e.cover_group = effCoverGroup(e);
   return e;
 }
 
@@ -2878,63 +2911,60 @@ function effShape(e) {
            period: effPeriod(e), symmetric: false };
 }
 
-/* 覆盖 = 「这一趟的颜色把上一趟的颜色盖掉 → 下一趟再盖回来 → …」的连环扫：
+/* 覆盖 = 「这一趟的条目把上一趟的样子盖掉 → 下一趟再盖回来 → …」的连环扫：
  *   一趟 period 拍扫完 S 颗灯（S = 覆盖灯数，0 / 超过 len = 整条），扫完立刻换下一趟；
  *   方向由 dir 定：0 = 往返（第 0 趟 0→S-1、第 1 趟 S-1→0…）、1 = 单向（每趟都 0→S-1）；
- *   颜色**按趟轮换**（见 colorUpdate 的覆盖分支）：第 r 趟的底色 = pal[r % n]、盖色 = pal[(r+1) % n]
- *   —— n = 调色板颜色数，放几个就轮几个（n = 2 就是老版的「主色 / 副色交替」）。
- *   所以「盖满之后」不是整条跳回同一种底色，而是**换一种颜色接着盖**；
- *   这也是「不管盖到第几趟，上一趟盖上的那片正好是这一趟的底色」的原因 —— 帧与帧之间没有硬跳。
- *   灯 i 的插值系数写进 hue[i]（0 = 本趟底色，255 = 本趟盖色）；
- *   **只有覆盖模式把 hue[] 当 tint 用**，别的模式仍是 0xFF / 表下标那套哨兵。
- * 铺法（mode）：
- *   0 纯色：扫到的灯 tint = 255（本趟盖色）；没扫到 / 上一趟剩下的 tint = 0（本趟底色 = 上一趟盖色），硬边。
- *   1 渐变：扫到的灯按位置取 i·256/(S-1)：本趟是「底色 → 盖色」的位置渐变，
- *           上一趟那片反过来（255 - g），一趟一换面 —— 与固件 PixelColorCover
- *           用 GradTbl 铺位置渐变是同一个手法。
- *   2 混合：每 group 趟换一次铺法、从纯色开始（前几组纯色、后几组渐变）。铺法跟着
- *           「最后一次扫到它的那趟」走，所以换招那一帧同屏就是「上一趟的纯色段 +
- *           这一趟的渐变段」—— 一个模式里两种铺法都看得到。
+ *   条目**按趟轮换**（见 colorUpdate 的覆盖分支）：第 r 趟盖的是调色板条目 (r+1) % n
+ *   —— n = 调色板条目数，放几个就轮几个（n = 2 就是老版的「主色 / 副色交替」）。
+ * 灯 i 的颜色只取决于「最后一次扫到它的那一趟」盖了哪个条目，所以 hue[i] 存的是**条目索引**
+ * （0..n-1；第 0 趟之前 = 索引 0 = 初始底色），不再是 0..255 的 tint。
+ * 好处有两个：换趟那一帧天然无缝（上一趟那片就是上一趟盖的那个条目本身），而且
+ * 「扫过去是一整块还是渐变」完全由条目决定 —— 屏幕上的铺法不用再拿参数去猜。
  * 第 r 趟扫到第 pos 颗的时刻 = r·period + ⌊pos·period/S⌋（纯整数、无状态），
  * 所以「这一帧每条灯该是什么颜色」直接由 gen_tick 推出来，固件与编辑器逐字节一致。 */
-function coverTint(hue, len, tick, period, span, mode, dir, group) {
+function coverEntry(hue, len, tick, period, span, dir, n) {
   const L = Math.max(2, Math.min(600, (period | 0) || 60));
   let S = span | 0;
   if (S <= 0 || S > len) S = len;
   if (S < 1) return;
-  const G = Math.max(1, Math.min(COVER_GROUP_MAX, (group | 0) || 1));
+  const N = Math.max(1, n | 0);
   const oneWay = (dir | 0) !== 0;
   const T = (((tick | 0) % 0x10000) + 0x10000) % 0x10000;
   const r0 = Math.floor(T / L), q = T - r0 * L;      /* 第几趟 / 趟内第几拍 */
   const even = (r0 & 1) === 0;
   for (let i = 0; i < len; i++) {
-    if (i >= S) { hue[i] = 0; continue; }            /* 不参与的灯：一直是底色 */
+    if (i >= S) { hue[i] = 0; continue; }            /* 不参与的灯：一直是条目 0 */
     const pos = oneWay ? i : (even ? i : (S - 1 - i));
     const qi  = Math.floor((pos * L) / S);           /* 这趟扫到它要等几拍 */
     const ri  = (q >= qi) ? r0 : (r0 - 1);           /* 最后一次扫到它的趟号，-1 = 还没 */
-    if (ri < 0) { hue[i] = 0; continue; }
-    /* 这一趟用什么铺法：单一铺法看 mode；混合看 ri 落在哪一组（第 0 组纯色、第 1 组渐变…） */
-    const grad = (mode === 1) || (mode === 2 && ((Math.floor(ri / G) & 1) === 1));
-    /* tint 只相对**本趟**的颜色对：本趟扫到的 = 盖色（255 / 位置 g），上一趟那片 = 底色（0 / 反向 g） */
-    if (grad) {
-      const g = (S > 1) ? Math.min(255, Math.floor((i * 256) / (S - 1))) : 255;
-      hue[i] = (ri === r0) ? g : (255 - g);
-    } else {
-      hue[i] = (ri === r0) ? 255 : 0;
-    }
+    hue[i] = (ri < 0) ? 0 : ((ri + 1) % N);
   }
 }
 
-/* 覆盖模式专用：按 tint（0..255）在「本趟底色 → 本趟盖色」之间插值。
- * 两个端点色由 colorUpdate 按趟号从调色板取（pal[r] / pal[r+1]），这里是纯插值。
- * 0 / 255 都走精确值（免得纯色模式出现 254 这种毛边），中间用 >>8
+/* 覆盖的「参与灯数」：coverEntry 与渲染取色共用这一条，保证两边算出来的 S 一致 */
+function wipeSpan(c, len) {
+  let S = (c && c.cover_span) | 0;
+  if (S <= 0 || S > len) S = len;
+  return S;
+}
+
+/* 覆盖取色：条目索引 idx 的两端（palette = 首端 / paletteB = 末端）+ 灯位 i。
+ * 纯色条目两端同色 → 整块硬边；渐变条目按 i 在 0..S-1 上插值 → 位置渐变。
+ * 0 / 255 走精确端点（免得纯色条目出现 254 这种毛边），中间用 >>8
  * —— 与导出的 C 逐字节相同（负数算术右移，两边都是向下取整）。 */
-function wipeColorAt(c, t) {
-  if (t >= 255) return c.secondary;
-  if (t <= 0) return c.current;
-  return { r: c.current.r + (((c.secondary.r - c.current.r) * t) >> 8),
-           g: c.current.g + (((c.secondary.g - c.current.g) * t) >> 8),
-           b: c.current.b + (((c.secondary.b - c.current.b) * t) >> 8) };
+function wipeEntryAt(c, idx, i, S) {
+  const pal = (c && c.palette) || [], palB = (c && c.paletteB) || pal;
+  const n = pal.length || 1;
+  const k = (idx | 0) < n ? (idx | 0) : 0;
+  const a = pal[k] || c.current;
+  const b = palB[k] || a;
+  if (!(S > 1)) return b;
+  const t = Math.min(255, Math.floor((i * 256) / (S - 1)));
+  if (t >= 255) return b;
+  if (t <= 0) return a;
+  return { r: a.r + (((b.r - a.r) * t) >> 8),
+           g: a.g + (((b.g - a.g) * t) >> 8),
+           b: a.b + (((b.b - a.b) * t) >> 8) };
 }
 
 /* 把一条效果渲染到给定的 mask/hue 缓冲里。长度可以是任意值 ——
@@ -2944,10 +2974,9 @@ function wipeColorAt(c, t) {
  * hue[] 的约定（全项目统一）：
  *   0xFF      = 用效果当前色（c.current：纯色 / 跳变 / 渐变 / 呼吸）
  *   0x00..0xFD = 直接查 spectrum_tbl（本层空间色相 / 效果级彩虹）
- *   **覆盖模式例外**：hue[] 不再是哨兵，而是 0..255 的 tint（0 = 主色 c.current、
- *   255 = 副色 c.secondary、中间按比例插值 —— 连环覆盖 + 位置渐变都靠它表达）。
- *   覆盖的两个端点色 = **本趟**的底色 / 盖色（pal[r]、pal[r+1]，见 colorUpdate），
- *   所以同一帧里上一趟那片和这一趟扫过的这片用的是同一对颜色 —— 接缝处没有硬跳。
+ *   **覆盖模式例外**：hue[] 不再是哨兵，而是**调色板条目索引**（0..n-1，n = 条目数 ≤ 16）——
+ *   灯 i 最后是被哪一趟盖上的，就显示那一趟盖的那个条目（纯色条目 = 硬边、渐变条目 = 位置渐变，
+ *   见 coverEntry / wipeEntryAt）。所以换趟那一帧是连续的：上一趟那片就是上一趟盖的条目本身。
  * 覆盖模式的判断必须排在「查表」之前。 */
 function renderZoneMaskTo(inst, m, hue, len, pos) {
   const a = inst.anim, c = inst.color;
@@ -2961,9 +2990,9 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     return;
   }
   if (c.type === FW.COLOR.WIPE) {
-    /* 连环覆盖：hue[] 在这里是 tint（0 = 本趟底色 / 255 = 本趟盖色），不再用哨兵 */
+    /* 连环覆盖：hue[] 在这里是**条目索引**（第 r 趟盖条目 (r+1) % n），不再用哨兵 */
     m.fill(255, 0, len);
-    coverTint(hue, len, a.gen_tick, c.period, c.cover_span, c.cover_mode, c.cover_dir, c.cover_group);
+    coverEntry(hue, len, a.gen_tick, c.period, c.cover_span, c.cover_dir, (c.palette || []).length);
     return;
   }
 
@@ -3046,18 +3075,17 @@ function colorUpdate(c, tick) {
         c.current = pal[idx];
       }
       break;
-    /* 覆盖：颜色**按趟轮换** —— 第 r 趟（r = ⌊gen_tick / period⌋）用 pal[r % n] 当底色、
-     * pal[(r+1) % n] 当盖色，所以调色板放 3 个以上时每趟换一种颜色（2 个 = 老行为：
-     * 主色 / 副色交替）。tint（hue[]）只表达「本趟底色 → 本趟盖色」，颜色对在这里定。 */
+    /* 覆盖：条目**按趟轮换** —— 第 r 趟（r = ⌊gen_tick / period⌋）盖的是条目 (r+1) % n，
+     * 所以调色板放 3 个以上时每趟换一个样子（2 个 = 老行为：主色 / 副色交替）。
+     * 这里只更新 phase / current（列表色块、暂停样本帧要用），真正逐灯取色在
+     * wipeEntryAt —— hue[] 里存的是条目索引，不依赖 c.current。 */
     case FW.COLOR.WIPE:
       if (!pal) break;
       {
         const per = c.period > 0 ? c.period : 60;
         const t = (tick == null) ? (c.tick_cnt = (c.tick_cnt + 1) & 0xFFFF) : tick;
-        const idx = Math.floor(t / per) % pal.length;
-        c.phase = idx;
-        c.current   = pal[idx];
-        c.secondary = pal[(idx + 1) % pal.length];
+        c.phase = Math.floor(t / per) % pal.length;
+        c.current = pal[c.phase];
       }
       break;
     /* 彩虹：颜色每帧固定（按像素查表）。 */
@@ -3089,9 +3117,11 @@ function instNew() {
              step_rise: 0, step_hold: 1, step_fade: 0,
              /* 渐变 / 旧双色渐变查的那张 256 级表：默认固件彩虹表，套效果时换成效果选中的渐变 */
              spectrum: FW.spectrum_tbl,
-             palette: [[255, 0, 0]], levels: 30, hue_base: 0, hue_speed: 0, period: 60,
-             /* 覆盖专用：0 = 整条参与、0 = 纯色、0 = 往返、1 = 每组一趟 */
-             cover_span: 0, cover_mode: 0, cover_dir: 0, cover_group: 1 },
+             palette: [{ r: 255, g: 0, b: 0 }], paletteB: [{ r: 255, g: 0, b: 0 }],
+             levels: 30, hue_base: 0, hue_speed: 0, period: 60,
+             /* 覆盖专用：覆盖灯数（0 = 整条参与）+ 方向（0 往返 / 1 单向）；
+                铺法看条目本身（palette 首端 / paletteB 末端同色 = 纯色） */
+             cover_span: 0, cover_dir: 0 },
     speed_slow: 8, speed_fast: 1, speed_cur: 8, step_cnt: 0,
   };
 }
@@ -3233,7 +3263,8 @@ function simSetSpeed(sim, which) {
 /* 效果对象 → ring_preset_t 形状（内建/自定义共用） */
 function effectPreset(eff, idx, state) {
   const mode = eff.color | 0;
-  const pal = effPalette(eff);
+  const pal = effPalette(eff);          /* 首端三色：c1 / c2 与只用首色的配色 */
+  const palRaw = effPaletteRaw(eff);    /* 条目原样（3 / 6 个数）：覆盖要两端 */
   const sh = effShape(eff);          /* 跳变：渐亮/亮/暗 + 停留；呼吸：渐亮/亮/渐亮 + 周期 */
   return {
     anim:  (eff.kind === 'custom') ? (FW.ANIM_COUNT + (idx | 0)) : (eff.anim | 0),
@@ -3247,15 +3278,13 @@ function effectPreset(eff, idx, state) {
     /* 纯色的主色仍以 c1 为准（「覆盖参数」只改 c1 时立刻生效）；
        色板类模式（跳变/呼吸/覆盖/彩虹）以 palette 为准。 */
     c1: mode === FW.COLOR.SOLID ? (eff.c1 || pal[0]) : pal[0],
-    c2: mode === FW.COLOR.WIPE ? (pal[1] || eff.c2 || pal[0])
-                               : (eff.c2 || pal[1] || [0, 0, 0]),
-    palette: pal, levels: effLevels(eff),
+    c2: eff.c2 || pal[1] || [0, 0, 0],
+    palette: palRaw, levels: effLevels(eff),
     hue_base: eff.hue_base | 0, hue_speed: eff.hue_speed | 0,
     period: sh.period, rise: sh.rise, hold: sh.hold, fade: sh.fade,
-    /* 覆盖：参与覆盖的灯数（0 = 整条）+ 铺法（0 纯色 / 1 渐变 / 2 混合）+ 方向（0 往返 / 1 单向）
-       + 混合的每组趟数 */
-    cover_span: effCoverSpan(eff), cover_mode: effCoverMode(eff),
-    cover_dir: effCoverDir(eff), cover_group: effCoverGroup(eff),
+    /* 覆盖：参与覆盖的灯数（0 = 整条）+ 方向（0 往返 / 1 单向）；铺法看条目本身
+       （纯色 = 硬边 / 两端渐变 = 位置渐变），cover_mode / cover_group 已退休 */
+    cover_span: effCoverSpan(eff), cover_dir: effCoverDir(eff),
     /* 呼吸：形状是由 b_rise/b_hold 定出来的，装实例时得能拿回这两个数（否则只剩 period，
      * breathPlan 只能按「老存档 period/2 + 0」摊，用户填的「亮(拍)」就丢了） */
     b_rise: sh.symmetric ? sh.rise : undefined,
@@ -3302,8 +3331,8 @@ function simTick(sim, state, applyReverse) {
 function effectColorAt(inst, i, len, hue) {
   const a = inst.anim, c = inst.color;
   const hh = hue[i];
-  /* 覆盖模式先判：hue[] 是 tint（0 = 本趟底色 / 255 = 本趟盖色），不走下面的查表 */
-  if (c.type === FW.COLOR.WIPE) return wipeColorAt(c, hh);
+  /* 覆盖模式先判：hue[] 是调色板条目索引（不是 tint / 哨兵），按条目 + 灯位取色 */
+  if (c.type === FW.COLOR.WIPE) return wipeEntryAt(c, hh, i, wipeSpan(c, len));
   if (hh !== 0xFF) return FW.spectrum_tbl[hh];
   if (a.type === FW.ANIM.CHASE_DUAL && c.type === FW.COLOR.GRADIENT)
     return (i >= len / 2) ? c.secondary : c.current;
@@ -3415,14 +3444,21 @@ function instApplyPreset(inst, p) {
   inst.anim.mask.fill(0);
   inst.anim.hue.fill(0xFF);
 
-  /* 色板：新字段优先；老调用方（测试 / ring_preset_t 形状）只有 c1/c2 也照常工作 */
+  /* 色板：新字段优先；老调用方（测试 / ring_preset_t 形状）只有 c1/c2 也照常工作。
+   * 条目可以是纯色（3 个数）或两端渐变（6 个数）：首端进 palette、末端进 paletteB ——
+   * 其他配色只用 palette（首端），覆盖按条目取两端（见 wipeEntryAt）。 */
   const asRgb = c => Array.isArray(c)
     ? { r: c[0] | 0, g: c[1] | 0, b: c[2] | 0 }
     : (c && typeof c === 'object' ? { r: c.r | 0, g: c.g | 0, b: c.b | 0 } : { r: 0, g: 0, b: 0 });
-  const pal = (Array.isArray(p.palette) && p.palette.length)
-    ? p.palette.slice(0, PAL_MAX).map(asRgb)
-    : [asRgb(p.c1 || [255, 0, 0]), asRgb(p.c2 || [0, 0, 0])];
+  const asRgbB = c => (Array.isArray(c) && c.length >= PAL_GRAD_LEN)
+    ? { r: c[3] | 0, g: c[4] | 0, b: c[5] | 0 }
+    : asRgb(c);
+  const palSrc = (Array.isArray(p.palette) && p.palette.length)
+    ? p.palette.slice(0, PAL_MAX)
+    : [p.c1 || [255, 0, 0], p.c2 || [0, 0, 0]];
+  const pal  = palSrc.map(asRgb);
   inst.color.palette = pal;
+  inst.color.paletteB = palSrc.map(asRgbB);
   inst.color.levels = p.levels > 0 ? (p.levels | 0) : 30;
   inst.color.hue_base = (p.hue_base | 0) & 0xFF;
   inst.color.hue_speed = (p.hue_speed | 0) & 0xFF;
@@ -3471,18 +3507,14 @@ function instApplyPreset(inst, p) {
       inst.color.type = FW.COLOR.RAINBOW;
       inst.color.current = pal[0];
       break;
-    /* 覆盖：0..255 的 tint 在「本趟底色 → 本趟盖色」之间插值；颜色对由 colorUpdate 按趟号
-     * 从调色板里取（第 r 趟 = pal[r % n] / pal[(r+1) % n]），这里先落到第 0 趟的值 */
+    /* 覆盖：条目按趟轮换（第 r 趟盖条目 (r+1) % n），条目是纯色还是两端渐变决定铺法 ——
+     * 逐灯取色在 wipeEntryAt（hue[] 存条目索引），这里先落到第 0 趟的值 */
     case FW.COLOR.WIPE:
       inst.color.type = FW.COLOR.WIPE;
       inst.color.current = pal[0];
-      {
-        inst.color.secondary = asRgb(pal[1] || p.c2 || pal[0]);
-      }
+      inst.color.secondary = pal[1] || pal[0];
       inst.color.cover_span = p.cover_span | 0;
-      inst.color.cover_mode = p.cover_mode | 0;
       inst.color.cover_dir = p.cover_dir | 0;
-      inst.color.cover_group = p.cover_group | 0;
       break;
     default:
       inst.color.type = FW.COLOR.SOLID;
@@ -3621,7 +3653,7 @@ function modesPlan(state) {
   let modes = (state.modes && state.modes.list) || [];
   if (!modes.length) modes = defaultModesFromEffects(state).list;
   const layerRows = [];
-  const palRows = [];                 /* 所有效果的色板拼成一张表；效果行用 first/count 指进来 */
+  const palRows = [];                 /* 所有效果的色板拼成一张表：每个条目两行（首端 / 末端）；效果行用 first/count 指进来 */
   const gradRows = [];                /* 互不相同的渐变色环（每个 256 行）；效果行用 grad_first 指进来 */
   const gradIdx = new Map();          /* 色环内容 → 起点：多条效果共用一条渐变时只存一份 */
 
@@ -3636,31 +3668,35 @@ function modesPlan(state) {
   };
 
   const rowFromEffect = (e, layerRows0, name) => {
-    const pal = effPalette(e);
+    const pal = effPalette(e);           /* 首端三色：c1 / c2 用它 */
+    const palRaw = effPaletteRaw(e);     /* 条目原样（3 / 6 个数）→ 每个条目占 2 行 */
     const mode = e.color | 0;
     const sh = effShape(e);          /* 跳变：渐亮/亮/暗 + 停留；呼吸：渐亮/亮/渐亮 + 周期 */
     const c1 = (mode === FW.COLOR.SOLID) ? (e.c1 || pal[0]) : pal[0];
-    const c2 = (mode === FW.COLOR.WIPE) ? (pal[1] || e.c2 || pal[0])
-                                        : (e.c2 || pal[1] || [0, 0, 0]);
+    const c2 = e.c2 || pal[1] || [0, 0, 0];
+    /* 色板表：每个条目两行（首端 / 末端；纯色条目两行相同）。覆盖要按条目取两端，
+     * 其他配色取首端那一行（pal_first + 2 * idx）—— 所以 pal_count 仍是条目数 */
     const palFirst = palRows.length;
-    for (const c of pal) palRows.push(c);
+    for (const c of palRaw) {
+      palRows.push([c[0], c[1], c[2]]);
+      palRows.push(palIsGrad(c) ? [c[3], c[4], c[5]] : [c[0], c[1], c[2]]);
+    }
     const base = { ctype: e.color | 0, c1r: c1[0], c1g: c1[1], c1b: c1[2],
                    c2r: c2[0], c2g: c2[1], c2b: c2[2],
                    speed: e.speed | 0, slow: e.slow | 0, fast: e.fast | 0,
-                   /* 覆盖借用 width / gap / hue_base / hue_speed 四个字段带参数
-                      （它是整条效果级，本来用不到这些）：width = 覆盖灯数（0 = 整条）、
-                      gap = 铺法（0 纯色 / 1 渐变 / 2 混合）、hue_base = 方向（0 往返 / 1 单向）、
-                      hue_speed = 混合的每组趟数（1..16）—— 导出结构体不加字段，固件按 ctype 解释。 */
+                   /* 覆盖借用 width / hue_base 两个字段带参数（它是整条效果级，本来用不到它们）：
+                      width = 覆盖灯数（0 = 整条）、hue_base = 方向（0 往返 / 1 单向）。
+                      gap / hue_speed 不再被借：扫过去是纯色还是渐变，看色板条目本身。 */
                    width: (mode === FW.COLOR.WIPE) ? effCoverSpan(e) : (e.width | 0),
-                   gap:   (mode === FW.COLOR.WIPE) ? effCoverMode(e) : (e.gap | 0),
-                   pal_first: palFirst, pal_count: pal.length,
+                   gap:   e.gap | 0,
+                   pal_first: palFirst, pal_count: palRaw.length,
                    /* 渐变 / 旧双色渐变：该效果那张色环在 led_gen_grad 里的起点 */
                    grad_first: (mode === FW.COLOR.SPECTRUM || mode === FW.COLOR.GRADIENT)
                                  ? gradFirstOf(gradTableFor(state, e)) : 0,
                    grad_step: effGradStep(e),
                    levels: effLevels(e),
                    hue_base: (mode === FW.COLOR.WIPE) ? effCoverDir(e) : (e.hue_base | 0),
-                   hue_speed: (mode === FW.COLOR.WIPE) ? effCoverGroup(e) : (e.hue_speed | 0),
+                   hue_speed: e.hue_speed | 0,
                    /* 包络：跳变三段 + 停留；呼吸 = 渐亮/亮/渐亮 + 周期（周期自己算） */
                    period: sh.period, rise: sh.rise, hold: sh.hold, fade: sh.fade,
                    name: name || e.name, latin: e.latin || '' };
@@ -3671,9 +3707,9 @@ function modesPlan(state) {
     const ls = (e.layers || []).slice(0, 8);
     for (const L of ls) layerRows0.push(layerToCRow(L));
     return Object.assign(base, { kind: 1, anim: 0,
-                                 /* 自定义效果不用内建的光宽 / 间隔 —— 覆盖除外（它借用这两个字段） */
+                                 /* 自定义效果不用内建的光宽 / 间隔 —— 覆盖除外（它借用 width 带覆盖灯数） */
                                  width: (mode === FW.COLOR.WIPE) ? effCoverSpan(e) : 0,
-                                 gap:   (mode === FW.COLOR.WIPE) ? effCoverMode(e) : 0,
+                                 gap: 0,
                                  first, count: ls.length, offset: e.offset | 0,
                                  moves: e.moves ? 1 : 0 });
   };
@@ -3995,12 +4031,11 @@ const LED_GEN_IMPL = [
 '        /* @wipesentinel@ */',
 '        uint32_t per = (E->period != 0u) ? E->period : 60u;',
 '        uint16_t S = (uint16_t)E->width;',
-'        uint16_t r0, q, pos, qi, ri, g, grp;',
+'        uint16_t r0, q, pos, qi, ri;',
 '        uint8_t  oneway = (E->hue_base != 0u) ? 1u : 0u;',
-'        uint8_t  graded;',
+'        uint8_t  n = (E->pal_count != 0u) ? E->pal_count : 1u;',
 '        memset(mask, 255, len);',
 '        if (S == 0u || S > (uint16_t)len) S = (uint16_t)len;',
-'        grp = (E->hue_speed != 0u) ? (uint16_t)E->hue_speed : 1u;',
 '        r0 = (uint16_t)((uint32_t)I->anim.gen_tick / per);',
 '        q  = (uint16_t)((uint32_t)I->anim.gen_tick - (uint32_t)r0 * per);',
 '        for (i = 0; i < len; i++) {',
@@ -4011,17 +4046,9 @@ const LED_GEN_IMPL = [
 '            if (q >= qi) ri = r0;',
 '            else if (r0 == 0u) { hue[i] = 0u; continue; }',
 '            else ri = (uint16_t)(r0 - 1u);',
-'            /* graded = 1: this pass lays a positional gradient (E->gap: 0 solid / 1 gradient / 2 mixed) */',
-'            graded = ((E->gap == 1u) || (E->gap == 2u && (((ri / grp) & 1u) != 0u))) ? 1u : 0u;',
-'            if (graded != 0u) {',
-'                g = (S > 1u) ? (uint16_t)(((uint32_t)i * 256u) / (uint32_t)(S - 1u)) : 255u;',
-'                if (g > 255u) g = 255u;',
-'                /* tint is relative to THIS pass: 255 / g = the colour laying now,',
-'                   0 / 255-g = what the previous pass laid (= this pass base). */',
-'                hue[i] = (uint8_t)((ri == r0) ? g : (uint16_t)(255u - g));',
-'            } else {',
-'                hue[i] = (uint8_t)((ri == r0) ? 255u : 0u);',
-'            }',
+'            /* hue = palette entry index of the pass that last reached this LED:',
+'               pass r lays entry (r+1) % n, entry 0 = the fill before pass 0. */',
+'            hue[i] = (uint8_t)((uint16_t)(ri + 1u) % n);',
 '        }',
 '        return;',
 '    }',
@@ -4164,22 +4191,23 @@ const LED_GEN_IMPL = [
 '                    uint8_t n = (E->pal_count != 0u) ? E->pal_count : 1u;',
 '                    I->color.tick_cnt = 0;',
 '                    I->color.phase.current = (int16_t)((I->color.phase.current + 1) % n);',
-'                    I->color.current = led_gen_palette[E->pal_first + I->color.phase.current];',
+'                    I->color.current = led_gen_palette[E->pal_first + 2u * (uint16_t)I->color.phase.current];',
 '                }',
 '            } else if (E->ctype == (uint8_t)LED_GEN_COLOR_BREATH) {',
 '                uint8_t n = (E->pal_count != 0u) ? E->pal_count : 1u;',
 '                uint8_t idx = (uint8_t)((I->anim.gen_tick / ((E->period != 0u) ? E->period : 60u)) % n);',
 '                I->color.phase.current = idx;',
-'                I->color.current = led_gen_palette[E->pal_first + idx];',
+'                I->color.current = led_gen_palette[E->pal_first + 2u * (uint16_t)idx];',
 '            } else if (E->ctype == (uint8_t)LED_GEN_COLOR_WIPE) {',
-'                /* wipe: the colour pair follows pass index r = gen_tick / period.',
-'                   Pass r lays palette[r % n] and wipes palette[(r+1) % n] over it,',
-'                   so a palette of n colours rotates one colour per pass. */',
+'                /* wipe: the pass index r = gen_tick / period drives the colour entry;',
+'                   pass r lays entry (r+1) % n. Only the phase is needed here - the',
+'                   per-LED colour comes from led_gen_palette[pal_first + 2*entry],',
+'                   i.e. entry first / last colour (see led_gen_render_mode). */',
 '                uint8_t n = (E->pal_count != 0u) ? E->pal_count : 1u;',
 '                uint8_t wi = (uint8_t)((I->anim.gen_tick / ((E->period != 0u) ? E->period : 60u)) % n);',
 '                I->color.phase.current = (int16_t)wi;',
-'                I->color.current   = led_gen_palette[E->pal_first + wi];',
-'                I->color.secondary = led_gen_palette[E->pal_first + (uint8_t)((wi + 1u) % n)];',
+'                I->color.current   = led_gen_palette[E->pal_first + 2u * (uint16_t)wi];',
+'                I->color.secondary = led_gen_palette[E->pal_first + 2u * (uint16_t)wi + 1u];',
 '            } else if (E->ctype <= (uint8_t)COLOR_GRADIENT) {',
 '                /* @gradTick@ */',
 '                if (++I->color.tick_cnt >= I->color.spectrum_speed) {',
@@ -4222,15 +4250,28 @@ const LED_GEN_IMPL = [
 '            if (phys >= LED_COUNT) continue;',
 '            hh = led_gen_hue[i];',
 '            if (I->color.type == (uint8_t)LED_GEN_COLOR_WIPE) {',
-'                if (hh >= 255u) col = I->color.secondary;',
-'                else if (hh == 0u) col = I->color.current;',
+'                /* hh = palette entry index (see the wipe block of zone_render).',
+'                   Entry k occupies palette rows pal_first + 2k (first colour) and +1',
+'                   (last colour): a solid entry gives a flat block, a gradient [A->B]',
+'                   entry gives a positional ramp over the covered span. */',
+'                const led_gen_effect_t *WE = &led_gen_effects[I->eff];',
+'                const rgb_t *pa, *pb;',
+'                uint16_t S2 = (uint16_t)WE->width, tt;',
+'                uint8_t  n2 = (WE->pal_count != 0u) ? WE->pal_count : 1u;',
+'                pa = &led_gen_palette[WE->pal_first + 2u * (uint16_t)((hh < n2) ? hh : 0u)];',
+'                pb = pa + 1;',
+'                if (S2 == 0u || S2 > (uint16_t)len) S2 = (uint16_t)len;',
+'                tt = (S2 > 1u) ? (uint16_t)(((uint32_t)i * 256u) / (uint32_t)(S2 - 1u)) : 255u;',
+'                if (tt > 255u) tt = 255u;',
+'                if (tt >= 255u) col = *pb;',
+'                else if (tt == 0u) col = *pa;',
 '                else {',
-'                    dr = (int32_t)I->color.secondary.r - (int32_t)I->color.current.r;',
-'                    dg = (int32_t)I->color.secondary.g - (int32_t)I->color.current.g;',
-'                    db = (int32_t)I->color.secondary.b - (int32_t)I->color.current.b;',
-'                    col.r = (uint8_t)((int32_t)I->color.current.r + ((dr * (int32_t)hh) >> 8));',
-'                    col.g = (uint8_t)((int32_t)I->color.current.g + ((dg * (int32_t)hh) >> 8));',
-'                    col.b = (uint8_t)((int32_t)I->color.current.b + ((db * (int32_t)hh) >> 8));',
+'                    dr = (int32_t)pb->r - (int32_t)pa->r;',
+'                    dg = (int32_t)pb->g - (int32_t)pa->g;',
+'                    db = (int32_t)pb->b - (int32_t)pa->b;',
+'                    col.r = (uint8_t)((int32_t)pa->r + ((dr * (int32_t)tt) >> 8));',
+'                    col.g = (uint8_t)((int32_t)pa->g + ((dg * (int32_t)tt) >> 8));',
+'                    col.b = (uint8_t)((int32_t)pa->b + ((db * (int32_t)tt) >> 8));',
 '                }',
 '            }',
 '            else if (hh != 0xFFu) col = spectrum_tbl[hh];',
@@ -4287,7 +4328,7 @@ const GEN_COMMENTS = {
   stepenv: { zh:'跳变包络：每种颜色先用 r 拍从黑匀速爬到满亮（「渐亮(拍)」，0 = 一拍照跳到满亮），再满亮保持 h 拍（「亮(拍)」），再用 f 拍匀速暗下去（「变暗(拍)」），最后一拍停在 ≈255/(f+1) —— 不落到 0（全黑一帧在 50Hz 下就是一次闪，换色会抖一下），换色就在这一拍。r + h + f 就是「停留(拍)」，工具里填这三行时自动算，正常不会剩下黑拍；万一 r + h + f 比停留短（老存档 / 手改），多出来的拍黑着等换色', en:'step envelope: over r ticks the colour ramps linearly from black to full brightness (the rise; 0 = hard on), then holds full for h ticks, then fades linearly over f ticks and stops at about 255/(f+1) - never at 0 (one fully dark frame at 50 Hz reads as a flicker at the colour switch); the colour changes on that tick. r + h + f is the dwell (the tool computes it as you type). If r + h + f is shorter than the dwell (old data / hand-edited JSON), the extra ticks stay dark until the colour switches' },
   stepfade: { zh:'跳变：把包络乘到 mask 上（只乘亮度，不动颜色）；env=255 等于原值，env=0 全灭', en:'step: multiply the envelope into mask (brightness only, never the colour); env=255 keeps the value, env=0 goes dark' },
   breathmode: { zh:'呼吸 / 覆盖是整条效果级：不看图层，整条点亮', en:'breath/wipe are whole-effect modes: ignore layers, light the whole strip' },
-  wipesentinel: { zh:'覆盖 = 连环扫：一趟 period 拍扫完 S 颗（E->width，0 = 整条），扫完换下一趟 —— 方向看 E->hue_base（0 往返 / 1 单向）；颜色**按趟轮换**：第 r 趟用调色板第 r 个当底色、第 r+1 个（回绕）盖上去（调色板里几个颜色就轮几个，最多 16），所以盖满后不是跳回同一种底色，是换一种颜色接着盖。hue[] 在这一段里是 0..255 的 tint（0 = 本趟底色 / 255 = 本趟盖色 / 中间按比例插值）；E->gap = 0 纯色（硬边）/ 1 位置渐变（与固件 PixelColorCover 的 GradTbl 同一手法）/ 2 混合（每 E->hue_speed 趟换一次铺法，第 0 组纯色，所以前几组纯色、后几组渐变）。第 r 趟扫到第 pos 颗的时刻 = r*period + pos*period/S：纯整数、无状态', en:'wipe = chained sweep: one pass covers S LEDs (E->width, 0 = whole zone) in period ticks, then the next pass starts - the direction comes from E->hue_base (0 = ping-pong / 1 = one way); colours rotate per pass: pass r lays palette entry r and wipes entry r+1 (wrapping around), so a finished pass is not followed by a jump back to one base colour but by the next colour sweeping over it. In this block hue[] is a 0..255 tint (0 = this pass base / 255 = this pass colour / blended in between); E->gap = 0 solid (hard edge) / 1 positional gradient (the same trick as the firmware PixelColorCover GradTbl) / 2 mixed (the layout switches every E->hue_speed passes, group 0 is solid - solid first, gradient later). LED pos is hit at tick r*period + pos*period/S: integer only, stateless' },
+  wipesentinel: { zh:'覆盖 = 连环扫：一趟 period 拍扫完 S 颗（E->width，0 = 整条），扫完换下一趟 —— 方向看 E->hue_base（0 往返 / 1 单向）；条目**按趟轮换**：第 r 趟盖的是色板条目 (r+1)%n（n = E->pal_count，最多 16），所以盖满后不是跳回同一种样子，是换下一个条目接着盖。hue[] 在这一段里不再是 tint，而是**条目索引**（0..n-1；第 0 趟之前 = 0 = 初始底色）；条目是纯色就整块硬边盖过去，条目是 [A→B] 就沿灯位铺 A→B 的位置渐变（与固件 PixelColorCover 的 GradTbl 同一手法）—— 色板表每个条目两行（pal_first + 2k / +1），铺法因此不用再传参数。第 r 趟扫到第 pos 颗的时刻 = r*period + pos*period/S：纯整数、无状态', en:'wipe = chained sweep: one pass covers S LEDs (E->width, 0 = whole zone) in period ticks, then the next pass starts - the direction comes from E->hue_base (0 = ping-pong / 1 = one way); entries rotate per pass: pass r lays palette entry (r+1)%n (n = E->pal_count, up to 16), so a finished pass is followed by the next entry sweeping over it, not by a jump back to one look. In this block hue[] is no longer a tint but the palette entry index (0..n-1, entry 0 = the fill before pass 0); a solid entry is laid as one flat block, a gradient entry [A->B] as a positional ramp over the covered span (the same trick as the firmware PixelColorCover GradTbl) - the palette table stores two rows per entry (pal_first + 2k / +1), so no layout parameter is needed anymore. LED pos is hit at tick r*period + pos*period/S: integer only, stateless' },
   rainbowfill: { zh:'效果级彩虹：只补「跟随效果配色」的灯位（图层自己写了色相的保留）', en:'effect-level rainbow: fill only LEDs that follow the effect colour' },
   rainbowcalc: { zh:'(i * 256 / levels) 用 q/r 递推，循环里没有除法', en:'(i * 256 / levels) via a q/r recurrence: no division in the loop' },
   solidnoop: { zh:'纯色：current 在 apply_mode 里已经定好，每拍什么都不用做', en:'solid: current is already set in apply_mode, nothing to do per frame' },
@@ -4421,27 +4462,27 @@ function exportEffectsC(state, opt) {
     note:  '改灯效请回工具里改，然后重新导出覆盖本文件。',
     effKind: '0 = 用固件原有动画, 1 = 用图层合成',
     effAnim: '内建动画类型 ANIM_*',
-    effWidth: '内建光宽（覆盖时 = 覆盖灯数，0 = 整条）', effGap: '内建双点间隔（覆盖时 = 覆盖方式：0 纯色 / 1 渐变 / 2 混合）',
+    effWidth: '内建光宽（覆盖时 = 覆盖灯数，0 = 整条）', effGap: '内建双点间隔',
     effCtype: '配色 0纯色/1渐变/3跳变/4彩虹/5呼吸/6覆盖（2 = 旧双色渐变）',
-    effC1: '主色（纯色用；覆盖里是第 0 趟的底色）', effC2: '副色（覆盖里是第 0 趟的盖色，之后每趟按调色板往下轮）',
+    effC1: '主色（纯色用；覆盖里是条目 0 的首端色）', effC2: '副色（覆盖不用它：逐灯颜色来自色板条目）',
     effSpeed: '跳变 = 每种颜色停留几拍 = 渐亮 + 亮 + 变暗（工具里自动算）；渐变 = 每几拍动一次',
     effSlow: '慢速档 ticks/格', effFast: '快速档 ticks/格',
     effFirst: '该效果在图层表里的起点', effCount: '图层数（内建效果为 0）',
     effOffset: '起始位: 把动画沿环挪一段 (0..255)',
     effMoves: '是否随位置自动前进',
-    effPalFirst: '该效果的色板在 led_gen_palette 里的起点',
-    effPalCount: '色板颜色数（纯色/跳变/呼吸/覆盖用）',
+    effPalFirst: '该效果的色板在 led_gen_palette 里的起点（每个条目两行：首端 / 末端）',
+    effPalCount: '色板条目数（纯色/跳变/呼吸/覆盖用；条目 k 的两行 = pal_first + 2k、+2k+1）',
     effGrad: '渐变/旧双色渐变: 该效果的色环在 led_gen_grad 里的起点（一条渐变 256 行；其余配色为 0）',
     effGradStep: '渐变/旧双色渐变: 每动一次前进几级 (1..16)；一整圈 = 256 * spectrum_speed / grad_step 拍（其余配色存着不用）',
     effLevels: '彩虹: 走完一轮红->红要多少颗灯 (>=6)',
     effHueBase: '彩虹: 色相起点 0..255（覆盖时 = 方向：0 往返 / 1 单向）',
-    effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转（覆盖时 = 混合的每组趟数 1..16）',
+    effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转',
     effPeriod: '呼吸: 一个周期多少拍（= 渐亮×2 + 亮，算出来的）；覆盖: 一趟（扫完覆盖灯数）多少拍',
     effRise: '跳变: 每种颜色点亮用几拍（第一拍 = 255/rise、最后一拍满亮；0 = 硬启亮；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸: 渐亮(=渐暗) 几拍（对称包络）',
     effHold: '跳变: 满亮保持几拍（0 = 不保持；渐亮爬到满亮那一拍也算满亮）；呼吸: 满亮保持几拍（周期 = 渐亮×2 + 亮）',
     effFade: '跳变: 满亮之后用几拍暗下去（越大越慢；最后一拍 ≈255/(fade+1)、不落 0，换色处不闪；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸不用它（生成代码里 = step_rise）',
     newColors: '新配色模式（0..2 沿用固件的 COLOR_* 枚举；3..6 由生成代码处理）',
-    palRow: '色板: 每个效果一段 {r,g,b}；效果行用 pal_first/pal_count 指进来',
+    palRow: '色板: 每个条目两行 {r,g,b} = 首端 / 末端（纯色条目两行相同）；效果行用 pal_first/pal_count 指进来，条目 k = pal_first + 2k',
     gradRow: '渐变色环: 每条渐变 256 行 {r,g,b}（红→黄→绿→青→蓝→紫→回到红，起始色已经转到相位 0）；效果行用 grad_first 指进来',
     bindEffect: '用第几个效果（led_gen_effects 下标）',
     bindZones: '分区位掩码: bit k = 第 k 个分区',
@@ -4486,27 +4527,27 @@ function exportEffectsC(state, opt) {
     note:  'To change effects, edit them in the tool and re-export over this file.',
     effKind: '0 = use a firmware built-in animation, 1 = use layer compositing',
     effAnim: 'built-in animation id ANIM_*',
-    effWidth: 'built-in light width (wipe: LEDs per sweep, 0 = whole zone)', effGap: 'built-in dual-spot gap (wipe: 0 solid / 1 gradient / 2 mixed)',
+    effWidth: 'built-in light width (wipe: LEDs per sweep, 0 = whole zone)', effGap: 'built-in dual-spot gap',
     effCtype: 'colour: 0 solid / 1 gradient / 3 step / 4 rainbow / 5 breath / 6 wipe (2 = legacy duo)',
-    effC1: 'primary colour (solid / wipe pass base)', effC2: 'secondary colour (wipe: the one wiping over in pass 0)',
+    effC1: 'primary colour (solid / wipe entry 0 first colour)', effC2: 'secondary colour (unused by wipe: its per-LED colour comes from the palette entries)',
     effSpeed: 'step: ticks per colour = rise + hold + fade (computed by the tool); gradient: ticks between steps',
     effSlow: 'slow ticks per step', effFast: 'fast ticks per step',
     effFirst: 'start index into the layer table', effCount: 'layer count (0 for built-in effects)',
     effOffset: 'start offset: shift the animation around the ring (0..255)',
     effMoves: 'advances with the animation position',
-    effPalFirst: 'start index into led_gen_palette',
-    effPalCount: 'palette size (solid/step/breath/wipe)',
+    effPalFirst: 'start index into led_gen_palette (two rows per entry: first / last colour)',
+    effPalCount: 'palette entry count (solid/step/breath/wipe); entry k = pal_first + 2k, +2k+1',
     effGrad: 'gradient/legacy duo: start index of this effect grad ring in led_gen_grad (256 rows per ring; 0 for other colour modes)',
     effGradStep: 'gradient/legacy duo: levels advanced per step (1..16); one revolution = 256 * spectrum_speed / grad_step ticks (stored but unused by other colour modes)',
     effLevels: 'rainbow: LEDs per full red->red cycle (>=6)',
     effHueBase: 'rainbow: hue start 0..255 (wipe: direction, 0 = ping-pong / 1 = one way)',
-    effHueSpeed: 'rainbow: shift one level every N frames, 0 = static (wipe: passes per group in mixed mode, 1..16)',
+    effHueSpeed: 'rainbow: shift one level every N frames, 0 = static',
     effPeriod: 'breath: ticks per cycle (= rise*2 + hold, computed); wipe: ticks per sweep',
     effRise: 'step: ticks to go from black to full brightness (0 = hard on; rise + hold + fade = spectrum_speed); breath: rise (= fade) ticks, symmetric envelope',
     effHold: 'step: ticks held at full brightness (0 = no hold; the tick that reaches full counts too); breath: ticks held, cycle = rise*2 + hold',
     effFade: 'step: ticks to dim from full (larger = slower; the last tick sits at about 255/(fade+1), never 0 - no dark frame at the colour switch; rise + hold + fade = spectrum_speed); breath: not used (equals step_rise)',
     newColors: 'new colour modes (0..2 reuse the firmware COLOR_* enum; 3..6 are handled here)',
-    palRow: 'palette rows: {r,g,b} per colour, referenced by pal_first/pal_count',
+    palRow: 'palette rows: two {r,g,b} per entry = first / last colour (a solid entry repeats itself), referenced by pal_first/pal_count; entry k = pal_first + 2k',
     gradRow: 'gradient rings: 256 rows {r,g,b} per gradient (red->yellow->green->cyan->blue->magenta->red, rotated so the start colour sits at phase 0); effect rows point in with grad_first',
     bindEffect: 'which effect (index into led_gen_effects)',
     bindZones: 'zone bitmask: bit k = zone k',
@@ -4887,12 +4928,13 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                renderAllSim, exportC, defaultAnim,
                FALL, LAYER, WAVE, CMODE, pulseGain, bouncePos, layerHue,
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
+               coverEntry, wipeSpan, wipeEntryAt,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
                breathEnv, breathPlan, effBreathRise, effBreathHold, effShape, BREATH_PERIOD_MAX,
                stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
-               effPalette, effLevels, effPeriod, effCoverSpan, effCoverDir, effCoverMode,
-               effCoverGroup, COVER_SPAN_MAX, COVER_GROUP_MAX,
+               effPalette, effPaletteRaw, palIsGrad, PAL_MAX, PAL_GRAD_LEN,
+               effLevels, effPeriod, effCoverSpan, effCoverDir, COVER_SPAN_MAX,
                normalizeEffect,
                EFFECT_SLOTS, defaultEffects, newCustomEffect, effectAtSlot, fxEffectName,
                layerToCRow, layerNums, modesPlan, exportEffectsC, buildPatchText, mangleComment,
@@ -6938,12 +6980,10 @@ function applyPreset(name) {
   e.levels = made.levels || 30;
   e.hue_base = made.hue_base || 0;
   e.hue_speed = made.hue_speed || 0;
-  /* 覆盖：模板没写就落「整条 + 纯色 + 往返 + 1」（= 旧版行为）—— 不重置的话，
-   * 上一条效果留下的「只覆盖前 N 颗 / 渐变 / 单向」会带到新套的预置上 */
+  /* 覆盖：模板没写就落「整条 + 往返」（= 旧版行为）—— 不重置的话，上一条效果留下的
+   * 「只覆盖前 N 颗 / 单向」会带到新套的预置上；铺法看调色板条目本身，不用重置 */
   e.cover_span = (made.cover_span != null) ? (made.cover_span | 0) : 0;
-  e.cover_mode = (made.cover_mode != null) ? (made.cover_mode | 0) : 0;
   e.cover_dir = (made.cover_dir != null) ? (made.cover_dir | 0) : 0;
-  e.cover_group = (made.cover_group != null) ? (made.cover_group | 0) : 1;
   e.period = made.period || 60;
   e.slow = made.slow; e.fast = made.fast; e.speed = made.speed;
   /* 跳变：模板没写 rise / hold / fade 就按缺省落一份具体值（rise 缺省 0 = 硬启亮） */
@@ -7116,6 +7156,14 @@ function cpBuild() {
 
   const adv = el('button', 'cpAdv', '', pop, '▸ 高级设置');
   adv.type = 'button';
+  /* 调色板条目专用：纯色 ↔ 两端渐变。色块上挂了 __cpExtra 才显示，别的调用方看不到这一行。 */
+  const extra = el('button', 'cpExtra', '', pop);
+  extra.type = 'button'; extra.style.display = 'none';
+  extra.onclick = () => {
+    const f = cpChip && cpChip.__cpExtra && cpChip.__cpExtra.run;
+    cpClose();
+    if (f) f();
+  };
   const body = el('div', 'cpAdvBody', '', pop); body.style.display = 'none';
   const svWrap = el('div', 'cpSvWrap', '', body);
   const svBase = el('div', 'cpSvBase', '', svWrap);
@@ -7147,7 +7195,7 @@ function cpBuild() {
     cpPaint(true);
   });
 
-  return (cpUI = { pop, ringW, ring, cur, dot, hexIn, adv, body, svWrap, svBase, svDot, kH, kS, kV });
+  return (cpUI = { pop, ringW, ring, cur, dot, hexIn, adv, extra, body, svWrap, svBase, svDot, kH, kS, kV });
 }
 function cpBindDrag(el, fn) {
   if (!el || !el.addEventListener) return;
@@ -7228,6 +7276,10 @@ function cpOpen(chip) {
   cpBuild();
   cpChip = chip;
   cpSetHex(chip.value);
+  /* 调色板条目：底部多一个「纯色 ↔ 渐变」按钮（别的色块没有 __cpExtra，这一行收起来） */
+  const ex = chip.__cpExtra;
+  cpUI.extra.style.display = ex ? '' : 'none';
+  if (ex) cpUI.extra.textContent = ex.label;
   cpUI.pop.style.display = 'block';
   cpPlace();
 }
@@ -7251,6 +7303,9 @@ function cpClose() {
 
 
 
+/* 调色板一行：纯色条目 = 一个色块；两端渐变条目 = 一个胶囊（底色就是 A→B 的渐变预览，
+ * 左右两半各是一块透明热区，点哪半就改哪端）。「条目是纯色还是渐变」就是覆盖的铺法，
+ * 面板底部的按钮随时能把一个条目在两种形态之间来回切（见 palSetGrad）。 */
 function renderPalette(e) {
   const box = $('#fPalette');
   if (!box) return;
@@ -7261,34 +7316,68 @@ function renderPalette(e) {
   const cap = palFixed(e.color);
   const n = cap > 0 ? Math.min(cap, e.palette.length) : e.palette.length;
   e.palette.slice(0, n).forEach((c, i) => {
-    const inp = colorChip(rgbHex(c));      /* 色块：点开是色环，灰 / 暗在「高级设置」里 */
-    tip(inp, '第 ' + (i + 1) + ' 个颜色（点一下选色环）');
-    inp.oninput = () => {
-      const rgb = hexRgb(inp.value);
-      e.palette[i] = rgb;
-      if (i === 0) e.c1 = rgb.slice();
-      if (i === 1) e.c2 = rgb.slice();
+    const grad = palIsGrad(c);
+    const cell = document.createElement('span');
+    cell.className = 'palcell' + (grad ? ' grad' : '');
+    /* 底板：纯色 = 单色，渐变 = A → B 的横向渐变（就是这一趟扫过去的样子） */
+    const paint = () => {
+      const cc = e.palette[i];
+      cell.style.background = palIsGrad(cc)
+        ? 'linear-gradient(90deg,' + rgbHex(cc.slice(0, 3)) + ',' + rgbHex(cc.slice(3, 6)) + ')'
+        : rgbHex(cc);
+    };
+    /* 改一端的颜色：k = 0 首端 / 3 末端；纯色条目只有一个颜色 */
+    const setEnd = (k, rgb) => {
+      const cc = e.palette[i];
+      if (palIsGrad(cc)) { cc[k] = rgb[0]; cc[k + 1] = rgb[1]; cc[k + 2] = rgb[2]; }
+      else e.palette[i] = rgb;
+      if (k === 0) {
+        if (i === 0) e.c1 = rgb.slice();
+        if (i === 1) e.c2 = rgb.slice();
+      }
+      paint();
       fxLive(); renderFxList();
     };
-    box.appendChild(inp);
+    const ca = colorChip(rgbHex(c.slice(0, 3)));
+    ca.classList.add('palA');
+    tip(ca, grad
+      ? '第 ' + (i + 1) + ' 个条目（左端 = 首色）：点一下选色；面板底部可以改回纯色'
+      : '第 ' + (i + 1) + ' 个颜色（点一下选色环；面板底部可以把它改成两端渐变）');
+    ca.oninput = () => setEnd(0, hexRgb(ca.value));
+    /* 取色面板底部那个「纯色 ↔ 渐变」按钮：只给调色板条目挂 */
+    ca.__cpExtra = grad
+      ? { label: '改回纯色（只留左端色）', run: () => palSetGrad(i, false) }
+      : { label: '把本条目改成两端渐变', run: () => palSetGrad(i, true) };
+    cell.appendChild(ca);
+    if (grad) {
+      const cb = colorChip(rgbHex(c.slice(3, 6)));
+      cb.classList.add('palB');
+      tip(cb, '第 ' + (i + 1) + ' 个条目（右端 = 末色）：点一下选色；面板底部可以改回纯色');
+      cb.oninput = () => setEnd(3, hexRgb(cb.value));
+      cb.__cpExtra = { label: '改回纯色（只留左端色）', run: () => palSetGrad(i, false) };
+      cell.appendChild(cb);
+    }
+    paint();
+    box.appendChild(cell);
   });
   const n2 = document.createElement('span');
   n2.className = 'palN';
   /* 收起几个也说出来：免得以为「切到纯色把我的颜色弄丢了」 */
-  n2.textContent = n + ' 色' + (e.palette.length > n ? '（另 ' + (e.palette.length - n) + ' 个收起）' : '');
+  n2.textContent = n + ' 个' + (e.palette.length > n ? '（另 ' + (e.palette.length - n) + ' 个收起）' : '')
+                 + (e.palette.slice(0, n).some(palIsGrad) ? ' · 含渐变' : '');
   box.appendChild(n2);
 }
 
+/* 加一个纯色条目（+）。cap 0 = 跳变 / 呼吸 / 覆盖（放几个由你定）；1 = 纯色，满了就不给加 */
 function palAddColor() {
   const e = editTarget(); if (!e) return;
   normalizeEffect(e);
   const cap = palFixed(e.color);
-  /* cap 0 = 跳变 / 呼吸（放几个由你定）；1 / 2 = 纯色 / 覆盖，满了就不给加 */
   if (cap > 0 && e.palette.length >= cap) {
     status('「' + (FW.COLOR_NAME[e.color | 0] || '这种配色') + '」只用 ' + cap + ' 个颜色，不用再加', 'warn');
     return;
   }
-  if (e.palette.length >= PAL_MAX) { status('调色板最多 ' + PAL_MAX + ' 个颜色', 'warn'); return; }
+  if (e.palette.length >= PAL_MAX) { status('调色板最多 ' + PAL_MAX + ' 个条目', 'warn'); return; }
   const pick = [[255,255,255],[0,255,255],[255,255,0],[255,0,255],
                 [0,255,0],[0,0,255],[255,128,0],[128,0,255],
                 [255,0,0],[128,255,0],[0,128,255],[255,0,128],
@@ -7299,20 +7388,62 @@ function palAddColor() {
   fxLive(); syncFxEdit(); renderFxList();
   status(`调色板加了第 ${e.palette.length} 个颜色`);
 }
+
+/* 加一个两端渐变条目（+渐变）：左端接着上一个条目的末端色（视觉连续），右端挑一个色。
+ * 覆盖扫到这个条目时就是「左色 → 右色」的位置渐变。 */
+const PAL_GRAD_PICK = [[255,255,255],[0,255,255],[255,255,0],[255,0,255],
+                       [0,255,0],[0,0,255],[255,128,0],[128,0,255]];
+function palAddGrad() {
+  const e = editTarget(); if (!e) return;
+  normalizeEffect(e);
+  const cap = palFixed(e.color);
+  if (cap > 0) {
+    status('「' + (FW.COLOR_NAME[e.color | 0] || '这种配色') + '」只有一个颜色，用不上渐变条目', 'warn');
+    return;
+  }
+  if (e.palette.length >= PAL_MAX) { status('调色板最多 ' + PAL_MAX + ' 个条目', 'warn'); return; }
+  const last = e.palette[e.palette.length - 1] || [255, 0, 0];
+  const a = palIsGrad(last) ? [last[3], last[4], last[5]] : [last[0], last[1], last[2]];
+  const b = PAL_GRAD_PICK[e.palette.length % PAL_GRAD_PICK.length].slice();
+  e.palette.push([a[0], a[1], a[2], b[0], b[1], b[2]]);
+  fxLive(); syncFxEdit(); renderFxList();
+  status(`调色板加了第 ${e.palette.length} 个条目（渐变 ${rgbHex(a)} → ${rgbHex(b)}）`);
+}
+
+/* 把一个条目在「纯色」和「两端渐变」之间切换（取色面板底部的按钮）。
+ * 转成渐变时右端默认取下一个条目的首色 —— 那样「这一趟的盖色」正好接上「下一趟的底色」。 */
+function palSetGrad(i, on) {
+  const e = editTarget(); if (!e) return;
+  normalizeEffect(e);
+  const c = e.palette[i];
+  if (!c) return;
+  if (on && !palIsGrad(c)) {
+    const nx = e.palette[(i + 1) % e.palette.length] || c;
+    e.palette[i] = [c[0], c[1], c[2], nx[0], nx[1], nx[2]];
+  } else if (!on && palIsGrad(c)) {
+    e.palette[i] = [c[0], c[1], c[2]];
+  }
+  fxLive(); syncFxEdit(); renderFxList();
+  const cc = e.palette[i];
+  status(palIsGrad(cc)
+    ? `第 ${i + 1} 个条目改成渐变（${rgbHex(cc.slice(0, 3))} → ${rgbHex(cc.slice(3, 6))}）`
+    : `第 ${i + 1} 个条目改回纯色（${rgbHex(cc)}）`);
+}
+
 function palDelColor() {
   const e = editTarget(); if (!e) return;
   normalizeEffect(e);
   const cap = palFixed(e.color);
   if (cap > 0) { status('「' + (FW.COLOR_NAME[e.color | 0] || '这种配色') + '」要用 ' + cap + ' 个颜色，删不得', 'warn'); return; }
-  /* 覆盖至少要 2 个：一个当底色、一个盖上去（多色时第 r 趟用第 r 个盖第 r+1 个） */
+  /* 覆盖至少要 2 个条目：一个当地色、一个盖上去（多色时第 r 趟盖第 r+1 个） */
   if ((e.color | 0) === FW.COLOR.WIPE && e.palette.length <= 2) {
-    status('「覆盖」至少要 2 个颜色（底色 + 盖上去的颜色），删不得', 'warn'); return;
+    status('「覆盖」至少要 2 个条目（底色 + 盖上去的条目），删不得', 'warn'); return;
   }
-  if (e.palette.length <= 1) { status('调色板至少留 1 个颜色', 'warn'); return; }
+  if (e.palette.length <= 1) { status('调色板至少留 1 个条目', 'warn'); return; }
   e.palette.pop();
   if (e.palette.length < 2) e.c2 = [0, 0, 0];
   fxLive(); syncFxEdit(); renderFxList();
-  status(`调色板剩 ${e.palette.length} 个颜色`);
+  status(`调色板剩 ${e.palette.length} 个条目`);
 }
 
 /* ---- 渐变色库编辑器（效果级）---------------------------------------------
@@ -7543,6 +7674,8 @@ function syncFxColorRows(e) {
   /* 色块由 renderPalette() 按模式收起；加减按钮只在「放几个由你定」时给，
    * 覆盖还差第 2 个颜色时留一个 +（点一下补齐），补齐后自己就收起来 */
   show('fxPalAdd', uses && (cap <= 0 || have < cap));
+  /* +渐变 只在「放几个由你定」的配色（跳变 / 呼吸 / 覆盖）里给 —— 纯色只有一个颜色，用不上 */
+  show('fxPalAddGrad', uses && cap <= 0);
   show('fxPalDel', uses && cap <= 0);
   const lab = $('#fPalLab');
   if (lab) lab.textContent = (mode === FW.COLOR.SOLID && uses) ? '颜色' : '调色板';
@@ -7560,11 +7693,9 @@ function syncFxColorRows(e) {
   show('rowRise', isStepColor || isBreathColor);
   show('rowHold', isStepColor || isBreathColor);
   show('rowFade', isStepColor);
-  /* 覆盖：覆盖灯数（等级）+ 方向 + 方式；混合时才有「每组趟数」那一行 */
+  /* 覆盖：覆盖灯数（等级）+ 方向；铺法（纯色 / 位置渐变）看调色板条目本身 */
   show('rowCoverDir', isWipeColor);
   show('rowCoverSpan', isWipeColor);
-  show('rowCoverMode', isWipeColor);
-  show('rowCoverGroup', isWipeColor && effCoverMode(e) === 2);
   const perLab = $('#fPeriodLab');
   if (perLab) perLab.textContent = isWipeColor ? '速度(拍/趟)' : '周期(拍)';
   const riseLab = $('#fRiseLab'), holdLab = $('#fHoldLab');
@@ -7580,10 +7711,10 @@ function syncFxColorRows(e) {
     tip(holdIn, fxTip0('fHold'));
     tip(perIn, '覆盖：一趟（从一头扫到另一头）多少拍 —— 越小越快（20ms 一拍）。\n'
       + (effCoverDir(e) === 1
-          ? '单向：每趟都从同一头重新推过去 —— 盖满就换一种颜色、再从这一头盖一遍（像跑马灯从头刷）。'
+          ? '单向：每趟都从同一头重新推过去 —— 盖满就换下一个条目、再从这一头盖一遍（像跑马灯从头刷）。'
           : '往返：盖满之后方向反转、从另一头盖回来，两趟 = 一个完整来回。')
-      + '\n盖满不会整条跳回底色：颜色一趟一换，接着盖。'
-      + '\n「覆盖灯数」= 一趟最多扫多少颗（0 = 整条）；「覆盖方式」纯色 / 渐变 / 混合（混合时「每组趟数」定几趟换一次铺法）。');
+      + '\n盖满不会整条跳回底色：条目一趟一换，接着盖。'
+      + '\n「覆盖灯数」= 一趟最多扫多少颗（0 = 整条）；扫过去是整块还是渐变，看调色板里那个条目：纯色条目 = 硬边，[A→B] 条目 = 位置渐变。');
   } else {
     tip(riseIn, fxTip0('fRise'));
     tip(holdIn, fxTip0('fHold'));
@@ -7607,7 +7738,7 @@ function syncFxColorRows(e) {
     hint.textContent = mode === FW.COLOR.SOLID   ? '纯色只用这一个颜色；调色板里多出来的颜色只是收起来，切回跳变 / 呼吸 / 覆盖还在。'
       : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；「停留」= 渐亮 + 亮 + 变暗，自动算 —— 只调「渐亮(拍)」「亮(拍)」「变暗(拍)」三行。'
       : mode === FW.COLOR.BREATH                 ? '整条效果级（图层参数不参与）：一个周期换一种颜色；周期看「周期(拍)」。'
-      : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：颜色按趟轮换 —— 第 1 趟拿第 1 个颜色当底、第 2 个盖上去，第 2 趟拿第 2 个当底、第 3 个盖上去……几个颜色就轮几个（最多 16），每一趟的盖色正好是下一趟的底色。盖满之后换一种颜色接着盖（方向看「覆盖方向」，「覆盖方式」可选纯色 / 渐变 / 混合）。'
+      : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：条目按趟轮换 —— 第 1 趟盖第 2 个条目、第 2 趟盖第 3 个……几个条目就轮几个（最多 16），上一趟盖的那个条目正好是这一趟的底。条目是纯色就整块盖过去，条目是 [A→B] 就铺 A→B 的位置渐变（「+渐变」加一个，点胶囊左右两半改两端色；取色面板底部可改回纯色）。方向看「覆盖方向」。'
       : (mode === FW.COLOR.SPECTRUM)
         ? '渐变用上面选的那条色环（起始色 / 顺序都能改；「新建」一条全新的、「另存为」复制一条给别的分区用）；彩虹才用内置彩虹表。'
         : '渐变 / 彩虹用内置彩虹表，不需要调色板。';
@@ -7658,7 +7789,6 @@ function syncFxEdit() {
   /* 名称不在这一串里 —— 它只读（自动生成），不用跟着禁用 / 启用 */
   const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSpeed','fGradStep','fRise','fHold','fFade',
                'fLevels','fHueBase','fHueSpeed','fPeriod','fGrad','fCoverDir','fCoverSpan',
-               'fCoverMode','fCoverGroup',
                'fxGradNew','fxGradSave','fxGradDrop','fxGradAdd','fxGradSub',
                'fAnim','fWidth','fGap','fMoves','fOffset','fxPresetApply','fxPresetPick'];
   ids.forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
@@ -7698,8 +7828,6 @@ function syncFxEdit() {
   $('#fFade').value = e.fade;
   $('#fCoverDir').value = e.cover_dir;
   $('#fCoverSpan').value = e.cover_span;
-  $('#fCoverMode').value = e.cover_mode;
-  $('#fCoverGroup').value = e.cover_group;
   $('#fOffset').value = e.offset | 0;
   if (e.kind === 'custom') { $('#fMoves').checked = !!e.moves; renderLayers(); }
   else { $('#fAnim').value = e.anim; $('#fWidth').value = e.width; $('#fGap').value = e.gap; }
@@ -7848,6 +7976,7 @@ function buildFxPanel() {
     const o = document.createElement('option'); o.value = i; o.textContent = FW.COLOR_NAME[i]; sc.appendChild(o);
   });
   $('#fxPalAdd').onclick = () => palAddColor();
+  $('#fxPalAddGrad').onclick = () => palAddGrad();
   $('#fxPalDel').onclick = () => palDelColor();
   /* 渐变色库：选一条 / 新建 / 另存为 / 删除 / 顺序增删 */
   const gsel = $('#fGrad');
@@ -8026,7 +8155,7 @@ function buildFxPanel() {
     x.period = Math.max(2, Math.min(600, +e.target.value || 60));
     fxLive();
   });
-  /* 覆盖：覆盖灯数（0 = 整条）+ 方向（往返 / 单向）+ 方式（纯色 / 渐变 / 混合）+ 混合的每组趟数 */
+  /* 覆盖：覆盖灯数（0 = 整条）+ 方向（往返 / 单向）；铺法看调色板条目本身（纯色 / 两端渐变） */
   bind('fCoverDir', e => {
     const x = editTarget(); if (!x) return;
     x.cover_dir = (+e.target.value | 0) >= 1 ? 1 : 0;
@@ -8036,17 +8165,6 @@ function buildFxPanel() {
   bind('fCoverSpan', e => {
     const x = editTarget(); if (!x) return;
     x.cover_span = Math.max(0, Math.min(COVER_SPAN_MAX, +e.target.value || 0));
-    fxLive();
-  });
-  bind('fCoverMode', e => {
-    const x = editTarget(); if (!x) return;
-    x.cover_mode = effCoverMode({ cover_mode: +e.target.value | 0 });
-    syncFxColorRows(x);          /* 混合才显示「每组趟数」那一行 */
-    fxLive();
-  }, 'onchange');
-  bind('fCoverGroup', e => {
-    const x = editTarget(); if (!x) return;
-    x.cover_group = Math.max(1, Math.min(COVER_GROUP_MAX, +e.target.value || 1));
     fxLive();
   });
   bind('fAnim',  e => { const x = editTarget(); if (x) { x.anim = +e.target.value | 0; fxLive(); } }, 'onchange');

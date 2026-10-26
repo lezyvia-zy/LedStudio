@@ -99,7 +99,10 @@ const setColorMode = async v => { colSel.value = String(v); colSel.onchange({ ta
 await setColorMode(FW.COLOR.STEP);            /* 跳变：颜色数由用户定，调色板一定能出好几个色块 */
 
 const chipsOf = id => (byId.get(id).children || []).filter(c => c.classList && c.classList.contains('cchip'));
-const pal = () => chipsOf('fPalette');
+/* 调色板条目可能是纯色（一个色块）或两端渐变（胶囊里左右两个色块）—— 摊平成一列色块 */
+const pal = () => (byId.get('fPalette').children || [])
+  .reduce((a, c) => a.concat(c.classList && c.classList.contains('palcell') ? c.children : [c]), [])
+  .filter(c => c.classList && c.classList.contains('cchip'));
 ok(pal().length >= 2, `调色板出 ${pal().length} 个色块（跳变要多色）`);
 ok(pal().every(c => /^#[0-9a-f]{6}$/.test(c.value)), '每个色块都带着 #rrggbb（和原生 input 一样的值）');
 const zChip = byId.get('zColor');

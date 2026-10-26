@@ -170,7 +170,8 @@ console.log('--- 新配色（效果级）---');
   const col = byId.get('fColor');
   const pick = byId.get('fxPresetPick');
   const show = id => (byId.get(id).style.display !== 'none');
-  const palN = () => (byId.get('fPalette').children || []).filter(c => c.classList && c.classList.contains('cchip')).length;
+  const palCells = () => (byId.get('fPalette').children || []).filter(c => c.classList && c.classList.contains('palcell'));
+  const palN = () => palCells().length;
 
   pick.value = '彩虹环'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
@@ -315,8 +316,8 @@ console.log('--- 新配色（效果级）---');
   await new Promise(r => setTimeout(r, 700));
   ok(show('rowFade') && byId.get('fPeriod').readOnly === false,
      '切回跳变：「变暗」那一行回来、周期又能手填了');
-  ok(!show('rowCoverDir') && !show('rowCoverSpan') && !show('rowCoverMode') && !show('rowCoverGroup'),
-     '切回跳变：覆盖那几行收起（只有覆盖配色才用得上）');
+  ok(!show('rowCoverDir') && !show('rowCoverSpan') && !byId.has('rowCoverMode') && !byId.has('rowCoverGroup'),
+     '切回跳变：覆盖那几行收起（覆盖方式 / 每组趟数已从界面移除）');
   ok(byId.get('fRiseLab').textContent === '渐亮(拍)',
      `切回跳变：渐亮标题还原（${byId.get('fRiseLab').textContent}）`);
 
@@ -342,33 +343,68 @@ console.log('--- 新配色（效果级）---');
   const stWipeMin = byId.get('status').textContent;
   ok(fxListOf(0)[0].palette.length === 2 && /至少/.test(stWipeMin),
      `覆盖只剩 2 个就删不动（${stWipeMin}）`);
-  /* 覆盖的四行参数：覆盖灯数（等级）+ 方向 + 方式（纯色 / 渐变 / 混合）+ 每组趟数（混合才有） */
-  ok(show('rowCoverDir') && show('rowCoverSpan') && show('rowCoverMode'),
-     '覆盖：显示「覆盖方向」「覆盖灯数」「覆盖方式」三行');
-  ok(!show('rowCoverGroup'), '覆盖方式 = 纯色：分组那一行先不出（只有混合才用）');
+  /* 覆盖的两行参数：覆盖灯数（等级）+ 方向；「覆盖方式」「每组趟数」已退休（元素都不存在） */
+  ok(show('rowCoverDir') && show('rowCoverSpan') &&
+     !byId.has('rowCoverMode') && !byId.has('rowCoverGroup'),
+     '覆盖：只剩「覆盖方向」「覆盖灯数」两行（覆盖方式 / 每组趟数已移除）');
   ok(byId.get('fPeriodLab').textContent === '速度(拍/趟)',
      `覆盖：周期那一行改叫「速度(拍/趟)」（${byId.get('fPeriodLab').textContent}）`);
   const elSpan = byId.get('fCoverSpan');
   elSpan.value = '16'; elSpan.oninput({ target: elSpan });
   await new Promise(r => setTimeout(r, 700));
   ok(fxListOf(0)[0].cover_span === 16, `覆盖灯数写进效果（${fxListOf(0)[0].cover_span}）`);
-  const elMode = byId.get('fCoverMode');
-  elMode.value = '1'; elMode.onchange({ target: elMode });
-  await new Promise(r => setTimeout(r, 700));
-  ok(fxListOf(0)[0].cover_mode === 1, `覆盖方式写进效果（${fxListOf(0)[0].cover_mode} = 渐变）`);
-  ok(!show('rowCoverGroup'), '覆盖方式 = 渐变：分组那一行还是不出');
   const elDir = byId.get('fCoverDir');
   elDir.value = '1'; elDir.onchange({ target: elDir });
   await new Promise(r => setTimeout(r, 700));
   ok(fxListOf(0)[0].cover_dir === 1, `覆盖方向写进效果（${fxListOf(0)[0].cover_dir} = 单向）`);
-  elMode.value = '2'; elMode.onchange({ target: elMode });
-  await new Promise(r => setTimeout(r, 700));
-  ok(fxListOf(0)[0].cover_mode === 2 && show('rowCoverGroup'),
-     '覆盖方式 = 混合：写进效果，并且多出「每组趟数」一行');
-  const elGrp = byId.get('fCoverGroup');
-  elGrp.value = '3'; elGrp.oninput({ target: elGrp });
-  await new Promise(r => setTimeout(r, 700));
-  ok(fxListOf(0)[0].cover_group === 3, `每组趟数写进效果（${fxListOf(0)[0].cover_group}）`);
+
+  /* 「+渐变」：加一个两端渐变条目 —— 6 个数、画成胶囊、左右两半各一个色块 */
+  ok(show('fxPalAddGrad'), '覆盖：显示「+渐变」按钮（跳变 / 呼吸 / 覆盖都能放任意条目数）');
+  const nGrad = fxListOf(0)[0].palette.length;
+  click('fxPalAddGrad');
+  await new Promise(r => setTimeout(r, 900));
+  const eG = fxListOf(0)[0];
+  ok(eG.palette.length === nGrad + 1 && eG.palette[nGrad].length === 6,
+     `+渐变：调色板多一个 6 数的条目（${JSON.stringify(eG.palette[nGrad])}）`);
+  const gcell = palCells()[nGrad];
+  ok(gcell && gcell.classList.contains('grad') &&
+     /linear-gradient/.test(String(gcell.style.background)),
+     `渐变条目画成胶囊（${gcell && gcell.style.background}）`);
+  ok((gcell.children || []).length === 2 &&
+     gcell.children[0].classList.contains('palA') && gcell.children[1].classList.contains('palB'),
+     '胶囊左右两半各是一个色块（分别可点）');
+
+  /* 左右两半分别改色：只动那一端，条目仍是 6 个数 */
+  const chipA = gcell.children[0];
+  chipA.value = '#00ff00'; chipA.oninput({ target: chipA });
+  await new Promise(r => setTimeout(r, 800));
+  const entA = fxListOf(0)[0].palette[nGrad];
+  ok(entA.length === 6 && entA[0] === 0 && entA[1] === 255 && entA[2] === 0 &&
+     entA[3] === eG.palette[nGrad][3],
+     `左半改成绿：只动首端（${entA.join(',')}）`);
+  const chipB = palCells()[nGrad].children[1];
+  chipB.value = '#0000ff'; chipB.oninput({ target: chipB });
+  await new Promise(r => setTimeout(r, 800));
+  const entB = fxListOf(0)[0].palette[nGrad];
+  ok(entB.length === 6 && entB[3] === 0 && entB[4] === 0 && entB[5] === 255,
+     `右半改成蓝：只动末端（${entB.join(',')}）`);
+
+  /* 取色面板底部的「纯色 ↔ 渐变」按钮：渐变 → 纯色 → 再变回渐变 */
+  palCells()[nGrad].children[0].__cp.open();
+  const exBtn = byId.get('cpExtra');
+  ok(exBtn && exBtn.style.display !== 'none' && /纯色/.test(exBtn.textContent),
+     `面板底部给出「改回纯色」（${exBtn && exBtn.textContent}）`);
+  exBtn.onclick();
+  await new Promise(r => setTimeout(r, 900));
+  ok(fxListOf(0)[0].palette[nGrad].length === 3 && !palCells()[nGrad].classList.contains('grad'),
+     `改回纯色：条目缩回 3 个数、胶囊变普通色块（${fxListOf(0)[0].palette[nGrad].length} 个数）`);
+  palCells()[nGrad].children[0].__cp.open();
+  const exBtn2 = byId.get('cpExtra');
+  ok(/渐变/.test(exBtn2.textContent), `纯色条目给出「改成两端渐变」（${exBtn2.textContent}）`);
+  exBtn2.onclick();
+  await new Promise(r => setTimeout(r, 900));
+  ok(fxListOf(0)[0].palette[nGrad].length === 6 && palCells()[nGrad].classList.contains('grad'),
+     '再变回渐变：又是 6 个数 + 胶囊');
 
   pick.value = '七彩跳变'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
