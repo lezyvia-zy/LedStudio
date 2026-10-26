@@ -649,14 +649,14 @@
         </label>
         <label class="row" id="rowGradStart"><span>起始色</span>
           <span id="fxGradStart" class="palrow"></span>
-          <span class="hint" style="flex:1;margin:0">相位 0 就是这条颜色（等于把整条环转一下，顺序不变）</span>
+          <span class="hint" style="flex:1;margin:0">= 相位 0 的颜色（顺序不变）</span>
         </label>
         <div class="row" id="rowGradOrder"><span>顺序</span>
           <span id="fxGradOrder" class="palrow"></span>
           <button id="fxGradAdd" data-tip="在顺序末尾加一个颜色（最多 8 个）。中间那些过渡由算法按等长自动推出来 —— 你只管定几个颜色的大致方向。">+</button>
           <button id="fxGradSub" data-tip="删掉顺序里最后一个颜色（至少留 2 个）。">−</button>
         </div>
-        <div class="hint" id="fxGradHint">顺序 = 颜色环上的先后：第 1 个 → 第 2 个 → … → 回到第 1 个；相邻两个之间自动补渐变。</div>
+        <div class="hint" id="fxGradHint">正在编辑这条渐变的颜色环</div>
         <div id="fxGradRamp" class="gradramp" data-tip="整条渐变色环（最左 = 起始色 = 相位 0）。播放时整条灯带同色，颜色按「速度」从左边往右走，走完一整圈回到起点。"></div>
         <div class="row" id="rowPal"><span id="fPalLab">调色板</span>
           <span id="fPalette" class="palrow"></span>
@@ -664,10 +664,10 @@
           <button id="fxPalAddGrad" data-tip="给调色板加一个「两端渐变」条目（只有「覆盖」用得上）：覆盖扫到它时铺成 左色 → 右色 的位置渐变（最多 16 个条目）。&#10;加完点胶囊的左右两半分别选两端的颜色。跳变 / 呼吸的调色板只用纯色条目，这个按钮在那边不出现。">+渐变</button>
           <button id="fxPalDel" data-tip="删掉调色板最后一个条目（覆盖至少留 2 个，其余至少留 1 个）。">−</button>
         </div>
-        <div class="hint" id="fPalHint">跳变/呼吸：颜色个数 = 循环里有几种颜色（渐变条目只取左端色）；覆盖：条目按趟轮换（第 r 趟盖第 r+1 个，回绕），条目是纯色就整块盖过去、是 [A→B] 就铺位置渐变 —— 几个条目就轮几个。</div>
+        <div class="hint" id="fPalHint">调色板：纯色条目（一个色块）/ [A→B] 两端渐变条目（胶囊）</div>
         <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：停留几拍 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每 N 拍沿色环往前一格（1..16，越小越快；一整圈 = 256 × N 拍 —— 1 = 5.12 秒、4 = 20 秒、16 = 82 秒）。想比 1 拍/级更快 → 抬下面的「步进(级)」。&#10;从跳变切到渐变时这一格会挟带「停留」那个大数（30~60 = 一圈好几分钟、看着像没动），切过去那一刻会自动收进 4（20 秒一圈）并提示 —— 想慢下来再自己调大。"></label>
         <label class="row" id="rowGradStep"><span>步进(级)</span><input type="number" id="fGradStep" min="1" max="16" data-tip="渐变专用：每动一次在色环上前进几级（1..16，默认 1）。&#10;「速度」回答「几拍动一次」（最小 1 拍），这里回答「一次走几级」—— 想比速度 = 1 还快，就抬这个：一整圈 = 256 × 速度 ÷ 步进 拍（速度 1 + 步进 8 → 32 拍 ≈ 0.64 秒一圈；50Hz 一拍 20ms）。&#10;1 = 老行为（逐拍一级）；最大 16 —— 16 个采样点走完一圈，再多就不是「流动」而是「闪」了。&#10;只改颜色走多快，不动起始色 / 顺序。"></label>
-        <div class="hint" id="fxGradStepHint">一整圈 = 256 格 ÷ 每拍几级 × 每几拍动一次</div>
+        <div class="hint" id="fxGradStepHint">一整圈 = …</div>
         <label class="row" id="rowRise"><span id="fRiseLab">渐亮(拍)</span><input type="number" id="fRise" min="0" max="255" data-tip="跳变：每种颜色点亮用几拍（20ms 一拍）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
         <label class="row" id="rowHold"><span id="fHoldLab">亮(拍)</span><input type="number" id="fHold" min="0" max="255" data-tip="跳变：渐亮到满亮之后保持几拍（20ms 一拍）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
         <label class="row" id="rowFade"><span>变暗(拍)</span><input type="number" id="fFade" min="0" max="255" data-tip="跳变：满亮之后用几拍匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留(拍)」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数）。"></label>
@@ -7571,11 +7571,10 @@ function renderGrad(e, full) {
   if (ramp) ramp.style.background = gradRampCss(gradTable(g));
   const hint = $('#fxGradHint');
   if (hint) {
-    const A = gradAnchors(g);
-    /* 开头点名「正在编辑哪一条」+ 起始色：切换 / 另存为之后一眼能看出改的是不是这条 */
-    hint.textContent = '正在编辑「' + (g.name || g.id) + '」（起点 ' + rgbHex(gradStart(g)) + '）· ' +
-      '顺序 = 颜色环上的先后：' + A.map(c => rgbHex(c)).join(' → ') +
-      ' → 回到起点（' + rgbHex(A[0]) + '）；相邻两个之间自动补渐变。';
+    /* 开头点名「正在编辑哪一条」+ 起始色：切换 / 另存为之后一眼能看出改的是不是这条。
+     * 顺序本身已经由色块行 + 下面的色带画出来了，这里不再把颜色逐个念一遍。 */
+    hint.textContent = '正在编辑「' + (g.name || g.id) + '」（起点 ' + rgbHex(gradStart(g)) +
+      '）· 色块从左到右首尾相接，相邻两色之间自动补渐变';
   }
   /* 只改了颜色（full=false）：下拉没重建，但选项上的起始色要跟着换 —— 否则
      「正在编辑」写着 #0000ff，下拉里还挂着 #ff0000，看着就像两条混一块了 */
@@ -7645,8 +7644,8 @@ function gradSubColor() {
   status('顺序剩 ' + A.length + ' 个颜色');
 }
 
-/* 「步进」那行下面的一句读数：把 速度 × 步进 折算成一整圈多少拍 / 多少秒 ——
- * 省得用户自己算「256 ÷ 步进 × 速度」。只刷文字，不碰输入框（正在输入时不能失焦）。 */
+/* 「步进」那行下面的一句读数：把 速度 × 步进 折算成一整圈多少拍 / 多少秒。
+ * 一行、不解释算法（算法在 data-tip 里）—— 只刷文字，不碰输入框（正在输入时不能失焦）。 */
 function gradStepHint(e) {
   const el = $('#fxGradStepHint');
   if (!el) return;
@@ -7655,9 +7654,9 @@ function gradStepHint(e) {
   const gs = effGradStep(e);
   const ticks = Math.ceil((256 * sp) / gs);
   const ms = ticks * 20;                       /* 固件一拍 20ms（50Hz） */
-  el.textContent = '一整圈 = 256 格 ÷ 每拍 ' + gs + ' 级 × ' + sp + ' 拍/次 = ' + ticks + ' 拍 ≈ ' +
-    (ms >= 1000 ? (ms / 1000).toFixed(2) + ' 秒' : ms + ' 毫秒') + '（50Hz 一拍 20ms）' +
-    (gs === 1 ? '；抬「步进」就能比这更快' : '');
+  el.textContent = '一整圈 = ' + ticks + ' 拍 ≈ ' +
+    (ms >= 1000 ? (ms / 1000).toFixed(2) + ' 秒' : ms + ' 毫秒') +
+    '（速度 ' + sp + ' × 步进 ' + gs + '）';
 }
 
 /* 参数行原始提示：切配色时会临时换文案（同一格两种说法），切回来要能还原。
@@ -7752,19 +7751,23 @@ function syncFxColorRows(e) {
     /* 渐变的「速度」= 每 N 拍走 1 级，上限 16（一圈 ≈ 82 秒；再大就看着不动了）。
      * 别的配色仍放开到 255 —— 覆盖根本不用这一格，纯色 / 彩虹 / 呼吸也不用。 */
     sp.max = String(isGradColor ? GRAD_SPEED_MAX : 255);
+    /* 渐变的下限是 1（每 N 拍走 1 级，N = 0 没有意义）—— 让输入框自己的箭头也守住，
+     * 别让用户拨到 0 之后被 bind('fSpeed') 悄悄夹回 1，看着像「填了没生效」 */
+    sp.min = String(isGradColor ? 1 : 0);
     if (mode === FW.COLOR.STEP) tip(sp, '自动 = 渐亮(拍) + 亮(拍) + 变暗(拍)：改那三行就会自己算好（20ms 一拍），这一格不用管 ——\n三段拼满整个颜色周期，中间不留黑拍。');
     else if (isGradColor) tip(sp, '渐变：每 N 拍沿色环往前走 1 级（1..' + GRAD_SPEED_MAX + '，越小越快）。\n一整圈 = 256 × N 拍 —— 1 = 5.12 秒、4 = 20 秒、16 = 82 秒；想更快就抬下面的「步进(级)」。\n（从跳变切过来时这一格会挟带「停留」那个大数，那样一圈要好几分钟、看着像没在动 —— 切过去时会自动收进 ' + GRAD_SPEED_CUT + '。）');
-    else tip(sp, '每 N 拍沿色环往前一格（越小越快；一整圈 = 256 格）。想比「1 拍/级」更快 → 抬下面的「步进(级)」。');
+    /* rowSpeed 只在「跳变 / 渐变 / 旧双色渐变」出现，上面两个分支已经包完；
+     * 别的配色不显示这一格，所以不再留一条「谁都不该看到」的兜底文案。 */
   }
   if (isGradColor) gradStepHint(e);
   if (hint) {
-    hint.textContent = mode === FW.COLOR.SOLID   ? '纯色只用这一个颜色；调色板里多出来的颜色只是收起来，切回跳变 / 呼吸 / 覆盖还在。'
-      : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；「停留」= 渐亮 + 亮 + 变暗，自动算 —— 只调「渐亮(拍)」「亮(拍)」「变暗(拍)」三行。'
-      : mode === FW.COLOR.BREATH                 ? '整条效果级（图层参数不参与）：一个周期换一种颜色；周期看「周期(拍)」。'
-      : mode === FW.COLOR.WIPE                   ? '整条效果级（图层参数不参与）：条目按趟轮换 —— 第 1 趟盖第 2 个条目、第 2 趟盖第 3 个……几个条目就轮几个（最多 16），上一趟盖的那个条目正好是这一趟的底。条目是纯色就整块盖过去，条目是 [A→B] 就铺 A→B 的位置渐变（「+渐变」加一个，点胶囊左右两半改两端色；取色面板底部可改回纯色）。方向看「覆盖方向」。'
+    hint.textContent = mode === FW.COLOR.SOLID   ? '只用第 1 个颜色；多出来的只是收起，切回来还在。'
+      : mode === FW.COLOR.STEP                   ? '颜色个数 = 循环里有几种颜色；「停留」自动 = 渐亮 + 亮 + 变暗。'
+      : mode === FW.COLOR.BREATH                 ? '一个周期换一种颜色；周期自动 = 渐亮 × 2 + 亮。'
+      : mode === FW.COLOR.WIPE                   ? '条目按趟轮换（第 1 趟盖第 2 个，回绕）：纯色条目整块盖过去，[A→B] 条目铺位置渐变。'
       : (mode === FW.COLOR.SPECTRUM)
-        ? '渐变用上面选的那条色环（起始色 / 顺序都能改；「新建」一条全新的、「另存为」复制一条给别的分区用）；彩虹才用内置彩虹表。'
-        : '渐变 / 彩虹用内置彩虹表，不需要调色板。';
+        ? '用上面选的那条色环（起始色 / 顺序可改）。'
+        : '彩虹用内置彩虹表，不需要调色板。';
     /* 图层自己算色相时会盖过效果配色 —— 不点明就像「改了配色没反应」 */
     const hueLayers = (e && e.kind === 'custom')
       ? (e.layers || []).map((l, i) => ({ l, i })).filter(x => x.l.en && x.l.cmode) : [];

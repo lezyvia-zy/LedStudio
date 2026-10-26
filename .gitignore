@@ -6,3 +6,6 @@ MVsB1_BT_Audio_SDK_v0.3.4/
 .vscode/
 Thumbs.db
 desktop.ini
+
+# 临时延时/冒烟效果页（2026-10-26，用户：只是临时用的，和主工程无关）
+_demo/
