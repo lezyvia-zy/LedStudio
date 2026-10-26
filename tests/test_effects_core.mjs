@@ -2,17 +2,16 @@
 import fs from 'node:fs';
 const CORE = new Function(fs.readFileSync('led_layout_editor.html','utf8')
   .match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
-const { FW, FALL, LAYER, WAVE, CMODE, pulseGain, bouncePos, layerHue,
+const { FW, FALL, LAYER, WAVE, pulseGain, bouncePos,
         genSpot, genTwinkle, genFill, genGradient, genRender, chaseSingle, zoneScaled } = CORE;
 let fails = 0;
 const ok = (c, m) => { console.log((c ? '  PASS  ' : '  FAIL  ') + m); if (!c) fails++; };
 
 const mk = len => new Uint8Array(len);
-const hz = len => new Uint8Array(len).fill(0xFF);
-const SP = (m, h, len, pos, L, g, t) => genSpot(m, h, len, pos,
+/* 图层不再产色（「本层取色」退休）：原语只写 mask，不碰 hue[] */
+const SP = (m, len, pos, L, g) => genSpot(m, len, pos,
   Object.assign({ kind:'spot', count:1, width:8, phase:0, falloff:FALL.COS, pulse_period:0,
-                  pulse_amp:0, wave:0, direction:1, bounce:0, cmode:0,
-                  hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0, flags:1 }, L), g || 255, t || 0);
+                  pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1 }, L), g || 255);
 
 /* ---- 1) SPOT(count=1, 硬边, 无脉动) 仍必须逐字节等于 chaseSingle ----
  * 内建「单点追逐」= 一条平顶光带（带内一律 255，带外 0，无边缘衰减），
@@ -24,7 +23,7 @@ for (const len of [8, 24, 40]) for (const w of [1, 3, 10, 16, 40]) {
   for (let pos = 0; pos < len * 256; pos += 37) {
     const a = mk(len), b = mk(len);
     chaseSingle(a, len, pos, sw);
-    SP(b, hz(len), len, pos, { width: w, falloff: FALL.HARD });
+    SP(b, len, pos, { width: w, falloff: FALL.HARD });
     cases++;
     for (let i = 0; i < len; i++) if (a[i] !== b[i]) allEq = false;
   }
@@ -96,7 +95,7 @@ console.log('--- 往返（乒乓）---');
   const len = 24, seen = [];
   for (let pos = 0; pos <= len * 256 * 2; pos += 137) {
     const m = mk(len);   /* 原语是逐点取最大，必须用干净缓冲 */
-    SP(m, hz(len), len, pos, { width: 4, bounce: 1 });
+    SP(m, len, pos, { width: 4, bounce: 1 });
     let bn = 0, bb = -1;
     for (let i = 0; i < len; i++) if (m[i] > bb) { bb = m[i]; bn = i; }
     seen.push(bn);
@@ -112,14 +111,14 @@ console.log('--- 往返（乒乓）---');
 console.log('--- 多点与拖尾 ---');
 {
   const len = 24, m = mk(len);
-  SP(m, hz(len), len, 0, { count: 3, width: 2 });
+  SP(m, len, 0, { count: 3, width: 2 });
   let peaks = 0;
   for (let i = 0; i < len; i++) if (m[i] > 200 && m[(i + 1) % len] <= 200) peaks++;
   ok(peaks === 3, `count=3 亮点峰数 = ${peaks}`);
 }
 {
   const len = 24, m = mk(len);
-  SP(m, hz(len), len, 0, { count: 1, width: 4, falloff: FALL.TAIL, direction: 1 });
+  SP(m, len, 0, { count: 1, width: 4, falloff: FALL.TAIL, direction: 1 });
   let peakAt = 0, peak = 0;
   for (let i = 0; i < len; i++) if (m[i] > peak) { peak = m[i]; peakAt = i; }
   let back = 0, front = 0;
@@ -131,17 +130,17 @@ console.log('--- 多点与拖尾 ---');
 /* ---- 5) FILL 呼吸 ---- */
 console.log('--- 填充 / 呼吸 ---');
 {
-  const len = 24, L = { kind:'fill', level:200, pulse_period:40, pulse_amp:255, wave:WAVE.TRI, direction:1 };
+  const len = 24, L = { kind:'fill', level:200, pulse_period:40, pulse_amp:255, wave:WAVE.TRI };
   const m = mk(len);
-  genFill(m, hz(len), len, L, pulseGain(0, 40, 255, WAVE.TRI), 0);
+  genFill(m, len, L, pulseGain(0, 40, 255, WAVE.TRI));
   ok(m.every(v => v === 200), 'tick=0 整环 = level');
   const m2 = mk(len);
-  genFill(m2, hz(len), len, L, pulseGain(20, 40, 255, WAVE.TRI), 0);
+  genFill(m2, len, L, pulseGain(20, 40, 255, WAVE.TRI));
   ok(m2.every(v => v === 0), '半周期整环 = 0（呼吸到最暗）');
 }
 {
   const len = 16, m = mk(len);
-  genFill(m, hz(len), len, { kind:'fill', level:200, pulse_period:0, pulse_amp:255, direction:1 }, 255, 0);
+  genFill(m, len, { kind:'fill', level:200, pulse_period:0, pulse_amp:255 }, 255);
   ok(m.every(v => v === 200), 'period=0 不脉动');
 }
 
@@ -149,70 +148,52 @@ console.log('--- 填充 / 呼吸 ---');
 console.log('--- 亮度渐变 ---');
 {
   const len = 32, m = mk(len);
-  genGradient(m, hz(len), len, { kind:'gradient', lo:0, hi:255, spans:1, phase:0, wave:WAVE.TRI, rotate:0 }, 0);
+  genGradient(m, len, { kind:'gradient', lo:0, hi:255, spans:1, phase:0, wave:WAVE.TRI, rotate:0 }, 0);
   ok(m[0] < 20 && m[len/2] > 240 && m[len-1] < 20,
      `三角渐变：两头暗中间亮 (${m[0]}, ${m[len/2]}, ${m[len-1]})`);
 }
 {
   const len = 32, m = mk(len);
-  genGradient(m, hz(len), len, { kind:'gradient', lo:0, hi:255, spans:1, phase:0, wave:WAVE.SAW, rotate:0 }, 0);
+  genGradient(m, len, { kind:'gradient', lo:0, hi:255, spans:1, phase:0, wave:WAVE.SAW, rotate:0 }, 0);
   ok(m[0] < 20 && m[len-1] > 230, `锯齿渐变：一路升到顶 (${m[0]} -> ${m[len-1]})`);
 }
 {
   const len = 32, a = mk(len), b = mk(len);
   const L = { kind:'gradient', lo:0, hi:255, spans:1, phase:0, wave:WAVE.SAW, rotate:4 };
-  genGradient(a, hz(len), len, L, 0);
-  genGradient(b, hz(len), len, L, 8);
+  genGradient(a, len, L, 0);
+  genGradient(b, len, L, 8);
   ok(a.some((v, i) => v !== b[i]), '旋转参数能改变图案');
   const c = mk(len);
-  genGradient(c, hz(len), len, { kind:'gradient', lo:0, hi:255, spans:1, phase:128, wave:WAVE.SAW, rotate:0 }, 0);
+  genGradient(c, len, { kind:'gradient', lo:0, hi:255, spans:1, phase:128, wave:WAVE.SAW, rotate:0 }, 0);
   ok(c.some((v, i) => v !== a[i]), '起始位能改变图案');
 }
 
-/* ---- 7) 空间色相 ---- */
-console.log('--- 空间色相 ---');
+/* ---- 7) 图层不产色：渲染原语一律不碰 hue[]（「本层取色」已退休）---- */
+console.log('--- 图层不产色（颜色全归效果级配色）---');
 {
-  const L = { cmode:CMODE.SPATIAL, hue_base:0, hue_spread:255, hue_speed:0 };
-  const h0 = layerHue(L, 0, 40, 0), h20 = layerHue(L, 20, 40, 0), h39 = layerHue(L, 39, 40, 0);
-  ok(h0 === 0 && h20 === 127 && h39 === 248, `沿环铺满一轮: ${h0} -> ${h20} -> ${h39}`);
-  ok(layerHue(L, 5, 40, 0) === layerHue(L, 5, 40, 99), 'hue_speed=0 时不随时间变');
-}
-{
-  const L = { cmode:CMODE.SPATIAL, hue_base:10, hue_spread:0, hue_speed:4 };
-  ok(layerHue(L, 3, 24, 0) === 10, 'hue_speed 起点');
-  ok(layerHue(L, 3, 24, 8) === 12, `每 4 帧 +1 (tick=8 -> ${layerHue(L, 3, 24, 8)})`);
-  ok(layerHue(L, 3, 24, 4096) === ((10 + 1024) & 0xFF), '长时间后仍按 8 位回绕');
-}
-{
-  ok(layerHue({ cmode:CMODE.GLOBAL, hue_base:99, hue_spread:255 }, 7, 24, 0) === 0xFF,
-     'GLOBAL 模式返回 0xFF（交给全局配色）');
-}
-{
-  const len = 24, m = mk(len), h = hz(len);
-  const fillL = { kind:LAYER.FILL, level:100, pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0,
-                  cmode:CMODE.GLOBAL, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0, flags:1 };
-  const spotL = { kind:LAYER.SPOT, count:1, width:6, phase:0, falloff:FALL.COS, pulse_period:0, pulse_amp:0,
-                  wave:0, direction:1, bounce:0, cmode:CMODE.SPATIAL, hue_base:0, hue_spread:255,
-                  hue_speed:0, spans:0, rotate:0, flags:1 };
-  genRender(m, h, len, 0, [fillL, spotL], 0, 0);
-  let hueCount = 0, globalCount = 0;
-  for (let i = 0; i < len; i++) { if (h[i] === 0xFF) globalCount++; else hueCount++; }
-  ok(hueCount > 0 && globalCount > 0, `光点处用空间色相(${hueCount} 灯位)、其余用全局配色(${globalCount} 灯位)`);
-  let peakAt = 0, peak = -1;
-  for (let i = 0; i < len; i++) if (m[i] > peak) { peak = m[i]; peakAt = i; }
-  ok(h[peakAt] !== 0xFF, '最亮的灯位上写的是空间色相');
-  const hues = [...h].filter(v => v !== 0xFF);
-  ok(new Set(hues).size > 1, `被光点覆盖的灯位色相各不相同（${new Set(hues).size} 种色相，是彩虹不是单色）`);
+  const len = 24, m = mk(len); const h = new Uint8Array(len).fill(0xAB);
+  const layers = [
+    { kind:LAYER.FILL, level:100, pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1 },
+    { kind:LAYER.SPOT, count:1, width:6, phase:0, falloff:FALL.COS, pulse_period:0, pulse_amp:0,
+      wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1 },
+  ];
+  genRender(m, len, 0, layers, 0, 0);
+  ok(h.every(v => v === 0xAB), 'genRender 不再写 hue[]（哨兵由 renderZoneMaskTo 统一填）');
+  ok(Math.max(...m) > 200, `亮度照常合成（最大 ${Math.max(...m)}）`);
+  /* 老存档里残留的 cmode / hue_* 不再有任何影响：同一层带不带它们，亮度逐字节相同 */
+  const m1 = mk(len), m2 = mk(len);
+  genRender(m1, len, 0, [layers[1]], 0, 0);
+  genRender(m2, len, 0, [Object.assign({}, layers[1], { cmode:1, hue_base:0, hue_spread:255, hue_speed:3 })], 0, 0);
+  ok(JSON.stringify([...m1]) === JSON.stringify([...m2]), '老字段 cmode / hue_* 已被忽略（渲染逐字节相同）');
 }
 
 /* ---- 8) 起始位（offset）---- */
 console.log('--- 起始位 ---');
 {
-  const len = 40, m = mk(len), h = hz(len);
+  const len = 40, m = mk(len);
   const layers = [{ kind:LAYER.SPOT, count:1, width:4, phase:0, falloff:FALL.COS, pulse_period:0, pulse_amp:0,
-                    wave:0, direction:1, bounce:0, cmode:0, hue_base:0, hue_spread:0, hue_speed:0,
-                    spans:0, rotate:0, flags:1 }];
-  const at = off => { genRender(m, h, len, 0, layers, 0, off); return m.indexOf(Math.max.apply(null, m)); };
+                    wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1 }];
+  const at = off => { genRender(m, len, 0, layers, 0, off); return m.indexOf(Math.max.apply(null, m)); };
   const a0 = at(0), a10 = at(10), a20 = at(20);
   ok(a0 !== a10 && a10 !== a20, `起始位把光点挪开了: ${a0} -> ${a10} -> ${a20}`);
   const back = at(255);
@@ -223,15 +204,15 @@ console.log('--- 起始位 ---');
 console.log('--- 边界与性质 ---');
 {
   const m = mk(1);
-  SP(m, hz(1), 1, 0, { width: 1 });
+  SP(m, 1, 0, { width: 1 });
   ok(m[0] === 254, `len=1 单灯 = ${m[0]}（254 是对的：cos_window_tbl[0] 本身是 254）`);
 }
 {
   const len = 24, m = mk(len);
-  SP(m, hz(len), len, 0, { count: 32, width: 1 });
+  SP(m, len, 0, { count: 32, width: 1 });
   ok(m.every(v => v <= 255), 'count=32 不溢出');
   const m2 = mk(len);
-  SP(m2, hz(len), len, 0, { width: 255, phase: 255 });
+  SP(m2, len, 0, { width: 255, phase: 255 });
   ok(m2.every(v => v <= 255), 'width=255 / phase=255 不溢出');
 }
 {
@@ -245,8 +226,7 @@ console.log('--- 边界与性质 ---');
       const kind = (t + k) % 4;
       kindsSeen.add(kind);
       layers.push({
-        kind, cmode: (t + k) % 2, hue_base: (t*7)%256, hue_spread: (t*11)%256,
-        hue_speed: (t*3)%20, spans: 1 + ((t+k)%3), rotate: (t*5)%12,
+        kind, spans: 1 + ((t+k)%3), rotate: (t*5)%12,
         pulse_period: (t*3+k)%40, pulse_amp: (t*11+k)%256,
         wave: (t+k)%3, direction: (t+k)%2, bounce: (t+k)%2,
         lo: (t*5)%200, hi: 200 + ((t*3)%55), level: (t*31)%256,
@@ -254,12 +234,12 @@ console.log('--- 边界与性质 ---');
         width: (t*13+k)%64, phase: (t*29+k)%256, falloff: (t+k)%4 });
     }
     const pos = (t * 333) % (len * 256), tick = (t * 77) & 0xFFFF;
-    const m1 = mk(len), m2 = mk(len), h1 = hz(len), h2 = hz(len);
-    genRender(m1, h1, len, pos, layers, tick, t % 256);
-    genRender(m2, h2, len, pos, layers, tick, t % 256);
+    const m1 = mk(len), m2 = mk(len);
+    genRender(m1, len, pos, layers, tick, t % 256);
+    genRender(m2, len, pos, layers, tick, t % 256);
     for (let i = 0; i < len; i++) {
       if (m1[i] > 255) bad++;
-      if (m1[i] !== m2[i] || h1[i] !== h2[i]) bad++;
+      if (m1[i] !== m2[i]) bad++;
       maxSeen = Math.max(maxSeen, m1[i]);
     }
   }
@@ -267,10 +247,10 @@ console.log('--- 边界与性质 ---');
   ok(kindsSeen.size === 4, `四种图层都被覆盖到 (${[...kindsSeen].sort().join(',')})`);
 }
 {
-  const len = 24, m = mk(len), h = hz(len);
-  genRender(m, h, len, 0, [], 0, 0);
-  ok(m.every(v => v === 0) && h.every(v => v === 0xFF), '空图层表 → 全黑 + 全用全局配色');
-  genRender(m, h, len, 0, null, 0, 0);
+  const len = 24, m = mk(len);
+  genRender(m, len, 0, [], 0, 0);
+  ok(m.every(v => v === 0), '空图层表 → 全黑');
+  genRender(m, len, 0, null, 0, 0);
   ok(m.every(v => v === 0), '图层为 null 不崩');
 }
 
@@ -279,19 +259,17 @@ console.log('--- 图层旁路（en=0）---');
 {
   const { layerNums } = CORE;
   const base = { count:1, width:2, phase:0, falloff:FALL.COS, pulse_period:0, pulse_amp:0,
-                 wave:0, direction:1, bounce:0, cmode:0, hue_base:0, hue_spread:0,
-                 hue_speed:0, spans:0, rotate:0, flags:1 };
+                 wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1 };
   const fill = layerNums(Object.assign({ kind:'fill', level:100 }, base));
   const spotOff = layerNums(Object.assign({ kind:'spot' }, base, { en:0 }));
   const spotOn  = layerNums(Object.assign({ kind:'spot' }, base));
   const len = 24;
-  const run = lss => { const m = mk(len), h = hz(len); genRender(m, h, len, 0, lss, 0, 0); return [m, h]; };
+  const run = lss => { const m = mk(len); genRender(m, len, 0, lss, 0, 0); return [m]; };
 
-  const [mA, hA] = run([fill, spotOff]);      /* 旁路的层：应等同于没有它 */
-  const [mB, hB] = run([fill]);
-  ok(JSON.stringify([...mA]) === JSON.stringify([...mB]) &&
-     JSON.stringify([...hA]) === JSON.stringify([...hB]),
-     'en=0 的层与「删掉这一层」的 mask/hue 逐字节相同');
+  const [mA] = run([fill, spotOff]);      /* 旁路的层：应等同于没有它 */
+  const [mB] = run([fill]);
+  ok(JSON.stringify([...mA]) === JSON.stringify([...mB]),
+     'en=0 的层与「删掉这一层」的 mask 逐字节相同');
   ok(mA.every(v => v === 100), `只剩填充层时整环 = 100（说明光点层确实没叠上来）`);
   const [mC] = run([fill, spotOn]);
   ok(Math.max(...mC) > 200, `同一层不旁路时最大亮度 = ${Math.max(...mC)}（光点确实会叠上来）`);

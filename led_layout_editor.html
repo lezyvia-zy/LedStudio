@@ -903,8 +903,7 @@
         <table>
           <tr><th>参数</th><th>作用</th></tr>
           <tr><td>填充亮度</td><td>整环的亮度。</td></tr>
-          <tr><td>起点</td><td>从 0 号灯还是末号灯开始（配合色相用）。</td></tr>
-          <tr><td>脉动周期/深度</td><td><b>这就是呼吸</b>：让整环亮度周期性起伏。想要呼吸灯，一个填充层 + 周期就够了。</td></tr>
+          <tr><td>脉动周期/深度</td><td><b>这就是呼吸</b>：让整环亮度周期性起伏。想要呼吸灯，一个填充层 + 周期就够了（脉动是三角包络：满亮 → 暗 → 满亮）。</td></tr>
         </table>
 
         <h4>③ 随机闪（twinkle）—— 与位置无关的随机亮度</h4>
@@ -924,20 +923,15 @@
           <tr><td>旋转</td><td>每 N 帧把斜坡推进一格；0 = 不动。</td></tr>
         </table>
 
-        <h4>三种图层共有的两项</h4>
-        <table>
-          <tr><th>参数</th><th>作用</th></tr>
-          <tr><td><b>波形</b></td><td>脉动长什么样：<b>三角</b> = 呼吸（渐亮渐暗）；<b>方波</b> = 闪烁（一亮一灭）；<b>锯齿</b> = 渐暗然后瞬间跳回最亮（跳变）。</td></tr>
-          <tr><td><b>配色</b></td><td>
-            <b>跟随效果配色</b>：整个环同一个颜色，颜色可以随时间循环（由效果级的「配色」决定）。<br>
-            <b>本层空间色相</b>：这一层自己算色相（覆盖效果级配色），每颗灯不一样 —— 老存档和几个老预置还在用它。下面三项控制它：
-            <table>
-              <tr><td>色相起点</td><td>0 号灯是什么颜色（0=红，85=绿，170=蓝，255 回到红）。</td></tr>
-              <tr><td>沿环色相跨度</td><td>沿环铺多少色相：0 = 同色；255 = 整圈正好铺满一轮彩虹。120 左右是「一段渐变」。</td></tr>
-              <tr><td>色相旋转</td><td>每 N 帧色相整体挪一格，也就是彩虹在转。0 = 不动。</td></tr>
-            </table>
-          </td></tr>
-        </table>
+        <h4>颜色从哪来：只从「色彩配置」来</h4>
+        <p>图层只描述<b>形状</b>（哪几颗灯亮、多亮、怎么动），<b>不带颜色</b>：
+          图上什么颜色，全看页面最下面那块<b>「色彩配置 → 配色」</b>。想换色就只动那一个下拉，
+          动画本身一点不用改 —— 这就是<b>动画与色彩分离</b>。
+          要让每颗灯颜色不同，把配色设成<b>彩虹</b>：它沿灯位铺开、首尾相接，
+          图层照常跑形状，颜色自己按位置落（「绕环彩虹 / 彩虹光点 / 呼吸彩虹」几个预置就是这么做的）。</p>
+        <div class="hint">以前的「本层取色（空间色相）」已经退休 —— 打开老工程时，带它的效果会
+          自动迁成效果级「彩虹」配色，图层里的色相起点 / 跨度 / 旋转顺手清掉。
+          「波形」也不在图层卡上了：脉动固定三角（呼吸），要「一亮一灭 / 渐暗后跳回」请用配色<b>「跳变」</b>。</div>
 
         <h4>效果级参数（都在页面最下面的「色彩配置」里）</h4>
         <table>
@@ -1027,18 +1021,18 @@
         <h3 id="hs-recipes">常见做法</h3>
         <table>
           <tr><th>想要</th><th>怎么配</th><th>去做</th></tr>
-          <tr><td>呼吸灯</td><td>一个<b>填充</b>层，脉动周期 60、深度 255、波形选三角。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
-          <tr><td>闪烁</td><td>同上，波形换<b>方波</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>呼吸灯</td><td>一个<b>填充</b>层，脉动周期 60、深度 255（脉动就是三角包络：满亮 → 暗 → 满亮）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b>（一整条一亮一灭）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用。">效果页</button></td></tr>
           <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
-          <tr><td>绕环彩虹</td><td>一个填充层，配色选<b>本层空间色相</b>，跨度 255，旋转 2–4。或者用效果级配色选<b>彩虹</b>（级数填成分区灯数）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>绕环彩虹</td><td>一个填充层，<b>配色选「彩虹」</b>（级数填成分区灯数）；想让彩虹转起来，再调「彩虹旋转」。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
           <tr><td>一整圈首尾相接的彩虹</td><td>效果级配色选<b>彩虹</b>，<b>级数</b>填这个分区的灯数（30 颗圆环填 30；填 30 而分区只有 8 颗，就只显示红→黄那一小段）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
           <tr><td>一种颜色盖过另一种</td><td>配色选<b>覆盖</b>，调色板第 1/2 个分别是底色和盖上去的颜色，<b>周期</b>管盖得快慢。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
-          <tr><td>彩虹在跑</td><td>外环用「彩虹环」（填充+空间色相），顶环再加一个光点层让亮点扫过。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>彩虹在跑</td><td>外环用「彩虹环」（填充 + 效果级配色「彩虹」），顶环再加一个光点层让亮点扫过。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>随机闪</td><td>一个<b>随机闪</b>层；想让它盖在底色上，再垫一个低亮度的填充层。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>旋钮光晕太窄</td><td>模式页那条绑定勾「覆盖参数」→「微调参数」→ 把光宽调大（效果页的「多长度对比」用的是你板子上真实的几条长度，先在编辑台看清再改）。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
           <tr><td>两个分区要错开相位</td><td>给其中一个分区单独勾「覆盖参数」，把「起始位」改一下。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
-          <tr><td>沿环渐变呼吸</td><td>亮度渐变层（三角、绕环 1 轮）+ 一个填充层配脉动。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>沿环渐变呼吸</td><td>亮度渐变层（绕环 1 轮）+ 一个填充层配脉动。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>21 颗要围成一圈闭合</td><td>分区页：形状类型选<b>矩形</b>，宽 <b>6</b>、高 <b>6.5</b>（周长 840px），分布选<b>等灯距</b>、灯距 <b>40</b> —— 诊断行写「正好闭环 ✓」。实物是 6/5/6/4 就把分布改成<b>每边颗数</b>。</td><td><button class="help-go" data-go="zones" data-tip="跳到分区页，选一个分区再动「铺灯 · 形状」那块。">分区页</button></td></tr>
           <tr><td>接手一个老工程</td><td>分区页点<b>「由分区反推」</b>：按现有灯位的包围盒生成一个形状（能原样重现旧排布），之后改形状、调头尾都方便。</td><td><button class="help-go" data-go="zones" data-tip="跳到分区页，点「由分区反推」。">分区页</button></td></tr>
         </table>
@@ -2395,6 +2389,22 @@ function normalizeEffect(e) {
     e.cover_group = 1;
   }
   e.levels = effLevels(e);
+  /* 「本层取色」退休（2026-10-26，用户：所有色彩管理都在「色彩配置」里，动画与色彩分离）：
+   * 图层不再能自带色相。老存档里若还有 cmode / hue_base / hue_spread / hue_speed，
+   * 把整条效果迁到**效果级「彩虹」**再把字段删掉 —— 幂等：迁完就没有 cmode，
+   * 下次打开不会再动配色。没有 cmode 的层只做一次字段清理（老 JSON 也顺手瘦身）。 */
+  if (Array.isArray(e.layers)) {
+    let spatial = false;
+    for (const L of e.layers) {
+      if (!L) continue;
+      if ((L.cmode | 0) === 1) spatial = true;
+      delete L.cmode; delete L.hue_base; delete L.hue_spread; delete L.hue_speed;
+    }
+    if (spatial && (e.color | 0) === FW.COLOR.SOLID) {
+      e.color = FW.COLOR.RAINBOW;
+      if (!(e.levels >= 6)) e.levels = 30;
+    }
+  }
   /* 呼吸：周期 = 渐亮(=渐暗) × 2 + 亮 —— 三段里首尾一样长，落成两行具体值存着
    * （老存档只有 period 的，按老三角波摊成 period/2 + 0 —— 周期不变、曲线软化）；
    * 其余配色：周期就是外面填的那个（渐变 / 跳变 / 彩虹用不到）。 */
@@ -2637,8 +2647,11 @@ function fillAnim(mask, len, level, direction) {
  * ==========================================================================*/
 const FALL  = { COS:0, LINEAR:1, HARD:2, TAIL:3 };
 const LAYER = { SPOT:0, TWINKLE:1, FILL:2, GRADIENT:3 };
-const WAVE  = { TRI:0, SQUARE:1, SAW:2 };      /* 三角(呼吸) / 方波(闪烁) / 锯齿(渐亮后瞬灭) */
-const CMODE = { GLOBAL:0, SPATIAL:1 };         /* 跟随效果配色 / 本层自己做空间色相 */
+/* 脉动的形状：三角(呼吸) / 方波(闪烁) / 锯齿(渐亮后瞬灭)。
+ * **界面上不再暴露**（用户 2026-10-26：「波形这个选项多余」）—— 它是模板的
+ * 形状参数，由预置（呼吸 / 闪烁 / 跳变）内部定，不是日常要调的旋钮；
+ * 颜色与「时间上的亮度包络」另归效果级「色彩配置」管。 */
+const WAVE  = { TRI:0, SQUARE:1, SAW:2 };
 
 /* 脉动包络。period=0 表示不脉动。返回 0..255 的增益。
  * tick=0 时增益为满（255）—— 效果一上来就是亮的，不会先黑一段。 */
@@ -2662,16 +2675,8 @@ function bouncePos(p, span) {
   return t < span ? t : two - t;
 }
 
-/* 本层在第 i 个灯位上的色相。返回 0xFF 表示「用效果的全局配色」。 */
-function layerHue(L, i, len, tick) {
-  if (L.cmode !== CMODE.SPATIAL) return 0xFF;
-  let rot = 0;
-  if (L.hue_speed > 0) rot = Math.floor(tick / L.hue_speed);
-  return (L.hue_base + Math.floor((i * L.hue_spread) / len) + rot) & 0xFF;
-}
-
 /* 光点层：count 个光点沿环均布，随 pos 移动（可往返） */
-function genSpot(mask, hue, len, pos, L, gain, tick) {
+function genSpot(mask, len, pos, L, gain) {
   const count = L.count;
   if (!count) return;
   /* 宽度按分区等比缩放，与内建追逐同样的「各环张角一致」语义 */
@@ -2705,12 +2710,12 @@ function genSpot(mask, hue, len, pos, L, gain, tick) {
       if (v > best) best = v;
     }
     const g = Math.floor((best * gain) / 255);
-    if (g > mask[i]) { mask[i] = g; hue[i] = layerHue(L, i, len, tick); }
+    if (g > mask[i]) mask[i] = g;
   }
 }
 
 /* 随机闪层：与位置无关，每 rate 帧换一批 */
-function genTwinkle(mask, hue, len, L, tick) {
+function genTwinkle(mask, len, L, tick) {
   const density = L.density;
   if (!density) return;
   if (L.hi <= L.lo) return;                    /* C 侧同款护栏：避免负数落到 uint8 上取模后走样 */
@@ -2725,26 +2730,23 @@ function genTwinkle(mask, hue, len, L, tick) {
     const r = (h >>> 8) & 0xFF;
     if (r >= thr) {
       const v = L.lo + Math.floor(((r - thr) * (L.hi - L.lo)) / (255 - thr));
-      if (v > mask[i]) { mask[i] = v; hue[i] = layerHue(L, i, len, tick); }
+      if (v > mask[i]) mask[i] = v;
     }
   }
 }
 
-/* 整环填充层：配脉动即呼吸。direction=0 时从另一端开始铺 */
-function genFill(mask, hue, len, L, gain, tick) {
+/* 整环填充层：配脉动即呼吸 */
+function genFill(mask, len, L, gain) {
   let lvl = L.level;
   if (L.pulse_period > 0) lvl = Math.floor((lvl * gain) / 255);
   for (let i = 0; i < len; i++) {
-    if (lvl > mask[i]) {
-      mask[i] = lvl;
-      hue[i] = layerHue(L, L.direction ? i : (len - 1 - i), len, tick);
-    }
+    if (lvl > mask[i]) mask[i] = lvl;
   }
 }
 
-/* 亮度渐变层：亮度沿环做斜坡/三角/锯齿，可带起始位与旋转。
+/* 亮度渐变层：亮度沿环做三角斜坡（两头暗中间亮），可带起始位与旋转。
  * spans = 绕环铺几轮；phase = 起始位（0..255）；rotate = 每 N 帧推进一格 */
-function genGradient(mask, hue, len, L, tick) {
+function genGradient(mask, len, L, tick) {
   const lo = L.lo, hi = L.hi;
   if (hi <= lo) return;
   let rot = 0;
@@ -2753,21 +2755,21 @@ function genGradient(mask, hue, len, L, tick) {
   for (let i = 0; i < len; i++) {
     let t = Math.floor((i * spans * 256) / len) + L.phase + rot;
     t &= 0xFF;
-    let w;
+    let w;                                   /* 形状默认三角（两头暗中间亮）；方波 / 锯齿只由预置内部用 */
     if (L.wave === WAVE.SQUARE)      w = t < 128 ? 255 : 0;
     else if (L.wave === WAVE.SAW)    w = t;
-    else                             w = t < 128 ? (t * 2) : ((255 - t) * 2);   /* 三角：两头暗中间亮 */
+    else                             w = t < 128 ? (t * 2) : ((255 - t) * 2);
     const v = lo + Math.floor(((hi - lo) * w) / 255);
-    if (v > mask[i]) { mask[i] = v; hue[i] = layerHue(L, i, len, tick); }
+    if (v > mask[i]) mask[i] = v;
   }
 }
 
 /* 通用渲染器：自定义动效的入口，对应 C 的 led_gen_render()
- * hue[] 与 mask[] 同步写：谁在这个灯位上最亮，颜色就归谁。
- * hue[i] == 0xFF 表示该处用效果的全局配色。 */
-function genRender(mask, hue, len, pos, layers, tick, offset) {
+ * **只产亮度**：颜色一律由效果级「配色」决定（hue[] 的 0xFF 哨兵 /
+ * 彩虹按位置铺 / 覆盖的条目索引都在 renderZoneMaskTo 里落），
+ * 图层不再自带「本层取色」—— 动画与色彩分离。 */
+function genRender(mask, len, pos, layers, tick, offset) {
   mask.fill(0, 0, len);
-  if (hue) hue.fill(0xFF, 0, len);
   if (!layers || !layers.length) return;
   const rd = len * 256;
   let p = pos + Math.floor((offset | 0) * len);   /* 效果的起始位（0..255 分数） */
@@ -2777,10 +2779,10 @@ function genRender(mask, hue, len, pos, layers, tick, offset) {
     const gain = (L.kind === LAYER.TWINKLE) ? 255
                : pulseGain(tick, L.pulse_period | 0, L.pulse_amp | 0, L.wave | 0);
     switch (L.kind) {
-      case LAYER.SPOT:     genSpot(mask, hue, len, p, L, gain, tick);     break;
-      case LAYER.TWINKLE:  genTwinkle(mask, hue, len, L, tick);           break;
-      case LAYER.FILL:     genFill(mask, hue, len, L, gain, tick);        break;
-      case LAYER.GRADIENT: genGradient(mask, hue, len, L, tick);          break;
+      case LAYER.SPOT:     genSpot(mask, len, p, L, gain);       break;
+      case LAYER.TWINKLE:  genTwinkle(mask, len, L, tick);       break;
+      case LAYER.FILL:     genFill(mask, len, L, gain);          break;
+      case LAYER.GRADIENT: genGradient(mask, len, L, tick);      break;
       default: break;
     }
   }
@@ -2983,14 +2985,14 @@ function wipeEntryAt(c, idx, i, S) {
  *
  * hue[] 的约定（全项目统一）：
  *   0xFF      = 用效果当前色（c.current：纯色 / 跳变 / 渐变 / 呼吸）
- *   0x00..0xFD = 直接查 spectrum_tbl（本层空间色相 / 效果级彩虹）
+ *   0x00..0xFD = 直接查 spectrum_tbl（只由效果级「彩虹」填；图层不再写色相）
  *   **覆盖模式例外**：hue[] 不再是哨兵，而是**调色板条目索引**（0..n-1，n = 条目数 ≤ 16）——
  *   灯 i 最后是被哪一趟盖上的，就显示那一趟盖的那个条目（纯色条目 = 硬边、渐变条目 = 位置渐变，
  *   见 coverEntry / wipeEntryAt）。所以换趟那一帧是连续的：上一趟那片就是上一趟盖的条目本身。
  * 覆盖模式的判断必须排在「查表」之前。 */
 function renderZoneMaskTo(inst, m, hue, len, pos) {
   const a = inst.anim, c = inst.color;
-  hue.fill(0xFF, 0, len);                   /* 默认跟随效果配色；空间色相由图层自己写 */
+  hue.fill(0xFF, 0, len);                   /* 默认跟随效果配色；彩虹 / 覆盖在下面自己填 */
 
   /* 呼吸 / 覆盖是「整条效果」级：不看图层，整条点亮。
    * 跳变不在这里 —— 它只乘一个亮度包络，图层（追逐 / 填充）照旧。 */
@@ -3013,7 +3015,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.SWING:        chaseCosBand(m, len, pos, zoneScaled(a.params.light_width, len, 1)); break;
     case FW.ANIM.FILL:         fillAnim(m, len, pos, a.params.direction); break;
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
-    default:                   genRender(m, hue, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset); break;
+    default:                   genRender(m, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset); break;
   }
 
   /* 跳变：每种颜色先渐亮 / 满亮、再渐暗（stepEnv），把包络乘到 mask 上。
@@ -3025,7 +3027,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     for (let i = 0; i < len; i++) m[i] = (m[i] * env) >> 8;
   }
 
-  /* 效果级彩虹：只补「跟随效果配色」的灯位（图层自己写了空间色相的保留）。
+  /* 效果级彩虹：整条按灯位铺色相（hue[] 这时还是 0xFF 哨兵 —— 图层不再写色相）。
    * (i × 256 / levels) 用 q/r 递推算，逐值与除法完全相同，但循环里没有除法。 */
   if (c.type === FW.COLOR.RAINBOW) {
     const levels = Math.max(6, Math.min(255, c.levels | 0 || 30));
@@ -3629,7 +3631,10 @@ const ANIM_TOK = ['CHASE_SINGLE', 'CHASE_DUAL', 'SWING', 'FILL', 'STATIC'];
 const COLOR_TOK = ['SOLID', 'SPECTRUM', 'GRADIENT'];
 
 /* JSON 图层 → 数值图层。**JS 渲染器、C 生成器、测试三方共用这一套字段**，
- * 避免出现两份映射各自漂移（之前 direction / flags 就分过家）。 */
+ * 避免出现两份映射各自漂移（之前 direction / flags 就分过家）。
+ * 图层**不带颜色**：没有 cmode / hue_base / hue_spread / hue_speed —— 取色全归
+ * 效果级「配色」（动画与色彩分离，2026-10-26 用户定），所以导出的结构体也少这 4 列。
+ * wave 留着：它是「脉动的形状」，界面上不暴露，只由预置（呼吸 / 闪烁 / 跳变）给。 */
 function layerNums(L) {
   const kind = L.kind === 'twinkle'  ? LAYER.TWINKLE
              : L.kind === 'fill'     ? LAYER.FILL
@@ -3645,9 +3650,7 @@ function layerNums(L) {
     count: L.count | 0, width: L.width | 0, phase: L.phase | 0,
     falloff: fall < 0 ? 0 : fall,
     pulse_period: L.pulse_period | 0, pulse_amp: L.pulse_amp | 0,
-    wave: L.wave | 0,
-    cmode: L.cmode ? 1 : 0,
-    hue_base: L.hue_base | 0, hue_spread: L.hue_spread | 0, hue_speed: L.hue_speed | 0,
+    wave: L.wave | 0,                /* 形状（三角/方波/锯齿）：界面上不暴露，只由预置给 */
     density: L.density | 0, rate: L.rate | 0, lo: L.lo | 0, hi: L.hi | 0,
     level: L.level | 0, spans: L.spans | 0, rotate: L.rotate | 0,
     direction: dir, bounce: bn,
@@ -3840,18 +3843,9 @@ const LED_GEN_IMPL = [
 '    }',
 '}',
 '',
-'/* @huefn@ */',
-'static uint8_t led_gen_hue_of(const led_gen_layer_t *L, uint8_t i, uint8_t len, uint16_t tick)',
-'{',
-'    uint8_t rot = 0u;',
-'    if (L->cmode != (uint8_t)LED_GEN_CMODE_SPATIAL) return 0xFFu;',
-'    if (L->hue_speed > 0u) rot = (uint8_t)(tick / L->hue_speed);',
-'    return (uint8_t)(L->hue_base + (uint8_t)(((uint16_t)i * L->hue_spread) / len) + rot);',
-'}',
-'',
 '/* @spot@ */',
-'static void led_gen_spot(uint8_t *mask, uint8_t *hue, uint8_t len, int16_t pos,',
-'                         const led_gen_layer_t *L, uint8_t gain, uint16_t tick)',
+'static void led_gen_spot(uint8_t *mask, uint8_t len, int16_t pos,',
+'                         const led_gen_layer_t *L, uint8_t gain)',
 '{',
 '    uint8_t  i, s, w, half_w;',
 '    uint16_t hw;',
@@ -3888,12 +3882,12 @@ const LED_GEN_IMPL = [
 '            if (v > best) best = v;',
 '        }',
 '        g = (best * (int32_t)gain) / 255;',
-'        if ((uint8_t)g > mask[i]) { mask[i] = (uint8_t)g; hue[i] = led_gen_hue_of(L, i, len, tick); }',
+'        if ((uint8_t)g > mask[i]) mask[i] = (uint8_t)g;',
 '    }',
 '}',
 '',
 '/* @twk@ */',
-'static void led_gen_twinkle(uint8_t *mask, uint8_t *hue, uint8_t len,',
+'static void led_gen_twinkle(uint8_t *mask, uint8_t len,',
 '                            const led_gen_layer_t *L, uint16_t tick)',
 '{',
 '    uint8_t  i, thr, r, v;',
@@ -3911,29 +3905,25 @@ const LED_GEN_IMPL = [
 '        if (r >= thr) {',
 '            v = (uint8_t)((int32_t)L->lo +',
 '                          ((int32_t)(r - thr) * (int32_t)(L->hi - L->lo)) / (int32_t)(255u - thr));',
-'            if (v > mask[i]) { mask[i] = v; hue[i] = led_gen_hue_of(L, i, len, tick); }',
+'            if (v > mask[i]) mask[i] = v;',
 '        }',
 '    }',
 '}',
 '',
 '/* @fill@ */',
-'static void led_gen_fill(uint8_t *mask, uint8_t *hue, uint8_t len,',
-'                         const led_gen_layer_t *L, uint8_t gain, uint16_t tick)',
+'static void led_gen_fill(uint8_t *mask, uint8_t len,',
+'                         const led_gen_layer_t *L, uint8_t gain)',
 '{',
-'    uint8_t i, lvl, idx;',
+'    uint8_t i, lvl;',
 '    lvl = L->level;',
 '    if (L->pulse_period > 0u) lvl = (uint8_t)(((uint32_t)lvl * gain) / 255u);',
 '    for (i = 0; i < len; i++) {',
-'        if (lvl > mask[i]) {',
-'            mask[i] = lvl;',
-'            idx = (L->flags & 1u) ? i : (uint8_t)(len - 1u - i);',
-'            hue[i] = led_gen_hue_of(L, idx, len, tick);',
-'        }',
+'        if (lvl > mask[i]) mask[i] = lvl;',
 '    }',
 '}',
 '',
 '/* @grad@ */',
-'static void led_gen_gradient(uint8_t *mask, uint8_t *hue, uint8_t len,',
+'static void led_gen_gradient(uint8_t *mask, uint8_t len,',
 '                             const led_gen_layer_t *L, uint16_t tick)',
 '{',
 '    uint8_t  i, t, w, spans;',
@@ -3947,7 +3937,7 @@ const LED_GEN_IMPL = [
 '        else if (L->wave == (uint8_t)LED_GEN_WAVE_SAW) w = t;',
 '        else                                           w = (t < 128u) ? (uint8_t)(t * 2u) : (uint8_t)((255u - t) * 2u);',
 '        v = (uint32_t)L->lo + (((uint32_t)(L->hi - L->lo) * w) / 255u);',
-'        if ((uint8_t)v > mask[i]) { mask[i] = v; hue[i] = led_gen_hue_of(L, i, len, tick); }',
+'        if ((uint8_t)v > mask[i]) mask[i] = (uint8_t)v;',
 '    }',
 '}',
 '',
@@ -3968,10 +3958,10 @@ const LED_GEN_IMPL = [
 '        gain = (L->kind == (uint8_t)LED_GEN_LAYER_TWINKLE)',
 '               ? 255u : led_gen_pulse(tick, L->pulse_period, L->pulse_amp, L->wave);',
 '        switch (L->kind) {',
-'            case LED_GEN_LAYER_SPOT:     led_gen_spot(mask, hue, len, (int16_t)p, L, gain, tick); break;',
-'            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, hue, len, L, tick);               break;',
-'            case LED_GEN_LAYER_FILL:     led_gen_fill(mask, hue, len, L, gain, tick);            break;',
-'            case LED_GEN_LAYER_GRADIENT: led_gen_gradient(mask, hue, len, L, tick);              break;',
+'            case LED_GEN_LAYER_SPOT:     led_gen_spot(mask, len, (int16_t)p, L, gain);      break;',
+'            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, len, L, tick);               break;',
+'            case LED_GEN_LAYER_FILL:     led_gen_fill(mask, len, L, gain);                  break;',
+'            case LED_GEN_LAYER_GRADIENT: led_gen_gradient(mask, len, L, tick);              break;',
 '            default: break;',
 '        }',
 '    }',
@@ -4498,7 +4488,7 @@ function exportEffectsC(state, opt) {
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
     modeEn: '该模式是否启用',
-    layRow: '每行: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,hue_base,hue_spread,hue_speed,wave,cmode,flags},',
+    layRow: '每行: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags}（图层不带颜色，取色全在效果级配色里）,',
     instType: '一个效果实例的运行状态。同一条效果被多个分区引用时共用一个实例 = 相位同步',
     applyMode: '切模式：按绑定表建实例（同一效果只建一次）',
     genTick: '每帧推进一次：所有实例各推进各的',
@@ -4519,11 +4509,7 @@ function exportEffectsC(state, opt) {
     llevel: 'FILL: 填充亮度',
     lspans: '渐变: 绕环铺几轮',
     lrotate: '渐变: 每 N 帧推进一格',
-    lhb: '空间色相: 起点 0..255',
-    lhs: '空间色相: 沿环跨度, 255 = 整圈彩虹',
-    lhv: '空间色相: 旋转, 每 N 帧 +1, 0 = 不转',
-    lwave: '脉动/渐变波形: TRI 呼吸 / SQUARE 闪烁 / SAW 锯齿',
-    lcmode: 'GLOBAL 用效果配色 / SPATIAL 本层空间色相',
+    lwave: '脉动的形状: TRI 三角(呼吸) / SQUARE 方波(闪烁) / SAW 锯齿(渐亮后瞬灭) —— 界面上不暴露，只由预置给',
     lflags: 'bit0: 方向, bit1: 往返',
     layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
@@ -4563,7 +4549,7 @@ function exportEffectsC(state, opt) {
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
     modeEn: 'mode enabled',
-    layRow: 'rows: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,hue_base,hue_spread,hue_speed,wave,cmode,flags},',
+    layRow: 'rows: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags} (layers carry no colour: colours come from the effect-level colour mode),',
     instType: 'runtime state of one effect instance. Zones sharing an effect share the instance = synchronised',
     applyMode: 'switch mode: build instances from the bind table (one per distinct effect)',
     genTick: 'called once per frame: advance every instance',
@@ -4584,11 +4570,7 @@ function exportEffectsC(state, opt) {
     llevel: 'FILL: fill level',
     lspans: 'gradient: ramps around the ring',
     lrotate: 'gradient: advance every N frames',
-    lhb: 'spatial hue: start 0..255',
-    lhs: 'spatial hue: spread, 255 = full rainbow',
-    lhv: 'spatial hue: rotate, +1 every N frames',
-    lwave: 'waveform: TRI breathe / SQUARE flash / SAW saw',
-    lcmode: 'GLOBAL effect colour / SPATIAL per-LED hue',
+    lwave: 'pulse shape: TRI (breathe) / SQUARE (flash) / SAW (dim then snap back) - not exposed in the UI, set by presets only',
     lflags: 'bit0: direction, bit1: ping-pong',
     layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
@@ -4632,7 +4614,6 @@ function exportEffectsC(state, opt) {
   /* ---------- 类型 ---------- */
   push('typedef enum { LED_GEN_FALL_COS=0, LED_GEN_FALL_LINEAR, LED_GEN_FALL_HARD, LED_GEN_FALL_TAIL } led_gen_fall_t;',
        'typedef enum { LED_GEN_WAVE_TRI=0, LED_GEN_WAVE_SQUARE, LED_GEN_WAVE_SAW } led_gen_wave_t;',
-       'typedef enum { LED_GEN_CMODE_GLOBAL=0, LED_GEN_CMODE_SPATIAL } led_gen_cmode_t;',
        'typedef enum { LED_GEN_LAYER_SPOT=0, LED_GEN_LAYER_TWINKLE, LED_GEN_LAYER_FILL, LED_GEN_LAYER_GRADIENT } led_gen_layer_kind_t;',
        'typedef enum { LED_GEN_EFF_BUILTIN=0, LED_GEN_EFF_CUSTOM } led_gen_eff_kind_t;',
        '/* ' + t.newColors + ' */',
@@ -4657,11 +4638,7 @@ function exportEffectsC(state, opt) {
        '    uint8_t level;         /* ' + t.llevel + ' */',
        '    uint8_t spans;         /* ' + t.lspans + ' */',
        '    uint8_t rotate;        /* ' + t.lrotate + ' */',
-       '    uint8_t hue_base;      /* ' + t.lhb + ' */',
-       '    uint8_t hue_spread;    /* ' + t.lhs + ' */',
-       '    uint8_t hue_speed;     /* ' + t.lhv + ' */',
        '    uint8_t wave;          /* ' + t.lwave + ' */',
-       '    uint8_t cmode;         /* ' + t.lcmode + ' */',
        '    uint8_t flags;         /* ' + t.lflags + ' */',
        '} led_gen_layer_t;',
        '',
@@ -4709,11 +4686,11 @@ function exportEffectsC(state, opt) {
     for (const R of layerRows) {
       push('    { ' + [R.kind, R.en, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
-                       R.hue_base, R.hue_spread, R.hue_speed, R.wave, R.cmode, R.flags].join(', ') + ' },');
+                       R.wave, R.flags].join(', ') + ' },');
     }
     push('};');
   } else {
-    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
+    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
   }
   push('');
   push('/* ' + t.palRow + ' */');
@@ -4936,7 +4913,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
-               FALL, LAYER, WAVE, CMODE, pulseGain, bouncePos, layerHue,
+               FALL, LAYER, WAVE, pulseGain, bouncePos,
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
                coverEntry, wipeSpan, wipeEntryAt,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
@@ -6549,34 +6526,29 @@ function loop(t) {
 
 /* ---------- 动效页：编写效果 ---------- */
 const LAYER_NAME = { spot:'光点', twinkle:'随机闪', fill:'填充', gradient:'亮度渐变' };
-const WAVE_NAME = [['0','三角 / 呼吸'], ['1','方波 / 闪烁'], ['2','锯齿 / 渐暗后跳回']];
-const CMODE_NAME = [['0','跟随效果配色'], ['1','本层空间色相（每颗灯不同色）']];
 const FALL_NAME = [['cos','余弦窗'], ['linear','线性'], ['hard','硬边'], ['tail','单边拖尾']];
 
-/* 每种图层暴露哪些数值字段: [标签, 字段名, 最小, 最大, 提示] */
+/* 每种图层暴露哪些数值字段: [标签, 字段名, 最小, 最大, 提示]
+ * 图层只描述**空间上的形状**：没有「本层取色」（色相起点/跨度/旋转）也没有
+ * 「波形」—— 颜色与时间上的亮度包络全归效果级「色彩配置」。
+ * 脉动的形状固定三角（= 呼吸），「一亮一灭 / 渐暗后跳回」请用配色「跳变」。 */
 const LAYER_FIELDS = {
   spot: [
     ['光点数','count',1,32], ['光宽','width',1,255], ['相位','phase',0,255],
-    ['脉动周期','pulse_period',0,255,'0 = 不脉动'], ['脉动深度','pulse_amp',0,255],
-    ['色相起点','hue_base',0,255,'仅「空间色相」时有效'],
-    ['沿环色相跨度','hue_spread',0,255,'0 = 同色；255 = 整环铺满一轮彩虹'],
-    ['色相旋转','hue_speed',0,255,'每 N 帧色相 +1；0 = 不转'],
+    ['脉动周期','pulse_period',0,255,'0 = 不脉动（三角 = 呼吸）'], ['脉动深度','pulse_amp',0,255],
   ],
   twinkle: [
     ['点亮密度','density',1,255], ['刷新间隔','rate',1,255,'每 N 帧换一批'],
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
-    ['色相起点','hue_base',0,255], ['沿环色相跨度','hue_spread',0,255], ['色相旋转','hue_speed',0,255],
   ],
   fill: [
-    ['填充亮度','level',0,255], ['脉动周期','pulse_period',0,255,'0 = 不脉动'], ['脉动深度','pulse_amp',0,255],
-    ['色相起点','hue_base',0,255], ['沿环色相跨度','hue_spread',0,255], ['色相旋转','hue_speed',0,255],
+    ['填充亮度','level',0,255], ['脉动周期','pulse_period',0,255,'0 = 不脉动（三角 = 呼吸）'], ['脉动深度','pulse_amp',0,255],
   ],
   gradient: [
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
     ['起始位','phase',0,255,'渐变从环上哪个位置开始'],
     ['绕环轮数','spans',1,8,'环上铺几个来回'],
     ['旋转','rotate',0,255,'每 N 帧推进一格；0 = 不动'],
-    ['色相起点','hue_base',0,255], ['沿环色相跨度','hue_spread',0,255], ['色相旋转','hue_speed',0,255],
   ],
 };
 
@@ -6679,10 +6651,9 @@ function syncSlots() {
 }
 function selEffect() { return fxList()[selFx] || null; }
 
-/* 图层小工具：造一个带全部字段的默认图层 */
+/* 图层小工具：造一个带全部字段的默认图层（不含颜色 —— 颜色归效果级配色） */
 function mkLayer(kind) {
-  const base = { kind, en:1, cmode:0, hue_base:0, hue_spread:0, hue_speed:0,
-                 pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0,
+  const base = { kind, en:1, pulse_period:0, pulse_amp:0, direction:1, bounce:0,
                  spans:0, rotate:0, lo:0, hi:255, level:255, density:48, rate:4,
                  count:1, width:8, phase:0, falloff:'cos' };
   return base;
@@ -6855,15 +6826,8 @@ function renderLayers() {
     mk('×', () => delLayer(i));
     row.appendChild(head);
 
-    /* 配色模式 + 波形 + 方向/往返 */
-    row.appendChild(layerRow('本层取色', selInput(CMODE_NAME, () => L.cmode ? 1 : 0,
-      v => { L.cmode = +v; fxLive(); },
-      '跟随效果配色：这一层用「色彩配置 → 配色」（页面最下面那块）算出来的颜色。\n本层空间色相：这一层自己算（每颗灯不同色），会盖掉效果级配色 —— 老存档/老预置的兼容路径，新做效果优先用效果级「彩虹」。')));
-    if (L.kind !== 'twinkle') {
-      row.appendChild(layerRow('波形', selInput(WAVE_NAME, () => L.wave | 0,
-        v => { L.wave = +v; fxLive(); },
-        '脉动长什么样：\n三角 = 呼吸（渐亮渐暗）\n方波 = 闪烁（一亮一灭）\n锯齿 = 渐暗后瞬间跳回最亮（跳变）')));
-    }
+    /* 形状参数。颜色不在这里 —— 图层不带颜色，取色全在效果级「色彩配置」里
+       （动画与色彩分离：套任何模板都只改形状，换配色只动那一个下拉）。 */
     if (L.kind === 'spot') {
       row.appendChild(layerRow('衰减曲线', selInput(FALL_NAME, () => L.falloff,
         v => { L.falloff = v; fxLive(); },
@@ -6874,11 +6838,6 @@ function renderLayers() {
       row.appendChild(layerRow('往返', selInput([['0','绕圈'], ['1','走到头折返']],
         () => L.bounce ? 1 : 0, v => { L.bounce = +v; fxLive(); },
         '绕圈：一直朝一个方向追。\n走到头折返：在环上左右摆动（摆动/钟摆效果就是这么做的）。')));
-    }
-    if (L.kind === 'fill') {
-      row.appendChild(layerRow('起点', selInput([['1','从 0 号灯'], ['0','从末号灯']],
-        () => L.direction ? 1 : 0, v => { L.direction = +v; fxLive(); },
-        '色相从哪个灯号开始铺。配合「空间色相」用。')));
     }
 
     for (const f of (LAYER_FIELDS[L.kind] || [])) {
@@ -6936,31 +6895,31 @@ const FX_PRESETS = [
       layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:20, pulse_amp:255, wave:1 }) ] }) },
   { name:'跳变(渐暗后跳回)', make: () => ({ moves:false, color:1, c1:[255,0,0], slow:8, fast:1, speed:1,
       layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:30, pulse_amp:255, wave:2 }) ] }) },
-  { name:'绕环彩虹(旋转)',  make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),  { level:255, cmode:1, hue_base:0, hue_spread:255, hue_speed:2 }) ] }) },
-  { name:'彩虹光点',        make: () => ({ moves:true, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('spot'),  { count:1, width:14, falloff:'cos',
-                                                 cmode:1, hue_base:0, hue_spread:255, hue_speed:3 }) ] }) },
+  { name:'绕环彩虹(旋转)',  make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
+      levels:30, hue_base:0, hue_speed:2,
+      layers:[ Object.assign(mkLayer('fill'),  { level:255 }) ] }) },
+  { name:'彩虹光点',        make: () => ({ moves:true, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
+      levels:30, hue_base:0, hue_speed:3,
+      layers:[ Object.assign(mkLayer('spot'),  { count:1, width:14, falloff:'cos' }) ] }) },
   { name:'沿环渐变',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('gradient'), { lo:0, hi:255, spans:1, phase:0, wave:0, rotate:0 }) ] }) },
   { name:'渐变旋转',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('gradient'), { lo:20, hi:255, spans:2, phase:0, wave:2, rotate:3 }) ] }) },
-  /* 「双向填充」：整环铺一层空间色相，再压两波明暗（spans 2）慢慢流 ——
+  /* 「双向填充」：整环铺一层彩虹（效果级「彩虹」配色），再压两波明暗（spans 2）慢慢流 ——
    * 旧写法是两层满亮 fill：取最大值时第二层永远不比第一层亮，只能看到底色；
    * 而 fill 不吃位置，标 moves 也不会有任何动静（套用它等于纯色常亮）。 */
-  { name:'双向填充',        make: () => ({ moves:false, color:0, c1:[0,255,120], slow:10, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),     { level:120, cmode:1, hue_spread:255 }),
-               Object.assign(mkLayer('gradient'), { lo:0, hi:255, spans:2, phase:0, wave:0, rotate:3,
-                                                   cmode:1, hue_spread:255 }) ] }) },
-  { name:'呼吸彩虹',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:60, pulse_amp:255,
-                                                 cmode:1, hue_base:0, hue_spread:255, hue_speed:4 }) ] }) },
+  { name:'双向填充',        make: () => ({ moves:false, color:4, c1:[0,255,120], slow:10, fast:1, speed:0,
+      levels:30, hue_base:0, hue_speed:0,
+      layers:[ Object.assign(mkLayer('fill'),     { level:120 }),
+               Object.assign(mkLayer('gradient'), { lo:0, hi:255, spans:2, phase:0, wave:0, rotate:3 }) ] }) },
+  { name:'呼吸彩虹',        make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
+      levels:30, hue_base:0, hue_speed:4,
+      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:60, pulse_amp:255 }) ] }) },
   { name:'随机闪',          make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('twinkle'), { density:48, rate:4, lo:0, hi:220 }) ] }) },
   { name:'闪 + 底色',       make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),  { level:60, cmode:0 }),
-               Object.assign(mkLayer('twinkle'), { density:60, rate:3, lo:0, hi:255,
-                                                   cmode:1, hue_base:0, hue_spread:255, hue_speed:6 }) ] }) },
+      layers:[ Object.assign(mkLayer('fill'),  { level:60 }),
+               Object.assign(mkLayer('twinkle'), { density:60, rate:3, lo:0, hi:255 }) ] }) },
   /* ---- 新配色模型（效果级，见 FW.COLOR 3..6） ---- */
   /* 测配色的「底片」：一个满亮填充层 —— 整条常亮，不走位置、不脉动、不铺色相。
    * 套上它再换「配色」下拉，纯色 / 跳变 / 渐变 / 彩虹 / 呼吸 / 覆盖 的差别一眼看完。
@@ -7783,13 +7742,6 @@ function syncFxColorRows(e) {
       : (mode === FW.COLOR.SPECTRUM)
         ? '用上面选的那条色环（起始色 / 顺序可改）。'
         : '彩虹用内置彩虹表，不需要调色板。';
-    /* 图层自己算色相时会盖过效果配色 —— 不点明就像「改了配色没反应」 */
-    const hueLayers = (e && e.kind === 'custom')
-      ? (e.layers || []).map((l, i) => ({ l, i })).filter(x => x.l.en && x.l.cmode) : [];
-    if (hueLayers.length) {
-      hint.textContent += '　本效果第 ' + hueLayers.map(x => x.i + 1).join('、') +
-        ' 层的「本层取色」是空间色相，会盖过这里选的配色。';
-    }
   }
   /* 渐变那几行（选择 / 起始色 / 顺序 / 预览条）跟着一起刷 */
   if (isGrad) renderGrad(e, true);

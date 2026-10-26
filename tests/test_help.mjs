@@ -20,8 +20,9 @@ ok(new Set(h3Ids).size === h3Ids.length, `章节 id 互不重复: ${h3Ids.join('
   .forEach(h => ok(heads.includes(h), `含章节「${h}」`));
 ok(doc.includes('光点') && doc.includes('填充') && doc.includes('随机闪') && doc.includes('亮度渐变'),
    '四种图层都有说明');
-ok(doc.includes('本层空间色相') && doc.includes('沿环色相跨度'), '空间色相三项有说明');
-ok(doc.includes('三角') && doc.includes('方波') && doc.includes('锯齿'), '三种波形有说明');
+ok(doc.includes('动画与色彩分离') && doc.includes('只从「色彩配置」来'),
+   '讲清了「图层不带颜色、取色只在色彩配置里」（动画与色彩分离）');
+ok(doc.includes('本层取色') && doc.includes('退休'), '说明了「本层取色」已退休（老工程会自动迁成彩虹）');
 ok(doc.includes('呼吸灯') && doc.includes('彗星拖尾') && doc.includes('绕环彩虹'), '常见做法给了配方');
 ok(/LED_MODE_1/.test(doc) || /慢速渐变色/.test(doc), '举了「一个模式里分区各跑各的」的例子');
 ok(doc.includes('多个分区选同一个效果') && doc.includes('同步'), '解释了「同效果 = 同步」');
@@ -38,9 +39,10 @@ ok(/id="fOffset"[^>]*data-tip=/.test(html) || /data-tip="[^"]*"[^>]*id="fOffset"
 ok(/function tipInit/.test(html) && /function tipShow/.test(html), '运行时提示系统在');
 ok(/id="tipBox"|tipEl\.id = 'tipBox'/.test(html), '提示小窗是动态创建的');
 /* 动态生成的图层控件也带说明 */
-ok(html.includes("'跟随效果配色：这一层用"), '图层「本层取色」下拉有说明');
-ok(html.includes('单边拖尾一边亮一边长尾'), '「衰减曲线」有说明');
-ok(/selInput\([^)]*,\s*$|selInput\([^)]*,\s*'|selInput\([\s\S]{0,120}?'跟随/.test(html) || html.includes('selInput(WAVE_NAME'), '下拉支持挂说明');
+ok(html.includes('光斑边缘怎么衰减'), '「衰减曲线」下拉有说明');
+ok(html.includes('单边拖尾一边亮一边长尾'), '「衰减曲线」的选项说明在');
+ok(!html.includes('selInput(WAVE_NAME') && !html.includes('selInput(CMODE_NAME'),
+   '图层卡不再生成「波形 / 本层取色」下拉');
 
 /* ---- 结构：所有面板都必须在右侧栏 #right 里面 ---- */
 {

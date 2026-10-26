@@ -107,20 +107,22 @@ await new Promise(r => setTimeout(r, 700));
 const e0 = fxListOf(0)[0];
 ok(e0.kind === 'custom', '套用后变成自定义动效');
 ok(e0.layers.length === 1 && e0.layers[0].kind === 'fill', `图层: ${e0.layers.map(l => l.kind).join('+')}`);
-ok(e0.layers[0].cmode === 1, '配色模式 = 空间色相');
-ok(e0.layers[0].hue_spread === 255, `沿环色相跨度 = ${e0.layers[0].hue_spread}（整环铺满一轮）`);
-ok(e0.layers[0].hue_speed > 0, `色相旋转 = ${e0.layers[0].hue_speed}（每 N 帧转一格）`);
+ok(e0.color === CORE.FW.COLOR.RAINBOW, `配色 = 效果级「彩虹」（${e0.color}）：图层不再自带空间色相`);
+ok(e0.levels >= 6, `级数 = ${e0.levels}（走完一轮红→红要多少颗灯）`);
+ok(e0.hue_speed > 0, `彩虹旋转 = ${e0.hue_speed}（每 N 帧转一格）`);
+ok(!('cmode' in e0.layers[0]) && !('hue_spread' in e0.layers[0]),
+   '图层里没有 cmode / hue_*（「本层取色」已退休）');
 
 /* ---- 4) 图层编辑器渲染出新控件 ---- */
 const layerBox = byId.get('fLayers');
 ok(layerBox.children.length === 1, '图层编辑器渲染了 1 行');
 const ctrls = [];
 (function walk(n) { (n.children || []).forEach(c => { if (c.tagName === 'SELECT') ctrls.push(c); walk(c); }); })(layerBox.children[0]);
-const opts = ctrls.map(s => (s.children || []).map(o => o.value).join('/'));
-ok(ctrls.some(s => (s.children || []).some(o => /空间色相/.test(o.textContent))), '有「配色」下拉且含空间色相选项');
-ok(ctrls.some(s => (s.children || []).some(o => /方波/.test(o.textContent))), '有「波形」下拉且含方波');
-ok(ctrls.some(s => (s.children || []).some(o => /往返|折返/.test(o.textContent))) ||
-   e0.layers[0].kind === 'fill', '（填充层无往返/衰减控件，属预期）');
+ok(!ctrls.some(s => (s.children || []).some(o => /空间色相/.test(o.textContent))),
+   '图层卡上没有「本层取色」下拉（颜色只在色彩配置里选）');
+ok(!ctrls.some(s => (s.children || []).some(o => /方波|锯齿/.test(o.textContent))),
+   '图层卡上没有「波形」下拉');
+ok(ctrls.length === 0, `填充层只剩数字框，没有任何下拉（${ctrls.length} 个）`);
 
 /* ---- 5) 套用「摆动(往返)」应带上 bounce ---- */
 pp.value = '摆动(往返)'; click('fxPresetApply');
@@ -135,21 +137,24 @@ await new Promise(r => setTimeout(r, 700));
 const e0c = fxListOf(0)[0];
 ok(e0c.layers[0].kind === 'fill' && e0c.layers[0].wave === 1, '闪烁模板用方波');
 
-/* ---- 7) 导出应带上空间色相的 C ---- */
+/* ---- 7) 导出的 C：图层不带颜色，彩虹在效果行 ---- */
 pp.value = '绕环彩虹(旋转)'; click('fxPresetApply');
 await new Promise(r => setTimeout(r, 700));
 byId.get('xForm').value = 'header'; byId.get('xCmt').value = 'ascii'; byId.get('xEol').value = 'lf';
 click('xBuild');
 const out = byId.get('xOut').value;
-ok(out.includes('LED_GEN_CMODE_SPATIAL') || out.includes('led_gen_hue_of'), '导出的 C 带上了空间色相机制');
-ok(out.includes('led_gen_hue[ZONE_MAX_LEN]'), '导出的 C 有每灯位色相数组');
-ok(/0, 255, 2, 0, 1, 1 \}/.test(out),
-   '图层行写出 hue_spread=255 / hue_speed=2 / cmode=1: ' + (out.match(/^    \{ 2,.*/m) || ['(没找到)'])[0]);
+ok(!out.includes('LED_GEN_CMODE') && !out.includes('led_gen_hue_of') &&
+   !/uint8_t hue_base;\s+\/\* spatial/.test(out), '导出的 C 里没有「本层取色」那套（cmode / hue_of）');
+ok(!/uint8_t hue_spread;/.test(out), '图层结构体不再有 hue_spread / hue_speed 列');
+ok(out.includes('led_gen_hue[ZONE_MAX_LEN]'), '导出的 C 仍有每灯位色相数组（彩虹 / 覆盖用）');
+ok(/^    \{ 2, 1, 1, 8, 0, 0, 0, 0, 48, 4, 0, 255, 255, 0, 0, 0 \},/m.test(out) ||
+   /^    \{ 2,.*\},/m.test(out),
+   '图层行 = 17 列（没有 hue/cmode）: ' + (out.match(/^    \{ 2,.*/m) || ['(没找到)'])[0]);
 
 const eblk = out.slice(out.indexOf('static const led_gen_effect_t'));
 const eblkRows = (eblk.match(/^    \{.*\},/gm) || []);
-ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
-   '效果行 = kind=1, 1 个图层, moves=1, 末尾带渐亮/亮/变暗 + 渐变两列（grad_first / grad_step）: ' + (eblkRows[0] || '(无)'));
+ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 4, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
+   '效果行 = kind=1 / ctype=4（彩虹）/ 末尾带渐亮·亮·变暗 + 渐变两列（grad_first / grad_step）: ' + (eblkRows[0] || '(无)'));
 
 
 /* ---- 8) 起始位也能存 ---- */
@@ -161,7 +166,7 @@ ok(fxListOf(0)[0].offset === 64, `起始位存进了效果: ${fxListOf(0)[0].off
 /* ---- 9) 关掉再打开，预置套用的结果要还在 ---- */
 install(); boot(); await new Promise(r => setTimeout(r, 700));
 const e9 = fxListOf(0)[0];
-ok(e9.kind === 'custom' && e9.layers[0].cmode === 1, '重开后空间色相图层还在');
+ok(e9.kind === 'custom' && e9.color === CORE.FW.COLOR.RAINBOW, '重开后效果级彩虹配色还在');
 ok(e9.offset === 64, '重开后起始位还在');
 
 /* ---- 10) 新配色：彩虹 / 跳变 / 呼吸 / 覆盖 的界面与参数 ---- */
@@ -620,6 +625,66 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
   await new Promise(r => setTimeout(r, 700));
   ok(JSON.stringify(list0()[bi].layers) === beforeEmpty,
      '没选模板就点「套用」不会覆盖当前效果');
+}
+
+/* ---- 14) 单点追逐：图层卡只剩形状参数，颜色全看「色彩配置」---- */
+console.log('--- 单点追逐（第一个逐个优化的模板）---');
+{
+  const pick = byId.get('fxPresetPick');
+  const rowAt = i => byId.get('fxTbl').children[i].onclick();
+  const list0 = () => fxListOf(0);
+  const bi = list0().findIndex(e => e.kind !== 'custom');
+  rowAt(bi);
+  pick.value = '单点追逐'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const e = list0()[bi];
+  ok(e.layers.length === 1 && e.layers[0].kind === 'spot',
+     `一个光点层（${e.layers.map(l => l.kind).join('+')}）`);
+  ok(!('cmode' in e.layers[0]) && !('hue_speed' in e.layers[0]) && !('hue_spread' in e.layers[0]),
+     '图层里没有 cmode / hue_*（取色归效果配色）');
+
+  /* 图层卡：3 个下拉（衰减 / 方向 / 往返）+ 5 个数字框（点数 / 宽 / 相位 / 脉动周期 / 深度） */
+  const box = byId.get('fLayers').children[0];
+  const sel = [], num = [];
+  (function walk(n) { (n.children || []).forEach(c => {
+    if (c.tagName === 'SELECT') sel.push(c);
+    if (c.tagName === 'INPUT' && c.type === 'number') num.push(c);
+    walk(c); }); })(box);
+  ok(sel.length === 3, `光点层只剩 3 个下拉（衰减 / 方向 / 往返），实际 ${sel.length}`);
+  ok(num.length === 5, `数字框 5 个（光点数 / 光宽 / 相位 / 脉动周期 / 深度），实际 ${num.length}`);
+
+  /* 颜色只由效果配色决定：整环 hue 全是 0xFF 哨兵 */
+  const inst = CORE.instNew();
+  CORE.simApplyEffect(inst, e, 0);
+  const m = new Uint8Array(24), h = new Uint8Array(24);
+  CORE.renderZoneMaskTo(inst, m, h, 24, 0);
+  ok(h.every(v => v === 0xFF), '每个灯位都用效果配色（hue 全 0xFF）');
+  const lit = m.filter(v => v >= 200).length;
+  ok(lit >= 3 && Math.max(...m) >= 250, `光带 ${lit} 颗点亮（峰值 ${Math.max(...m)}）`);
+
+  /* 240 拍：位置在推进、而且推进后仍有灯亮 */
+  for (let t = 0; t < 240; t++) CORE.instTick(inst);
+  const m2 = new Uint8Array(24), h2 = new Uint8Array(24);
+  CORE.renderZoneMaskTo(inst, m2, h2, 24, inst.anim.position.current | 0);
+  ok(inst.anim.position.current !== 0, `240 拍后位置推进到 ${inst.anim.position.current}`);
+  ok(m2.some(v => v > 0), '推进后仍有灯亮（不会推丢）');
+
+  /* 换配色只动那一个下拉：同一份图层，红 / 绿渲染出来的颜色跟着变 */
+  const brightColor = c1 => {
+    const x = JSON.parse(JSON.stringify(e));
+    x.color = CORE.FW.COLOR.SOLID; x.palette = [c1]; x.c1 = c1;
+    const ins2 = CORE.instNew();
+    CORE.simApplyEffect(ins2, x, 0);
+    const mm = new Uint8Array(24), hh = new Uint8Array(24);
+    CORE.renderZoneMaskTo(ins2, mm, hh, 24, 0);
+    let k = 0;
+    for (let i = 0; i < 24; i++) if (mm[i] > mm[k]) k = i;
+    const c = CORE.effectColorAt(ins2, k, 24, hh);
+    return [c.r, c.g, c.b].join(',');
+  };
+  const cr = brightColor([255, 0, 0]), cg = brightColor([0, 255, 0]);
+  ok(cr === '255,0,0' && cg === '0,255,0',
+     `同一份图层换配色：红 ${cr} / 绿 ${cg}（颜色不再分散在图层里）`);
 }
 
 

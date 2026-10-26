@@ -74,11 +74,12 @@ const e3row = (e3.match(/^    \{.*\},/gm) || [])[3] || '';
 ok(/^    \{ 1,/.test(e3row), '第 3 个效果被标成自定义（kind=1）: ' + e3row.trim().slice(0, 40));
 const lay = h2.slice(h2.indexOf('static const led_gen_layer_t'), h2.indexOf('};', h2.indexOf('static const led_gen_layer_t')));
 ok((lay.match(/^    \{/gm) || []).length === 1, '图层表 1 行');
-ok(/0, 255, 2, 0, 1, 1 \}/.test(lay), '图层行写出了 hue_spread=255 / hue_speed=2 / cmode=1');
-/* F5: 字段顺序 kind, en, count, ...（en 紧跟 kind），末尾仍是 flags */
+ok(!/hue_spread|hue_speed|cmode|LED_GEN_CMODE/.test(lay) && !/LED_GEN_CMODE/.test(h2),
+   '图层行里没有 hue_spread / hue_speed / cmode（取色归效果级配色）');
+/* F5: 字段顺序 kind, en, count, ...（en 紧跟 kind），末尾是 wave, flags */
 const layRows = (lay.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
-ok(layRows.length === 1 && layRows[0].length === 21 && layRows[0][0] === 2 && layRows[0][1] === 1,
-   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 21 个 / 2 / 1）`);
+ok(layRows.length === 1 && layRows[0].length === 17 && layRows[0][0] === 2 && layRows[0][1] === 1,
+   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 17 个 / 2 / 1）`);
 
 console.log('--- 内建「单点追逐」由生成代码自画（不再调平台原语，平顶光带）---');
 ok(hdr.includes('static void led_gen_anim_chase_single(uint8_t *mask, uint8_t len, int16_t pos, uint8_t width)'),
@@ -133,7 +134,7 @@ console.log('--- F5) 图层「启用」：旁路的层照样写进表里，只�
 {
   const st3 = projectFromPreset(PRESET_SP3122D);
   const mkFill = (level, en) => ({ kind:'fill', level, pulse_period:0, pulse_amp:0, wave:0,
-    direction:1, bounce:0, cmode:0, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0, en });
+    direction:1, bounce:0, spans:0, rotate:0, en });
   st3.effects.list[3] = Object.assign(newCustomEffect(3, '两段红'),
     { layers: [mkFill(255, 0), mkFill(80, 1)] });
   const h5 = exportEffectsC(st3, { form:'header', comment:'ascii', eol:'lf' });
@@ -142,8 +143,8 @@ console.log('--- F5) 图层「启用」：旁路的层照样写进表里，只�
   const l5 = h5.slice(h5.indexOf('static const led_gen_layer_t'),
                       h5.indexOf('};', h5.indexOf('static const led_gen_layer_t')));
   const r5 = (l5.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
-  ok(r5.length === 2 && r5.every(r => r.length === 21) && r5[0][1] === 0 && r5[1][1] === 1,
-     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 21）`);
+  ok(r5.length === 2 && r5.every(r => r.length === 17) && r5[0][1] === 0 && r5[1][1] === 1,
+     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 17）`);
   ok(r5[0][0] === 2 && r5[1][0] === 2, '两层都还是填充图层（kind=2），表行数不因旁路而变');
   const zh5 = exportEffectsC(st3, { form:'header', comment:'zh', eol:'lf' });
   ok(/被旁路的层/.test(zh5), '中文注释模式下那条 continue 的说明是中文（ASCII 模式走英文，见上面整体检查）');
