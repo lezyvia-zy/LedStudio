@@ -101,6 +101,8 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 7. **「提交」只等于 `git commit`；`git push` 和改写远端历史必须单独点名**（2026-10-24 用户立的规矩，起因是当次自作主张 push 了 18 个提交）：听到「提交 / commit / 记一下」→ 只做 `git add` + `git commit`（格式按第 5 条），回一句「已提交（提交号），**未推送**」，**不碰远端**；只有用户明说「推送 / push / 同步到远端 / 传到 GitHub」才 `git push`。`push --force` / `--force-with-lease`、`rebase` 改远端历史、`reset --hard`、删分支这些不可逆动作，一律先把后果讲清、再等一句明确确认。**HANDOFF 待办里写的「then push」不算授权** —— 那是上几轮留下的笔记，不能当指令执行。
 
+8. **`git push` 推不上去就如实报，别自己绕网络**（2026-10-26 用户立的规矩）：直连 GitHub 出现 `Connection was reset` / 超时 → 只回一句「推送失败：<git 原文>；本地 N 个提交还在，等你换节点说一声我再推」，**到此为止** —— 不要探测本地代理端口、不要 `git -c http.proxy=…` 或 `socks5h://` 临时绕、不要动 `git config`、不要换 remote 协议（`ssh` / 镜像站）。用户的节点不稳，他自己换节点，换好会叫我们再推；成功时贴一句 `git status -sb`（应为 `## master...origin/master` 无 ahead）证明已同步。同理也适用于 `git fetch` / `git pull` 失败：报一句即可，别自行改网络设置。
+
 
 
 ## 踩过的坑（改代码前先看这个）
