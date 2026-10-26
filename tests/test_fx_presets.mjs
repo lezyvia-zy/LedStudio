@@ -554,6 +554,75 @@ console.log('--- 全点亮(测配色) ---');
   ok(all255(r24.m) && new Set(r24.h).size >= 6,
      `彩虹：24 颗全亮、${new Set(r24.h).size} 种色相（每颗灯不一样）`);
 }
+/* ---- 13) 预置套用：可撤销 / 下拉跟随当前效果 / 模板自己真会动 ---- */
+console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
+{
+  tabBtn('fx').onclick();
+  const pick = byId.get('fxPresetPick');
+  const rowAt = i => byId.get('fxTbl').children[i].onclick();
+  const list0 = () => fxListOf(0);
+  const bi = list0().findIndex(e => e.kind !== 'custom');
+  ok(bi >= 0, `工程里还有内建效果可当参照（第 ${bi + 1} 条：${list0()[bi] && list0()[bi].name}）`);
+
+  /* 13a 占位项 + 内建效果：下拉落空，不会带着上一条的模板名 */
+  rowAt(bi);
+  ok((pick.children || [])[0].value === '', '下拉第一项是占位（值空）');
+  ok(pick.value === '', `内建效果的下拉落回占位（当前「${pick.value}」）`);
+
+  /* 13b 套用后下拉跟着显示模板名 */
+  pick.value = '拖尾彗星'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(list0()[bi].tpl === '拖尾彗星', `套用后效果记住模板名（tpl=${list0()[bi].tpl}）`);
+  ok(pick.value === '拖尾彗星', `下拉显示当前效果的模板名（「${pick.value}」）`);
+  rowAt(0);
+  ok(pick.value === (list0()[0].kind === 'custom' && list0()[0].tpl || ''),
+     `换一条效果，下拉跟着它走（「${pick.value}」）`);
+  rowAt(bi);
+
+  /* 13c 套用 = 可撤销的一笔（效果页以前一条快照都没有） */
+  const layersBefore = JSON.stringify(list0()[bi].layers);
+  pick.value = '彩虹环'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(list0()[bi].layers[0].kind === 'fill' && list0()[bi].color === CORE.FW.COLOR.RAINBOW,
+     '套用「彩虹环」：图层与配色都换掉了');
+  (listeners['window:keydown'] || []).forEach(f =>
+    f({ key: 'z', ctrlKey: true, target: { tagName: 'CANVAS' }, preventDefault() {} }));
+  await new Promise(r => setTimeout(r, 700));
+  ok(JSON.stringify(list0()[bi].layers) === layersBefore,
+     'Ctrl+Z 撤回套用之前的图层（效果页也有撤销快照了）');
+  ok(pick.value === '拖尾彗星', `撤销后下拉也跟着回到「${pick.value}」`);
+
+  /* 13d 「双向填充」：以前是两层满亮 fill（第二层永远被遮住）+ moves 却不动 */
+  pick.value = '双向填充'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const eD = list0()[bi];
+  ok(eD.moves === false, `不再标「随位置前进」（moves=${eD.moves}，fill 不吃位置）`);
+  ok(eD.layers.map(l => l.kind).join('+') === 'fill+gradient',
+     `两层都看得见：${eD.layers.map(l => l.kind + '/' + l.level).join('+')}`);
+  {
+    const inst = CORE.instNew();
+    CORE.simApplyEffect(inst, eD, 0);
+    const shot = (len, tick) => {
+      inst.anim.gen_tick = tick;
+      const m = new Uint8Array(len), h = new Uint8Array(len);
+      CORE.renderZoneMaskTo(inst, m, h, len, 0);
+      return { m, h };
+    };
+    const f0 = shot(24, 0), f40 = shot(24, 40);
+    ok(f0.m.some((v, i) => v !== f40.m[i]), '推 40 拍后亮度变了（不是静止的纯色常亮）');
+    ok(new Set(f0.h).size >= 6 && f0.m.every(v => v > 0),
+       `整环都有亮度、${new Set(f0.h).size} 种空间色相`);
+  }
+
+  /* 13e 下拉停在占位时点「套用」：什么都不动（说明里报一句） */
+  const beforeEmpty = JSON.stringify(list0()[bi].layers);
+  pick.value = ''; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(JSON.stringify(list0()[bi].layers) === beforeEmpty,
+     '没选模板就点「套用」不会覆盖当前效果');
+}
+
+
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

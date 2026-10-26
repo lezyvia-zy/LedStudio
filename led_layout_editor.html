@@ -5185,6 +5185,13 @@ function applySnapshot(json) {
   Object.assign(state, o);
   if (state.canvas.background && bgImg) state.canvas.background.img = bgImg;
   afterChange();
+  /* 效果页的列表 / 右栏 / 编辑台不吃 afterChange（它只管分区页的画布）——
+   * 撤销可能正好发生在效果页（套预置 / 删图层），不刷新的话右栏还显示撤销前的值，
+   * 看着就像「没撤回去」。selFx 先夹一下：撤销可能把新增的那条效果一起退掉。 */
+  if (state && state.effects && state.effects.list) {
+    if (selFx >= state.effects.list.length) selFx = Math.max(0, state.effects.list.length - 1);
+    renderFxList(); syncFxEdit(); stageRefresh();
+  }
 }
 function undo() { if (!undoStack.length) return; redoStack.push(JSON.stringify(state)); applySnapshot(undoStack.pop()); }
 function redo() { if (!redoStack.length) return; undoStack.push(JSON.stringify(state)); applySnapshot(redoStack.pop()); }
@@ -6938,9 +6945,13 @@ const FX_PRESETS = [
       layers:[ Object.assign(mkLayer('gradient'), { lo:0, hi:255, spans:1, phase:0, wave:0, rotate:0 }) ] }) },
   { name:'渐变旋转',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('gradient'), { lo:20, hi:255, spans:2, phase:0, wave:2, rotate:3 }) ] }) },
-  { name:'双向填充',        make: () => ({ moves:true, color:0, c1:[0,255,120], slow:10, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),  { level:255, direction:1 }),
-               Object.assign(mkLayer('fill'),  { level:255, direction:0, phase:128, cmode:1, hue_spread:255 }) ] }) },
+  /* 「双向填充」：整环铺一层空间色相，再压两波明暗（spans 2）慢慢流 ——
+   * 旧写法是两层满亮 fill：取最大值时第二层永远不比第一层亮，只能看到底色；
+   * 而 fill 不吃位置，标 moves 也不会有任何动静（套用它等于纯色常亮）。 */
+  { name:'双向填充',        make: () => ({ moves:false, color:0, c1:[0,255,120], slow:10, fast:1, speed:0,
+      layers:[ Object.assign(mkLayer('fill'),     { level:120, cmode:1, hue_spread:255 }),
+               Object.assign(mkLayer('gradient'), { lo:0, hi:255, spans:2, phase:0, wave:0, rotate:3,
+                                                   cmode:1, hue_spread:255 }) ] }) },
   { name:'呼吸彩虹',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:60, pulse_amp:255,
                                                  cmode:1, hue_base:0, hue_spread:255, hue_speed:4 }) ] }) },
@@ -6975,8 +6986,12 @@ const FX_PRESETS = [
 
 function applyPreset(name) {
   const P = FX_PRESETS.find(p => p.name === name);
-  if (!P) return;
+  /* 下拉现在跟着当前效果走（内建效果 = 占位项），没选就点「套用」得说一声 */
+  if (!P) { status('先在「模板」里选一条，再点「套用」', 'warn'); return; }
   const e = editTarget(); if (!e) return;
+  /* 套用 = 整份换掉图层 + 配色 + 参数，所以先拍一张撤销快照：
+   * 点错了按 Ctrl+Z / 「撤销」就回来（以前效果页一条快照都没有，撤不回）。 */
+  snapshot();
   const made = P.make();
   e.kind = 'custom';
   e.tpl = name;                    /* 名字的「模板」那一半：套了哪个模板，名字就叫哪个 */
@@ -7826,6 +7841,12 @@ function syncFxEdit() {
   $('#fMode').textContent = selFx + '（共 ' + fxList().length + ' 条）';
 
   $('#fName').textContent = e.name;      /* 只读：名字由「模板 / 配色」算出来（fxEffectName） */
+  /* 「模板」下拉跟着当前效果走：内建效果 / 没套过模板的落回占位项 ——
+   * 否则下拉停在上一条套的模板名，随手再点「套用」就把这条覆盖了（套用是整份替换）。 */
+  {
+    const pk = $('#fxPresetPick');
+    if (pk) pk.value = (e.kind === 'custom' && e.tpl) ? e.tpl : '';
+  }
   $('#fLatin').value = e.latin || '';
   $('#fKind').textContent = e.kind === 'custom' ? '自定义动效（图层合成）' : '内建（固件原有动画类型）';
   $('#fEn').checked = !!e.enabled;
@@ -8222,6 +8243,11 @@ function buildFxPanel() {
   $('#fxAddFill').onclick    = () => addLayer('fill');
   $('#fxAddGrad').onclick    = () => addLayer('gradient');
   const pp = $('#fxPresetPick');
+  /* 第一项是占位（值空）：内建效果 / 没套过模板的自定义效果让下拉停在这儿，
+   * 一眼就知道「这条效果没有套过模板」，也免得直接点「套用」误覆盖 */
+  const pp0 = document.createElement('option');
+  pp0.value = ''; pp0.textContent = '（选模板…）';
+  pp.appendChild(pp0);
   FX_PRESETS.forEach(p => { const o = document.createElement('option'); o.value = p.name; o.textContent = p.name; pp.appendChild(o); });
 }
 
