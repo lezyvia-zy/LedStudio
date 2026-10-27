@@ -131,11 +131,18 @@ const e0b = fxListOf(0)[0];
 ok(e0b.layers[0].kind === 'spot' && e0b.layers[0].bounce === 1, '摆动模板带上了往返标记');
 ok(e0b.moves === true, '摆动模板会随位置前进');
 
-/* ---- 6) 套用「闪烁」应是方波 ---- */
+/* ---- 6) 套用「闪烁」= 音控闪（不是固定方波） ----
+ * 2026-10-27 用户：「在没有音乐播放或者音乐信号小的时侯，间隔5s闪一次，有音乐时，超过阈值闪一次」。
+ * 所以这条预置的填充层是 wave = 3（FLASH，音控闪）+ 脉动周期 250 拍 = 5 秒。 */
 pp.value = '闪烁'; click('fxPresetApply');
 await new Promise(r => setTimeout(r, 700));
 const e0c = fxListOf(0)[0];
-ok(e0c.layers[0].kind === 'fill' && e0c.layers[0].wave === 1, '闪烁模板用方波');
+ok(e0c.layers[0].kind === 'fill' && e0c.layers[0].wave === 3,
+   `闪烁模板用音控闪（wave = ${e0c.layers[0].wave}）`);
+ok(e0c.layers[0].pulse_period === 250,
+   `闪烁的安静间隔 = ${e0c.layers[0].pulse_period} 拍 = ${(e0c.layers[0].pulse_period * 20 / 1000).toFixed(1)} 秒`);
+ok(e0c.layers[0].pulse_amp === 255 && e0c.layers[0].level === 255,
+   '闪烁：闪的时候满亮（255）、灭的时候全灭（深度 255）');
 
 /* ---- 7) 导出的 C：图层不带颜色，彩虹在效果行 ---- */
 pp.value = '绕环彩虹(旋转)'; click('fxPresetApply');

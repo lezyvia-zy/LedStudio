@@ -912,7 +912,8 @@
 
         <div class="hint">2026-10-27 起，图层卡上的<b>「相位 / 脉动周期 / 脉动深度」（光点层）和四个「+ 光点 / + 随机闪 / + 填充 / + 亮度渐变」按钮暂时收起</b>
           —— 先把每个预置动画调到最好看，自定义叠加与这几项高级参数留到以后专门做。要挪光斑起点用「选中效果 → 起始位」。
-          注意<b>填充层的脉动仍然在</b>：它是「闪烁 / 跳变 / 呼吸彩虹」三条预置的命脉，不能收。</div>
+          注意<b>填充层的脉动仍然在</b>：它是「闪烁 / 跳变 / 呼吸彩虹」三条预置的命脉，不能收
+          （「闪烁」用的是其中<b>音控闪</b>那一种：安静时 5 秒一闪、有音乐时越过阈值闪一次，见下表）。</div>
 
         <h4>① 光点（spot）—— 沿环跑的光斑</h4>
         <table>
@@ -930,8 +931,14 @@
           <tr><td>填充亮度</td><td>整环的亮度。</td></tr>
           <tr><td>脉动周期/深度</td><td>让整环亮度周期性起伏（三角包络：满亮 → 暗 → 满亮）。<br>
             <b>要「呼吸」请用配色「呼吸」</b>（平滑曲线 + 一个周期换一种颜色，见下面那张表的「配色」一行）——
-            预置<b>「呼吸」</b>套的就是它，两条路各走一半只会让人分不清哪个才算数。
-            这里留下三角脉动是给「闪烁 / 跳变 / 呼吸彩虹」三条预置用的（它们要的是一亮一灭 / 渐暗后跳回那种硬包络）。</td></tr>
+            预置<b>「呼吸」</b>套的就是它，两条路各走一半只会让人分不清哪个才算数。<br>
+            这里留下三角脉动是给「跳变 / 呼吸彩虹」两条预置用的（它们要的是一亮一灭 / 渐暗后跳回那种硬包络）。</td></tr>
+          <tr><td>闪烁（预置「闪烁」= 音控闪）</td><td>套了预置<b>「闪烁」</b>的那一层，「脉动周期」换了意思：
+            <b>没有音乐时多久闪一次</b>（出厂 250 拍 = <b>5 秒</b>），「脉动深度」= 灭的时候暗到多少（255 = 全灭）。<br>
+            「有没有音乐」用固件那条现成的判据：<code>FFTLevel</code> 大于 <code>LED_FFT_THRESHOLD</code>(=4)
+            就是<b>有音乐</b>（预览条上那根「音量」滑杆 / 「音乐来了」就是它）——
+            <b>有音乐时每越过一次阈值闪一下</b>，闪完就灭着等下一次；一直很吵（没有起伏）时不会自己再闪。<br>
+            一次闪的样子：满亮 2 拍（40 ms）+ 8 拍淡出（160 ms），之后全灭 —— 一个尖峰，不是方波那种「亮一半灭一半」。</td></tr>
         </table>
 
         <h4>③ 随机闪（twinkle）—— 与位置无关的随机亮度</h4>
@@ -1060,7 +1067,7 @@
         <table>
           <tr><th>想要</th><th>怎么配</th><th>去做</th></tr>
           <tr><td>呼吸灯</td><td>效果页「模板」里直接套<b>呼吸</b>（= 静态 + 配色<b>「呼吸」</b>；暗→亮→暗，出厂 渐亮 40 / 亮 10 ≈ 1.8 秒一个来回）。想让每个周期换一种颜色，就在调色板里多加几个颜色（或直接套「多色呼吸」）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「呼吸」再点套用。">效果页</button></td></tr>
-          <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b>（一整条一亮一灭）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用。">效果页</button></td></tr>
+          <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b> = <b>音控闪</b>：没有音乐（或音乐信号小）时<b>每 5 秒闪一次</b>，有音乐时<b>每越过一次阈值闪一下</b>（判据就是固件那条 <code>FFTLevel &gt; 4</code>）。套完在图层卡上把「脉动周期」改小 = 闪得更勤（250 拍 = 5 秒，填 50 = 1 秒）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用；想换成「有音乐才闪 / 安静时闪一下」不用再配，它本来就是这么跑的。">效果页</button></td></tr>
           <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>绕环彩虹</td><td>一个填充层，<b>配色选「彩虹」</b>（级数填成分区灯数）；想让彩虹转起来，再调「彩虹旋转」。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
@@ -2707,11 +2714,44 @@ function fillAnim(mask, len, level, direction) {
  * ==========================================================================*/
 const FALL  = { COS:0, LINEAR:1, HARD:2, TAIL:3 };
 const LAYER = { SPOT:0, TWINKLE:1, FILL:2, GRADIENT:3 };
-/* 脉动的形状：三角(呼吸) / 方波(闪烁) / 锯齿(渐亮后瞬灭)。
+/* 脉动的形状：三角(呼吸) / 方波(旧闪烁) / 锯齿(渐亮后瞬灭) / 音控闪(现在的闪烁)。
  * **界面上不再暴露**（用户 2026-10-26：「波形这个选项多余」）—— 它是模板的
  * 形状参数，由预置（呼吸 / 闪烁 / 跳变）内部定，不是日常要调的旋钮；
  * 颜色与「时间上的亮度包络」另归效果级「色彩配置」管。 */
-const WAVE  = { TRI:0, SQUARE:1, SAW:2 };
+const WAVE  = { TRI:0, SQUARE:1, SAW:2, FLASH:3 };
+
+/* ---- 音控闪（预置「闪烁」）------------------------------------------------
+ * 「闪」不是方波那种「亮一半、灭一半」，而是一个尖峰：满亮 2 拍（40 ms）+
+ * 8 拍线性淡出，之后一直全灭（10 拍 = 200 ms）。
+ * 什么时候闪，由 instTick() 里那个小状态机盯**音量档**决定：
+ *   安静（FFTLevel ≤ LED_FFT_THRESHOLD，固件给的是慢档）→ 自己走满一个周期闪一下，
+ *        周期 = 那个「音控闪层」的脉动周期（预置给 250 拍 = 5 秒，脉动周期 0 = 不闪）；
+ *   有音乐（档位从慢跳到快那一拍 = 越过阈值）→ 立刻闪一下，然后灭着等下一次。
+ * 所以 flashT 是「距上次闪了几拍」，不是 gen_tick —— 闪的节奏跟着音乐走，
+ * 跟动画本身跑了几拍没关系。C 侧 led_gen_tick() 里是同一段（LED_GEN_FLASH_*）。 */
+const FLASH_ON   = 2;      /* 满亮保持拍数 */
+const FLASH_LEN  = 10;     /* 一次闪的总长（拍）；之后 gain = 0 */
+const FLASH_IDLE = 250;    /* 没写脉动周期时的兜底间隔：250 拍 × 20 ms = 5 秒 */
+function flashGain(t, amp) {
+  const a = (amp == null) ? 255 : (amp | 0);
+  let w;
+  if (t < FLASH_ON)       w = 255;
+  else if (t < FLASH_LEN) w = 255 - Math.floor(((t - FLASH_ON) * 255) / (FLASH_LEN - FLASH_ON));
+  else                    w = 0;
+  if (a >= 255) return w;
+  return Math.max(0, 255 - Math.floor(((255 - w) * a) / 255));
+}
+/* 这条效果带不带音控闪层？带的话间隔 / 深度取哪一层？
+ * 判据与 C 的 led_gen_tick() 里那段一模一样：wave == FLASH 且 pulse_period > 0。
+ * pulse_period = 0 的闪层 = 不闪（常亮）—— 与「脉动周期 0 = 不脉动」同一条规矩，
+ * genFill 也只在 pulse_period > 0 时才乘增益，两边对齐。 */
+function flashPlanOf(layers) {
+  for (const L of (layers || [])) {
+    if ((L.wave | 0) === WAVE.FLASH && (L.pulse_period | 0) > 0)
+      return { on: true, period: L.pulse_period | 0, amp: L.pulse_amp | 0 };
+  }
+  return { on: false, period: FLASH_IDLE, amp: 255 };
+}
 
 /* 脉动包络。period=0 表示不脉动。返回 0..255 的增益。
  * tick=0 时增益为满（255）—— 效果一上来就是亮的，不会先黑一段。 */
@@ -2847,8 +2887,10 @@ function genGradient(mask, len, L, tick) {
 /* 通用渲染器：自定义动效的入口，对应 C 的 led_gen_render()
  * **只产亮度**：颜色一律由效果级「配色」决定（hue[] 的 0xFF 哨兵 /
  * 彩虹按位置铺 / 覆盖的条目索引都在 renderZoneMaskTo 里落），
- * 图层不再自带「本层取色」—— 动画与色彩分离。 */
-function genRender(mask, len, pos, layers, tick, offset, lap) {
+ * 图层不再自带「本层取色」—— 动画与色彩分离。
+ * flash = 音控闪层这一拍该用的增益（0..255）。它由 instTick() 的小状态机算好，
+ * 与 C 的 I->flash_gain 同源；只有 wave == FLASH 的层用它，其余层照旧吃 pulseGain。 */
+function genRender(mask, len, pos, layers, tick, offset, lap, flash) {
   mask.fill(0, 0, len);
   if (!layers || !layers.length) return;
   const rd = len * 256;
@@ -2857,6 +2899,7 @@ function genRender(mask, len, pos, layers, tick, offset, lap) {
   for (const L of layers) {
     if (L.en === 0) continue;        /* 被旁路的层（F5）：与 C 的 `if (!L->en) continue;` 对齐 */
     const gain = (L.kind === LAYER.TWINKLE) ? 255
+               : ((L.wave | 0) === WAVE.FLASH) ? ((flash == null) ? 255 : (flash | 0))
                : pulseGain(tick, L.pulse_period | 0, L.pulse_amp | 0, L.wave | 0);
     switch (L.kind) {
       case LAYER.SPOT:     genSpot(mask, len, p, L, gain, lap);  break;
@@ -3095,7 +3138,8 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.SWING:        chaseCosBand(m, len, pos, zoneScaled(a.params.light_width, len, 1)); break;
     case FW.ANIM.FILL:         fillAnim(m, len, pos, a.params.direction); break;
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
-    default:                   genRender(m, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset, inst.lap); break;
+    default:                   genRender(m, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset, inst.lap,
+                                         inst.flashGain); break;
   }
 
   /* 跳变：每种颜色先渐亮 / 满亮、再渐暗（stepEnv），把包络乘到 mask 上。
@@ -3219,6 +3263,12 @@ function instNew() {
        以及「上一拍的位置」用来发现「光标跨过接缝」（见 instTick）。
        与 C 的 led_gen_inst_t.lap / lap_pos 一一对应。 */
     lap: 0, lapPrev: 0,
+    /* 音控闪（闪烁）用：flashT = 距上次闪了几拍（由音量档 / 脉动周期推进），
+       loudPrev = 上一拍有没有音乐（越过阈值那一拍才闪一次），
+       flashGain = 这一拍音控闪层该乘的增益。
+       与 C 的 led_gen_inst_t.flash_age / loud_prev / flash_gain 一一对应。
+       默认 gain = 255：暂停时（还没走过一拍）编辑台也看得见灯，不是一片黑。 */
+    flashT: 0, loudPrev: 0, flashGain: 255,
   };
 }
 
@@ -3419,8 +3469,11 @@ function instAdvances(inst) {
   return t === FW.ANIM.CHASE_SINGLE || t === FW.ANIM.CHASE_DUAL || t === FW.ANIM.SWING || !!inst.anim.moves;
 }
 
-/* 单个实例推进一 tick（对应固件 ring_tick 里那段自动前进 + 动画/颜色更新） */
-function instTick(inst) {
+/* 单个实例推进一 tick（对应固件 ring_tick 里那段自动前进 + 动画/颜色更新）
+ * loud = 这一拍「有没有音乐」：固件那条 ring_set_audio_level() 判据的产物
+ *        （FFTLevel > LED_FFT_THRESHOLD → 快档），与 C 里 led_gen_tick() 的 fast 同源。
+ *        只有音控闪层（wave == FLASH）用它，别的效果一个字都不受影响。 */
+function instTick(inst, loud) {
   inst.step_cnt++;
   if (inst.step_cnt >= inst.speed_cur) {
     inst.step_cnt = 0;
@@ -3439,13 +3492,33 @@ function instTick(inst) {
   if (inst.lapPrev < 0 && inst.anim.position.current >= 0) inst.lap ^= 1;
   inst.lapPrev = inst.anim.position.current;
   inst.anim.gen_tick = (inst.anim.gen_tick + 1) & 0xFFFF;
+  /* 音控闪（预置「闪烁」）：闪的时钟不跟 gen_tick 走，跟音量档走 ——
+   *   有音乐：只在「越过阈值」那一拍把 flashT 清零（= 闪一次），之后灭着等下一次；
+   *           一直大声（没有起伏）时 flashT 停在 FLASH_LEN，不会再自己闪。
+   *   安静：flashT 自己走到「脉动周期」就绕回 0 —— 预置给的 250 拍 = 5 秒一次。
+   * 没写脉动周期（= 0）的闪层按「不闪」算（flashPlanOf 的 on = false），与
+   * 「脉动周期 0 = 不脉动」一致。 */
+  const fp = flashPlanOf(inst.anim.layers);
+  if (fp.on) {
+    if (loud) {
+      if (!inst.loudPrev) inst.flashT = 0;
+      else if (inst.flashT < FLASH_LEN) inst.flashT++;
+    } else {
+      inst.flashT++;
+      if (inst.flashT >= fp.period) inst.flashT = 0;
+    }
+    inst.flashGain = flashGain(inst.flashT, fp.amp);
+  }
+  inst.loudPrev = loud ? 1 : 0;
   colorUpdate(inst.color, inst.anim.gen_tick);
 }
 
 function simTick(sim, state, applyReverse) {
   sim.gen_tick = (sim.gen_tick + 1) & 0xFFFF;
   simSyncSpeed(sim);            /* 与 C 侧 led_gen_tick() 一样：每拍先同步 ring 级档位 */
-  for (const inst of sim.insts) instTick(inst);
+  /* 「有没有音乐」= ring 级档位的产物（速度档真被切到快档了），与 C 的 fast 同一句判据 */
+  const loud = ringIsFast(sim);
+  for (const inst of sim.insts) instTick(inst, loud);
   if (sim.power_on) {
     animUpdate(sim.brightness);
     renderAllSim(sim, state, applyReverse);
@@ -3900,6 +3973,9 @@ const LED_GEN_IMPL = [
 '    uint8_t     speed_slow, speed_fast, speed_cur, step_cnt;',
 '    uint8_t     lap;          /* @lapf@ */',
 '    int16_t     lap_pos;',
+'    uint8_t     flash_age;    /* @flashf@ */',
+'    uint8_t     loud_prev;',
+'    uint8_t     flash_gain;',
 '} led_gen_inst_t;',
 '',
 'static uint8_t        led_gen_zone_mask[ZONE_MAX_LEN];   /* @cmt1@ */',
@@ -3920,6 +3996,21 @@ const LED_GEN_IMPL = [
 '    if (wave == (uint8_t)LED_GEN_WAVE_SQUARE)   w = (t < 128u) ? 255u : 0u;',
 '    else if (wave == (uint8_t)LED_GEN_WAVE_SAW) w = 255u - t;',
 '    else                                        w = (t < 128u) ? (255u - t * 2u) : ((t - 128u) * 2u);',
+'    return (uint8_t)(255u - (((255u - w) * amp) / 255u));',
+'}',
+'',
+'/* @flashgain@ */',
+'#define LED_GEN_FLASH_ON   2u    /* full-bright frames (2 x 20ms) */',
+'#define LED_GEN_FLASH_LEN  10u   /* total length of one flash (frames); dark after that */',
+'static uint8_t led_gen_flash_gain(uint8_t t, uint8_t amp)',
+'{',
+'    uint32_t w;',
+'    if (t < (uint8_t)LED_GEN_FLASH_ON)       w = 255u;',
+'    else if (t < (uint8_t)LED_GEN_FLASH_LEN)',
+'        w = 255u - (((uint32_t)(t - (uint8_t)LED_GEN_FLASH_ON) * 255u) /',
+'                    (uint32_t)((uint8_t)LED_GEN_FLASH_LEN - (uint8_t)LED_GEN_FLASH_ON));',
+'    else                                     w = 0u;',
+'    if (amp >= 255u) return (uint8_t)w;',
 '    return (uint8_t)(255u - (((255u - w) * amp) / 255u));',
 '}',
 '',
@@ -4066,7 +4157,8 @@ const LED_GEN_IMPL = [
 '',
 '/* @layersrender@ */',
 'static void led_gen_layers_render(uint8_t *mask, uint8_t *hue, uint8_t len,',
-'                                  const led_gen_effect_t *E, uint16_t tick, int16_t zpos, uint8_t lap)',
+'                                  const led_gen_effect_t *E, uint16_t tick, int16_t zpos, uint8_t lap,',
+'                                  uint8_t flash)',
 '{',
 '    uint8_t k, gain; const led_gen_layer_t *L;',
 '    int32_t p, rd;',
@@ -4078,8 +4170,10 @@ const LED_GEN_IMPL = [
 '    for (k = 0; k < E->layers_count; k++) {',
 '        L = &led_gen_layers[E->layers_first + k];',
 '        if (!L->en) continue;   /* @bypass@ */',
-'        gain = (L->kind == (uint8_t)LED_GEN_LAYER_TWINKLE)',
-'               ? 255u : led_gen_pulse(tick, L->pulse_period, L->pulse_amp, L->wave);',
+'        /* @flashpick@ */',
+'        gain = (L->kind == (uint8_t)LED_GEN_LAYER_TWINKLE) ? 255u',
+'             : (L->wave == (uint8_t)LED_GEN_WAVE_FLASH)   ? flash',
+'             : led_gen_pulse(tick, L->pulse_period, L->pulse_amp, L->wave);',
 '        switch (L->kind) {',
 '            case LED_GEN_LAYER_SPOT:     led_gen_spot(mask, len, (int16_t)p, L, gain, lap); break;',
 '            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, len, L, tick);               break;',
@@ -4176,7 +4270,7 @@ const LED_GEN_IMPL = [
 '        return;',
 '    }',
 '    if (E->kind == (uint8_t)LED_GEN_EFF_CUSTOM) {',
-'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, zpos, I->lap);',
+'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, zpos, I->lap, I->flash_gain);',
 '    } else {',
 '        memset(hue, 0xFF, len);',
 '        switch (E->anim) {',
@@ -4308,6 +4402,33 @@ const LED_GEN_IMPL = [
 '        if ((I->lap_pos < 0) && (I->anim.position.current >= 0)) I->lap ^= 1u;',
 '        I->lap_pos = I->anim.position.current;',
 '        I->anim.gen_tick++;',
+'        /* @flashstate@ */',
+'        {',
+'            const led_gen_effect_t *FE = &led_gen_effects[I->eff];',
+'            uint8_t  k, on = 0u, fa = 255u;',
+'            uint16_t fp = 0u;',
+'            for (k = 0; k < FE->layers_count; k++) {',
+'                const led_gen_layer_t *FL = &led_gen_layers[FE->layers_first + k];',
+'                /* audio flash layer: wave == FLASH and a non-zero pulse period',
+'                   (period 0 = no flash, same rule as "period 0 = no pulse") */',
+'                if (FL->wave != (uint8_t)LED_GEN_WAVE_FLASH || FL->pulse_period == 0u) continue;',
+'                on = 1u; fp = FL->pulse_period; fa = FL->pulse_amp; break;',
+'            }',
+'            if (on != 0u) {',
+'                if (fast != 0u) {',
+'                    /* music: clear flash_age on the threshold crossing = one flash;',
+'                       a steady loud level stays dark after that flash */',
+'                    if (I->loud_prev == 0u) I->flash_age = 0u;',
+'                    else if (I->flash_age < (uint8_t)LED_GEN_FLASH_LEN) I->flash_age++;',
+'                } else {',
+'                    /* quiet: flash_age wraps at the pulse period (preset 250 = 5 s) */',
+'                    I->flash_age++;',
+'                    if ((uint16_t)I->flash_age >= fp) I->flash_age = 0u;',
+'                }',
+'                I->flash_gain = led_gen_flash_gain(I->flash_age, fa);',
+'            }',
+'            I->loud_prev = fast;',
+'        }',
 '        {',
 '            const led_gen_effect_t *E = &led_gen_effects[I->eff];',
 '            if (E->ctype == (uint8_t)COLOR_SOLID) {',
@@ -4447,6 +4568,10 @@ const GEN_COMMENTS = {
   bounce: { zh:'往返（乒乓）：走到环的接缝（绕满一整圈）才掉头', en:'ping-pong: turn around at the seam, i.e. after a full lap' },
   bounceq: { zh:'往返：奇数圈倒着走 —— 一个来回 = 两圈（lap 是整圈数的奇偶）', en:'bounce: odd laps run backwards - one round trip = two laps (lap = lap-count parity)' },
   lapf: { zh:'往返：整圈数的奇偶（0 正着走 / 1 倒着走）+ 上一拍位置（用来发现过接缝）', en:'bounce: parity of completed laps (0 forward / 1 backward) + previous position (seam crossing)' },
+  flashf: { zh:'音控闪（预置「闪烁」）：距上次闪了几拍 + 上一拍有没有音乐 + 这一拍闪的增益', en:'audio flash (the BLINK preset): ticks since the last flash + was there music on the previous frame + this frame flash gain' },
+  flashgain: { zh:'音控闪的包络：满亮 2 拍、再用 8 拍淡出，之后全灭（一个尖峰，不是方波的一亮一灭）', en:'audio flash envelope: full for 2 frames, fade over 8 frames, then dark (a spike, not a 50% square wave)' },
+  flashpick: { zh:'音控闪层用实例算好的增益；其余层照旧吃 led_gen_pulse()', en:'the audio flash layer uses the per-instance gain; every other layer keeps led_gen_pulse()' },
+  flashstate: { zh:'音控闪的时钟：有音乐时每次越过阈值（慢档→快档）闪一下；安静时每 period 拍闪一下（预置 250 拍 = 5 秒）', en:'audio flash clock: one flash per threshold crossing (slow -> fast) while music plays; one flash every period frames when quiet (the preset uses 250 = 5 s)' },
   lapflip: { zh:'光标跨过接缝就算走完一圈 —— 翻转「倒着走」标记', en:'a seam crossing = one completed lap: flip the backwards flag' },
   chasesingle: { zh:'内建「单点追逐」：生成代码自带这份实现（不调平台原语），与工具预览逐字节一致', en:'built-in single chase, implemented here (no platform primitive); byte-identical to the tool preview' },
   chaseflat:   { zh:'平顶光带：带内一律满亮 255，带外全灭 —— 不带边缘衰减', en:'flat top: 255 throughout the band, 0 outside - no edge falloff at all' },
@@ -4745,7 +4870,7 @@ function exportEffectsC(state, opt) {
 
   /* ---------- 类型 ---------- */
   push('typedef enum { LED_GEN_FALL_COS=0, LED_GEN_FALL_LINEAR, LED_GEN_FALL_HARD, LED_GEN_FALL_TAIL } led_gen_fall_t;',
-       'typedef enum { LED_GEN_WAVE_TRI=0, LED_GEN_WAVE_SQUARE, LED_GEN_WAVE_SAW } led_gen_wave_t;',
+       'typedef enum { LED_GEN_WAVE_TRI=0, LED_GEN_WAVE_SQUARE, LED_GEN_WAVE_SAW, LED_GEN_WAVE_FLASH } led_gen_wave_t;',
        'typedef enum { LED_GEN_LAYER_SPOT=0, LED_GEN_LAYER_TWINKLE, LED_GEN_LAYER_FILL, LED_GEN_LAYER_GRADIENT } led_gen_layer_kind_t;',
        'typedef enum { LED_GEN_EFF_BUILTIN=0, LED_GEN_EFF_CUSTOM } led_gen_eff_kind_t;',
        '/* ' + t.newColors + ' */',
@@ -5048,6 +5173,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
                FALL, LAYER, WAVE, pulseGain, bouncePos,
+               flashGain, flashPlanOf, FLASH_ON, FLASH_LEN, FLASH_IDLE,
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
                coverEntry, wipeSpan, wipeEntryAt,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
@@ -6722,7 +6848,8 @@ function loop(t) {
     while (accS >= tickMs && guard++ < 500) {
       accS -= tickMs;
       if (audioOn) stageSetSpeed(stageInst);
-      instTick(stageInst);
+      /* 编辑台也要能看音控闪（预置「闪烁」）：照固件那条判据把「现在算不算有音乐」给它 */
+      instTick(stageInst, speedWhich() === 'fast');
     }
   } else accS = 0;
   if (audioOn) syncAudioBtn();          /* 读数 / 滑杆跟着音量走（每帧只写文本，不重画灯板） */
@@ -6756,7 +6883,11 @@ const LAYER_FIELDS = {
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
   ],
   fill: [
-    ['填充亮度','level',0,255], ['脉动周期','pulse_period',0,255,'0 = 不脉动（三角 = 呼吸）'], ['脉动深度','pulse_amp',0,255],
+    ['填充亮度','level',0,255],
+    ['脉动周期','pulse_period',0,255,
+     '0 = 不脉动。\n三角包络（呼吸 / 跳变 / 呼吸彩虹用）：一亮一暗走完一轮要多少拍。\n**音控闪（预置「闪烁」）**：这一格是「没有音乐时多久闪一次」—— 250 拍 = 5 秒；0 = 不闪（常亮）。'],
+    ['脉动深度','pulse_amp',0,255,
+     '0 = 不脉动（一直满亮）。\n音控闪时 = 灭的时候暗到多少：255 = 全灭，128 = 只暗一半。'],
   ],
   gradient: [
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
@@ -7067,7 +7198,13 @@ function renderLayers() {
 
     for (const f of (LAYER_FIELDS[L.kind] || [])) {
       const [label, key, min, max, tip] = f;
-      row.appendChild(layerRow(label, numInput(
+      /* 音控闪层（预置「闪烁」）：填充层那两格「脉动」在这个语境下叫别的名字，
+         不换标签的话用户看到的还是「脉动周期」，猜不到它就是「没有音乐时多久闪一次」 */
+      const flash = (L.wave | 0) === 3;
+      const nm = (flash && key === 'pulse_period') ? '闪的间隔(拍)'
+               : (flash && key === 'pulse_amp')    ? '闪完暗到'
+               : label;
+      row.appendChild(layerRow(nm, numInput(
         () => L[key] | 0, v => { L[key] = v; fxLive(); }, min, max, tip)));
     }
     box.appendChild(row);
@@ -7128,8 +7265,16 @@ const FX_PRESETS = [
   { name:'呼吸',            make: () => ({ moves:false, color:5, c1:[255,0,0], slow:8, fast:1, speed:0,
       period:90, b_rise:40, b_hold:10, palette:[[255,0,0]],
       layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
+  /* 「闪烁」= **音控闪**（2026-10-27 用户：「现在的效果不是我需要的。我需要的效果是，
+   * 在没有音乐播放或者音乐信号小的时侯，间隔 5s 闪一次，有音乐时，超过阈值闪一次」）。
+   * 旧写法是填充层方波（亮一半灭一半、0.4 秒一轮），跟音量毫无关系 —— 那是「一直闪」，
+   * 不是「待机一闪 / 有鼓点闪一下」。现在：
+   *   wave = FLASH（音控闪）+ pulse_period = 250 拍 = **5 秒**（安静时的间隔，可调就是这一格），
+   *   pulse_amp = 255（灭的时候全灭），level = 255（闪的时候满亮）；
+   *   「有没有音乐」用固件那条现成的判据：FFTLevel > LED_FFT_THRESHOLD(=4) → 快档
+   *   （预览条上的「音量」滑杆 + 「音乐来了」就是它），越过阈值那一拍闪一次。 */
   { name:'闪烁',            make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:20, pulse_amp:255, wave:1 }) ] }) },
+      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:250, pulse_amp:255, wave:3 }) ] }) },
   { name:'跳变(渐暗后跳回)', make: () => ({ moves:false, color:1, c1:[255,0,0], slow:8, fast:1, speed:1,
       layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:30, pulse_amp:255, wave:2 }) ] }) },
   { name:'绕环彩虹(旋转)',  make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
@@ -8163,7 +8308,7 @@ function stageStep(dir) {
     inst.step_cnt = -n;                       /* 这一轮别让 instTick 自己再往前走一格 */
     ringSetPosition(inst.anim.position, to, n, FW.EASE.OUT_QUAD);
   }
-  for (let i = 0; i < n; i++) instTick(inst);
+  for (let i = 0; i < n; i++) instTick(inst, speedWhich() === 'fast');
   inst.step_cnt = 0;                          /* 与「固件自己走完一格」后的状态对齐 */
   render();
   status(moves

@@ -964,5 +964,75 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
      'effectPreset 把色板 / 级数 / 起点 / 旋转带给实例');
 }
 
+/* ============================================================================
+ * 音控闪（预置「闪烁」）：安静 5 秒一闪 / 越过阈值闪一次
+ *
+ * 2026-10-27 用户：「现在的效果不是我需要的。我需要的效果是，在没有音乐播放或者
+ * 音乐信号小的时侯，间隔 5s 闪一次，有音乐时，超过阈值闪一次。」
+ * 这里守三件事：① 闪的包络是个尖峰（满亮 2 拍 + 8 拍淡出）；② 安静时按脉动周期自己
+ * 数拍子；③ 有音乐时只在「越过阈值」那一拍闪，一直大声不会自己再闪。
+ * ==========================================================================*/
+console.log('--- 音控闪（预置「闪烁」）---');
+{
+  const { flashGain, flashPlanOf, instNew, layerNums, instTick, renderZoneMaskTo,
+          FLASH_LEN, WAVE: WV } = CORE;
+  ok(flashGain(0) === 255 && flashGain(2) === 255,
+     '闪的第一拍就满亮（效果一上来就是亮的），再保持 2 拍');
+  ok(flashGain(3) === 224 && flashGain(9) === 32 && flashGain(10) === 0 && flashGain(200) === 0,
+     `10 拍内线性淡出（3 → ${flashGain(3)}、9 → ${flashGain(9)}），之后一直全灭`);
+  ok(flashGain(9, 128) === 144,
+     `脉动深度 128 时尾端抬到 ${flashGain(9, 128)}（灭的那段不再全黑）`);
+
+  const mkFlash = (per, amp) => {
+    const inst = instNew();
+    inst.anim.type = FW.ANIM_COUNT;        /* 自定义：渲染走 genRender 那一支 */
+    inst.anim.layers = [layerNums({ kind:'fill', en:1, level:255, pulse_period:per,
+                                    pulse_amp:amp == null ? 255 : amp, wave: WV.FLASH })];
+    inst.speed_slow = 8; inst.speed_fast = 1; inst.speed_cur = 8;
+    return inst;
+  };
+  const m = new Uint8Array(24), hue = new Uint8Array(24);
+  const gainOf = inst => { renderZoneMaskTo(inst, m, hue, 24, 0); return m[0]; };
+  /* 跑一段，返回「每一次闪的起始拍」 */
+  const flashes = (inst, n, loudFn) => {
+    const out = []; let prev = 0;
+    for (let t = 0; t < n; t++) {
+      instTick(inst, loudFn ? loudFn(t) : false);
+      const g = gainOf(inst);
+      if (g > 0 && prev === 0) out.push(t);
+      prev = g;
+    }
+    return out;
+  };
+
+  ok(flashPlanOf([layerNums({ kind:'fill', wave: WV.FLASH, pulse_period: 250 })]).on === true,
+     '带音控闪层的效果才会走这套状态机');
+  ok(flashPlanOf([layerNums({ kind:'fill', wave: WV.TRI, pulse_period: 250 })]).on === false,
+     '普通脉动层（三角 / 方波 / 锯齿）不受影响 —— 老存档行为一个字没变');
+  ok(flashPlanOf([layerNums({ kind:'fill', wave: WV.FLASH, pulse_period: 0 })]).on === false,
+     '脉动周期 0 = 不闪（与「脉动周期 0 = 不脉动」同一条规矩）');
+
+  /* 安静：脉动周期 250 拍（5 秒）→ 600 拍里应该闪 3 次（第 0 / 249 / 499 拍附近） */
+  const q = mkFlash(250);
+  const fq = flashes(q, 600);
+  ok(fq.length === 3, `安静 600 拍闪了 ${fq.length} 次（5 秒一次）: ${fq.join(', ')}`);
+  ok(fq.length >= 2 && (fq[1] - fq[0]) >= 249 && (fq[1] - fq[0]) <= 250,
+     `安静时两次闪的间隔 ${fq[1] - fq[0]} 拍（250 拍 = 5 秒）`);
+
+  /* 有音乐：安静 100 拍（闪早已结束）→ 第 100 拍越过阈值 → 立刻闪一次，然后灭着等 */
+  const l = mkFlash(250);
+  const fl = flashes(l, 300, t => t >= 100);
+  ok(fl.length === 2 && fl[1] === 100,
+     `越过阈值那一拍立刻闪（闪在 ${fl.join(', ')} 拍）`);
+  ok(l.flashT === FLASH_LEN && gainOf(l) === 0,
+     '一直大声（没有起伏）时闪完就停在全灭，不会自己再闪');
+
+  /* 音乐停了 → 重新按 5 秒自己闪（不是从 0 重来，接着上次的账往下数） */
+  const r = mkFlash(250);
+  const fr = flashes(r, 400, t => t >= 100 && t < 120);
+  ok(fr.length === 3 && fr[1] === 100 && fr[2] > 200,
+     `音乐停了之后又回到「自己闪」(${fr.join(', ')} 拍)`);
+}
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);

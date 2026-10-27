@@ -146,6 +146,13 @@ const BOUNCE = mkFx(13, [{ kind:'spot', count:1, width:4, phase:0, falloff:'cos'
                            pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:1, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mL', name:'往返长跑', latin:'BOUNCE_LONG', enabled:true,
                      binds:[{ effect:BOUNCE.id, zones:[] }] });
+/* 音控闪（预置「闪烁」）：填充层 wave = 3（FLASH）、脉动周期 250 拍 = 5 秒。
+ * 安静时每 250 拍闪一下；音量越过阈值那一拍闪一下。
+ * 生成代码里那几个字节的实例状态（flash_age / loud_prev / flash_gain）只有这一段才真跑。 */
+const BLINK = mkFx(14, [{ kind:'fill', level:255, pulse_period:250, pulse_amp:255, wave:3,
+                          direction:1, bounce:0, spans:0, rotate:0 }]);
+st.modes.list.push({ id:'mM', name:'音控闪', latin:'AUDIO_FLASH', enabled:true,
+                     binds:[{ effect:BLINK.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -232,6 +239,11 @@ const HALF_TICK = Math.floor(TICKS / 2);   /* 音量档场景：前一半慢档�
 /* 往返长跑：24 颗、慢档 8 拍/颗 → 192 拍一圈；240 拍 = 走完一圈再倒着走 5 颗 */
 const TICKS_LONG = 240;
 const LONG_MODE = st.modes.list.findIndex(m => m.id === 'mL');
+/* 音控闪：整段 23 拍，第 20 拍起「有音乐」（慢档 → 快档）。收尾正好停在闪的第 3 拍上
+ * （亮度 255）—— 这样这一段同时看出「越过阈值会闪」和「安静时闪完就灭」。 */
+const FLASH_TICKS = 23;
+const FLASH_LOUD_FROM = 20;
+const FLASH_MODE = st.modes.list.findIndex(m => m.id === 'mM');
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -306,6 +318,38 @@ const main = [
   '    for (i = 0; i < LED_COUNT; i++)',
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
+  /* 音控闪：前 20 拍慢档（安静）、第 20 拍起快档（= 越过阈值）。23 拍收在闪的第 3 拍上。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    led_gen_apply_mode(&g_ring, ' + FLASH_MODE + ');',
+  '    for (t = 0; t < ' + FLASH_TICKS + '; t++) {',
+  '        g_ring.speed_cur = (t < ' + FLASH_LOUD_FROM + ') ? g_ring.speed_slow : g_ring.speed_fast;',
+  '        led_gen_tick(&g_ring);',
+  '    }',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+  /* 对照：同样 23 拍，全程安静 —— 只在最开头闪一下，收尾时应该全黑 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_ring.speed_cur = 8;',
+  '    led_gen_apply_mode(&g_ring, ' + FLASH_MODE + ');',
+  '    for (t = 0; t < ' + FLASH_TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
 
   '    printf("\\n");',
   '    return 0;',
@@ -337,10 +381,10 @@ try {
 }
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 3 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 第 1 段 = 音量档，第 2 段 = 全程慢档对照，第 3 段 = 往返长跑 */
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 5 段附加场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 3, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 3 段附加场景）`);
+ok(cAll === st.modes.list.length + 5, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 5 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -558,6 +602,40 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
   ok(ctr !== null && (ctr - 80) >= 12,
      `往返长跑：光点已经掉头走到后半段（物理 ${ctr} = 该分区第 ${ctr === null ? '-' : ctr - 79} 颗，`
      + '不勾往返这会儿还在第 5 颗附近）');
+}
+
+/* ---------- 4e) 音控闪（预置「闪烁」）：安静 / 越过阈值两条路，C 与 JS 一致吗 ----------
+ * 这段是生成代码里 flash_age / loud_prev / flash_gain 三个字段唯一的真跑机会。
+ * 驱动时序与 C 侧完全相同：前 20 拍慢档（安静），第 20 拍起快档（越过阈值）。 */
+{
+  const mode = st.modes.list.find(m => m.id === 'mM');
+  const run = loudFrom => {
+    const s2 = JSON.parse(JSON.stringify(st));
+    s2.anim.modeId = mode.id;
+    const sim = simInit();
+    simApplyMode(sim, s2);
+    for (let t = 0; t < FLASH_TICKS; t++) {
+      simSetSpeed(sim, t < loudFrom ? 'slow' : 'fast');
+      simTick(sim, s2, false);
+    }
+    return Array.from({ length: FW.LED_COUNT },
+      (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
+  };
+  const jsLoud = run(FLASH_LOUD_FROM), jsQuiet = run(FLASH_TICKS);
+  ok((cAux[3] || []).map(px => px.join(',')).join('|') === jsLoud,
+     '音控闪：安静 20 拍后越过阈值再跑 3 拍，C 侧与 JS 逐字节一致');
+  ok((cAux[4] || []).map(px => px.join(',')).join('|') === jsQuiet,
+     '音控闪对照：全程安静跑同样拍数，C 侧与 JS 逐字节一致');
+  /* 语义：越过阈值那一刻必须「亮起来」，而且得是闪的亮部（不是残余的暗光） */
+  const loudRow = cAux[3] || [];
+  const quietRow = cAux[4] || [];
+  const litLoud = loudRow.filter(px => px[0] + px[1] + px[2] > 0).length;
+  const litQuiet = quietRow.filter(px => px[0] + px[1] + px[2] > 0).length;
+  ok(litLoud === FW.LED_COUNT && (loudRow[0] || [0])[0] > 200,
+     `越过阈值后整条亮起（${litLoud} 颗，亮度 ${(loudRow[0] || [0])[0]}/255）`);
+  ok(litQuiet === 0,
+     `全程安静跑 ${FLASH_TICKS} 拍后是全黑（闪只在最开头那 ${10} 拍里，${litQuiet} 颗亮 —— `
+     + '旧方波写法这里会亮一半)');
 }
 
 /* 覆盖度自检 */
