@@ -921,7 +921,7 @@
           <tr><td>光宽</td><td>光斑有多宽（按 RING_SIZE 逻辑单位，各分区会等比缩放，所以各环张角一致）。</td></tr>
           <tr><td>衰减曲线</td><td>光斑边缘怎么衰减：<b>余弦窗</b>最柔和（固件原版的双点追逐/摆动就是这个）；<b>线性</b>是直上直下；<b>硬边</b>是纯色块（＝平顶光带，内建「单点追逐」画的就是它）；<b>单边拖尾</b>一边亮一边长尾 = 彗星。</td></tr>
           <tr><td>方向</td><td>沿编号正方向跑，还是从环的另一头出发反着跑（整条朝着相反方向走）。</td></tr>
-          <tr><td>往返</td><td>选「走到头折返」= 跑到环的<b>对侧（半圈）</b>就掉头往回走，也就是摆动 / 钟摆；选「绕圈」就是一直朝一个方向追。想做「只在某一段来回」，配合「起始位」把那一段挪过去。</td></tr>
+          <tr><td>往返</td><td>选「走到头折返」= 一路走到环的<b>最后一颗灯（绕满一整圈）</b>才掉头，再照原路走回来 —— 一个来回 = 两圈，也就是摆动 / 钟摆；选「绕圈」就是一直朝一个方向追。配合「起始位」可以把掉头的位置挪到环上任意一处。</td></tr>
         </table>
 
         <h4>② 填充（fill）—— 整环一起亮</h4>
@@ -2716,8 +2716,10 @@ function bouncePos(p, span) {
  * spacing = 相邻两点的中心间距（灯位数，按 24 灯标称再等比缩放；0 = 按 count 均布）。
  * 「多点追逐」想要几个点聚在一段上一起跑、或者拉得很开时调它 —— 均布只有「整环 ÷ 点数」
  * 这一个值，实际画面经常不是均布的。间距 × (count-1) 超过环长时，后面的点会绕回来盖到
- * 前面的点上（取最大值，只会更亮，不会画错）。 */
-function genSpot(mask, len, pos, L, gain) {
+ * 前面的点上（取最大值，只会更亮，不会画错）。
+ * lap = 这个实例走过的**整圈数的奇偶**（0 = 正着走的那些圈，1 = 倒着走的那些圈）；
+ * 只有 bounce（往返）会用它，与 C 的 led_gen_spot(..., lap) 同一个参数。 */
+function genSpot(mask, len, pos, L, gain, lap) {
   const count = L.count;
   if (!count) return;
   /* 宽度按分区等比缩放，与内建追逐同样的「各环张角一致」语义 */
@@ -2732,11 +2734,12 @@ function genSpot(mask, len, pos, L, gain) {
 
   const dir    = L.direction ? 1 : -1;
   const phOff  = L.phase * len;                 /* phase 是整环的 0..255 分数 → 16.8 单位 */
-  /* 往返：折返点 = 环的**对侧**（走半圈就掉头）。
-   * 这里必须拿 half（= 半圈）当 span —— 进来的 pos 已经被 genRender 绕回 [0, rd)，
-   * 用 rd 当 span 的话 bouncePos 恒等返回原值，「往返」等于没接
-   * （2026-10-27 用户：「往返和方向这两个参数似乎没起作用」）。 */
-  const q      = L.bounce ? bouncePos(pos, half) : pos;
+  /* 往返：折返点 = 环的**接缝**（一路走到最后一颗灯、绕满一圈才掉头）。一个来回 = 两圈：
+   * 偶数圈正着走（q = pos），奇数圈倒着走（q = rd - pos）。「现在第几圈」只能由调用方数
+   * （instTick 在光标走过接缝时翻转 inst.lap）—— 光看 pos 数不出来，它早被绕回 [0, rd) 了。
+   * 2026-10-27 两轮修正：先是 bouncePos(pos, rd) 恒等（勾了等于没勾）；接着拿半圈当 span，
+   * 成了「走到对面就回头」（用户：「走到了一半就掉头了」）。 */
+  const q      = L.bounce ? bouncePos(pos + (lap ? rd : 0), rd) : pos;
   /* 方向 = **走的方向**，不只是翻拖尾的边：反向 = 光点从环的另一头出发、整条反着走。
    * 以前只把拖尾的边翻过来 → 余弦 / 线性 / 硬边三种曲线下勾哪个都一模一样。 */
   const p0     = dir > 0 ? q : rd - q;
@@ -2822,7 +2825,7 @@ function genGradient(mask, len, L, tick) {
  * **只产亮度**：颜色一律由效果级「配色」决定（hue[] 的 0xFF 哨兵 /
  * 彩虹按位置铺 / 覆盖的条目索引都在 renderZoneMaskTo 里落），
  * 图层不再自带「本层取色」—— 动画与色彩分离。 */
-function genRender(mask, len, pos, layers, tick, offset) {
+function genRender(mask, len, pos, layers, tick, offset, lap) {
   mask.fill(0, 0, len);
   if (!layers || !layers.length) return;
   const rd = len * 256;
@@ -2833,7 +2836,7 @@ function genRender(mask, len, pos, layers, tick, offset) {
     const gain = (L.kind === LAYER.TWINKLE) ? 255
                : pulseGain(tick, L.pulse_period | 0, L.pulse_amp | 0, L.wave | 0);
     switch (L.kind) {
-      case LAYER.SPOT:     genSpot(mask, len, p, L, gain);       break;
+      case LAYER.SPOT:     genSpot(mask, len, p, L, gain, lap);  break;
       case LAYER.TWINKLE:  genTwinkle(mask, len, L, tick);       break;
       case LAYER.FILL:     genFill(mask, len, L, gain);          break;
       case LAYER.GRADIENT: genGradient(mask, len, L, tick);      break;
@@ -3069,7 +3072,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.SWING:        chaseCosBand(m, len, pos, zoneScaled(a.params.light_width, len, 1)); break;
     case FW.ANIM.FILL:         fillAnim(m, len, pos, a.params.direction); break;
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
-    default:                   genRender(m, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset); break;
+    default:                   genRender(m, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset, inst.lap); break;
   }
 
   /* 跳变：每种颜色先渐亮 / 满亮、再渐暗（stepEnv），把包络乘到 mask 上。
@@ -3189,6 +3192,10 @@ function instNew() {
                 铺法看条目本身（palette 首端 / paletteB 末端同色 = 纯色） */
              cover_span: 0, cover_dir: 0 },
     speed_slow: 8, speed_fast: 1, speed_cur: 8, step_cnt: 0,
+    /* 往返用：走过接缝的次数取奇偶（0 = 正着走的那几圈 / 1 = 倒着走的那几圈），
+       以及「上一拍的位置」用来发现「光标跨过接缝」（见 instTick）。
+       与 C 的 led_gen_inst_t.lap / lap_pos 一一对应。 */
+    lap: 0, lapPrev: 0,
   };
 }
 
@@ -3402,6 +3409,12 @@ function instTick(inst) {
     }
   }
   animUpdate(inst.anim.position);
+  /* 往返：光标跨过接缝（由负回到 0 以上）就算走完一圈 → 翻转「倒着走的那些圈」标记。
+   * 为什么看 current 而不是「target 回绕到 0」：ringSetPosition 在 target 回绕的**那一刻**
+   * 把 current 平移了一整圈（5888 → -256，画面不动），真正的接缝是 current 走到 0 的那一拍 ——
+   * 在 target 回绕时就翻，往返会在离接缝一颗灯的地方跳一下。 */
+  if (inst.lapPrev < 0 && inst.anim.position.current >= 0) inst.lap ^= 1;
+  inst.lapPrev = inst.anim.position.current;
   inst.anim.gen_tick = (inst.anim.gen_tick + 1) & 0xFFFF;
   colorUpdate(inst.color, inst.anim.gen_tick);
 }
@@ -3530,6 +3543,7 @@ function instApplyPreset(inst, p) {
   inst.anim.params.gap = p.gap;
   inst.anim.position.current = 0;
   inst.anim.position.target  = 0;
+  inst.lap = 0; inst.lapPrev = 0;
   inst.step_cnt = 0;
   inst.anim.mask.fill(0);
   inst.anim.hue.fill(0xFF);
@@ -3861,6 +3875,8 @@ const LED_GEN_IMPL = [
 '    color_ctx_t color;',
 '    uint8_t     eff;          /* @cmt0@ */',
 '    uint8_t     speed_slow, speed_fast, speed_cur, step_cnt;',
+'    uint8_t     lap;          /* @lapf@ */',
+'    int16_t     lap_pos;',
 '} led_gen_inst_t;',
 '',
 'static uint8_t        led_gen_zone_mask[ZONE_MAX_LEN];   /* @cmt1@ */',
@@ -3924,7 +3940,7 @@ const LED_GEN_IMPL = [
 '',
 '/* @spot@ */',
 'static void led_gen_spot(uint8_t *mask, uint8_t len, int16_t pos,',
-'                         const led_gen_layer_t *L, uint8_t gain)',
+'                         const led_gen_layer_t *L, uint8_t gain, uint8_t lap)',
 '{',
 '    uint8_t  i, s, w, half_w;',
 '    uint16_t hw;',
@@ -3940,7 +3956,9 @@ const LED_GEN_IMPL = [
 '    if ((L->spacing > 0u) && (step < 256)) step = 256;   /* at least one LED (tiny zones scale to 0) */',
 '    dir    = (L->flags & 1u) ? 1 : -1;',
 '    ph_off = (int32_t)L->phase * (int32_t)len;',
-'    q      = (L->flags & 2u) ? led_gen_bounce((int32_t)pos, half) : (int32_t)pos;',
+'    /* @bounceq@ */',
+'    q      = (L->flags & 2u) ? led_gen_bounce((int32_t)pos + ((lap != 0u) ? rd : 0), rd)',
+'                             : (int32_t)pos;',
 '    p0     = (dir > 0) ? q : (rd - q);                 /* @reverse@ */',
 '',
 '    for (i = 0; i < len; i++) {',
@@ -4025,7 +4043,7 @@ const LED_GEN_IMPL = [
 '',
 '/* @layersrender@ */',
 'static void led_gen_layers_render(uint8_t *mask, uint8_t *hue, uint8_t len,',
-'                                  const led_gen_effect_t *E, uint16_t tick, int16_t zpos)',
+'                                  const led_gen_effect_t *E, uint16_t tick, int16_t zpos, uint8_t lap)',
 '{',
 '    uint8_t k, gain; const led_gen_layer_t *L;',
 '    int32_t p, rd;',
@@ -4040,7 +4058,7 @@ const LED_GEN_IMPL = [
 '        gain = (L->kind == (uint8_t)LED_GEN_LAYER_TWINKLE)',
 '               ? 255u : led_gen_pulse(tick, L->pulse_period, L->pulse_amp, L->wave);',
 '        switch (L->kind) {',
-'            case LED_GEN_LAYER_SPOT:     led_gen_spot(mask, len, (int16_t)p, L, gain);      break;',
+'            case LED_GEN_LAYER_SPOT:     led_gen_spot(mask, len, (int16_t)p, L, gain, lap); break;',
 '            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, len, L, tick);               break;',
 '            case LED_GEN_LAYER_FILL:     led_gen_fill(mask, len, L, gain);                  break;',
 '            case LED_GEN_LAYER_GRADIENT: led_gen_gradient(mask, len, L, tick);              break;',
@@ -4135,7 +4153,7 @@ const LED_GEN_IMPL = [
 '        return;',
 '    }',
 '    if (E->kind == (uint8_t)LED_GEN_EFF_CUSTOM) {',
-'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, zpos);',
+'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, zpos, I->lap);',
 '    } else {',
 '        memset(hue, 0xFF, len);',
 '        switch (E->anim) {',
@@ -4263,6 +4281,9 @@ const LED_GEN_IMPL = [
 '            }',
 '        }',
 '        anim_update(&I->anim.position);',
+'        /* @lapflip@ */',
+'        if ((I->lap_pos < 0) && (I->anim.position.current >= 0)) I->lap ^= 1u;',
+'        I->lap_pos = I->anim.position.current;',
 '        I->anim.gen_tick++;',
 '        {',
 '            const led_gen_effect_t *E = &led_gen_effects[I->eff];',
@@ -4400,7 +4421,10 @@ const GEN_COMMENTS = {
   cmt3: { zh:'分区 → 实例下标；0xFF = 该分区不参与', en:'zone -> instance index; 0xFF = this zone is not driven' },
   cmt4: { zh:'同一个效果只建一次实例 —— 这就是「同步」的由来', en:'one instance per distinct effect - this is what makes shared zones synchronised' },
   hueArr: { zh:'每个灯位的色相数组; 0xFF 表示用效果的全局配色', en:'per-LED hue array; 0xFF means use the effect global colour' },
-  bounce: { zh:'往返（乒乓）：走到环的对侧（半圈）就掉头', en:'ping-pong: turn around at the opposite side (half ring)' },
+  bounce: { zh:'往返（乒乓）：走到环的接缝（绕满一整圈）才掉头', en:'ping-pong: turn around at the seam, i.e. after a full lap' },
+  bounceq: { zh:'往返：奇数圈倒着走 —— 一个来回 = 两圈（lap 是整圈数的奇偶）', en:'bounce: odd laps run backwards - one round trip = two laps (lap = lap-count parity)' },
+  lapf: { zh:'往返：整圈数的奇偶（0 正着走 / 1 倒着走）+ 上一拍位置（用来发现过接缝）', en:'bounce: parity of completed laps (0 forward / 1 backward) + previous position (seam crossing)' },
+  lapflip: { zh:'光标跨过接缝就算走完一圈 —— 翻转「倒着走」标记', en:'a seam crossing = one completed lap: flip the backwards flag' },
   chasesingle: { zh:'内建「单点追逐」：生成代码自带这份实现（不调平台原语），与工具预览逐字节一致', en:'built-in single chase, implemented here (no platform primitive); byte-identical to the tool preview' },
   chaseflat:   { zh:'平顶光带：带内一律满亮 255，带外全灭 —— 不带边缘衰减', en:'flat top: 255 throughout the band, 0 outside - no edge falloff at all' },
   chasegen:    { zh:'内建单点追逐由生成代码自己画（平顶光带），不再调平台的同名原语', en:'the built-in single chase is drawn here (flat top); the platform primitive of the same name is no longer called' },
@@ -7015,7 +7039,7 @@ function renderLayers() {
         '沿灯号增大的方向跑，还是从环的另一头出发反着跑。\n反向 = 整条朝着相反方向走（不只是把拖尾换个边）。')));
       row.appendChild(layerRow('往返', selInput([['0','绕圈'], ['1','走到头折返']],
         () => L.bounce ? 1 : 0, v => { L.bounce = +v; fxLive(); },
-        '绕圈：一直朝一个方向追。\n走到头折返：跑到环的对侧（半圈）就掉头往回走（摆动 / 钟摆效果就是这么做的）。\n配合「起始位」可以把来回的那一段挪到环的任意位置。')));
+        '绕圈：一直朝一个方向追。\n走到头折返：一路走到环的最后一颗灯（绕满一整圈）才掉头，再照原路走回来 —— 一个来回 = 两圈（摆动 / 钟摆效果就是这么做的）。\n配合「起始位」可以把掉头的位置挪到环上任意一处。')));
     }
 
     for (const f of (LAYER_FIELDS[L.kind] || [])) {

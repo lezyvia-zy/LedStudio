@@ -139,6 +139,13 @@ const ASPACE = mkFx(12, [{ kind:'spot', count:3, width:2, phase:0, falloff:'cos'
                            pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mK', name:'光点间距', latin:'SPOT_SPACING', enabled:true,
                      binds:[{ effect:ASPACE.id, zones:[] }] });
+/* 往返长跑：一个余弦光点、勾了「走到头折返」。专门用来跨过环的接缝 ——
+ * 24 颗环、慢档 8 拍/颗 = 192 拍一圈，下面 C 侧跑 240 拍，正好走完一圈再倒着走 5 颗。
+ * 生成代码里「整圈数取奇偶」（I->lap）就靠这一段真跑一遍：不翻的话两侧会差出半圈。 */
+const BOUNCE = mkFx(13, [{ kind:'spot', count:1, width:4, phase:0, falloff:'cos', spacing:0,
+                           pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:1, spans:0, rotate:0 }]);
+st.modes.list.push({ id:'mL', name:'往返长跑', latin:'BOUNCE_LONG', enabled:true,
+                     binds:[{ effect:BOUNCE.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -222,6 +229,9 @@ fs.writeFileSync(path.join(dir, 'led_ring.h'), stub);
 /* ---------- 3) 主程序：每个模式各跑 N 帧，打印整个 fb ---------- */
 const TICKS = 37;
 const HALF_TICK = Math.floor(TICKS / 2);   /* 音量档场景：前一半慢档、后一半快档 */
+/* 往返长跑：24 颗、慢档 8 拍/颗 → 192 拍一圈；240 拍 = 走完一圈再倒着走 5 颗 */
+const TICKS_LONG = 240;
+const LONG_MODE = st.modes.list.findIndex(m => m.id === 'mL');
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -231,7 +241,8 @@ const main = [
   'static ring_t g_ring;',
   'static const led_zone_t Z[] = {{0,8,0},{8,8,0},{16,40,0},{56,24,1},{80,24,1}};',
   'int main(void) {',
-  '    uint8_t m, i, t;',
+  '    uint8_t m, i;',
+  '    uint16_t t;',
   '    led_gen_inst_t *unused; (void)unused;',
   '    for (m = 0; m < LED_GEN_MODE_COUNT; m++) {',
   '        memset(&g_ring, 0, sizeof(g_ring));',
@@ -279,6 +290,22 @@ const main = [
   '    for (i = 0; i < LED_COUNT; i++)',
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
+  /* 往返长跑：24 颗环、慢档 8 拍/颗 → 192 拍一圈，240 拍正好走完一圈再倒着走 5 颗。
+     生成代码里 I->lap（整圈数奇偶）就靠这一段真跑一遍：不翻的话这里会差出大半圈。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_ring.speed_cur = 8;',
+  '    led_gen_apply_mode(&g_ring, ' + LONG_MODE + ');',
+  '    for (t = 0; t < ' + TICKS_LONG + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
 
   '    printf("\\n");',
   '    return 0;',
@@ -310,10 +337,10 @@ try {
 }
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 2 段音量档场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 第 4 段 = 音量档场景，第 5 段 = 全程慢档对照 */
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 3 段附加场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 第 1 段 = 音量档，第 2 段 = 全程慢档对照，第 3 段 = 往返长跑 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 2, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 2 段音量档场景）`);
+ok(cAll === st.modes.list.length + 3, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 3 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -495,6 +522,42 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
   ok(moved, moved
      ? '切到快档后帧序列确实变了（有声音时会变快，不是永远停在慢档）'
      : '切档没生效：快档段的 fb 与全程慢档一模一样');
+}
+
+/* ---------- 4d) 往返长跑：跨过环的接缝之后，C 与 JS 还一致吗 ----------
+ * 一圈 192 拍（24 颗、慢档 8 拍/颗），这里跑 240 拍 = 走完一圈再倒着走 5 颗。
+ * 「整圈数取奇偶」这件事以前根本不存在（勾了往返等于没勾），所以这一段是生成代码里
+ * led_gen_bounce + I->lap + lap_pos 三件事唯一被真编译跑过的机会。 */
+{
+  const mode = st.modes.list.find(m => m.id === 'mL');
+  const s2 = JSON.parse(JSON.stringify(st));
+  s2.anim.modeId = mode.id;
+  const sim = simInit();
+  simApplyMode(sim, s2);
+  simSetSpeed(sim, 'slow');
+  for (let t = 0; t < TICKS_LONG; t++) simTick(sim, s2, false);
+  const fb2 = cAux[2] || [];
+  let badB = 0, firstB = null;
+  for (let i = 0; i < FW.LED_COUNT; i++) {
+    const j = sim.fb[i * 3], k = sim.fb[i * 3 + 1], l = sim.fb[i * 3 + 2];
+    if (!fb2[i] || fb2[i][0] !== j || fb2[i][1] !== k || fb2[i][2] !== l) {
+      badB++;
+      if (!firstB) firstB = { led: i, c: fb2[i], js: [j, k, l] };
+      break;
+    }
+  }
+  ok(badB === 0, badB === 0
+     ? `往返长跑 ${TICKS_LONG} 拍（跨过接缝、倒着走那圈）C 侧与 JS 仍逐字节一致`
+     : `往返长跑不一致，首例: ${JSON.stringify(firstB)}`);
+
+  /* 语义：这会儿应该已经掉头（光点在分区后半段），而不是还在往后半段跑。
+   * 第 5 个分区是 24 颗的长段（物理 80..103），不勾往返的话此刻停在第 5 颗附近。 */
+  const fb = new Uint8Array(FW.LED_COUNT * 3);
+  fb2.forEach((px, i) => { if (px) { fb[i * 3] = px[0]; fb[i * 3 + 1] = px[1]; fb[i * 3 + 2] = px[2]; } });
+  const ctr = CORE.litBandCenter(fb, { start: 80, count: 24 });
+  ok(ctr !== null && (ctr - 80) >= 12,
+     `往返长跑：光点已经掉头走到后半段（物理 ${ctr} = 该分区第 ${ctr === null ? '-' : ctr - 79} 颗，`
+     + '不勾往返这会儿还在第 5 颗附近）');
 }
 
 /* 覆盖度自检 */

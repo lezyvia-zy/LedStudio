@@ -8,10 +8,12 @@ let fails = 0;
 const ok = (c, m) => { console.log((c ? '  PASS  ' : '  FAIL  ') + m); if (!c) fails++; };
 
 const mk = len => new Uint8Array(len);
-/* 图层不再产色（「本层取色」退休）：原语只写 mask，不碰 hue[] */
-const SP = (m, len, pos, L, g) => genSpot(m, len, pos,
+/* 图层不再产色（「本层取色」退休）：原语只写 mask，不碰 hue[]。
+   lap = 往返的「第几圈」（0 = 正着走的那几圈 / 1 = 倒着走的那几圈），不勾往返时无效。 */
+const SP = (m, len, pos, L, g, lap) => genSpot(m, len, pos,
   Object.assign({ kind:'spot', count:1, width:8, phase:0, falloff:FALL.COS, pulse_period:0,
-                  pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1, spacing:0 }, L), g || 255);
+                  pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0, flags:1, spacing:0 }, L),
+  g || 255, lap || 0);
 
 /* ---- 1) SPOT(count=1, 硬边, 无脉动) 仍必须逐字节等于 chaseSingle ----
  * 内建「单点追逐」= 一条平顶光带（带内一律 255，带外 0，无边缘衰减），
@@ -93,9 +95,10 @@ console.log('--- 往返（乒乓）---');
 }
 {
   const len = 24, seen = [];
-  for (let pos = 0; pos <= len * 256 * 2; pos += 137) {
+  for (let k = 0; k < len * 2; k++) {
     const m = mk(len);   /* 原语是逐点取最大，必须用干净缓冲 */
-    SP(m, len, pos, { width: 4, bounce: 1 });
+    /* pos 每拍 +1 颗；走过接缝（一整圈）就进「倒着走」的那一圈（lap 翻 0→1） */
+    SP(m, len, (k % len) * 256, { width: 4, bounce: 1 }, 255, Math.floor(k / len) & 1);
     let bn = 0, bb = -1;
     for (let i = 0; i < len; i++) if (m[i] > bb) { bb = m[i]; bn = i; }
     seen.push(bn);
@@ -106,30 +109,87 @@ console.log('--- 往返（乒乓）---');
   const down = seen.some((v, i) => i && v < seen[i-1]);
   ok(up && down, '光点确实来回（既有增也有减），不是单向绕圈');
 }
-/* ---- 3b) 往返必须真的折返：折返点 = 环的对侧（半圈）
- * 2026-10-27 修：以前 genSpot 拿 rd（整环）当 span 去折已经绕回 [0,rd) 的 pos，
- * bouncePos 恒等返回 → 「往返」勾不勾都一样（用户：「往返和方向这两个参数似乎没起作用」）。
- * 现在既然 pos 已经绕回一圈，折叠区间只能是半圈，掉头点落在环的对面。 */
-console.log('--- 往返：折返点落在环的对侧 ---');
+/* ---- 3b) 往返 = 走到**最后一颗灯**（绕满一整圈）才掉头，一个来回 = 两圈
+ * 2026-10-27 两轮修正：
+ *   1. 以前拿 rd（整环）当 span 折已经绕回 [0,rd) 的 pos，bouncePos 恒等 → 勾了等于没勾；
+ *   2. 后来改成拿半圈当 span，就成了「走到对面就掉头」（用户：「走到了一半就掉头了」）。
+ * 环上没有「头」，走到了头只能是**绕满一圈**。可 pos 早被绕回 [0, rd)，光看它分不出走了
+ * 几圈 —— 所以圈数由 instTick 数（跨接缝翻 lap），这里用 lap 分别验奇偶两圈。 */
+console.log('--- 往返：走到最后一颗灯才掉头（一个来回 = 两圈）---');
 {
   const len = 24, rd = len * 256;
-  let fold = true, moved = false, out = 0;
+  let fwdSame = true, backMirror = true, moved = false;
   for (let pos = 0; pos < rd; pos += 97) {
-    const a = mk(len), b = mk(len), c = mk(len);
-    SP(a, len, pos,       { width: 4, bounce: 1 });
-    SP(b, len, rd - pos,  { width: 4, bounce: 1 });   /* 三角波对称：pos 与 整环-pos 应折到同一点 */
-    SP(c, len, pos,       { width: 4, bounce: 0 });
+    const a = mk(len), b = mk(len), c = mk(len), d = mk(len);
+    SP(a, len, pos,      { width: 4, bounce: 1 }, 255, 0);   /* 正着走的那一圈 */
+    SP(b, len, pos,      { width: 4, bounce: 0 });           /* 绕圈 */
+    SP(c, len, pos,      { width: 4, bounce: 1 }, 255, 1);   /* 倒着走的那一圈 */
+    SP(d, len, rd - pos, { width: 4, bounce: 0 });           /* 绕圈在「整环 − pos」处 */
     for (let i = 0; i < len; i++) {
-      if (a[i] !== b[i]) fold = false;
+      if (a[i] !== b[i]) fwdSame = false;
+      if (c[i] !== d[i]) backMirror = false;
       if (a[i] !== c[i]) moved = true;
     }
-    let pk = 0, pv = -1;
-    for (let i = 0; i < len; i++) if (a[i] > pv) { pv = a[i]; pk = i; }
-    if (pk > len / 2 + 1) out++;
   }
-  ok(fold, 'pos 与「整环 - pos」折到同一个位置（逐字节相同 = 真的折返了）');
-  ok(moved, '往返与绕圈（bounce=0）画面确实不同');
-  ok(out === 0, `折返后光点只在环的前半圈里来回（跑出前半圈的帧 ${out}）`);
+  ok(fwdSame, '偶数圈（lap=0）与「绕圈」逐字节相同（前一圈就是正常绕一圈）');
+  ok(backMirror, '奇数圈（lap=1）= 绕圈在「整环 − pos」处 = 照原路走回来');
+  ok(moved, '正走与倒走确实不同（往返真的接上了）');
+}
+{
+  const len = 24, seen = [];
+  const L = { width: 4, bounce: 1, falloff: FALL.COS };
+  for (let k = 0; k < len * 4; k++) {
+    const m = mk(len);
+    SP(m, len, (k % len) * 256, L, 255, Math.floor(k / len) & 1);
+    let pk = 0, pv = -1;
+    for (let i = 0; i < len; i++) if (m[i] > pv) { pv = m[i]; pk = i; }
+    seen.push(pk);
+  }
+  ok(Math.max.apply(null, seen) === len - 1,
+     `走到环的最后一颗灯（最远到第 ${Math.max.apply(null, seen) + 1} 颗 / 共 ${len} 颗）`);
+  let mono = true;
+  for (let k = 1; k < len; k++) if (seen[k] !== seen[k - 1] + 1) mono = false;
+  ok(mono, '第 1 圈一路往前，中途不掉头（半圈折返会在这里就开始减）');
+  let back = true;
+  /* 第 len+1 拍是「跨过接缝」那一步（0 号灯 → 最后一颗），从 len+2 开始才是每拍 −1 */
+  for (let k = len + 2; k < 2 * len; k++) if (seen[k] !== seen[k - 1] - 1) back = false;
+  ok(back, '第 2 圈照原路倒着走回来（每拍 −1 颗）');
+  ok(seen[len] === 0 && seen[2 * len] === 0, `掉头点落在接缝（第 ${len} / ${2 * len} 拍 = 0 号灯）`);
+}
+/* ---- 3c) 应用路径：往返靠 instTick 数圈数（跨接缝翻 inst.lap）----
+ * 光点层只认 lap 这个入参，真正「走了几圈」得由推进逻辑给：这一段用真实实例跑
+ * （24 颗、慢档 8 拍/颗 → 192 拍一圈），确认圈数会翻、并且真的摆到最后一颗灯。 */
+console.log('--- 往返：整圈数由 instTick 数（应用路径）---');
+{
+  const { instNew, instTick, layerNums, renderZoneMaskTo } = CORE;
+  const len = 24, inst = instNew();
+  inst.anim.type = FW.ANIM_COUNT;         /* 自定义动效的分支（default → genRender） */
+  inst.anim.layers = [layerNums({ kind:'spot', count:1, width:4, falloff:'cos',
+                                  direction:1, bounce:1, spacing:0, en:1, phase:0 })];
+  inst.anim.moves = true;                 /* 与 C 的 led_gen_effects[eff].moves 一致 */
+  inst.speed_slow = 8; inst.speed_cur = 8;
+  const mask = new Uint8Array(len), hue = new Uint8Array(len);
+  const peaks = [];
+  let flippedAt = -1, firstLap = 0;
+  for (let t = 1; t <= 3 * 192; t++) {
+    const before = inst.lap;
+    instTick(inst);
+    if (inst.lap !== before && flippedAt < 0) { flippedAt = t; firstLap = inst.anim.position.current; }
+    /* 与 renderAllSim 同一套「位置 → 分区位置」换算 */
+    let z = Math.trunc((inst.anim.position.current * len) / FW.RING_SIZE);
+    if (z < 0) z += len * 256; else if (z >= len * 256) z -= len * 256;
+    renderZoneMaskTo(inst, mask, hue, len, z);
+    let pk = 0, pv = -1;
+    for (let i = 0; i < len; i++) if (mask[i] > pv) { pv = mask[i]; pk = i; }
+    peaks.push(pk);
+  }
+  ok(flippedAt > 150 && flippedAt < 240, `跨过接缝时翻圈（第 ${flippedAt} 拍，一圈 192 拍左右）`);
+  ok(Math.abs(firstLap) <= 256, `翻圈那一刻正落在接缝附近（current = ${firstLap}）`);
+  ok(Math.max.apply(null, peaks) === len - 1,
+     `真的摆到最后一颗灯（最远第 ${Math.max.apply(null, peaks) + 1} 颗 / 共 ${len} 颗）`);
+  /* 掉头之后（第 2 圈）必须往回走：同一条环上越走越小 */
+  const pA = peaks[flippedAt + 20], pB = peaks[flippedAt + 170];
+  ok(pB < pA, `第 2 圈往回走（第 ${pA + 1} 颗 → 第 ${pB + 1} 颗，越走越小）`);
 }
 
 /* ---- 4) 多点 / TAIL ---- */
