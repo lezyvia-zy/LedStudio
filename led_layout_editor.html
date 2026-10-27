@@ -920,8 +920,8 @@
           <tr><td>光点数</td><td>环上同时有几个光斑。1 = 单点追逐，2 = 双点，再大就是多点。</td></tr>
           <tr><td>光宽</td><td>光斑有多宽（按 RING_SIZE 逻辑单位，各分区会等比缩放，所以各环张角一致）。</td></tr>
           <tr><td>衰减曲线</td><td>光斑边缘怎么衰减：<b>余弦窗</b>最柔和（固件原版的双点追逐/摆动就是这个）；<b>线性</b>是直上直下；<b>硬边</b>是纯色块（＝平顶光带，内建「单点追逐」画的就是它）；<b>单边拖尾</b>一边亮一边长尾 = 彗星。</td></tr>
-          <tr><td>方向</td><td>沿编号正方向还是反方向跑。</td></tr>
-          <tr><td>往返</td><td>选「走到头折返」就是摆动/钟摆；选「绕圈」就是一直追。</td></tr>
+          <tr><td>方向</td><td>沿编号正方向跑，还是从环的另一头出发反着跑（整条朝着相反方向走）。</td></tr>
+          <tr><td>往返</td><td>选「走到头折返」= 跑到环的<b>对侧（半圈）</b>就掉头往回走，也就是摆动 / 钟摆；选「绕圈」就是一直朝一个方向追。想做「只在某一段来回」，配合「起始位」把那一段挪过去。</td></tr>
         </table>
 
         <h4>② 填充（fill）—— 整环一起亮</h4>
@@ -2732,7 +2732,14 @@ function genSpot(mask, len, pos, L, gain) {
 
   const dir    = L.direction ? 1 : -1;
   const phOff  = L.phase * len;                 /* phase 是整环的 0..255 分数 → 16.8 单位 */
-  const p0     = L.bounce ? bouncePos(pos, rd) : pos;
+  /* 往返：折返点 = 环的**对侧**（走半圈就掉头）。
+   * 这里必须拿 half（= 半圈）当 span —— 进来的 pos 已经被 genRender 绕回 [0, rd)，
+   * 用 rd 当 span 的话 bouncePos 恒等返回原值，「往返」等于没接
+   * （2026-10-27 用户：「往返和方向这两个参数似乎没起作用」）。 */
+  const q      = L.bounce ? bouncePos(pos, half) : pos;
+  /* 方向 = **走的方向**，不只是翻拖尾的边：反向 = 光点从环的另一头出发、整条反着走。
+   * 以前只把拖尾的边翻过来 → 余弦 / 线性 / 硬边三种曲线下勾哪个都一模一样。 */
+  const p0     = dir > 0 ? q : rd - q;
 
   for (let i = 0; i < len; i++) {
     let best = 0;
@@ -2743,7 +2750,9 @@ function genSpot(mask, len, pos, L, gain) {
       while (d < -half) d += rd;
       let v;
       if (L.falloff === FALL.TAIL) {
-        const dd = dir > 0 ? d : -d;            /* 头在 dd==0，尾在 dd>0 */
+        /* 尾必须拖在**身后**：往 +i 走时尾在 -i（dd = -d），反向时反过来。
+           老写法（dir>0 用 +d）把尾甩到了前面 —— 彗星看着像「倒着飞」。 */
+        const dd = dir > 0 ? -d : d;            /* 头在 dd==0，尾在 dd>0 */
         v = (dd >= 0 && dd < 2 * hw) ? 255 - Math.floor((dd * 255) / (2 * hw)) : 0;
       } else {
         const ad = d < 0 ? -d : d;
@@ -3919,7 +3928,7 @@ const LED_GEN_IMPL = [
 '{',
 '    uint8_t  i, s, w, half_w;',
 '    uint16_t hw;',
-'    int32_t  rd, half, step, ph_off, center, d, ad, dd, v, best, g, dir, p0;',
+'    int32_t  rd, half, step, ph_off, center, d, ad, dd, v, best, g, dir, p0, q;',
 '    if (L->count == 0u) return;',
 '    w      = led_gen_scaled(L->width, len, 1u);',
 '    half_w = (uint8_t)(w / 2u); if (half_w < 1u) half_w = 1u;',
@@ -3931,7 +3940,8 @@ const LED_GEN_IMPL = [
 '    if ((L->spacing > 0u) && (step < 256)) step = 256;   /* at least one LED (tiny zones scale to 0) */',
 '    dir    = (L->flags & 1u) ? 1 : -1;',
 '    ph_off = (int32_t)L->phase * (int32_t)len;',
-'    p0     = (L->flags & 2u) ? led_gen_bounce((int32_t)pos, rd) : (int32_t)pos;',
+'    q      = (L->flags & 2u) ? led_gen_bounce((int32_t)pos, half) : (int32_t)pos;',
+'    p0     = (dir > 0) ? q : (rd - q);                 /* @reverse@ */',
 '',
 '    for (i = 0; i < len; i++) {',
 '        best = 0;',
@@ -3941,7 +3951,7 @@ const LED_GEN_IMPL = [
 '            while (d >  half) d -= rd;',
 '            while (d < -half) d += rd;',
 '            if (L->falloff == (uint8_t)LED_GEN_FALL_TAIL) {',
-'                dd = (dir > 0) ? d : -d;                        /* @tail@ */',
+'                dd = (dir > 0) ? -d : d;                        /* @tail@ */',
 '                v = ((dd >= 0) && (dd < (int32_t)hw * 2))',
 '                    ? (255 - (dd * 255) / ((int32_t)hw * 2)) : 0;',
 '            } else {',
@@ -4368,8 +4378,9 @@ const GEN_COMMENTS = {
   impl:   { zh:'图层渲染器（与工具里的 JS 实现逐行对应）', en:'layer renderer (line-by-line mirror of the tool JS)' },
   pulse:  { zh:'三角波脉动增益。period=0 表示不脉动。tick=0 时为满亮度', en:'triangle pulse gain. period=0 = no pulse. full at tick=0' },
   scaled: { zh:'与 zone_scaled() 同义：把 RING_SIZE 基准的宽度换算到本分区', en:'same as zone_scaled(): rescale width from RING_SIZE base to this zone' },
-  spot:   { zh:'光点层：count 个光点沿环均布，随 pos 移动', en:'spot layer: count spots evenly spaced, moving with pos' },
-  tail:   { zh:'头在 dd==0，尾在 dd>0', en:'head at dd==0, tail at dd>0' },
+  spot:   { zh:'光点层：count 个光点沿环排布（间距可设），随 pos 移动', en:'spot layer: count spots along the ring (spacing optional), moving with pos' },
+  tail:   { zh:'头在 dd==0，尾在 dd>0（尾永远拖在身后）', en:'head at dd==0, tail at dd>0 (the tail always trails behind)' },
+  reverse:{ zh:'方向 = 反向：光点从环的另一头出发', en:'direction = reversed: start the spot from the other side' },
   twk:    { zh:'随机闪层：与位置无关，每 rate 帧换一批', en:'twinkle layer: position independent, reshuffles every rate frames' },
   fill:   { zh:'整环填充层：配脉动即呼吸', en:'fill layer: all LEDs; add a pulse and it breathes' },
   adv:    { zh:'该 anim_type 是否随 pos 自动前进', en:'does this anim_type advance with pos automatically' },
@@ -4389,7 +4400,7 @@ const GEN_COMMENTS = {
   cmt3: { zh:'分区 → 实例下标；0xFF = 该分区不参与', en:'zone -> instance index; 0xFF = this zone is not driven' },
   cmt4: { zh:'同一个效果只建一次实例 —— 这就是「同步」的由来', en:'one instance per distinct effect - this is what makes shared zones synchronised' },
   hueArr: { zh:'每个灯位的色相数组; 0xFF 表示用效果的全局配色', en:'per-LED hue array; 0xFF means use the effect global colour' },
-  bounce: { zh:'往返（乒乓）：走到头就回头', en:'ping-pong: turn around at the ends' },
+  bounce: { zh:'往返（乒乓）：走到环的对侧（半圈）就掉头', en:'ping-pong: turn around at the opposite side (half ring)' },
   chasesingle: { zh:'内建「单点追逐」：生成代码自带这份实现（不调平台原语），与工具预览逐字节一致', en:'built-in single chase, implemented here (no platform primitive); byte-identical to the tool preview' },
   chaseflat:   { zh:'平顶光带：带内一律满亮 255，带外全灭 —— 不带边缘衰减', en:'flat top: 255 throughout the band, 0 outside - no edge falloff at all' },
   chasegen:    { zh:'内建单点追逐由生成代码自己画（平顶光带），不再调平台的同名原语', en:'the built-in single chase is drawn here (flat top); the platform primitive of the same name is no longer called' },
@@ -7001,10 +7012,10 @@ function renderLayers() {
         '光斑边缘怎么衰减：\n余弦窗最柔和（固件原版的双点追逐/摆动就是这个）\n线性是直上直下\n硬边是纯色块（＝平顶光带，内建「单点追逐」画的也是它）\n单边拖尾一边亮一边长尾 = 彗星')));
       row.appendChild(layerRow('方向', selInput([['1','沿编号正方向'], ['0','反向']],
         () => L.direction ? 1 : 0, v => { L.direction = +v; fxLive(); },
-        '沿灯号增大的方向跑，还是反着跑。')));
+        '沿灯号增大的方向跑，还是从环的另一头出发反着跑。\n反向 = 整条朝着相反方向走（不只是把拖尾换个边）。')));
       row.appendChild(layerRow('往返', selInput([['0','绕圈'], ['1','走到头折返']],
         () => L.bounce ? 1 : 0, v => { L.bounce = +v; fxLive(); },
-        '绕圈：一直朝一个方向追。\n走到头折返：在环上左右摆动（摆动/钟摆效果就是这么做的）。')));
+        '绕圈：一直朝一个方向追。\n走到头折返：跑到环的对侧（半圈）就掉头往回走（摆动 / 钟摆效果就是这么做的）。\n配合「起始位」可以把来回的那一段挪到环的任意位置。')));
     }
 
     for (const f of (LAYER_FIELDS[L.kind] || [])) {

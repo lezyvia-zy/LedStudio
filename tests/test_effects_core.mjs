@@ -106,6 +106,31 @@ console.log('--- 往返（乒乓）---');
   const down = seen.some((v, i) => i && v < seen[i-1]);
   ok(up && down, '光点确实来回（既有增也有减），不是单向绕圈');
 }
+/* ---- 3b) 往返必须真的折返：折返点 = 环的对侧（半圈）
+ * 2026-10-27 修：以前 genSpot 拿 rd（整环）当 span 去折已经绕回 [0,rd) 的 pos，
+ * bouncePos 恒等返回 → 「往返」勾不勾都一样（用户：「往返和方向这两个参数似乎没起作用」）。
+ * 现在既然 pos 已经绕回一圈，折叠区间只能是半圈，掉头点落在环的对面。 */
+console.log('--- 往返：折返点落在环的对侧 ---');
+{
+  const len = 24, rd = len * 256;
+  let fold = true, moved = false, out = 0;
+  for (let pos = 0; pos < rd; pos += 97) {
+    const a = mk(len), b = mk(len), c = mk(len);
+    SP(a, len, pos,       { width: 4, bounce: 1 });
+    SP(b, len, rd - pos,  { width: 4, bounce: 1 });   /* 三角波对称：pos 与 整环-pos 应折到同一点 */
+    SP(c, len, pos,       { width: 4, bounce: 0 });
+    for (let i = 0; i < len; i++) {
+      if (a[i] !== b[i]) fold = false;
+      if (a[i] !== c[i]) moved = true;
+    }
+    let pk = 0, pv = -1;
+    for (let i = 0; i < len; i++) if (a[i] > pv) { pv = a[i]; pk = i; }
+    if (pk > len / 2 + 1) out++;
+  }
+  ok(fold, 'pos 与「整环 - pos」折到同一个位置（逐字节相同 = 真的折返了）');
+  ok(moved, '往返与绕圈（bounce=0）画面确实不同');
+  ok(out === 0, `折返后光点只在环的前半圈里来回（跑出前半圈的帧 ${out}）`);
+}
 
 /* ---- 4) 多点 / TAIL ---- */
 console.log('--- 多点与拖尾 ---');
@@ -121,10 +146,35 @@ console.log('--- 多点与拖尾 ---');
   SP(m, len, 0, { count: 1, width: 4, falloff: FALL.TAIL, direction: 1 });
   let peakAt = 0, peak = 0;
   for (let i = 0; i < len; i++) if (m[i] > peak) { peak = m[i]; peakAt = i; }
-  let back = 0, front = 0;
-  for (let i = 1; i < 10; i++) { back += m[(peakAt + i) % len]; front += m[(peakAt - i + len) % len]; }
+  /* 正方向 = 朝灯号增大的方向走 → 身后就是灯号更小的那一侧。
+   * （2026-10-27 修：以前尾甩在前面，彗星看着像倒着飞。） */
+  let behind = 0, ahead = 0;
+  for (let i = 1; i < 10; i++) {
+    behind += m[(peakAt - i + len) % len];
+    ahead  += m[(peakAt + i) % len];
+  }
   ok(peak === 255, '拖尾头部达 255');
-  ok(back > front, `单边拖尾：头后方 ${back} > 前方 ${front}`);
+  ok(behind > ahead, `单边拖尾：尾拖在身后（身后 ${behind} > 前方 ${ahead}）`);
+}
+
+/* ---- 4b) 方向：反向 = 从环的另一头出发（整条反着走）
+ * 2026-10-27 修：以前只拿它翻拖尾的边，余弦 / 线性 / 硬边三种曲线下勾哪个都一模一样。 */
+console.log('--- 方向（反向 = 位置镜像）---');
+{
+  const len = 24, rd = len * 256;
+  let mirror = true, differs = false;
+  for (let pos = 0; pos < rd; pos += 97) {
+    const a = mk(len), b = mk(len), c = mk(len);
+    SP(a, len, pos,      { width: 8, direction: 0 });
+    SP(b, len, rd - pos, { width: 8, direction: 1 });
+    SP(c, len, pos,      { width: 8, direction: 1 });
+    for (let i = 0; i < len; i++) {
+      if (a[i] !== b[i]) mirror = false;
+      if (a[i] !== c[i]) differs = true;
+    }
+  }
+  ok(mirror, '反向在 pos == 正方向在「整环 - pos」（照着环镜像，走的是反方向）');
+  ok(differs, '反向与正方向画面确实不同（余弦窗下也看得出来）');
 }
 
 /* ---- 4b) 光点间距（spacing）：0 = 均布，> 0 = 固定中心距 ----
