@@ -316,6 +316,52 @@ console.log('--- 新配色（效果级）---');
     ok(eN.b_rise === 40 && eN.b_hold === 10 && eN.period === 90 && byId.get('fRise').value === '40',
        `第一次切到呼吸：落出厂手感 渐亮 40 / 亮 10 / 周期 ${eN.period} 拍（不是空着的 period/2）`);
   }
+  /* ---- 「动画里的呼吸」和「色彩配置里的呼吸」是同一套（2026-10-27 用户提问） ----
+   * 预置「呼吸」现在就是「静态 + 配色呼吸」，套完下面的配色下拉自己会变成「呼吸」；
+   * 图层那边不再有一套平行的三角脉动（那两条路会让人以为有两个呼吸旋钮）。 */
+  pick.value = '呼吸'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  {
+    const eP = fxListOf(0)[0];
+    ok(eP.color === CORE.FW.COLOR.BREATH,
+       `预置「呼吸」= 配色「呼吸」（color=${eP.color}），不是另一套填充层脉动`);
+    ok(byId.get('fColor').value === String(CORE.FW.COLOR.BREATH),
+       `套完之后「配色」下拉也停在「呼吸」（${byId.get('fColor').value}）`);
+    ok(eP.period === 90 && eP.b_rise === 40 && eP.b_hold === 10,
+       `预置「呼吸」带出厂手感：周期 ${eP.period} / 渐亮(=变暗) ${eP.b_rise} / 亮 ${eP.b_hold}`);
+    ok(eP.layers.length === 1 && eP.layers[0].kind === 'fill' && !(eP.layers[0].pulse_amp | 0),
+       '预置「呼吸」的图层只是满亮填充层（亮度起伏归色彩配置，不脉动）');
+    ok(eP.palette.length === 1 && eP.palette.every(c => (c[0] | c[1] | c[2])),
+       `预置「呼吸」的调色板只有 1 个真颜色、没有纯黑：${JSON.stringify(eP.palette)}`);
+    ok(palN() === 1 && !show('rowSpeed') && show('rowPeriod'),
+       `界面上：1 个色块 / 周期行在 / 速度行收起（${palN()} 个色块）`);
+  }
+  /* 套用「单点追逐」这种只写了 c1 的预置：调色板不再凭空补一个纯黑第二色 */
+  pick.value = '单点追逐'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].palette.length === 1,
+     `预置只给 c1 时调色板也只有 1 个颜色（不补纯黑）：${JSON.stringify(fxListOf(0)[0].palette)}`);
+  /* 纯黑条目在「呼吸」里 = 一个周期整条全灭（看着完全像动画停了）→ 切到呼吸时清掉。
+   * 走真实路径：先切到跳变（两个色块都露出来）→ 把第 2 个调成纯黑 → 再切到呼吸。 */
+  {
+    col.value = String(CORE.FW.COLOR.STEP);
+    col.onchange({ target: col });
+    await new Promise(r => setTimeout(r, 700));
+    click('fxPalAdd');
+    await new Promise(r => setTimeout(r, 900));
+    ok(fxListOf(0)[0].palette.length === 2 && palN() === 2,
+       `跳变：加出一个第 2 颜色（${fxListOf(0)[0].palette.length} 个 / ${palN()} 个色块）`);
+    palCells()[1].children[0].__cp.sv(1, 0);          /* 亮度 0 = 纯黑 */
+    await new Promise(r => setTimeout(r, 900));
+    ok(JSON.stringify(fxListOf(0)[0].palette[1]) === '[0,0,0]',
+       `第 2 个颜色调成纯黑（${JSON.stringify(fxListOf(0)[0].palette[1])}）`);
+    col.value = String(CORE.FW.COLOR.BREATH);
+    col.onchange({ target: col });
+    await new Promise(r => setTimeout(r, 900));
+    const eK = fxListOf(0)[0];
+    ok(eK.palette.length === 1 && palN() === 1,
+       `切到呼吸：纯黑那条被去掉（剩 ${eK.palette.length} 个 / ${palN()} 个色块）—— 一个周期全灭太像「停了」`);
+  }
   col.value = String(CORE.FW.COLOR.STEP);
   col.onchange({ target: col });
   await new Promise(r => setTimeout(r, 700));

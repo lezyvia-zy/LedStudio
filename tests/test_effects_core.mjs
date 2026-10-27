@@ -929,8 +929,25 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
        'cover_mode 缺省（纯色）：条目原样，不迁移');
   }
 
-  /* 字段兜底 */
-  ok(effPalette({ c1: [1,2,3] }).length === 2, '老效果没有 palette → 用 c1/c2 兜底');
+  /* 字段兜底：老效果没有 palette → 用 c1 / c2 兜底，但**纯黑的 c2 不算一种颜色**
+   * （固件老表里 c2 = 0,0,0 = 「没有第二色」的占位符；照抄进调色板的话，
+   * 呼吸 / 跳变会多出一个纯黑条目 —— 用户 2026-10-27：「呼吸第二个默认是黑色」） */
+  ok(effPalette({ c1: [1,2,3] }).length === 1, '老效果没有 palette、也没有 c2 → 只有 c1（不补纯黑）');
+  ok(effPalette({ c1: [1,2,3], c2: [0,0,0] }).length === 1, 'c2 是纯黑（固件表的占位符）→ 不算一种颜色');
+  ok(effPalette({ c1: [1,2,3], c2: [4,5,6] }).length === 2, 'c2 真是另一种颜色 → 照收（旧双色渐变的蓝还在）');
+  /* 呼吸：纯黑的占位条目在切过来时清掉（一个周期全灭 = 看着像停了）；其它配色不动 */
+  {
+    const bK = CORE.normalizeEffect({ color: FW.COLOR.BREATH, palette: [[255,0,0],[0,0,0]] });
+    ok(bK.palette.length === 1 && bK.palette[0].join(',') === '255,0,0',
+       `呼吸：纯黑的第 2 条目清掉（${JSON.stringify(bK.palette)}）`);
+    CORE.normalizeEffect(bK);
+    ok(bK.palette.length === 1, '呼吸的清黑是幂等的（再 normalize 一次不会继续动）');
+    const b3 = CORE.normalizeEffect({ color: FW.COLOR.BREATH,
+                                      palette: [[255,0,0],[0,255,0],[0,0,0]] });
+    ok(b3.palette.length === 3, '呼吸：3 个以上条目时不动（用户自己放的颜色留着）');
+    const sK = CORE.normalizeEffect({ color: FW.COLOR.STEP, palette: [[255,0,0],[0,0,0]] });
+    ok(sK.palette.length === 2, '跳变：黑条目照留（那是「灭」的那一步，不是占位符）');
+  }
   /* 色板上限 16 个（第 17 个起截掉）—— 导出的 pal_count 是 8 位数，工具侧收口 */
   const manyPal = Array.from({ length: 20 }, (_, i) => [i, i, i]);
   ok(effPalette({ palette: manyPal }).length === 16,

@@ -96,14 +96,17 @@ tabBtn('fx').onclick();
 byId.get('fxTbl').children[0].onclick();
 const colSel = byId.get('fColor');
 const setColorMode = async v => { colSel.value = String(v); colSel.onchange({ target: colSel }); await sleep(700); };
-await setColorMode(FW.COLOR.STEP);            /* 跳变：颜色数由用户定，调色板一定能出好几个色块 */
+await setColorMode(FW.COLOR.STEP);            /* 跳变：颜色数由用户定 */
 
 const chipsOf = id => (byId.get(id).children || []).filter(c => c.classList && c.classList.contains('cchip'));
 /* 调色板条目可能是纯色（一个色块）或两端渐变（胶囊里左右两个色块）—— 摊平成一列色块 */
 const pal = () => (byId.get('fPalette').children || [])
   .reduce((a, c) => a.concat(c.classList && c.classList.contains('palcell') ? c.children : [c]), [])
   .filter(c => c.classList && c.classList.contains('cchip'));
-ok(pal().length >= 2, `调色板出 ${pal().length} 个色块（跳变要多色）`);
+ok(pal().length >= 1, `调色板默认出 ${pal().length} 个色块（纯黑占位不再算一条颜色）`);
+/* 跳变 / 呼吸要多色就用「+」加 —— 加完变 2 个（后面「换目标」那几条要用第 2 个色块） */
+if (pal().length < 2) { byId.get('fxPalAdd').onclick(); await sleep(700); }
+ok(pal().length >= 2, `点「+」加一个颜色：调色板 ${pal().length} 个色块`);
 ok(pal().every(c => /^#[0-9a-f]{6}$/.test(c.value)), '每个色块都带着 #rrggbb（和原生 input 一样的值）');
 const zChip = byId.get('zColor');
 ok(zChip.classList.contains('cchip') && /^#[0-9a-f]{6}$/.test(zChip.value),
@@ -194,6 +197,18 @@ svAt(6, 6);
 ok(ch.value === '#ffffff', `最左上 = 白 ${ch.value}`);
 svAt(6, 894);
 ok(ch.value === '#000000', `最左下 = 黑 ${ch.value}`);
+
+/* 黑 / 灰上点色环也得能出颜色：色环 = 满饱和满亮度，v / s 是 0 时先提满。
+ * 不这么做的话，黑色格子上怎么拖色环都还是黑的（用户 2026-10-27：
+ * 「第二个默认是黑色，这是不对的，修改也修改不了」）。 */
+ringAt(600, 350);
+ok(ch.value === '#ff0000', `黑色格子上点色环 → 直接出纯红（不再是黑的）${ch.value}`);
+ch.__cp.setHex('#808080');               /* 灰：饱和 0，换色相看不出变化 */
+ringAt(600, 550);
+ok(ch.value === '#00ffff', `灰格子上点色环 → 出纯青（灰不再卡住）${ch.value}`);
+ch.__cp.setHex('#400000');               /* 暗红：亮度只有 25% */
+ringAt(600, 550);
+ok(ch.value === '#004040', `暗色上点色环只换色相、亮度保留（暗红 → 暗青）${ch.value}`);
 
 /* 色号框：黑白灰、别人给的色号，直接敲最快 */
 const hexIn = byId.get('cpHex');
