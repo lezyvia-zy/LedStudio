@@ -116,13 +116,19 @@ ok(!('cmode' in e0.layers[0]) && !('hue_spread' in e0.layers[0]),
 /* ---- 4) 图层编辑器渲染出新控件 ---- */
 const layerBox = byId.get('fLayers');
 ok(layerBox.children.length === 1, '图层编辑器渲染了 1 行');
-const ctrls = [];
-(function walk(n) { (n.children || []).forEach(c => { if (c.tagName === 'SELECT') ctrls.push(c); walk(c); }); })(layerBox.children[0]);
+const ctrls = [], layNums = [];
+(function walk(n) { (n.children || []).forEach(c => {
+  if (c.tagName === 'SELECT') ctrls.push(c);
+  if (c.tagName === 'INPUT' && c.type === 'number') layNums.push(c);
+  walk(c); }); })(layerBox.children[0]);
 ok(!ctrls.some(s => (s.children || []).some(o => /空间色相/.test(o.textContent))),
    '图层卡上没有「本层取色」下拉（颜色只在色彩配置里选）');
 ok(!ctrls.some(s => (s.children || []).some(o => /方波|锯齿/.test(o.textContent))),
    '图层卡上没有「波形」下拉');
 ok(ctrls.length === 0, `填充层只剩数字框，没有任何下拉（${ctrls.length} 个）`);
+/* 「有音乐间隔 / 亮的时间」只属于音控闪层（预置「闪烁」）：普通填充层只显示 3 格 */
+ok(layNums.length === 3,
+   `普通填充层 3 个数字框（亮度 / 脉动周期 / 脉动深度），实际 ${layNums.length}`);
 
 /* ---- 5) 套用「摆动(往返)」应带上 bounce ---- */
 pp.value = '摆动(往返)'; click('fxPresetApply');
@@ -132,17 +138,38 @@ ok(e0b.layers[0].kind === 'spot' && e0b.layers[0].bounce === 1, '摆动模板带
 ok(e0b.moves === true, '摆动模板会随位置前进');
 
 /* ---- 6) 套用「闪烁」= 音控闪（不是固定方波） ----
- * 2026-10-27 用户：「在没有音乐播放或者音乐信号小的时侯，间隔5s闪一次，有音乐时，超过阈值闪一次」。
- * 所以这条预置的填充层是 wave = 3（FLASH，音控闪）+ 脉动周期 250 拍 = 5 秒。 */
+ * 2026-10-27 用户第二次描述：「无音乐/音乐信号小时每 5s 闪一次；有音乐时间隔变短，
+ * 比如 500ms 闪一次；信号持续很大（超过阈值）就一直闪。间隔时间和闪烁亮的时间都可调。」
+ * 并提醒固件照【CFG_FUNC_SPI_RGB_EN】的 PixelFlash()，不是【CFG_FUNC_LED_RING_EN】。
+ * 所以这条预置的填充层是 wave = 3（FLASH）+ 250 拍(5s) / 25 拍(500ms) / 亮 10 拍(200ms)。 */
 pp.value = '闪烁'; click('fxPresetApply');
 await new Promise(r => setTimeout(r, 700));
 const e0c = fxListOf(0)[0];
 ok(e0c.layers[0].kind === 'fill' && e0c.layers[0].wave === 3,
    `闪烁模板用音控闪（wave = ${e0c.layers[0].wave}）`);
 ok(e0c.layers[0].pulse_period === 250,
-   `闪烁的安静间隔 = ${e0c.layers[0].pulse_period} 拍 = ${(e0c.layers[0].pulse_period * 20 / 1000).toFixed(1)} 秒`);
+   `闪烁的没音乐间隔 = ${e0c.layers[0].pulse_period} 拍 = ${(e0c.layers[0].pulse_period * 20 / 1000).toFixed(1)} 秒`);
+ok(e0c.layers[0].flash_fast === 25 && e0c.layers[0].flash_on === 10,
+   `有音乐间隔 ${e0c.layers[0].flash_fast} 拍 = ${(e0c.layers[0].flash_fast * 20)} ms、亮的时间 ${e0c.layers[0].flash_on} 拍 = ${(e0c.layers[0].flash_on * 20)} ms`);
 ok(e0c.layers[0].pulse_amp === 255 && e0c.layers[0].level === 255,
    '闪烁：闪的时候满亮（255）、灭的时候全灭（深度 255）');
+/* 闪烁的图层卡多出「有音乐间隔 / 亮的时间」两格，标签也得换成闪的说法 */
+{
+  const box = byId.get('fLayers').children[0];
+  const nums = [], labels = [];
+  (function walk(n) { (n.children || []).forEach(c => {
+    if (c.tagName === 'INPUT' && c.type === 'number') nums.push(c);
+    if (c.className === 'row' && c.children && c.children[0]) labels.push(c.children[0].textContent);
+    walk(c); }); })(box);
+  const txt = labels.join('/');
+  ok(nums.length === 5,
+     `音控闪的图层卡 5 个数字框（亮度 / 没音乐间隔 / 闪完暗到 / 有音乐间隔 / 亮的时间），实际 ${nums.length}`);
+  ok(txt.indexOf('没音乐时闪的间隔') >= 0 && txt.indexOf('有音乐间隔') >= 0 &&
+     txt.indexOf('亮的时间') >= 0 && txt.indexOf('闪完暗到') >= 0,
+     `标签跟着换成闪的说法：${txt}`);
+  ok(nums.map(n => n.value).join('/') === '255/250/255/25/10',
+     `五个框的初值 = ${nums.map(n => n.value).join('/')}（亮度/没音乐间隔/闪完暗到/有音乐间隔/亮的时间）`);
+}
 
 /* ---- 7) 导出的 C：图层不带颜色，彩虹在效果行 ---- */
 pp.value = '绕环彩虹(旋转)'; click('fxPresetApply');

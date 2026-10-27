@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-10-27（第五轮）—— 预置「闪烁」改成「间隔跟着音乐变」的音控闪（照老 SPI RGB 的 `PixelFlash`）
+
+**动机**（用户原话）：「我没有把效果描述清楚。……此效果在无音乐或者音乐信号小的时候，要做间隔5s闪烁一次，有音乐时，这个间隔会变短，比如，要500ms闪一次。如果信号持续很大，超过阈值就一直闪烁。这其中的间隔时间和闪烁亮的时间都是可调的。还有固件里面你应该参考的是【CFG_FUNC_SPI_RGB_EN】这个功能，而不是后来的【CFG_FUNC_LED_RING_EN】」
+
+**根因**：第四轮把「有音乐」读成了**边沿事件**（越过阈值闪一次就灭着等），包络也做成一次性尖峰（满亮 2 拍 + 淡出 8 拍）。用户要的是**间隔切换**：安静时慢、有音乐时快、一直大声就一直按快的闪 —— 对应固件 `spim_led.c` 的 `PixelFlash()`（`CFG_FUNC_SPI_RGB_EN`）：亮 `PixelFlashTime`（10 × 10 ms = 100 ms）、静音 `PixelFlashIdleTime`（40 × 100 ms = 4 秒）、`FFTLevel > 10` 且当前这一闪结束时**立刻重触发**（于是持续闪）。`led_ring.c` / `CFG_FUNC_LED_RING_EN` 那套没有这条联动。
+
+**改动**：① 图层新增两列 `flash_fast`（有音乐时的间隔，预置 25 拍 = **500 ms**；0 = 同安静间隔）与 `flash_on`（每次亮几拍，预置 10 拍 = **200 ms**；0 = 默认 10 拍；超过间隔夹到间隔）—— `led_gen_layer_t` **末尾追加**（18 → 20 列，前面的列一列没挪）；② `flashGain(age, on, amp)` 只剩两档：亮的几拍满亮、之后暗到 `255 - pulse_amp`（去掉 2+8 尖峰与淡出）；③ `instTick()` / `led_gen_tick()` 的时钟：`per = (fast && flash_fast) ? flash_fast : pulse_period`，每拍 `flash_age++`、`>= per` 绕回 0（= 再闪一次），越过阈值那一拍 `flash_age = 0`（立刻闪）；④ `flashPlanOf()` 返回 `{on, quiet, fast, bright, amp}`；C 模板 `led_gen_flash_gain(t, on, amp)` + `LED_GEN_FLASH_ON = 10u`，`GEN_COMMENTS` 加 `lflashfast` / `lflashon` 并改写 `flashf` / `flashgain` / `flashstate`；⑤ 图层卡**只有音控闪层**多出「有音乐间隔 / 亮的时间」两格（普通填充层仍是 3 格），标签改「没音乐时闪的间隔(拍) / 闪完暗到」；帮助页 ② 填充表 +「常见做法 → 闪烁」+ 提示全改。
+
+**测试**：`test_effects_core` 闪段重写（+5：两档增益 / 三个旋钮进 plan / 亮 3 拍 / 亮的时间夹到间隔 / 持续大声每 25 拍一闪且 300 拍共 9 次）；`test_fx_presets` +5（预置带 500 ms / 200 ms、音控闪层 5 个数字框 + 标签、普通填充层仍 3 格）；`test_effects_c` 列数 18 → 20 并断 `flash_fast` / `flash_on` 紧跟 `spacing`；`test_effects_c_exec` 的「音控闪」模式补两列、改跑 47 拍（收在第二次闪的第 0 拍，仍逐字节比对）。全量 26 套件 / **1858 项** / 0 FAIL。
+
+**影响**：`docs/audit/fx.md` F19（二刷）、`CLAUDE.md` 坑 41（改写）。老工程里 `wave:3` 的闪层没有这两列 → `flash_fast = 0`（跟安静间隔一样）、`flash_on = 0`（默认 200 ms），仍按 5 秒闪；老 `wave:1` 的方波闪**没有迁移**，要新观感重新套一次预置。
+
+---
+
 ## 2026-10-27（第四轮）—— 预置「闪烁」改成音控闪（安静 5 秒一闪 / 越过阈值闪一次）
 
 **动机**（用户原话）：「看看闪烁效果吧。现在的效果不是我需要的。我需要的效果是，在没有音乐播放或者音乐信号小的时侯，间隔5s闪一次，有音乐时，超过阈值闪一次。」

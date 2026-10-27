@@ -146,10 +146,11 @@ const BOUNCE = mkFx(13, [{ kind:'spot', count:1, width:4, phase:0, falloff:'cos'
                            pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:1, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mL', name:'往返长跑', latin:'BOUNCE_LONG', enabled:true,
                      binds:[{ effect:BOUNCE.id, zones:[] }] });
-/* 音控闪（预置「闪烁」）：填充层 wave = 3（FLASH）、脉动周期 250 拍 = 5 秒。
- * 安静时每 250 拍闪一下；音量越过阈值那一拍闪一下。
- * 生成代码里那几个字节的实例状态（flash_age / loud_prev / flash_gain）只有这一段才真跑。 */
+/* 音控闪（预置「闪烁」）：填充层 wave = 3（FLASH）、没音乐 250 拍 = 5 秒、有音乐 25 拍 = 500 ms、
+ * 每次亮 10 拍 = 200 ms。生成代码里那几个字节的实例状态（flash_age / loud_prev / flash_gain）
+ * 只有这一段才真跑。 */
 const BLINK = mkFx(14, [{ kind:'fill', level:255, pulse_period:250, pulse_amp:255, wave:3,
+                          flash_fast:25, flash_on:10,
                           direction:1, bounce:0, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mM', name:'音控闪', latin:'AUDIO_FLASH', enabled:true,
                      binds:[{ effect:BLINK.id, zones:[] }] });
@@ -239,9 +240,10 @@ const HALF_TICK = Math.floor(TICKS / 2);   /* 音量档场景：前一半慢档�
 /* 往返长跑：24 颗、慢档 8 拍/颗 → 192 拍一圈；240 拍 = 走完一圈再倒着走 5 颗 */
 const TICKS_LONG = 240;
 const LONG_MODE = st.modes.list.findIndex(m => m.id === 'mL');
-/* 音控闪：整段 23 拍，第 20 拍起「有音乐」（慢档 → 快档）。收尾正好停在闪的第 3 拍上
- * （亮度 255）—— 这样这一段同时看出「越过阈值会闪」和「安静时闪完就灭」。 */
-const FLASH_TICKS = 23;
+/* 音控闪：整段 47 拍，第 20 拍起「有音乐」（慢档 → 快档）。收尾落在**第二次**闪的第 0 拍
+ * （t = 20 闪一次 + 25 拍后再闪一次 = 45 拍绕回、46 拍亮）—— 这一段同时看出
+ * 「越过阈值会闪」「一直大声就一直闪」「安静时闪完就灭」。 */
+const FLASH_TICKS = 47;
 const FLASH_LOUD_FROM = 20;
 const FLASH_MODE = st.modes.list.findIndex(m => m.id === 'mM');
 const main = [
@@ -606,7 +608,8 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
 
 /* ---------- 4e) 音控闪（预置「闪烁」）：安静 / 越过阈值两条路，C 与 JS 一致吗 ----------
  * 这段是生成代码里 flash_age / loud_prev / flash_gain 三个字段唯一的真跑机会。
- * 驱动时序与 C 侧完全相同：前 20 拍慢档（安静），第 20 拍起快档（越过阈值）。 */
+ * 驱动时序与 C 侧完全相同：前 20 拍慢档（安静），第 20 拍起快档（越过阈值）——
+ * 之后每 flash_fast(25) 拍再闪一次，收尾正落在第二次闪的第 0 拍上。 */
 {
   const mode = st.modes.list.find(m => m.id === 'mM');
   const run = loudFrom => {
@@ -634,7 +637,7 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
   ok(litLoud === FW.LED_COUNT && (loudRow[0] || [0])[0] > 200,
      `越过阈值后整条亮起（${litLoud} 颗，亮度 ${(loudRow[0] || [0])[0]}/255）`);
   ok(litQuiet === 0,
-     `全程安静跑 ${FLASH_TICKS} 拍后是全黑（闪只在最开头那 ${10} 拍里，${litQuiet} 颗亮 —— `
+     `全程安静跑 ${FLASH_TICKS} 拍后是全黑（闪只在最开头那 10 拍里，${litQuiet} 颗亮 —— `
      + '旧方波写法这里会亮一半)');
 }
 
