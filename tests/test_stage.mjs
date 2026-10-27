@@ -484,7 +484,8 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   const inlineRows = [...paneFx.matchAll(/<div style="margin:4px 0">/g)].length;
   ok(inlineRows === 0, `效果页的按钮行都换成了 .btnrow（残留 ${inlineRows} 行 inline 排布）`);
   const rows = [...paneFx.matchAll(/<div class="btnrow/g)].length;
-  ok(rows >= 4, `${rows} 组按钮行共用一套排布（列表 / 上移下移 / 图层 / 播放条状态行）`);
+  /* 2026-10-27：「+ 加图层」那一组收起了，剩列表 / 上移下移 / 播放条状态行三组 */
+  ok(rows >= 3, `${rows} 组按钮行共用一套排布（列表 / 上移下移 / 播放条状态行）`);
   ok(/<span>模板<\/span><select id="fxPresetPick"[\s\S]{0,700}?<\/select><button id="fxPresetApply"/.test(paneFx),
      '「模板」与「套用」并成一行（跟在标签列后面，不再单独占一行）');
   ok(/\.btnrow\{[^}]*display:\s*flex/.test(html) && /\.btnrow>\s*\.lb\{[^}]*min-width:56px/.test(html),
@@ -506,8 +507,9 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
      ['fName', 'fLatin', 'fMode', 'fKind', 'fEn', 'fSlow', 'fFast', 'fOffset'].every(id => sel.includes('id="' + id + '"')),
      '「选中效果」只剩身份与档位（名称 / 别名 / 序号 / 类型 / 使能 / 慢速 / 快速 / 起始位）');
   const lay = blockOf('图层（自定义动效）');
-  ok(['fLayers', 'fxAddSpot', 'fxAddTwinkle', 'fxAddFill', 'fxAddGrad', 'fMoves'].every(id => lay.includes('id="' + id + '"')),
-     '「图层（自定义动效）」整块搬到了「预置效果」下面，内容一件没少');
+  ok(['fLayers', 'fMoves'].every(id => lay.includes('id="' + id + '"')) &&
+     !/id="fxAdd(Spot|Twinkle|Fill|Grad)"/.test(lay),
+     '「图层（自定义动效）」只剩「改这一层的参数」：四个加层按钮 2026-10-27 已收起');
 }
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');

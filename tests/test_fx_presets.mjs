@@ -643,7 +643,9 @@ console.log('--- 单点追逐（第一个逐个优化的模板）---');
   ok(!('cmode' in e.layers[0]) && !('hue_speed' in e.layers[0]) && !('hue_spread' in e.layers[0]),
      '图层里没有 cmode / hue_*（取色归效果配色）');
 
-  /* 图层卡：3 个下拉（衰减 / 方向 / 往返）+ 6 个数字框（点数 / 宽 / 间距 / 相位 / 脉动周期 / 深度） */
+  /* 图层卡：3 个下拉（衰减 / 方向 / 往返）+ 3 个数字框（点数 / 宽 / 间距）
+   * 「相位 / 脉动周期 / 脉动深度」2026-10-27 从光点层收起：相位与「起始位」等价，
+   * 脉动只对填充层有意义（呼吸 / 闪烁 / 跳变靠它）。 */
   const box = byId.get('fLayers').children[0];
   const sel = [], num = [];
   (function walk(n) { (n.children || []).forEach(c => {
@@ -651,7 +653,14 @@ console.log('--- 单点追逐（第一个逐个优化的模板）---');
     if (c.tagName === 'INPUT' && c.type === 'number') num.push(c);
     walk(c); }); })(box);
   ok(sel.length === 3, `光点层只剩 3 个下拉（衰减 / 方向 / 往返），实际 ${sel.length}`);
-  ok(num.length === 6, `数字框 6 个（光点数 / 光宽 / 间距 / 相位 / 脉动周期 / 深度），实际 ${num.length}`);
+  ok(num.length === 3, `数字框 3 个（光点数 / 光宽 / 间距），实际 ${num.length}`);
+  /* 加层按钮收起后「删空就加不回来」：只剩一层时 × 必须禁用（delLayer 也有兜底） */
+  {
+    const head = (box.children || []).find(c => c.className === 'cardHead');
+    const xBtn = ((head && head.children) || []).filter(c => c.tagName === 'BUTTON')
+      .find(b => b.textContent === '×');
+    ok(!!xBtn && xBtn.disabled === true, '只剩一层时「×」禁用（「+ 加图层」已收起，删空就加不回来）');
+  }
 
   /* 颜色只由效果配色决定：整环 hue 全是 0xFF 哨兵 */
   const inst = CORE.instNew();
@@ -705,7 +714,7 @@ console.log('--- 多点追逐：间距 ---');
   ok(e2.layers.length === 1 && e2.layers[0].count === 4, `4 个光点（${e2.layers[0].count} 个）`);
   ok(e2.layers[0].spacing === 6, `预置带上间距 = ${e2.layers[0].spacing}（24 灯均布值）`);
 
-  /* 图层卡上的「间距」数字框真的接在这个字段上（顺序：点数 / 光宽 / 间距 / 相位 / 周期 / 深度） */
+  /* 图层卡上的「间距」数字框真的接在这个字段上（顺序：点数 / 光宽 / 间距） */
   const box2 = byId.get('fLayers').children[0];
   const nums2 = [];
   (function walk(n) { (n.children || []).forEach(c => {

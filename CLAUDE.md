@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1794 项断言。五类：
+26 个套件、1795 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -176,7 +176,9 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 37. **「音乐 → 速度档」的控件是两页共用的变量源，只能有一份 DOM**（2026-10-26，用户「音乐的节奏对动画的影响，应该是在两个页面都有体现……两个页面即独立又统一，独立的是不同页面不同的用途，统一的是变量来源都是一样的」）：`#aSpeed / #aFft / #aAudio` 从 `pane[anim]` 提到了 `#right` 里、**任何 `.pane` 之外**的 `#previewBar`（`syncPreviewBar()` + `PREVIEW_BAR_PANES = ['fx','anim']`）—— 效果页看基础动画、动画页看整板，两页共用同一份 DOM 与同一份 `state.anim`，所以档位永远一致。三条规矩：① **别再往某一页复制一份**（复制 = 两份"音乐状态"，`test_help` 数着这四个 id 全页各只有 1 个）；② 加新页面时往 `PREVIEW_BAR_PANES` 里加名字（模式页做整板预览时加 `'mode'`），**一行就够**；③ 效果页暂停时拖音量能当场换档，靠的是 `applyFrame() → render() → renderStage() → stageSync(false)` 里的 `stageSetSpeed()`，别删。文案要短（条宽 300px，「音乐来了」那句已经压缩过，`test_anim2` 只断「自己跳」）。
 
-工具本体功能完整、1794 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1794 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+38. **「界面上收起」≠「删字段」**（2026-10-27，用户「追逐动画中的【相位、脉动周期、脉动深度】……似乎用不上」→「把这些用不到的先删除了」）：光点层的 `phase / pulse_period / pulse_amp` 只是**不再给输入框**（`LAYER_FIELDS.spot` 里删掉那三行），`layerNums()` / `led_gen_layer_t` / C 模板**一个字都没动** —— 老存档照读、导出的 18 列照旧、固件零改动。为什么能收：**相位与「选中效果 → 起始位」是同一件事**（都按整环 0..255 分数平移，`test` 之外实测 `genRender(…, offset)` vs `genSpot(…, phase)` 7/7 组逐字节相同），而**光点层的脉动没有任何预置在用**。反过来：**填充层的 `pulse_period / pulse_amp` 千万不能收** —— 呼吸 / 闪烁 / 跳变 / 呼吸彩虹四个预置全靠它（波形 `wave` 也是预置内部给的，界面本来就不露）。四个「+ 加图层」按钮同理：**按钮与接线删掉、`addLayer()` 本体留着**，将来做「自定义动画」时加回按钮就行；同时必须给 `×` 加保护（只剩一层时禁用 + `delLayer()` 兜底），否则没有加层入口后再删空就永远回不来。测试要造多层时别再点按钮：`test_effects_ui` 在 ui IIFE 收尾前插一句 `globalThis.__ui = { addLayer, delLayer }`（`uiSrc.lastIndexOf('})();')`）当测试钩子。
+
+工具本体功能完整、1795 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1795 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

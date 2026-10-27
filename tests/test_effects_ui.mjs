@@ -72,7 +72,15 @@ function install(){
   globalThis.window = { addEventListener(t,f){(listeners['window:'+t] ||= []).push(f);}, devicePixelRatio:1 };
   globalThis.addEventListener = globalThis.window.addEventListener;
 }
-const boot = () => new Function(coreSrc + '\n' + uiSrc)();
+/* 「+ 加图层」四个按钮 2026-10-27 从界面收起（先逐个调好预置，自定义叠加留到以后），
+ * 测试要造多层就直接调界面的内部函数 —— ui 脚本是 IIFE，在它收尾前挂一份到 globalThis。 */
+let API = null;
+const uiHook = (() => {
+  const i = uiSrc.lastIndexOf('})();');
+  if (i < 0) throw new Error('ui 脚本的 IIFE 收尾没找到');
+  return uiSrc.slice(0, i) + '\n; globalThis.__ui = { addLayer, delLayer };' + uiSrc.slice(i);
+})();
+const boot = () => { new Function(coreSrc + '\n' + uiHook)(); API = globalThis.__ui; };
 
 const decode = () => { const raw = store.get('led_layout_editor.v1'); return raw ? JSON.parse(raw) : null; };
 
@@ -110,9 +118,9 @@ ok(e0.kind === 'custom', '槽位 0 已转为自定义');
 ok(e0.layers.length === 1 && e0.layers[0].kind === 'spot', `起始图层: ${e0.layers[0].kind}`);
 ok(e0.name === '单点追逐/' + CORE.FW.COLOR_NAME[e0.color], `名字保留: ${e0.name}`);
 
-/* ---- 3) 加图层 ---- */
-click('fxAddTwinkle');
-click('fxAddFill');
+/* ---- 3) 加图层（按钮已收起，走内部 addLayer）---- */
+API.addLayer('twinkle');
+API.addLayer('fill');
 await new Promise(r => realST(r, 70));
 const e0b = fxListOf(0)[0];
 ok(e0b.layers.length === 3, `加到 3 层: ${e0b.layers.map(l => l.kind).join('+')}`);
@@ -124,7 +132,7 @@ ok(layerBox.children.length === 3, `图层编辑器渲染了 ${layerBox.children
 const firstLayerRow = layerBox.children[0];
 const numInputs = [];
 (function walk(node) { (node.children || []).forEach(c => { if (c.tagName === 'INPUT' && c.type === 'number') numInputs.push(c); walk(c); }); })(firstLayerRow);
-ok(numInputs.length >= 5, `光点层有 ${numInputs.length} 个数值输入`);
+ok(numInputs.length >= 3, `光点层有 ${numInputs.length} 个数值输入（光点数 / 光宽 / 间距）`);
 numInputs[0].value = '5'; numInputs[0].oninput();      // 光点数
 numInputs[1].value = '20'; numInputs[1].oninput();     // 光宽
 await new Promise(r => realST(r, 70));
@@ -204,7 +212,7 @@ ok(projState(0).anim.effectId === e0d.id, '重开后选中的还是同一个效�
   }
 
   /* 满 8 层时「复制」按钮禁用 */
-  for (let k = 0; k < 4; k++) click('fxAddFill');
+  for (let k = 0; k < 4; k++) API.addLayer('fill');
   await new Promise(r => realST(r, 70));
   const n8 = fxListOf(0)[0].layers.length;
   ok(n8 === 8, `已填到 ${n8} 层`);
