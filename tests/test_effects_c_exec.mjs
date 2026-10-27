@@ -146,11 +146,12 @@ const BOUNCE = mkFx(13, [{ kind:'spot', count:1, width:4, phase:0, falloff:'cos'
                            pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:1, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mL', name:'往返长跑', latin:'BOUNCE_LONG', enabled:true,
                      binds:[{ effect:BOUNCE.id, zones:[] }] });
-/* 音控闪（预置「闪烁」）：填充层 wave = 3（FLASH）、没音乐 250 拍 = 5 秒、有音乐 25 拍 = 500 ms、
- * 每次亮 10 拍 = 200 ms。生成代码里那几个字节的实例状态（flash_age / loud_prev / flash_gain）
- * 只有这一段才真跑。 */
-const BLINK = mkFx(14, [{ kind:'fill', level:255, pulse_period:250, pulse_amp:255, wave:3,
-                          flash_fast:25, flash_on:10,
+/* 音控闪（预置「闪烁」）：填充层 wave = 3（FLASH）、没音乐 250 拍 = 5000 ms、有音乐 25 拍 = 500 ms、
+ * 每次亮 10 拍 = 200 ms；最高亮度 200 / 最低亮度 50 —— 亮的时候 200、灭的时候 50（不是 0），
+ * 这样「最低亮度填的是亮度本身、内部按 level 反算增益」那一步在 C 侧也真跑一遍。
+ * 生成代码里那几个字节的实例状态（flash_age / loud_prev / flash_gain）只有这一段才真跑。 */
+const BLINK = mkFx(14, [{ kind:'fill', level:200, pulse_period:250, wave:3,
+                          flash_fast:25, flash_on:10, flash_low:50,
                           direction:1, bounce:0, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mM', name:'音控闪', latin:'AUDIO_FLASH', enabled:true,
                      binds:[{ effect:BLINK.id, zones:[] }] });
@@ -337,7 +338,7 @@ const main = [
   '    for (i = 0; i < LED_COUNT; i++)',
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
-  /* 对照：同样 23 拍，全程安静 —— 只在最开头闪一下，收尾时应该全黑 */
+  /* 对照：同样 47 拍，全程安静 —— 只在最开头闪一下，收尾时停在最低亮度上（不是全黑） */
   '    memset(&g_ring, 0, sizeof(g_ring));',
   '    memcpy(g_ring.zones, Z, sizeof(Z));',
   '    g_ring.zone_count = 5;',
@@ -629,16 +630,18 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
      '音控闪：安静 20 拍后越过阈值再跑 3 拍，C 侧与 JS 逐字节一致');
   ok((cAux[4] || []).map(px => px.join(',')).join('|') === jsQuiet,
      '音控闪对照：全程安静跑同样拍数，C 侧与 JS 逐字节一致');
-  /* 语义：越过阈值那一刻必须「亮起来」，而且得是闪的亮部（不是残余的暗光） */
+  /* 逐字节比完之后看语义：越过阈值那一刻必须「亮起来」（不是残余的暗光）；
+     全程安静那段收尾时应该停在「最低亮度」那一档，不是全黑 —— 最高 200 / 最低 50。
+     像素值是 (颜色 × 亮度 × ring 亮度) >> 16，255/256 的取整会少 1 级，所以按同一个式子算期望。 */
+  const pxOf = v => Math.floor((255 * v * 256) / 65536);
   const loudRow = cAux[3] || [];
   const quietRow = cAux[4] || [];
   const litLoud = loudRow.filter(px => px[0] + px[1] + px[2] > 0).length;
   const litQuiet = quietRow.filter(px => px[0] + px[1] + px[2] > 0).length;
-  ok(litLoud === FW.LED_COUNT && (loudRow[0] || [0])[0] > 200,
-     `越过阈值后整条亮起（${litLoud} 颗，亮度 ${(loudRow[0] || [0])[0]}/255）`);
-  ok(litQuiet === 0,
-     `全程安静跑 ${FLASH_TICKS} 拍后是全黑（闪只在最开头那 10 拍里，${litQuiet} 颗亮 —— `
-     + '旧方波写法这里会亮一半)');
+  ok(litLoud === FW.LED_COUNT && (loudRow[0] || [0])[0] === pxOf(200),
+     `越过阈值后整条亮起（${litLoud} 颗，亮度 ${(loudRow[0] || [0])[0]}/255 = 最高亮度 200 的渲染值）`);
+  ok(litQuiet === FW.LED_COUNT && (quietRow[0] || [0])[0] === pxOf(50),
+     `全程安静跑 ${FLASH_TICKS} 拍后暗在最低亮度上（${litQuiet} 颗，亮度 ${(quietRow[0] || [0])[0]} = 最低亮度 50 的渲染值）`);
 }
 
 /* 覆盖度自检 */

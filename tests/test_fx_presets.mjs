@@ -141,19 +141,22 @@ ok(e0b.moves === true, '摆动模板会随位置前进');
  * 2026-10-27 用户第二次描述：「无音乐/音乐信号小时每 5s 闪一次；有音乐时间隔变短，
  * 比如 500ms 闪一次；信号持续很大（超过阈值）就一直闪。间隔时间和闪烁亮的时间都可调。」
  * 并提醒固件照【CFG_FUNC_SPI_RGB_EN】的 PixelFlash()，不是【CFG_FUNC_LED_RING_EN】。
- * 所以这条预置的填充层是 wave = 3（FLASH）+ 250 拍(5s) / 25 拍(500ms) / 亮 10 拍(200ms)。 */
+ * 第三次（同一天）：「填充亮度→最高亮度、闪完暗到→最低亮度，数值越大越亮（不能 255 = 最暗），
+ * 三个时间按 ms 填，不要数拍子。」
+ * 所以这条预置的填充层是 wave = 3（FLASH）+ 250 拍(5000ms) / 25 拍(500ms) / 亮 10 拍(200ms)
+ * + 最低亮度 0（全灭）；图层卡上这五个框显示的是 ms 和亮度，不是拍和衰减量。 */
 pp.value = '闪烁'; click('fxPresetApply');
 await new Promise(r => setTimeout(r, 700));
 const e0c = fxListOf(0)[0];
 ok(e0c.layers[0].kind === 'fill' && e0c.layers[0].wave === 3,
    `闪烁模板用音控闪（wave = ${e0c.layers[0].wave}）`);
 ok(e0c.layers[0].pulse_period === 250,
-   `闪烁的没音乐间隔 = ${e0c.layers[0].pulse_period} 拍 = ${(e0c.layers[0].pulse_period * 20 / 1000).toFixed(1)} 秒`);
+   `闪烁的没音乐间隔 = ${e0c.layers[0].pulse_period} 拍 = ${(e0c.layers[0].pulse_period * 20)} ms`);
 ok(e0c.layers[0].flash_fast === 25 && e0c.layers[0].flash_on === 10,
    `有音乐间隔 ${e0c.layers[0].flash_fast} 拍 = ${(e0c.layers[0].flash_fast * 20)} ms、亮的时间 ${e0c.layers[0].flash_on} 拍 = ${(e0c.layers[0].flash_on * 20)} ms`);
-ok(e0c.layers[0].pulse_amp === 255 && e0c.layers[0].level === 255,
-   '闪烁：闪的时候满亮（255）、灭的时候全灭（深度 255）');
-/* 闪烁的图层卡多出「有音乐间隔 / 亮的时间」两格，标签也得换成闪的说法 */
+ok(e0c.layers[0].flash_low === 0 && e0c.layers[0].level === 255,
+   '闪烁：亮的时候满亮（最高亮度 255）、灭的时候全灭（最低亮度 0）');
+/* 闪烁的图层卡：五个数字框，标签换成闪的说法，时间按 ms、亮度按亮度值显示 */
 {
   const box = byId.get('fLayers').children[0];
   const nums = [], labels = [];
@@ -163,12 +166,30 @@ ok(e0c.layers[0].pulse_amp === 255 && e0c.layers[0].level === 255,
     walk(c); }); })(box);
   const txt = labels.join('/');
   ok(nums.length === 5,
-     `音控闪的图层卡 5 个数字框（亮度 / 没音乐间隔 / 闪完暗到 / 有音乐间隔 / 亮的时间），实际 ${nums.length}`);
-  ok(txt.indexOf('没音乐时闪的间隔') >= 0 && txt.indexOf('有音乐间隔') >= 0 &&
-     txt.indexOf('亮的时间') >= 0 && txt.indexOf('闪完暗到') >= 0,
+     `音控闪的图层卡 5 个数字框（最高亮度 / 没音乐间隔 / 最低亮度 / 有音乐间隔 / 亮的时间），实际 ${nums.length}`);
+  ok(txt.indexOf('最高亮度') >= 0 && txt.indexOf('最低亮度') >= 0 &&
+     txt.indexOf('没音乐时闪的间隔(ms)') >= 0 && txt.indexOf('有音乐间隔(ms)') >= 0 &&
+     txt.indexOf('亮的时间(ms)') >= 0 && txt.indexOf('闪完暗到') < 0 && txt.indexOf('脉动深度') < 0,
      `标签跟着换成闪的说法：${txt}`);
-  ok(nums.map(n => n.value).join('/') === '255/250/255/25/10',
-     `五个框的初值 = ${nums.map(n => n.value).join('/')}（亮度/没音乐间隔/闪完暗到/有音乐间隔/亮的时间）`);
+  ok(nums.map(n => n.value).join('/') === '255/5000/0/500/200',
+     `五个框的初值 = ${nums.map(n => n.value).join('/')}（最高亮度 / 没音乐间隔 ms / 最低亮度 / 有音乐间隔 ms / 亮的时间 ms）`);
+  /* 单位真的是 ms：那三格（间隔 / 有音乐间隔 / 亮的时间）的上限和步长都是 20 ms 的整拍，
+     不是 0..255 的拍数；「最低亮度」那格还是 0..255 的亮度值。 */
+  const msBoxes = [nums[1], nums[3], nums[4]];
+  ok(msBoxes.every(n => String(n.max) === '5100' && String(n.step) === '20') &&
+     String(nums[2].max) === '255',
+     `三个时间框的上限 ${msBoxes.map(n => n.max).join('/')}、步长 ${msBoxes.map(n => n.step).join('/')}（20 ms 一拍）；最低亮度上限 ${nums[2].max}`);
+  /* 在框里填 3000 → 图层里存 150 拍（填的就是实际时间，不用自己数拍子） */
+  msBoxes[0].value = '3000'; msBoxes[0].oninput();
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].layers[0].pulse_period === 150,
+     `填「没音乐时闪的间隔」= 3000 ms → 图层 pulse_period = ${fxListOf(0)[0].layers[0].pulse_period} 拍`);
+  /* 填不成整拍的毫秒数：离开输入框时显示回落到的实际值（与预览 / 固件一致） */
+  msBoxes[0].value = '3010'; msBoxes[0].oninput();
+  if (msBoxes[0].onchange) msBoxes[0].onchange();
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].layers[0].pulse_period === 151 && msBoxes[0].value === '3020',
+     `填 3010 ms → 落到 ${fxListOf(0)[0].layers[0].pulse_period} 拍，框里回显 ${msBoxes[0].value} ms（20 ms 粒度）`);
 }
 
 /* ---- 7) 导出的 C：图层不带颜色，彩虹在效果行 ---- */

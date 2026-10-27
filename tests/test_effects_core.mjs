@@ -973,29 +973,40 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
  * 并提醒固件要照【CFG_FUNC_SPI_RGB_EN】那份（spim_led.c 的 PixelFlash()：亮 100 ms、
  * 静音 4 秒一次、FFTLevel 过阈值就立刻重触发 → 于是持续闪），不是后来的
  * 【CFG_FUNC_LED_RING_EN】。
- * 这里守四件事：① 增益只有两档（亮 = 满亮 / 灭 = 255-pulse_amp）；② 安静时按
- * pulse_period 数拍子；③ 快档时按 flash_fast 数拍子，一直大声就一直闪；
- * ④ 亮的时长 = flash_on 拍。
+ * 2026-10-27 第三次：五个旋钮的名称 / 数值要跟直觉对上 ——「填充亮度 → 最高亮度」、
+ * 「闪完暗到 → 最低亮度」（填**亮度本身**：0 = 全灭、255 = 最亮，不是「255 最暗」的
+ * 衰减量），三个时间在界面上按 **ms** 填（图层里仍存 20 ms 一拍）。
+ * 这里守五件事：① 增益只有两档（亮 = 满亮 / 灭 = 按最低亮度反算的 flashDarkGain）；
+ * ② 安静时按 pulse_period 数拍子；③ 快档时按 flash_fast 数拍子，一直大声就一直闪；
+ * ④ 亮的时长 = flash_on 拍；⑤ 灭的时候渲染出来的亮度就是「最低亮度」那个数。
  * ==========================================================================*/
 console.log('--- 音控闪（预置「闪烁」）---');
 {
-  const { flashGain, flashPlanOf, instNew, layerNums, instTick, renderZoneMaskTo,
+  const { flashGain, flashDarkGain, flashPlanOf, instNew, layerNums, instTick, renderZoneMaskTo,
           FLASH_ON_DEF, WAVE: WV } = CORE;
-  ok(flashGain(0, 10, 255) === 255 && flashGain(9, 10, 255) === 255 && flashGain(10, 10, 255) === 0,
+  ok(flashGain(0, 10, 0) === 255 && flashGain(9, 10, 0) === 255 && flashGain(10, 10, 0) === 0,
      '「亮的时间」= 10 拍：第 0..9 拍满亮，第 10 拍起灭');
-  ok(flashGain(10, 10, 128) === 127,
-     `脉动深度 128 时灭的那段抬到 ${flashGain(10, 10, 128)}（不再全黑）`);
-  ok(flashGain(0, null, 255) === 255 && flashGain(FLASH_ON_DEF - 1, null, 255) === 255 &&
-     flashGain(FLASH_ON_DEF, null, 255) === 0,
+  ok(flashGain(10, 10, 51) === 51,
+     `灭的那几拍用的是「最低亮度」反算出来的增益（51），不是 255-深度`);
+  ok(flashGain(0, null, 0) === 255 && flashGain(FLASH_ON_DEF - 1, null, 0) === 255 &&
+     flashGain(FLASH_ON_DEF, null, 0) === 0,
      `没有「亮的时间」时按缺省 ${FLASH_ON_DEF} 拍算`);
+  /* 最低亮度（亮度本身）→ 灭时的增益：最高亮度 255 时一一对应，别的最高亮度按比例反算 */
+  ok(flashDarkGain(0, 255) === 0 && flashDarkGain(128, 255) === 128 && flashDarkGain(255, 255) === 255,
+     '最高亮度 = 255 时「最低亮度」就是增益本身（0 / 128 / 255 一个数都不差）');
+  ok(flashDarkGain(50, 200) === 64 && Math.floor(200 * 64 / 255) === 50,
+     `最高亮度 200 / 最低亮度 50 → 增益 ${flashDarkGain(50, 200)}，渲染回来还是 50（genFill 是 level×gain÷255）`);
+  ok(flashDarkGain(0, 0) === 0 && flashDarkGain(255, 0) === 0,
+     '最高亮度 0 = 本来全黑，增益给 0（不会除零）');
 
   const mkFlash = (per, opt) => {
     const o = opt || {};
     const inst = instNew();
     inst.anim.type = FW.ANIM_COUNT;        /* 自定义：渲染走 genRender 那一支 */
-    inst.anim.layers = [layerNums({ kind:'fill', en:1, level:255, pulse_period:per,
-                                    pulse_amp:o.amp == null ? 255 : o.amp, wave: WV.FLASH,
-                                    flash_fast: o.fast | 0, flash_on: o.on | 0 })];
+    inst.anim.layers = [layerNums({ kind:'fill', en:1, level:o.level == null ? 255 : o.level,
+                                    pulse_period:per, wave: WV.FLASH,
+                                    flash_fast: o.fast | 0, flash_on: o.on | 0,
+                                    flash_low: o.low | 0 })];
     inst.speed_slow = 8; inst.speed_fast = 1; inst.speed_cur = 8;
     return inst;
   };
@@ -1017,9 +1028,9 @@ console.log('--- 音控闪（预置「闪烁」）---');
      '带音控闪层的效果才会走这套状态机');
   {
     const p = flashPlanOf([layerNums({ kind:'fill', wave: WV.FLASH, pulse_period: 250,
-                                       pulse_amp: 255, flash_fast: 25, flash_on: 10 })]);
-    ok(p.quiet === 250 && p.fast === 25 && p.bright === 10 && p.amp === 255,
-       `plan 取到三个旋钮：没音乐 ${p.quiet} 拍 / 有音乐 ${p.fast} 拍 / 亮 ${p.bright} 拍`);
+                                       flash_fast: 25, flash_on: 10, flash_low: 60, level: 255 })]);
+    ok(p.quiet === 250 && p.fast === 25 && p.bright === 10 && p.low === 60 && p.level === 255,
+       `plan 取到五个旋钮：没音乐 ${p.quiet} 拍 / 有音乐 ${p.fast} 拍 / 亮 ${p.bright} 拍 / 最低亮度 ${p.low}（最高 ${p.level}）`);
   }
   ok(flashPlanOf([layerNums({ kind:'fill', wave: WV.TRI, pulse_period: 250 })]).on === false,
      '普通脉动层（三角 / 方波 / 锯齿）不受影响 —— 老存档行为一个字没变');
@@ -1044,6 +1055,16 @@ console.log('--- 音控闪（预置「闪烁」）---');
     const cs = [];
     for (let t = 0; t < 60; t++) { instTick(c, false); cs.push(gainOf(c)); }
     ok(cs.every(g => g === 255), '亮的时间超过间隔时夹到间隔（等于常亮，不出黑帧）');
+  }
+
+  /* 最低亮度：闪完之后渲染出来的亮度就是填的那个数（不是「255 - 衰减量」）。
+   * 最高亮度 200 + 最低亮度 50 → 亮的时候 200、灭的时候 50，两个都能在 mask 上读到。 */
+  {
+    const d = mkFlash(50, { fast: 25, on: 2, low: 50, level: 200 });
+    const gs = [];
+    for (let t = 0; t < 4; t++) { instTick(d, false); gs.push(gainOf(d)); }
+    ok(gs[0] === 200 && gs[1] === 200 && gs[2] === 50 && gs[3] === 50,
+       `最高亮度 200 / 最低亮度 50：亮 ${gs[0]}/${gs[1]}、灭 ${gs[2]}/${gs[3]}（暗下来正好是 50）`);
   }
 
   /* 有音乐：安静 100 拍（闪早已结束）→ 第 100 拍越过阈值 → 立刻闪一次，

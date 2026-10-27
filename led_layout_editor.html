@@ -928,14 +928,18 @@
         <h4>② 填充（fill）—— 整环一起亮</h4>
         <table>
           <tr><th>参数</th><th>作用</th></tr>
-          <tr><td>填充亮度</td><td>整环的亮度。</td></tr>
+          <tr><td>填充亮度</td><td>整环的亮度。音控闪层上这一格叫<b>最高亮度</b>（= 闪「亮」的那几拍有多亮）。</td></tr>
           <tr><td>脉动周期/深度</td><td>让整环亮度周期性起伏（三角包络：满亮 → 暗 → 满亮）。<br>
             <b>要「呼吸」请用配色「呼吸」</b>（平滑曲线 + 一个周期换一种颜色，见下面那张表的「配色」一行）——
             预置<b>「呼吸」</b>套的就是它，两条路各走一半只会让人分不清哪个才算数。<br>
             这里留下三角脉动是给「跳变 / 呼吸彩虹」两条预置用的（它们要的是一亮一灭 / 渐暗后跳回那种硬包络）。</td></tr>
-          <tr><td>闪烁（预置「闪烁」= 音控闪）</td><td>套了预置<b>「闪烁」</b>的那一层，填充层会多出两格、名字也换了：
-            <b>没音乐时闪的间隔</b>（= 脉动周期，出厂 250 拍 = <b>5 秒</b>）、<b>闪完暗到</b>（= 脉动深度，255 = 全灭），
-            再加 <b>有音乐间隔</b>（出厂 25 拍 = <b>500 ms</b>）和 <b>亮的时间</b>（出厂 10 拍 = <b>200 ms</b>）。<br>
+          <tr><td>闪烁（预置「闪烁」= 音控闪）</td><td>套了预置<b>「闪烁」</b>的那一层，填充层的几格名字和单位都换了，一共 5 个数：<br>
+            <b>最高亮度</b>（= 填充亮度，出厂 255）、<b>最低亮度</b>（闪完「灭」的那几拍亮到什么程度，
+            填的是<b>亮度本身</b>：0 = 全灭、128 = 半亮、255 = 跟最高亮度一样；出厂 0），<br>
+            <b>没音乐时闪的间隔(ms)</b>（= 脉动周期，出厂 <b>5000 ms = 5 秒</b>）、
+            <b>有音乐间隔(ms)</b>（出厂 <b>500 ms</b>）、<b>亮的时间(ms)</b>（出厂 <b>200 ms</b>）。<br>
+            三格时间都按 <b>ms</b> 直接填 —— 不用再数拍子（内部按固件的 20 ms 一拍取整：
+            200 / 500 / 5000 都是整拍，一个数都不差；最多 5100 ms）。<br>
             「有没有音乐」用固件那条现成的判据：<code>FFTLevel</code> 大于 <code>LED_FFT_THRESHOLD</code>(=4)
             就是<b>有音乐</b>（预览条上那根「音量」滑杆 / 「音乐来了」就是它）。越过阈值那一拍<b>立刻闪一次</b>，
             之后只要还在阈值以上就按「有音乐间隔」一直闪；音乐一停就回到「没音乐时闪的间隔」。<br>
@@ -1070,7 +1074,7 @@
         <table>
           <tr><th>想要</th><th>怎么配</th><th>去做</th></tr>
           <tr><td>呼吸灯</td><td>效果页「模板」里直接套<b>呼吸</b>（= 静态 + 配色<b>「呼吸」</b>；暗→亮→暗，出厂 渐亮 40 / 亮 10 ≈ 1.8 秒一个来回）。想让每个周期换一种颜色，就在调色板里多加几个颜色（或直接套「多色呼吸」）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「呼吸」再点套用。">效果页</button></td></tr>
-          <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b> = <b>音控闪</b>：没有音乐（或音乐信号小）时<b>每 5 秒闪一次</b>；有音乐（<code>FFTLevel &gt; 4</code>）时<b>间隔变短、每 500 ms 闪一次</b>；一直很吵就一直按这个节奏闪。三个数都在图层卡上：<b>没音乐时闪的间隔</b>（250 拍 = 5 秒）、<b>有音乐间隔</b>（25 拍 = 500 ms）、<b>亮的时间</b>（10 拍 = 200 ms）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用；想换间隔就在图层卡上改那三个数字。">效果页</button></td></tr>
+          <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b> = <b>音控闪</b>：没有音乐（或音乐信号小）时<b>每 5 秒闪一次</b>；有音乐（<code>FFTLevel &gt; 4</code>）时<b>间隔变短、每 500 ms 闪一次</b>；一直很吵就一直按这个节奏闪。五个数都在图层卡上，时间按 <b>ms</b> 直接填：<b>最高亮度</b>（255）、<b>最低亮度</b>（0 = 全灭，填的是亮度本身）、<b>没音乐时闪的间隔(ms)</b>（5000）、<b>有音乐间隔(ms)</b>（500）、<b>亮的时间(ms)</b>（200）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用；想换间隔 / 亮度就在图层卡上改那五个数字（时间按 ms 填）。">效果页</button></td></tr>
           <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>绕环彩虹</td><td>一个填充层，<b>配色选「彩虹」</b>（级数填成分区灯数）；想让彩虹转起来，再调「彩虹旋转」。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
@@ -2728,25 +2732,38 @@ const WAVE  = { TRI:0, SQUARE:1, SAW:2, FLASH:3 };
  * `PixelFlash()`），不是 `CFG_FUNC_LED_RING_EN` 那一套：固件里「亮的时间」固定
  * 10 × 10ms = 100 ms，没音乐时每 40 × 100ms = 4 秒闪一次，`FFTLevel` 超过阈值
  * 就**立刻重触发**（于是变成一直在闪）。
- * 工具里间隔与亮的时间都做成可调：
- *   pulse_period = **没有音乐时多久闪一次**（预置 250 拍 = 5 秒；0 = 不闪）；
+ * 工具里间隔与亮的时间都做成可调 —— **界面上按 ms 填**（1 拍 = 20 ms，见
+ * MS_FIELDS / FLASH_MS_MAX），图层里仍存「拍」，C 结构体也就还是 uint8：
+ *   pulse_period = **没有音乐时多久闪一次**（预置 250 拍 = 5000 ms；0 = 不闪）；
  *   flash_fast   = **有音乐（快档）时多久闪一次**（预置 25 拍 = 500 ms；0 = 同安静间隔）；
  *   flash_on     = **每次亮几拍**（预置 10 拍 = 200 ms；0 = 默认 10 拍，超过间隔就夹到间隔）；
- *   pulse_amp    = 灭的那几拍暗到多少（255 = 全灭）。
+ *   level        = 亮的那几拍的亮度（界面「最高亮度」）；
+ *   flash_low    = 灭的那几拍的亮度（界面「最低亮度」，0 = 全灭）—— 存的是**亮度本身**
+ *                  而不是「衰减量」，所以数值越大越亮，跟直觉一致；换成增益由
+ *                  flashDarkGain() 按 level 反算（genFill 是 level × gain ÷ 255）。
  * 「有没有音乐」用的还是固件那条现成判据（`FFTLevel > LED_FFT_THRESHOLD` → 快档，
  * 见 ringIsFast）：越过阈值那一拍立刻闪一次；一直大声就一直按快档间隔闪。
  * 所以 flashT 是「距上次闪了几拍」，不是 gen_tick —— 闪的节奏跟着音乐走，
  * 跟动画本身跑了几拍没关系。C 侧 led_gen_tick() 里是同一段（LED_GEN_FLASH_*）。 */
 const FLASH_ON_DEF = 10;   /* 亮的时间缺省：10 拍 × 20 ms = 200 ms（固件是 100 ms） */
 const FLASH_IDLE   = 250;  /* 效果里没有闪层时的兜底间隔，只让 plan 结构完整 */
-/* 一次闪的增益：亮的那几拍满亮，之后按 pulse_amp 暗下去（255 = 全灭）。
- * age 从 0 开始（刚闪的那一拍），on = 亮几拍（已夹进间隔里）。 */
-function flashGain(age, on, amp) {
-  const a = (amp == null) ? 255 : (amp | 0);
+/* 一次闪的增益：亮的那几拍满亮，之后用 dark（= 灭的时候该乘的增益，见 flashDarkGain）。 */
+function flashGain(age, on, dark) {
+  const d = (dark == null) ? 0 : (dark | 0);
   const o = (on == null) ? FLASH_ON_DEF : (on | 0);
-  return ((age | 0) < o) ? 255 : (255 - a);
+  return ((age | 0) < o) ? 255 : d;
 }
-/* 这条效果带不带音控闪层？带的话间隔 / 深度取哪一层？
+/* 「最低亮度」（亮度本身，0 = 全灭）→ 灭的那几拍该乘的增益。
+ * genFill 算的是 lvl = level × gain ÷ 255，所以取 round(low × 255 ÷ level) 就能让
+ * 灭的时候正好落在 low 上；level = 255 时增益就是 low 本身，一个数都不差。
+ * level = 0 的时候本来全黑，增益给 0；low ≥ level 时夹到 255（= 常亮，不出黑帧）。 */
+function flashDarkGain(low, level) {
+  const lv = level | 0, lo = low | 0;
+  if (lv <= 0) return 0;
+  const g = Math.floor((lo * 255 + (lv >> 1)) / lv);
+  return g > 255 ? 255 : (g < 0 ? 0 : g);
+}
+/* 这条效果带不带音控闪层？带的话五个旋钮取哪一层？
  * 判据与 C 的 led_gen_tick() 里那段一模一样：wave == FLASH 且 pulse_period > 0。
  * pulse_period = 0 的闪层 = 不闪（常亮）—— 与「脉动周期 0 = 不脉动」同一条规矩，
  * genFill 也只在 pulse_period > 0 时才乘增益，两边对齐。 */
@@ -2754,9 +2771,9 @@ function flashPlanOf(layers) {
   for (const L of (layers || [])) {
     if ((L.wave | 0) === WAVE.FLASH && (L.pulse_period | 0) > 0)
       return { on: true, quiet: L.pulse_period | 0, fast: L.flash_fast | 0,
-               bright: L.flash_on | 0, amp: L.pulse_amp | 0 };
+               bright: L.flash_on | 0, low: L.flash_low | 0, level: L.level | 0 };
   }
-  return { on: false, quiet: FLASH_IDLE, fast: 0, bright: FLASH_ON_DEF, amp: 255 };
+  return { on: false, quiet: FLASH_IDLE, fast: 0, bright: FLASH_ON_DEF, low: 0, level: 255 };
 }
 
 /* 脉动包络。period=0 表示不脉动。返回 0..255 的增益。
@@ -3499,18 +3516,21 @@ function instTick(inst, loud) {
   inst.lapPrev = inst.anim.position.current;
   inst.anim.gen_tick = (inst.anim.gen_tick + 1) & 0xFFFF;
   /* 音控闪（预置「闪烁」）：闪的时钟不跟 gen_tick 走，跟音量档走 ——
-   *   安静（慢档）：flashT 走到「没有音乐时多久闪一次」就绕回 0（预置 250 拍 = 5 秒）；
+   *   安静（慢档）：flashT 走到「没有音乐时多久闪一次」就绕回 0（预置 250 拍 = 5000 ms）；
    *   有音乐（快档）：周期换成「有音乐时多久闪一次」（预置 25 拍 = 500 ms）——
    *        一直大声就一直按这个节奏闪，不是只闪一下；
    *   越过阈值（慢档 → 快档）那一拍立刻闪一次，对齐固件 PixelFlash() 的「马上重触发」。
+   * 灭的那几拍不是「255 - 深度」，而是按「最低亮度」反算的增益（flashDarkGain）——
+   * 用户在图层卡上填 0..255 的亮度，暗下来就正好是这个亮度。
    * 没写脉动周期（= 0）的闪层按「不闪」算（flashPlanOf 的 on = false），与
    * 「脉动周期 0 = 不脉动」一致。 */
   const fp = flashPlanOf(inst.anim.layers);
   if (fp.on) {
     const per = (loud && fp.fast > 0) ? fp.fast : fp.quiet;
     const on  = Math.min(fp.bright > 0 ? fp.bright : FLASH_ON_DEF, per);
+    const dark = flashDarkGain(fp.low, fp.level);      /* 最低亮度 → 灭时的增益 */
     if (loud && !inst.loudPrev) inst.flashT = 0;       /* 越过阈值立刻闪一次 */
-    inst.flashGain = flashGain(inst.flashT, on, fp.amp);
+    inst.flashGain = flashGain(inst.flashT, on, dark);
     inst.flashT++;                                     /* 走到间隔就绕回 0 = 再闪一次 */
     if (inst.flashT >= per) inst.flashT = 0;
   }
@@ -3845,9 +3865,10 @@ function layerNums(L) {
     falloff: fall < 0 ? 0 : fall,
     pulse_period: L.pulse_period | 0, pulse_amp: L.pulse_amp | 0,
     wave: L.wave | 0,                /* 形状（三角/方波/锯齿）：界面上不暴露，只由预置给 */
-    /* 音控闪（预置「闪烁」）专用两列：有音乐时的间隔 / 每次亮几拍。
-       0 = 与安静间隔相同 / 默认 10 拍 —— 老存档没有这两列，行为就是「只有一个间隔」。 */
-    flash_fast: L.flash_fast | 0, flash_on: L.flash_on | 0,
+    /* 音控闪（预置「闪烁」）专用三列：有音乐时的间隔 / 每次亮几拍 / 灭的时候多亮（= 亮度本身，不是衰减量）。
+       0 = 与安静间隔相同 / 默认 10 拍 / 全灭 —— 老存档没有这三列，行为就是「一个间隔、亮满、灭到底」。
+       flash_low 是**亮度本身**（0 = 全灭），不是衰减量。 */
+    flash_fast: L.flash_fast | 0, flash_on: L.flash_on | 0, flash_low: L.flash_low | 0,
     density: L.density | 0, rate: L.rate | 0, lo: L.lo | 0, hi: L.hi | 0,
     level: L.level | 0, spans: L.spans | 0, rotate: L.rotate | 0,
     direction: dir, bounce: bn,
@@ -4009,10 +4030,10 @@ const LED_GEN_IMPL = [
 '',
 '/* @flashgain@ */',
 '#define LED_GEN_FLASH_ON  10u    /* default bright frames when flash_on == 0 (10 x 20ms) */',
-'static uint8_t led_gen_flash_gain(uint8_t t, uint8_t on, uint8_t amp)',
+'static uint8_t led_gen_flash_gain(uint8_t t, uint8_t on, uint8_t dark)',
 '{',
 '    if (t < on) return 255u;',
-'    return (uint8_t)(255u - amp);',
+'    return dark;',
 '}',
 '',
 '/* @scaled@ */',
@@ -4406,23 +4427,28 @@ const LED_GEN_IMPL = [
 '        /* @flashstate@ */',
 '        {',
 '            const led_gen_effect_t *FE = &led_gen_effects[I->eff];',
-'            uint8_t  k, on = 0u, fr = 0u, ff = 0u, fo = 0u, fa = 255u;',
+'            uint8_t  k, on = 0u, fr = 0u, ff = 0u, fo = 0u, fl = 0u, lv = 0u;',
 '            for (k = 0; k < FE->layers_count; k++) {',
 '                const led_gen_layer_t *FL = &led_gen_layers[FE->layers_first + k];',
 '                /* audio flash layer: wave == FLASH and a non-zero pulse period',
 '                   (period 0 = no flash, same rule as "period 0 = no pulse") */',
 '                if (FL->wave != (uint8_t)LED_GEN_WAVE_FLASH || FL->pulse_period == 0u) continue;',
 '                on = 1u; fr = FL->pulse_period; ff = FL->flash_fast;',
-'                fo = FL->flash_on; fa = FL->pulse_amp; break;',
+'                fo = FL->flash_on; fl = FL->flash_low; lv = FL->level; break;',
 '            }',
 '            if (on != 0u) {',
 '                /* quiet = pulse_period; music (fast) = flash_fast (0 = same as quiet) */',
-'                uint8_t per = ((fast != 0u) && (ff != 0u)) ? ff : fr;',
-'                uint8_t br  = (fo != 0u) ? fo : (uint8_t)LED_GEN_FLASH_ON;',
+'                uint8_t  per = ((fast != 0u) && (ff != 0u)) ? ff : fr;',
+'                uint8_t  br  = (fo != 0u) ? fo : (uint8_t)LED_GEN_FLASH_ON;',
+'                uint32_t dg;',
 '                if (br > per) br = per;',
+'                /* lowest brightness -> dark-stage gain: led_gen_fill() does',
+'                   level * gain / 255, so round(low * 255 / level) lands on low */',
+'                dg = (lv != 0u) ? ((((uint32_t)fl * 255u) + (uint32_t)(lv / 2u)) / (uint32_t)lv) : 0u;',
+'                if (dg > 255u) dg = 255u;',
 '                /* crossing the loudness threshold: flash right away */',
 '                if ((fast != 0u) && (I->loud_prev == 0u)) I->flash_age = 0u;',
-'                I->flash_gain = led_gen_flash_gain(I->flash_age, br, fa);',
+'                I->flash_gain = led_gen_flash_gain(I->flash_age, br, (uint8_t)dg);',
 '                /* tick on; wrapping at the interval = flash again */',
 '                I->flash_age++;',
 '                if ((uint16_t)I->flash_age >= (uint16_t)per) I->flash_age = 0u;',
@@ -4569,9 +4595,9 @@ const GEN_COMMENTS = {
   bounceq: { zh:'往返：奇数圈倒着走 —— 一个来回 = 两圈（lap 是整圈数的奇偶）', en:'bounce: odd laps run backwards - one round trip = two laps (lap = lap-count parity)' },
   lapf: { zh:'往返：整圈数的奇偶（0 正着走 / 1 倒着走）+ 上一拍位置（用来发现过接缝）', en:'bounce: parity of completed laps (0 forward / 1 backward) + previous position (seam crossing)' },
   flashf: { zh:'音控闪（预置「闪烁」）：距上次闪了几拍 + 上一拍是不是快档 + 这一拍闪的增益', en:'audio flash (the BLINK preset): ticks since the last flash + was the previous frame on the fast stage + this frame flash gain' },
-  flashgain: { zh:'音控闪的增益：亮的那几拍满亮，之后暗到 255-pulse_amp（255 = 全灭）', en:'audio flash gain: full brightness for the bright frames, then 255-pulse_amp (255 = fully dark)' },
+  flashgain: { zh:'音控闪的增益：亮的那几拍满亮，之后按「最低亮度」反算出的增益（0 = 全灭；level = 255 时增益就是最低亮度本身）', en:'audio flash gain: full brightness for the bright frames, then the gain derived from the lowest brightness (0 = fully dark; with level = 255 the gain equals that brightness)' },
   flashpick: { zh:'音控闪层用实例算好的增益；其余层照旧吃 led_gen_pulse()', en:'the audio flash layer uses the per-instance gain; every other layer keeps led_gen_pulse()' },
-  flashstate: { zh:'音控闪的时钟：安静时每 pulse_period 拍闪一次（预置 250 拍 = 5 秒）；快档时每 flash_fast 拍闪一次（预置 25 拍 = 500 ms，0 = 同安静间隔）；越过阈值那一拍立刻闪一次', en:'audio flash clock: one flash every pulse_period frames when quiet (the preset uses 250 = 5 s); one flash every flash_fast frames on the fast stage (the preset uses 25 = 500 ms, 0 = same as quiet); the threshold crossing flashes right away' },
+  flashstate: { zh:'音控闪的时钟：安静时每 pulse_period 拍闪一次（预置 250 拍 = 5000ms）；快档时每 flash_fast 拍闪一次（预置 25 拍 = 500ms，0 = 同安静间隔）；越过阈值那一拍立刻闪一次。灭的时候的亮度由 flash_low / level 反算，所以「最低亮度」填多少，暗下来就亮多少', en:'audio flash clock: one flash every pulse_period frames when quiet (the preset uses 250 = 5000ms); one flash every flash_fast frames on the fast stage (the preset uses 25 = 500ms, 0 = same as quiet); the threshold crossing flashes right away. The dark frames use a gain derived from flash_low / level, so the lowest brightness is exactly what the tool shows' },
   lapflip: { zh:'光标跨过接缝就算走完一圈 —— 翻转「倒着走」标记', en:'a seam crossing = one completed lap: flip the backwards flag' },
   chasesingle: { zh:'内建「单点追逐」：生成代码自带这份实现（不调平台原语），与工具预览逐字节一致', en:'built-in single chase, implemented here (no platform primitive); byte-identical to the tool preview' },
   chaseflat:   { zh:'平顶光带：带内一律满亮 255，带外全灭 —— 不带边缘衰减', en:'flat top: 255 throughout the band, 0 outside - no edge falloff at all' },
@@ -4743,7 +4769,7 @@ function exportEffectsC(state, opt) {
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
     modeEn: '该模式是否启用',
-    layRow: '每行: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing}（图层不带颜色，取色全在效果级配色里）,',
+    layRow: '每行: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low}（图层不带颜色，取色全在效果级配色里）,',
     instType: '一个效果实例的运行状态。同一条效果被多个分区引用时共用一个实例 = 相位同步',
     applyMode: '切模式：按绑定表建实例（同一效果只建一次）',
     genTick: '每帧推进一次：所有实例各推进各的',
@@ -4767,8 +4793,9 @@ function exportEffectsC(state, opt) {
     lwave: '脉动的形状: TRI 三角(呼吸) / SQUARE 方波(旧闪烁) / SAW 锯齿(渐亮后瞬灭) / FLASH 音控闪(现在的闪烁: 间隔跟着音量档变) —— 界面上不暴露，只由预置给',
     lflags: 'bit0: 方向, bit1: 往返',
     lspacing: 'SPOT: 相邻光点的中心距（按 RING_SIZE 标称，随分区等比缩放）；0 = 按光点数均布',
-    lflashfast: '音控闪: 有音乐(FFTLevel 超过阈值, 快档)时多久闪一次(帧); 0 = 与 pulse_period 相同',
+    lflashfast: '音控闪: 有音乐(FFTLevel 超过阈值, 快档)时多久闪一次(帧, 1 帧 = 20ms); 0 = 与 pulse_period 相同',
     lflashon: '音控闪: 每次亮几帧; 0 = 默认 10 帧(200ms), 超过间隔就夹到间隔',
+    lflashlow: '音控闪: 闪完「灭」的那几拍亮到什么程度(亮度本身, 0 = 全灭, 255 = 与最高亮度相同); 内部按 level 反算增益',
     layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
     ringNote2: 'led_ring.h 里原来那句 #define RING_PRESET_COUNT 9 请整句注释掉。',
@@ -4807,7 +4834,7 @@ function exportEffectsC(state, opt) {
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
     modeEn: 'mode enabled',
-    layRow: 'rows: {kind,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing} (layers carry no colour: colours come from the effect-level colour mode),',
+    layRow: 'rows: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low} (layers carry no colour: colours come from the effect-level colour mode),',
     instType: 'runtime state of one effect instance. Zones sharing an effect share the instance = synchronised',
     applyMode: 'switch mode: build instances from the bind table (one per distinct effect)',
     genTick: 'called once per frame: advance every instance',
@@ -4833,6 +4860,7 @@ function exportEffectsC(state, opt) {
     lspacing: 'SPOT: centre distance between neighbouring spots in RING_SIZE units (0 = evenly spread by count)',
     lflashfast: 'audio flash: interval in frames while the level is above the threshold (fast stage); 0 = same as pulse_period',
     lflashon: 'audio flash: bright frames per flash; 0 = default 10 frames (200ms), clamped to the interval',
+    lflashlow: 'audio flash: brightness during the dark frames (a level, not an attenuation: 0 = off, 255 = same as level); the gain is derived from level',
     layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
     ringNote2: 'The original #define RING_PRESET_COUNT 9 in led_ring.h must be commented out.',
@@ -4904,6 +4932,7 @@ function exportEffectsC(state, opt) {
        '    uint8_t spacing;       /* ' + t.lspacing + ' */',
        '    uint8_t flash_fast;    /* ' + t.lflashfast + ' */',
        '    uint8_t flash_on;      /* ' + t.lflashon + ' */',
+       '    uint8_t flash_low;     /* ' + t.lflashlow + ' */',
        '} led_gen_layer_t;',
        '',
        'typedef struct {',
@@ -4950,11 +4979,11 @@ function exportEffectsC(state, opt) {
     for (const R of layerRows) {
       push('    { ' + [R.kind, R.en, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
-                       R.wave, R.flags, R.spacing, R.flash_fast, R.flash_on].join(', ') + ' },');
+                       R.wave, R.flags, R.spacing, R.flash_fast, R.flash_on, R.flash_low].join(', ') + ' },');
     }
     push('};');
   } else {
-    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
+    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
   }
   push('');
   push('/* ' + t.palRow + ' */');
@@ -5179,7 +5208,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
                FALL, LAYER, WAVE, pulseGain, bouncePos,
-               flashGain, flashPlanOf, FLASH_ON_DEF, FLASH_IDLE,
+               flashGain, flashDarkGain, flashPlanOf, FLASH_ON_DEF, FLASH_IDLE,
                renderZoneMaskTo, effectColorAt, instNew, resolveEffect, bindKey,
                coverEntry, wipeSpan, wipeEntryAt,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
@@ -6889,15 +6918,18 @@ const LAYER_FIELDS = {
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
   ],
   fill: [
-    ['填充亮度','level',0,255],
+    ['填充亮度','level',0,255,
+     '整环的亮度。\n音控闪层上这一格叫「最高亮度」—— 就是闪「亮」的那几拍的亮度。'],
     ['脉动周期','pulse_period',0,255,
-     '0 = 不脉动。\n三角包络（呼吸 / 跳变 / 呼吸彩虹用）：一亮一暗走完一轮要多少拍。\n**音控闪（预置「闪烁」）**：这一格是「**没有音乐时**多久闪一次」—— 250 拍 = 5 秒；0 = 不闪（常亮）。'],
+     '0 = 不脉动。\n三角包络（呼吸 / 跳变 / 呼吸彩虹用）：一亮一暗走完一轮要多少拍。\n**音控闪（预置「闪烁」）**：这一格是「**没有音乐时**多久闪一次」—— 按 ms 填（1 拍 = 20 ms），5000 = 5 秒；0 = 不闪（常亮）。'],
     ['脉动深度','pulse_amp',0,255,
-     '0 = 不脉动（一直满亮）。\n音控闪时 = 灭的时候暗到多少：255 = 全灭，128 = 只暗一半。'],
+     '0 = 不脉动（一直满亮）。\n三角包络的深度：往暗里走多少（255 = 一暗到底）。\n音控闪层不用这一格（改用「最低亮度」，填的是亮度本身），闪的时候这一格不显示。'],
+    ['最低亮度','flash_low',0,255,
+     '音控闪（预置「闪烁」）专用：闪完「灭」的那几拍亮到什么程度 —— 填的是**亮度本身**：\n0 = 全灭、128 = 半亮、255 = 跟「最高亮度」一样（等于不闪）。\n数值越大越亮，跟直觉一致；内部按「最高亮度」反算增益（genFill 是 level × gain ÷ 255），所以填多少，暗下来就亮多少（最高亮度 = 255 时一个数都不差）。'],
     ['有音乐间隔','flash_fast',0,255,
-     '音控闪（预置「闪烁」）专用：**有音乐时**（FFTLevel 超过阈值 = 快档）多久闪一次 —— 25 拍 = 500 ms。\n0 = 跟「脉动周期」一样（不看音乐，匀速闪）。\n固件老 SPI RGB 灯功能（spim_led.c 的 PixelFlash）就是「超过阈值立刻重触发」，所以一直大声就会一直按这个间隔闪。'],
+     '音控闪（预置「闪烁」）专用：**有音乐时**（FFTLevel 超过阈值 = 快档）多久闪一次 —— 按 ms 填（1 拍 = 20 ms），500 = 500 ms。\n0 = 跟「没音乐时闪的间隔」一样（不看音乐，匀速闪）。\n固件老 SPI RGB 灯功能（spim_led.c 的 PixelFlash）就是「超过阈值立刻重触发」，所以一直大声就会一直按这个间隔闪。'],
     ['亮的时间','flash_on',0,255,
-     '音控闪（预置「闪烁」）专用：每次闪**亮几拍**（20 ms 一拍）—— 10 拍 = 200 ms。\n0 = 默认 10 拍；填得比间隔还大就按间隔算（等于常亮）。'],
+     '音控闪（预置「闪烁」）专用：每次闪**亮多久** —— 按 ms 填（1 拍 = 20 ms），200 = 200 ms。\n0 = 默认 200 ms；填得比间隔还大就按间隔算（等于常亮）。\n时间按固件的 20 ms 一拍取整：200 / 500 / 5000 都是整拍，一个数都不差；填 210 会落到 200（那一拍只有 20 ms 的粒度）。'],
   ],
   gradient: [
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
@@ -6906,8 +6938,17 @@ const LAYER_FIELDS = {
     ['旋转','rotate',0,255,'每 N 帧推进一格；0 = 不动'],
   ],
 };
-/* 只对音控闪层（wave == FLASH，预置「闪烁」）显示的两格 —— 见 renderLayers() */
-const FLASH_ONLY_FIELDS = { flash_fast: 1, flash_on: 1 };
+/* 只对音控闪层（wave == FLASH，预置「闪烁」）显示的三格 —— 见 renderLayers() */
+const FLASH_ONLY_FIELDS = { flash_low: 1, flash_fast: 1, flash_on: 1 };
+/* 音控闪层上用「最低亮度」代替「脉动深度」：这一格收起来（字段本身留着，老存档照读） */
+const FLASH_HIDDEN_FIELDS = { pulse_amp: 1 };
+/* 这三个是**时间**：图层里存「拍」（固件一拍 20 ms），界面上按 ms 显示 / 录入。
+ * 为什么不在存的时候直接换成 ms：C 结构体那两列是 uint8 帧数，pulse_period 还被
+ * 三角 / 方波 / 锯齿那些脉动共用（它们说的就是拍）。所以只在音控闪的图层卡上换单位 ——
+ * 用户按实际时间填（5000 / 500 / 200），一个数都不用数拍子。 */
+const MS_FIELDS = { pulse_period: 1, flash_fast: 1, flash_on: 1 };
+const TICK_MS = 20;              /* 固件节拍（50Hz）：一拍 = 20 ms */
+const FLASH_MS_MAX = 255 * TICK_MS;   /* 这三格存的是 uint8 帧 → 最多 255 拍 = 5100 ms */
 
 function rgbHex(c) {
   const h = v => ('0' + (v | 0).toString(16)).slice(-2);
@@ -7141,9 +7182,10 @@ function layerRow(label, node) {
   r.appendChild(sp); r.appendChild(node);
   return r;
 }
-function numInput(get, set, min, max, tipText) {
+function numInput(get, set, min, max, tipText, step) {
   const inp = document.createElement('input');
   inp.type = 'number'; inp.min = min; inp.max = max; inp.value = get();
+  if (step && step > 1) inp.step = step;      /* 按 ms 填的那几格：上下箭头一次走一拍（20 ms） */
   if (tipText) inp.__tip = tipText;
   inp.oninput = () => set(Math.max(min, Math.min(max, +inp.value || 0)));
   return inp;
@@ -7210,17 +7252,28 @@ function renderLayers() {
 
     for (const f of (LAYER_FIELDS[L.kind] || [])) {
       const [label, key, min, max, tip] = f;
-      /* 音控闪层（预置「闪烁」）：填充层那几格在这个语境下叫别的名字，
+      /* 音控闪层（预置「闪烁」）：填充层那几格在这个语境下叫别的名字 / 换单位，
          不换标签的话用户看到的还是「脉动周期」，猜不到它就是「没有音乐时多久闪一次」。
-         「有音乐间隔 / 亮的时间」两格只对音控闪层有意义 —— 呼吸 / 跳变 / 渐变那些
-         填充层不显示，免得满屏都是用不上的旋钮。 */
+         三格时间按 ms 填（存的是 20ms 拍），「最低亮度」填的是亮度本身（不是衰减量）；
+         「有音乐间隔 / 亮的时间 / 最低亮度」只对音控闪层有意义 —— 呼吸 / 跳变 / 渐变
+         那些填充层不显示，免得满屏都是用不上的旋钮。 */
       const flash = (L.wave | 0) === WAVE.FLASH;
       if (!flash && FLASH_ONLY_FIELDS[key]) continue;
-      const nm = (flash && key === 'pulse_period') ? '没音乐时闪的间隔(拍)'
-               : (flash && key === 'pulse_amp')    ? '闪完暗到'
+      if (flash && FLASH_HIDDEN_FIELDS[key]) continue;
+      const nm = (flash && key === 'level')        ? '最高亮度'
+               : (flash && key === 'pulse_period') ? '没音乐时闪的间隔(ms)'
+               : (flash && key === 'flash_fast')   ? '有音乐间隔(ms)'
+               : (flash && key === 'flash_on')     ? '亮的时间(ms)'
                : label;
-      row.appendChild(layerRow(nm, numInput(
-        () => L[key] | 0, v => { L[key] = v; fxLive(); }, min, max, tip)));
+      const msf = !!(flash && MS_FIELDS[key]);
+      const get = msf ? () => (L[key] | 0) * TICK_MS : () => L[key] | 0;
+      const set = msf ? v => { L[key] = Math.min(255, Math.round(v / TICK_MS)); fxLive(); }
+                      : v => { L[key] = v; fxLive(); };
+      const inp = numInput(get, set, msf ? 0 : min, msf ? FLASH_MS_MAX : max, tip, msf ? TICK_MS : 1);
+      /* 填了不是 20 的整数倍（或超过 5100）时，离开这一格就把输入框写成实际生效的拍数 ——
+         预览和固件用的都是取整后的值，框里显示的必须跟它一致。 */
+      if (msf) inp.onchange = () => { inp.value = get(); };
+      row.appendChild(layerRow(nm, inp));
     }
     box.appendChild(row);
   });
@@ -7285,14 +7338,14 @@ const FX_PRESETS = [
    *     信号一直很大（超过阈值）就一直闪。间隔时间和闪亮的时间都要可调。」
    * 参照固件**老 SPI RGB 灯功能**（`CFG_FUNC_SPI_RGB_EN` → `spim_led.c` 的 `PixelFlash()`）：
    * 那边是「亮 100ms + 静音时每 4 秒一次 + FFTLevel 超过阈值就立刻重触发（于是持续闪）」，
-   * 不是 `CFG_FUNC_LED_RING_EN` 那一套。工具里四个旋钮：
-   *   pulse_period = 250 拍 = **没音乐时 5 秒**一次；flash_fast = 25 拍 = **有音乐时 500 ms** 一次；
-   *   flash_on = 10 拍 = **每次亮 200 ms**；pulse_amp = 255 = 灭的时候全灭。
+   * 不是 `CFG_FUNC_LED_RING_EN` 那一套。工具里五个旋钮（界面上都按 ms / 亮度填）：
+   *   pulse_period = **没音乐时 5000 ms** 一次；flash_fast = **有音乐时 500 ms** 一次；
+   *   flash_on = **每次亮 200 ms**；level = 最高亮度 255；flash_low = 最低亮度 0（全灭）。
    * 「有没有音乐」用固件那条现成判据 FFTLevel > LED_FFT_THRESHOLD(=4) → 快档
    * （预览条上的「音量」滑杆 + 「音乐来了」就是它）；越过阈值那一拍立刻闪一次。 */
   { name:'闪烁',            make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:250, pulse_amp:255, wave:3,
-                                                 flash_fast:25, flash_on:10 }) ] }) },
+      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:250, wave:3,
+                                                 flash_fast:25, flash_on:10, flash_low:0 }) ] }) },
   { name:'跳变(渐暗后跳回)', make: () => ({ moves:false, color:1, c1:[255,0,0], slow:8, fast:1, speed:1,
       layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:30, pulse_amp:255, wave:2 }) ] }) },
   { name:'绕环彩虹(旋转)',  make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
