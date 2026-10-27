@@ -155,6 +155,15 @@ const BLINK = mkFx(14, [{ kind:'fill', level:200, pulse_period:250, wave:3,
                           direction:1, bounce:0, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mM', name:'音控闪', latin:'AUDIO_FLASH', enabled:true,
                      binds:[{ effect:BLINK.id, zones:[] }] });
+/* 长间隔闪：没音乐 400 拍 = 8 秒一次（**超过 255** → 这一列在 C 结构体里必须是 uint16）。
+ * 下面 C 侧同一条「全程安静」的跑法跑 405 拍：第 400 拍该再闪一次，405 拍正落在那次闪的
+ * 第 5 拍上 = 亮。老 uint8 写法会把 400 截成 144（两次闪落在 144 / 288），405 拍早暗了 ——
+ * 逐字节比对与亮度断言两边都会立刻报错。 */
+const BLINK_LONG = mkFx(15, [{ kind:'fill', level:200, pulse_period:400, wave:3,
+                               flash_fast:0, flash_on:10, flash_low:50,
+                               direction:1, bounce:0, spans:0, rotate:0 }]);
+st.modes.list.push({ id:'mN', name:'长间隔闪', latin:'AUDIO_FLASH_LONG', enabled:true,
+                     binds:[{ effect:BLINK_LONG.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -247,6 +256,9 @@ const LONG_MODE = st.modes.list.findIndex(m => m.id === 'mL');
 const FLASH_TICKS = 47;
 const FLASH_LOUD_FROM = 20;
 const FLASH_MODE = st.modes.list.findIndex(m => m.id === 'mM');
+/* 长间隔闪：没音乐 400 拍一次 → 跑 405 拍，收尾在第 400 拍那次闪的第 5 拍（亮） */
+const FLASH_LONG_TICKS = 405;
+const FLASH_LONG_MODE = st.modes.list.findIndex(m => m.id === 'mN');
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -353,6 +365,22 @@ const main = [
   '    for (i = 0; i < LED_COUNT; i++)',
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
+  /* 长间隔闪：全程安静跑 405 拍 —— 400 拍 > 255，这一列在 C 侧必须真是 uint16
+     （截成 uint8 的话闪点会挪到 144 / 288，收尾那拍就落在暗段）。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_ring.speed_cur = 8;',
+  '    led_gen_apply_mode(&g_ring, ' + FLASH_LONG_MODE + ');',
+  '    for (t = 0; t < ' + FLASH_LONG_TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
 
   '    printf("\\n");',
   '    return 0;',
@@ -385,9 +413,9 @@ try {
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
 const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 5 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 5, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 5 段附加场景）`);
+ok(cAll === st.modes.list.length + 6, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 6 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -642,6 +670,24 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
      `越过阈值后整条亮起（${litLoud} 颗，亮度 ${(loudRow[0] || [0])[0]}/255 = 最高亮度 200 的渲染值）`);
   ok(litQuiet === FW.LED_COUNT && (quietRow[0] || [0])[0] === pxOf(50),
      `全程安静跑 ${FLASH_TICKS} 拍后暗在最低亮度上（${litQuiet} 颗，亮度 ${(quietRow[0] || [0])[0]} = 最低亮度 50 的渲染值）`);
+
+  /* 长间隔闪：没音乐 400 拍 = 8 秒一次，全程安静跑 405 拍 —— 收尾正落在第 400 拍那次闪的
+   * 第 5 拍上（亮）。这一条是「三列时间真的是 uint16」的 C 侧证据：400 被截成 uint8 的话
+   * 闪点会落在 144 / 288，405 拍早就暗回最低亮度了。 */
+  const modeL = st.modes.list.find(m => m.id === 'mN');
+  const s3 = JSON.parse(JSON.stringify(st));
+  s3.anim.modeId = modeL.id;
+  const simL = simInit();
+  simApplyMode(simL, s3);
+  simSetSpeed(simL, 'slow');
+  for (let t = 0; t < FLASH_LONG_TICKS; t++) simTick(simL, s3, false);
+  const jsLong = Array.from({ length: FW.LED_COUNT },
+    (_, i) => simL.fb[i * 3] + ',' + simL.fb[i * 3 + 1] + ',' + simL.fb[i * 3 + 2]).join('|');
+  const longRow = cAux[5] || [];
+  ok(longRow.map(px => px.join(',')).join('|') === jsLong,
+     `长间隔闪：全程安静 ${FLASH_LONG_TICKS} 拍（间隔 400 拍），C 侧与 JS 逐字节一致`);
+  ok(longRow.length === FW.LED_COUNT && (longRow[0] || [0])[0] === pxOf(200),
+     `长间隔闪跑到第 ${FLASH_LONG_TICKS} 拍仍在第 400 拍那次闪的亮段上（${(longRow[0] || [0])[0]} = 最高亮度 200 的渲染值；uint8 会截成 144 拍，这里早就暗了）`);
 }
 
 /* 覆盖度自检 */

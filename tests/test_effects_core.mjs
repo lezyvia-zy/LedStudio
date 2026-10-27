@@ -1079,6 +1079,23 @@ console.log('--- 音控闪（预置「闪烁」）---');
   ok(fl.length === 9, `300 拍里闪了 ${fl.length} 次（0 拍一次 + 100 拍起每 25 拍一次）`);
   ok(gainOf(l) === 0, '每次只亮 10 拍，最后一拍正落在两次闪之间 = 全灭');
 
+  /* 长间隔：三列时间是 uint16 帧，20 秒 = 1000 拍也要真的数得下去。
+   * 老写法（uint8）在 256 拍就绕回，这里会闪成 8 次以上。 */
+  {
+    const lg = mkFlash(1000, { fast: 25, on: 10 });
+    const flg = flashes(lg, 2100);
+    ok(flg.length === 3 && flg[1] === 1000 && flg[2] === 2000,
+       `间隔 1000 拍（20 秒）在 2100 拍里闪了 ${flg.length} 次: ${flg.slice(0, 3).join(', ')}（uint8 会在 256 拍就绕回）`);
+    ok(flashPlanOf([layerNums({ kind:'fill', wave: WV.FLASH, pulse_period: 1000 })]).quiet === 1000,
+       'plan 原样带出 > 255 的间隔（没有被夹成 8 位）');
+    /* 存档里的怪值也别让 C 装不下：手改 JSON 写成 999999 时夹到 65535 拍 */
+    ok(layerNums({ kind:'fill', wave: WV.FLASH, pulse_period: 999999,
+                   flash_fast: -5, flash_on: 70000 }).pulse_period === 65535 &&
+       layerNums({ kind:'fill', wave: WV.FLASH, flash_fast: -5 }).flash_fast === 0 &&
+       layerNums({ kind:'fill', wave: WV.FLASH, flash_on: 70000 }).flash_on === 65535,
+       '三列时间都按 uint16 夹住（999999 → 65535、负数 → 0），与 C 结构体装得下的一致');
+  }
+
   /* 音乐停了 → 重新按 5 秒自己闪（不是从 0 重来，接着上次的账往下数） */
   const r = mkFlash(250, { fast: 25, on: 10 });
   const fr = flashes(r, 400, t => t >= 100 && t < 120);

@@ -82,10 +82,12 @@ ok(layRows.length === 1 && layRows[0].length === 21 && layRows[0][0] === 2 && la
    `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 21 个 / 2 / 1）`);
 ok(/uint8_t spacing;\s+\/\* SPOT: centre distance/.test(h2),
    '结构体末尾多了 spacing（光点间距，0 = 按 count 均布）');
-ok(/uint8_t flash_fast;/.test(h2) && /uint8_t flash_on;/.test(h2) && /uint8_t flash_low;/.test(h2) &&
-   h2.indexOf('uint8_t flash_fast;') > h2.indexOf('uint8_t spacing;') &&
-   h2.indexOf('uint8_t flash_low;') > h2.indexOf('uint8_t flash_on;'),
-   '末尾再追加 flash_fast / flash_on / flash_low 三列（有音乐间隔 / 亮的时间 / 最低亮度），前面的列一列没挪位');
+ok(/uint16_t pulse_period;/.test(h2),
+   '脉动周期是 uint16 帧（0..65535 拍 ≈ 21.8 分钟，够填「几分钟闪一次」）');
+ok(/uint16_t flash_fast;/.test(h2) && /uint16_t flash_on;/.test(h2) && /uint8_t flash_low;/.test(h2) &&
+   h2.indexOf('uint16_t flash_fast;') > h2.indexOf('uint8_t spacing;') &&
+   h2.indexOf('uint8_t flash_low;') > h2.indexOf('uint16_t flash_on;'),
+   '末尾再追加 flash_fast / flash_on / flash_low 三列（有音乐间隔 / 亮的时间 / 最低亮度），两列时间加宽成 uint16，前面的列一列没挪位');
 ok(/uint8_t flash_low;\s+\/\* audio flash: brightness during the dark frames/.test(h2),
    'flash_low 的注释说清了它填的是「亮度本身」而不是衰减量');
 

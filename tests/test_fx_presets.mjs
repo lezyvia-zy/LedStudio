@@ -176,9 +176,9 @@ ok(e0c.layers[0].flash_low === 0 && e0c.layers[0].level === 255,
   /* 单位真的是 ms：那三格（间隔 / 有音乐间隔 / 亮的时间）的上限和步长都是 20 ms 的整拍，
      不是 0..255 的拍数；「最低亮度」那格还是 0..255 的亮度值。 */
   const msBoxes = [nums[1], nums[3], nums[4]];
-  ok(msBoxes.every(n => String(n.max) === '5100' && String(n.step) === '20') &&
+  ok(msBoxes.every(n => String(n.max) === '1310700' && String(n.step) === '20') &&
      String(nums[2].max) === '255',
-     `三个时间框的上限 ${msBoxes.map(n => n.max).join('/')}、步长 ${msBoxes.map(n => n.step).join('/')}（20 ms 一拍）；最低亮度上限 ${nums[2].max}`);
+     `三个时间框的上限 ${msBoxes.map(n => n.max).join('/')}、步长 ${msBoxes.map(n => n.step).join('/')}（uint16 帧 × 20 ms = 最长 21.8 分钟，不再是 5100）；最低亮度上限 ${nums[2].max}`);
   /* 在框里填 3000 → 图层里存 150 拍（填的就是实际时间，不用自己数拍子） */
   msBoxes[0].value = '3000'; msBoxes[0].oninput();
   await new Promise(r => setTimeout(r, 700));
@@ -190,6 +190,13 @@ ok(e0c.layers[0].flash_low === 0 && e0c.layers[0].level === 255,
   await new Promise(r => setTimeout(r, 700));
   ok(fxListOf(0)[0].layers[0].pulse_period === 151 && msBoxes[0].value === '3020',
      `填 3010 ms → 落到 ${fxListOf(0)[0].layers[0].pulse_period} 拍，框里回显 ${msBoxes[0].value} ms（20 ms 粒度）`);
+  /* 超过旧上限（5100 ms）也要能填：10 分钟 = 600000 ms = 30000 拍。
+   * 老写法（uint8 帧 / max 5100）在这里会被夹回 5100 ms。 */
+  msBoxes[0].value = '600000'; msBoxes[0].oninput();
+  if (msBoxes[0].onchange) msBoxes[0].onchange();
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].layers[0].pulse_period === 30000 && msBoxes[0].value === '600000',
+     `填 600000 ms（10 分钟）→ 图层 pulse_period = ${fxListOf(0)[0].layers[0].pulse_period} 拍、框里回显 ${msBoxes[0].value}（上限不再是 5100）`);
 }
 
 /* ---- 7) 导出的 C：图层不带颜色，彩虹在效果行 ---- */
