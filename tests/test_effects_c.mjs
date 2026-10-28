@@ -90,6 +90,22 @@ ok(/uint16_t flash_fast;/.test(h2) && /uint16_t flash_on;/.test(h2) && /uint8_t 
    '末尾再追加 flash_fast / flash_on / flash_low 三列（有音乐间隔 / 亮的时间 / 最低亮度），两列时间加宽成 uint16，前面的列一列没挪位');
 ok(/uint8_t flash_low;\s+\/\* audio flash: brightness during the dark frames/.test(h2),
    'flash_low 的注释说清了它填的是「亮度本身」而不是衰减量');
+/* 阈值随导出走：刻度与阈值都是宏，判档在生成代码里（不再依赖固件那条 ring_set_audio_level()） */
+ok(/#define LED_GEN_AUDIO_MAX\s+20u/.test(h2) && /#define LED_GEN_FFT_THRESHOLD\s+\d+u/.test(h2),
+   '导出带音量刻度 / 阈值两个宏（LED_GEN_AUDIO_MAX / LED_GEN_FFT_THRESHOLD）: '
+   + ((h2.match(/#define LED_GEN_(AUDIO_MAX|FFT_THRESHOLD).*/g) || []).join(' | ')));
+ok(/led_gen_hal_audio_level\(\) > LED_GEN_FFT_THRESHOLD/.test(h2) &&
+   /uint8_t led_gen_hal_audio_level\(void\);/.test(h2),
+   '生成的 tick 自己拿 HAL 音量跟导出的阈值比（平台只需要实现 led_gen_hal_audio_level）');
+ok(!/ring->speed_cur\s*<=/.test(h2),
+   '不再从 ring->speed_cur 读档位 —— 那条路要平台按同一个阈值改档，两处容易分家');
+{
+  const stT = JSON.parse(JSON.stringify(st2));
+  stT.anim = Object.assign({}, stT.anim || {}, { thr: 9 });
+  const hT = exportEffectsC(stT, { form:'header', comment:'ascii', eol:'lf' });
+  ok(/#define LED_GEN_FFT_THRESHOLD\s+9u/.test(hT) && !/#define LED_GEN_FFT_THRESHOLD\s+4u/.test(hT),
+     '工具里把阈值改成 9，导出的 LED_GEN_FFT_THRESHOLD 就变成 9（固件不用再手改宏）');
+}
 
 console.log('--- 内建「单点追逐」由生成代码自画（不再调平台原语，平顶光带）---');
 ok(hdr.includes('static void led_gen_anim_chase_single(uint8_t *mask, uint8_t len, int16_t pos, uint8_t width)'),

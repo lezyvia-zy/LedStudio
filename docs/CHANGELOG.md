@@ -17,6 +17,22 @@
 
 **影响**：`docs/audit/anim.md` A7、`docs/audit/invariants.md` §13-1、`CLAUDE.md` 坑 42、`HANDOFF.md` 第九轮、README 第 4 步。老存档没有 `anim.thr` → 4（行为不变）；`fftDemoLevel()` 已删除。
 
+> **同日修正（第十轮）**：① 阈值不再「只影响预览」——用户要求「最后所有的都要以此工具导出的 C 为准」，所以它改成随导出写进 C（`LED_GEN_FFT_THRESHOLD`），判档也搬进生成的 `led_gen_tick()`；② 音量刻度从 0..255 收成 **0..20**。
+
+---
+
+## 2026-10-28（第十轮）—— 阈值随导出写进 C（引擎自己判档）+ 音量刻度收成 0..20
+
+**动机**（用户原话）：「不行，阈值设定在这里设置好了以后，也要在固件里面应用。最后所有的都要以此工具导出的c为准，导出后就直接合入固件进行编译烧录实板测试了，固件内的，除了条件限制需要认为手动修改的外，都要以此为准。所以不要考虑现在的固件已有的彩灯驱动，只是作为思路参考。还有音量范围不需要那么大，最多也就【0~20】」
+
+**根因**：第九轮把阈值做成了「只影响预览」——生成代码仍靠平台的 `ring_set_audio_level()` 把 `ring->speed_cur` 改好，阈值又读固件 `led_ring.h` 的 `LED_FFT_THRESHOLD`。那是**第二份来源**：工具里调了阈值、导出的 C 却不管，板上按固件的宏走，两边必然对不上（这也违背「导出即真相」这条主线）。
+
+**改动**：① `exportEffectsC()` 写 `#define LED_GEN_AUDIO_MAX 20u` + `#define LED_GEN_FFT_THRESHOLD <A().thr>u`（阈值来自工程 `state.anim.thr`）；② `led_gen_tick()` 改成 `fast = led_gen_hal_audio_level() > LED_GEN_FFT_THRESHOLD && ring->speed_fast < ring->speed_slow` —— **不再读 `ring->speed_cur`**，平台只要实现 HAL 那个音量函数（原型在生成头里也声明了一份，避免与 `led_gen_hal.h` 的入口原型打架）；③ 音量刻度统一 **0..20**（`FW.AUDIO_MAX`）：滑杆 / 阈值格 / `A().fft` / `simSetAudioLevel()` / `fftMusicLevel()` 全按它（随机音源改成底噪 0..1 + 鼓点 8..20 + 余音）；④ 导出面板的补丁说明 [7]、`GEN_COMMENTS.syncspeed / audioif / audioCfg`、HAL 的 `led_gen_hal_audio_level` 文案全部改成新口径；`docs/firmware-contract.md` §6.2 重写。
+
+**测试**：`test_effects_c` +4（两个宏存在且阈值随工程变、tick 用 HAL 音量 + 宏判档、不再读 `ring->speed_cur`）；`test_effects_c_exec` 的 C 侧改成用 `g_audio` 驱动 HAL，并新增一段「阈值下沿」：工程把阈值设成 12、音量给 10（> 老阈值 4）→ 必须仍算安静，与「全程静音」逐字节相同（写死 4 的话这里会亮）；`test_effects_core` / `test_anim2` 的刻度断言换成 0..20。全量 26 套件 / **1903 项** / 0 FAIL。
+
+**影响**：`docs/firmware-contract.md` §2.1 / §6.1 / §6.2 / 附录 B、`docs/audit/invariants.md` §13-1 / §13-12、`docs/audit/anim.md` A7、`CLAUDE.md` 坑 42、`HANDOFF.md` 第十轮、帮助页 / README。**老工程导出后必须重编固件**（头里少了两个宏，且判档路径换了）；固件那边的 `LED_FFT_THRESHOLD` 与 `ring_set_audio_level()` 可以不再动，留着也无害（引擎不读 `ring->speed_cur`）。
+
 ---
 
 ## 2026-10-27（第八轮）—— 预置「跳变」= 配色「跳变」：同一个旋钮只有一份

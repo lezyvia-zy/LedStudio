@@ -13,7 +13,7 @@
 
 | 层 | 谁拥有 | 载体 | 平台要动吗 |
 |---|---|---|---|
-| **参数**：`LED_COUNT` / `RING_SIZE` / `ZONE_MAX` / `ZONE_MAX_LEN` / `LED_FFT_THRESHOLD` … | 工具 | `led_gen_config.h`（路线第 ③ 步落地） | 不用（连 `#define` 都删掉） |
+| **参数**：`LED_COUNT` / `RING_SIZE` / `ZONE_MAX` / `ZONE_MAX_LEN` / 音量刻度 `LED_GEN_AUDIO_MAX` + 阈值 `LED_GEN_FFT_THRESHOLD`（都在 `led_effects_gen.h` 里导出） | 工具 | `led_gen_config.h`（路线第 ③ 步落地） | 不用（连 `#define` 都删掉） |
 | **查表与表**：`cos_window_tbl` / `spectrum_tbl` / `ease_out_quad_tbl` / 分区表 / 效果表 / 模式表 / 绑定表 | 工具 | `led_gen_data.h`（路线第 ② 步落地） | 不用 |
 | **引擎**：图层原语、实例状态机、`led_gen_apply_mode` / `led_gen_tick` / 渲染器 | 工具 | `led_gen_core.c` / `.h`（路线第 ② 步落地） | 不用，**也不要手改** |
 | **平台适配层（HAL）** | **平台** | 你的 `port.c`（实现第二节那 5 个函数） | **要写** |
@@ -33,7 +33,7 @@
 | 函数原型 | 语义 | 没有这个能力时 |
 |---|---|---|
 | `void led_gen_hal_present(const uint8_t *fb, uint16_t led_count);` | 把一帧推给灯。帧缓冲布局 `fb[灯号 * 3 + 0/1/2] = R/G/B`，长度 `led_count * 3`。真 SPI / DMA / WS2812 都收在这一层 | 必须实现 |
-| `uint8_t led_gen_hal_audio_level(void);` | 音量 / 节奏档，`0..255` | `return 0` |
+| `uint8_t led_gen_hal_audio_level(void);` | 音量 / 节奏档，`0..LED_GEN_AUDIO_MAX`（工具里定成 **20**）；引擎拿它跟导出的 `LED_GEN_FFT_THRESHOLD` 比 | `return 0` |
 | `uint16_t led_gen_hal_brightness(void);` | 全局亮度，`0..256`（256 = 满亮） | `return 256` |
 | `uint8_t led_gen_hal_zone_enable(uint8_t zone_idx);` | 分区开关：`1` = 亮，`0` = 灭 | `return 1` |
 | `uint32_t led_gen_hal_millis(void);` | 单调毫秒计数 | `return 0`（引擎由平台固定周期驱动时不用它） |
@@ -106,40 +106,41 @@
 | HAL 函数 | 在这台样机上 |
 |---|---|
 | `led_gen_hal_present` | 把 `fb`（`LED_COUNT*3` 字节）按 SPI 帧格式搬进发送缓冲，再调现有的 `spi_dma_send()`。原来 `spimled_service.c` 里那段拷贝逻辑搬进这里 |
-| `led_gen_hal_audio_level` | `return mainAppCt.FFTLevel;`（就是原来喂给 `ring_set_audio_level()` 的那个值） |
+| `led_gen_hal_audio_level` | `return (uint8_t)mainAppCt.FFTLevel;`（0..20 的刻度；引擎自己拿它跟 `LED_GEN_FFT_THRESHOLD` 比） |
 | `led_gen_hal_brightness` | `return mainAppCt.LEDBrightness;`（0..256） |
 | `led_gen_hal_zone_enable` | `return mainAppCt.Knob*LEDOnOff;`（旋钮灯开关那几位） |
 | `led_gen_hal_millis` | 返回系统 tick 换算的毫秒；也可以 `return 0`，让 `spimled_service.c` 那 20ms 定时器直接调 `led_gen_tick()` |
 
-### 6.2 速度档怎么跟着音乐走（自动生效）
+### 6.2 速度档怎么跟着音乐走（引擎自己判，不用改固件）
 
-样机上「有声音就变快」是平台本来就有的一条链路：
-
-```c
-/* services/spimled_service.c，每 20ms 一次 */
-ring_set_audio_level(&g_ring, mainAppCt.FFTLevel);
-/* 它做的事： */
-ring->speed_cur = (fft_level >= LED_FFT_THRESHOLD) ? ring->speed_fast : ring->speed_slow;
-```
-
-打补丁之前这条链路是**断的**：推进实例的是生成代码，而它只认每个实例自己的 `speed_cur`。
-现在生成代码每帧先读一次「档位信号」再落到实例上：
+**判据归引擎**：生成的 `led_gen_tick()` 每帧读一次平台的音量，跟**导出进同一个头文件的阈值宏**比：
 
 ```c
-fast = (ring->speed_fast < ring->speed_slow && ring->speed_cur <= ring->speed_fast) ? 1u : 0u;
+/* led_effects_gen.h（工具导出，阈值就是工具里那根针 /「阈」格调的那个数） */
+#define LED_GEN_AUDIO_MAX       20u
+#define LED_GEN_FFT_THRESHOLD   4u
+
+/* led_gen_tick() 里 */
+fast = (uint8_t)(((led_gen_hal_audio_level() > LED_GEN_FFT_THRESHOLD) &&
+                  (ring->speed_fast < ring->speed_slow)) ? 1u : 0u);
 ...
 I->speed_cur = (fast != 0u) ? I->speed_fast : I->speed_slow;   /* 各效果仍用自己配的 fast/slow */
 ```
 
+平台原来那条 `ring_set_audio_level(&g_ring, mainAppCt.FFTLevel)` **不在新链路上了** ——
+留着也不会影响观感（引擎不读 `ring->speed_cur`），但也可以顺手删掉；音量只要通过
+`led_gen_hal_audio_level()` 露出来就行。
+
 三点要注意：
 
-- **判据是保守的**：只有「快档确实更快」（`speed_fast < speed_slow`）且档位信号落在快档时才认快档；
-  平台没接音量、或参数被改成 `fast >= slow`，行为与打补丁前一模一样。
+- **刻度是 0..20**（`LED_GEN_AUDIO_MAX`）：平台给的是 0..20 的 `FFTLevel`，阈值也在同一刻度上。
+- **判据是保守的**：只有「快档确实更快」（`speed_fast < speed_slow`）且音量过阈值时才认快档；
+  平台没接音量（`return 0`）、或参数被改成 `fast >= slow`，行为与打补丁前一模一样。
 - **`ring->speed_slow / speed_fast` 只是判档参考**：打补丁后 `ring_apply_preset()` 不再被调用，
   这两个字段不会被效果参数刷新（`ring_init()` 里是 8 / 1）。各效果真正的快慢由效果表里的 `slow` / `fast` 决定。
 - 工具侧对应：页签下面那条**预览条**（效果页 / 动画页共用同一份）里「速度档」选**自动（跟着音乐）**，
-  拖「音量」= 直接给 `FFTLevel`，或点「音乐来了」模拟有声音那一下；
-  判档逻辑与生成代码同源（`ringIsFast()` 与上面那行表达式等价），所以预览仍是逐字节可信的。
+  拖「音量」= 直接给音量，或点「音乐来了」模拟有声音那一下；阈值就是导出那个宏，
+  判档逻辑与生成代码同源，所以预览仍是逐字节可信的（工具里的「手动慢 / 快」只影响预览）。
 
 ### 6.3 `ring_set_position()` 的回绕修正（内建路径用）
 
@@ -256,7 +257,7 @@ void led_gen_hal_present(const uint8_t *fb, uint16_t led_count)
     spi_led_send_frame(fb, led_count);
 }
 
-uint8_t led_gen_hal_audio_level(void)   { return (uint8_t)mainAppCt.FFTLevel; }
+uint8_t led_gen_hal_audio_level(void)   { return (uint8_t)mainAppCt.FFTLevel; }   /* 0..LED_GEN_AUDIO_MAX(20) */
 uint16_t led_gen_hal_brightness(void)   { return (uint16_t)mainAppCt.LEDBrightness; }
 uint8_t led_gen_hal_zone_enable(uint8_t zone_idx)
 {

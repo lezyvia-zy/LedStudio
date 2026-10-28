@@ -479,16 +479,16 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
   ok(ringSpeedFromAudio(sim, 5) === 1 && ringSpeedFromAudio(sim, 255) === 1,
      '5 / 255（大于阈值）切快档');
   /* 走一遍 simSetAudioLevel()：音量本身、ring 级档位、各实例 speed_cur 一起变 */
-  simSetAudioLevel(sim, 40);
-  ok(sim.audio_level === 40 && sim.speed_cur === 1 && sim.insts[0].speed_cur === 1,
-     '音量 40 → ring 级 1、实例 speed_cur 也变成 1（等价 ring_set_audio_level()）');
+  simSetAudioLevel(sim, 15);
+  ok(sim.audio_level === 15 && sim.speed_cur === 1 && sim.insts[0].speed_cur === 1,
+     '音量 15 → ring 级 1、实例 speed_cur 也变成 1（等价 ring_set_audio_level()）');
   /* 每个 8 拍走一格；切回安静后一次走满 8 拍 */
   simSetAudioLevel(sim, 0);
   ok(sim.audio_level === 0 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
      '音乐停了（音量 0）→ 回到慢档 8');
-  /* 夹到 0..255，别让界面传负数/超界把判据弄反 */
-  ok(simSetAudioLevel(sim, -5) === 0 && simSetAudioLevel(sim, 999) === 255,
-     '音量夹在 0..255（-5 → 0、999 → 255）');
+  /* 夹到 0..AUDIO_MAX(20)，别让界面传负数/超界把判据弄反 */
+  ok(simSetAudioLevel(sim, -5) === 0 && simSetAudioLevel(sim, 999) === FW.AUDIO_MAX,
+     `音量夹在 0..${FW.AUDIO_MAX}（-5 → 0、999 → ${FW.AUDIO_MAX}）`);
   /* 退化配置（fast 不小于 slow）时，即便音量很大也走慢档 —— 与 C 的判据一致 */
   sim.insts[0].speed_fast = 8; sim.insts[0].speed_slow = 8;
   simSetAudioLevel(sim, 200);
@@ -503,18 +503,18 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
    * 第三个参数就是阈值；不传 = 固件那个 LED_FFT_THRESHOLD(=4)。
    * 只影响工具里的预览判档 —— 导出代码读固件 led_ring.h 的宏。 */
   sim.insts[0].speed_fast = 1; sim.insts[0].speed_slow = 8;
-  ok(ringSpeedFromAudio(sim, 50, 60) === 8 && ringSpeedFromAudio(sim, 61, 60) === 1,
-     '自定义阈值 60：音量 50 慢档、61 快档');
-  ok(ringSpeedFromAudio(sim, 50, 0) === 1 && ringSpeedFromAudio(sim, 0, 0) === 8,
+  ok(ringSpeedFromAudio(sim, 10, 15) === 8 && ringSpeedFromAudio(sim, 16, 15) === 1,
+     '自定义阈值 15：音量 10 慢档、16 快档');
+  ok(ringSpeedFromAudio(sim, 10, 0) === 1 && ringSpeedFromAudio(sim, 0, 0) === 8,
      '阈值 0：音量 > 0 就算有音乐（0 仍然算安静）');
-  ok(fftThreshold(-3) === 0 && fftThreshold(999) === 255 && fftThreshold(null) === 4 &&
-     fftThreshold(undefined) === 4 && fftThreshold('') === 4,
-     '阈值夹在 0..255；不传（null / undefined / 空串）就是固件那个 4');
-  simSetAudioLevel(sim, 50, 60);
-  ok(sim.audio_level === 50 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
-     'simSetAudioLevel 的第三个参数就是阈值（50 < 60 → 慢档）');
-  simSetAudioLevel(sim, 61, 60);
-  ok(sim.speed_cur === 1 && sim.insts[0].speed_cur === 1, '音量 61 > 阈值 60 → 快档（广播到实例）');
+  ok(fftThreshold(-3) === 0 && fftThreshold(999) === FW.AUDIO_MAX &&
+     fftThreshold(null) === 4 && fftThreshold(undefined) === 4 && fftThreshold('') === 4,
+     `阈值夹在 0..${FW.AUDIO_MAX}；不传（null / undefined / 空串）就是出厂那个 4`);
+  simSetAudioLevel(sim, 10, 15);
+  ok(sim.audio_level === 10 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
+     'simSetAudioLevel 的第三个参数就是阈值（10 < 15 → 慢档）');
+  simSetAudioLevel(sim, 16, 15);
+  ok(sim.speed_cur === 1 && sim.insts[0].speed_cur === 1, '音量 16 > 阈值 15 → 快档（广播到实例）');
 }
 
 /* ---- 9c) 「音乐来了」的随机音源：底噪 + 随机鼓点 + 余音（固定种子）---- */
@@ -523,11 +523,11 @@ console.log('--- 「音乐来了」的随机音源 ---');
   const { fftMusicLevel, fftMusicReset } = CORE;
   fftMusicReset();
   const a = Array.from({ length: 200 }, () => fftMusicLevel());
-  ok(a.every(v => v >= 0 && v <= 255), '随机音量都落在 0..255');
+  ok(a.every(v => v >= 0 && v <= FW.AUDIO_MAX), `随机音量都落在 0..${FW.AUDIO_MAX}`);
   ok(a.some(v => v <= 4) && a.some(v => v > 4),
      `安静（≤4）和有音乐（>4）都出现：${a.filter(v => v <= 4).length} / ${a.filter(v => v > 4).length}（200 拍）`);
-  ok(a.some(v => v >= 100) && a.filter(v => v >= 100).length < a.length / 2,
-     `有鼓点高峰、也不是一直响（≥100 的占 ${a.filter(v => v >= 100).length}/200）`);
+  ok(a.some(v => v >= 8) && a.filter(v => v >= 8).length < a.length / 2,
+     `有鼓点高峰、也不是一直响（≥8 的占 ${a.filter(v => v >= 8).length}/200）`);
   /* 余音：鼓点之后是连续 >4 的一段，不是一拍一个孤立尖峰 */
   let runs = 0;
   for (let i = 1; i < a.length; i++) if (a[i] > 4 && a[i - 1] > 4) runs++;

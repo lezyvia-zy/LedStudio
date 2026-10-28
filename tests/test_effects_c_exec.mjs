@@ -13,7 +13,7 @@ import path from 'node:path';
 const html = fs.readFileSync('led_layout_editor.html', 'utf8');
 const CORE = new Function(html.match(/<script id="core">([\s\S]*?)<\/script>/)[1] + '\n; return CORE;')();
 const { FW, projectFromPreset, PRESET_SP3122D, newCustomEffect, defaultEffects, exportEffectsC,
-        simInit, simApplyMode, simSetSpeed, simTick, genRender } = CORE;
+        simInit, simApplyMode, simSetSpeed, simSetAudioLevel, fftThreshold, simTick, genRender } = CORE;
 
 let fails = 0;
 const ok = (c, m) => { console.log((c ? '  PASS  ' : '  FAIL  ') + m); if (!c) fails++; };
@@ -169,6 +169,9 @@ st.modes.list.push({ id:'mN', name:'长间隔闪', latin:'AUDIO_FLASH_LONG', ena
 const dir = path.join('tests', '.build', 'exec');
 fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 fs.mkdirSync(dir, { recursive: true });
+/* 阈值是**工程里的设置**，随导出写进 C —— 这里刻意不用出厂 4，改成 12，
+ * 后面那段「音量 10（>4 但 <12）」就能证明 C 用的是导出的阈值，不是写死的 4。 */
+st.anim = Object.assign({}, st.anim || {}, { thr: 12 });
 fs.writeFileSync(path.join(dir, 'led_effects_gen.h'), exportEffectsC(st, { form:'header', comment:'ascii', eol:'lf' }));
 
 const stub = [
@@ -259,6 +262,11 @@ const FLASH_MODE = st.modes.list.findIndex(m => m.id === 'mM');
 /* 长间隔闪：没音乐 400 拍一次 → 跑 405 拍，收尾在第 400 拍那次闪的第 5 拍（亮） */
 const FLASH_LONG_TICKS = 405;
 const FLASH_LONG_MODE = st.modes.list.findIndex(m => m.id === 'mN');
+/* 阈值是工具里调的、随导出写进 C（上面 st.anim.thr = 12）；「有音乐」取阈值 +5 = 17，
+ * 「比老阈值响、但还不够」取阈值 -2 = 10（>4 但 <12）—— 后者用来证明 C 用的是导出的阈值。 */
+const THR  = fftThreshold(st.anim && st.anim.thr);
+const LOUD = Math.min(FW.AUDIO_MAX, THR + 5);
+const NEAR = Math.max(0, THR - 2);
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -266,6 +274,9 @@ const main = [
   '#define LED_EFFECTS_GEN_RENDER 1',
   '#include "led_effects_gen.h"',
   'static ring_t g_ring;',
+  /* 平台 HAL：音量 0..LED_GEN_AUDIO_MAX（生成代码自己拿它跟 LED_GEN_FFT_THRESHOLD 比） */
+  'static uint8_t g_audio = 0u;',
+  'uint8_t led_gen_hal_audio_level(void) { return g_audio; }',
   'static const led_zone_t Z[] = {{0,8,0},{8,8,0},{16,40,0},{56,24,1},{80,24,1}};',
   'int main(void) {',
   '    uint8_t m, i;',
@@ -284,8 +295,8 @@ const main = [
   '            printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '        printf("|");',
   '    }',
-  /* 音量档场景：同一模式，前一半拍慢档、后一半拍快档。
-   * 对应固件 spimled_service.c 每 20ms 调 ring_set_audio_level() 改 ring->speed_cur —— 生成代码从 ring 级读档位。 */
+  /* 音量档场景：同一模式，前一半拍安静（音量 0）、后一半拍有音乐（音量 > 阈值）。
+   * 对应固件：平台 HAL 每 20ms 给一个音量，生成代码自己拿它跟 LED_GEN_FFT_THRESHOLD 比。 */
   '    memset(&g_ring, 0, sizeof(g_ring));',
   '    memcpy(g_ring.zones, Z, sizeof(Z));',
   '    g_ring.zone_count = 5;',
@@ -295,7 +306,7 @@ const main = [
   '    g_ring.speed_fast = 1;',
   '    led_gen_apply_mode(&g_ring, 1);',
   '    for (t = 0; t < ' + TICKS + '; t++) {',
-  '        g_ring.speed_cur = (t < ' + HALF_TICK + ') ? g_ring.speed_slow : g_ring.speed_fast;',
+  '        g_audio = (t < ' + HALF_TICK + ') ? 0u : (uint8_t)' + LOUD + ';',
   '        led_gen_tick(&g_ring);',
   '    }',
   '    led_gen_render_mode(&g_ring);',
@@ -310,7 +321,7 @@ const main = [
   '    g_ring.brightness.current = 256;',
   '    g_ring.speed_slow = 8;',
   '    g_ring.speed_fast = 1;',
-  '    g_ring.speed_cur = 8;',
+  '    g_audio = 0u;',
   '    led_gen_apply_mode(&g_ring, 1);',
   '    for (t = 0; t < ' + TICKS + '; t++) led_gen_tick(&g_ring);',
   '    led_gen_render_mode(&g_ring);',
@@ -326,7 +337,7 @@ const main = [
   '    g_ring.brightness.current = 256;',
   '    g_ring.speed_slow = 8;',
   '    g_ring.speed_fast = 1;',
-  '    g_ring.speed_cur = 8;',
+  '    g_audio = 0u;',
   '    led_gen_apply_mode(&g_ring, ' + LONG_MODE + ');',
   '    for (t = 0; t < ' + TICKS_LONG + '; t++) led_gen_tick(&g_ring);',
   '    led_gen_render_mode(&g_ring);',
@@ -343,7 +354,7 @@ const main = [
   '    g_ring.speed_fast = 1;',
   '    led_gen_apply_mode(&g_ring, ' + FLASH_MODE + ');',
   '    for (t = 0; t < ' + FLASH_TICKS + '; t++) {',
-  '        g_ring.speed_cur = (t < ' + FLASH_LOUD_FROM + ') ? g_ring.speed_slow : g_ring.speed_fast;',
+  '        g_audio = (t < ' + FLASH_LOUD_FROM + ') ? 0u : (uint8_t)' + LOUD + ';',
   '        led_gen_tick(&g_ring);',
   '    }',
   '    led_gen_render_mode(&g_ring);',
@@ -358,7 +369,7 @@ const main = [
   '    g_ring.brightness.current = 256;',
   '    g_ring.speed_slow = 8;',
   '    g_ring.speed_fast = 1;',
-  '    g_ring.speed_cur = 8;',
+  '    g_audio = 0u;',
   '    led_gen_apply_mode(&g_ring, ' + FLASH_MODE + ');',
   '    for (t = 0; t < ' + FLASH_TICKS + '; t++) led_gen_tick(&g_ring);',
   '    led_gen_render_mode(&g_ring);',
@@ -374,9 +385,27 @@ const main = [
   '    g_ring.brightness.current = 256;',
   '    g_ring.speed_slow = 8;',
   '    g_ring.speed_fast = 1;',
-  '    g_ring.speed_cur = 8;',
+  '    g_audio = 0u;',
   '    led_gen_apply_mode(&g_ring, ' + FLASH_LONG_MODE + ');',
   '    for (t = 0; t < ' + FLASH_LONG_TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+
+  /* 阈值确实是导出的那个：音量 10（> 老阈值 4，但 < 工具里设的 12）—— 必须仍算「安静」。
+     固件里若还写死 4，这一段会变亮、和「全程安静」那条对不上。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_ring.speed_cur = 8;',
+  '    g_audio = (uint8_t)' + NEAR + ';',
+  '    led_gen_apply_mode(&g_ring, ' + FLASH_MODE + ');',
+  '    for (t = 0; t < ' + FLASH_TICKS + '; t++) led_gen_tick(&g_ring);',
   '    led_gen_render_mode(&g_ring);',
   '    for (i = 0; i < LED_COUNT; i++)',
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
@@ -413,9 +442,9 @@ try {
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
 const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 5 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 6, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 6 段附加场景）`);
+ok(cAll === st.modes.list.length + 7, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 7 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -567,16 +596,16 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
      '把该层打开后 JS 帧序列确实变了（这条断言有区分度）');
 }
 
-/* ---------- 5) 音量档：C 侧每拍从 ring 级同步档位，与 JS 预览逐字节一致 ----------
- * 固件链路：spimled_service.c 每 20ms 调 ring_set_audio_level() → 改 ring->speed_cur；
- * 生成代码在 led_gen_tick() 里把 ring 级档位同步进每个实例（各效果仍用自己的 fast/slow）。 */
+/* ---------- 5) 音量档：C 侧按 HAL 音量 + 导出的阈值自己判档，与 JS 预览逐字节一致 ----------
+ * 固件链路（新）：平台 HAL 每 20ms 给一个 0..AUDIO_MAX 的音量，生成代码在 led_gen_tick()
+ * 里拿它跟 LED_GEN_FFT_THRESHOLD 比 → 每个实例按自己配的 fast/slow 走。 */
 {
   const sA = JSON.parse(JSON.stringify(st));
   sA.anim.modeId = st.modes.list[1].id;
   const simA = simInit();
   simApplyMode(simA, sA);
   for (let t = 0; t < TICKS; t++) {
-    simSetSpeed(simA, t < HALF_TICK ? 'slow' : 'fast');   /* 与 C 侧同一驱动时序 */
+    simSetAudioLevel(simA, t < HALF_TICK ? 0 : LOUD, THR);   /* 与 C 侧同一驱动时序 */
     simTick(simA, sA, false);
   }
   const fa = cAux[0] || [];
@@ -647,7 +676,7 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
     const sim = simInit();
     simApplyMode(sim, s2);
     for (let t = 0; t < FLASH_TICKS; t++) {
-      simSetSpeed(sim, t < loudFrom ? 'slow' : 'fast');
+      simSetAudioLevel(sim, t < loudFrom ? 0 : LOUD, THR);
       simTick(sim, s2, false);
     }
     return Array.from({ length: FW.LED_COUNT },
@@ -670,6 +699,23 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
      `越过阈值后整条亮起（${litLoud} 颗，亮度 ${(loudRow[0] || [0])[0]}/255 = 最高亮度 200 的渲染值）`);
   ok(litQuiet === FW.LED_COUNT && (quietRow[0] || [0])[0] === pxOf(50),
      `全程安静跑 ${FLASH_TICKS} 拍后暗在最低亮度上（${litQuiet} 颗，亮度 ${(quietRow[0] || [0])[0]} = 最低亮度 50 的渲染值）`);
+
+  /* 阈值 = 工程里设的 12（导出成 LED_GEN_FFT_THRESHOLD）：音量 10 是「>4 但 <12」，
+   * 必须仍算安静 —— 和上面那条「全程安静」逐字节相同；写死 4 的话这里会亮起来。 */
+  const runNear = () => {
+    const s4 = JSON.parse(JSON.stringify(st));
+    s4.anim.modeId = mode.id;
+    const sim4 = simInit();
+    simApplyMode(sim4, s4);
+    for (let t = 0; t < FLASH_TICKS; t++) { simSetAudioLevel(sim4, NEAR, THR); simTick(sim4, s4, false); }
+    return Array.from({ length: FW.LED_COUNT },
+      (_, i) => sim4.fb[i * 3] + ',' + sim4.fb[i * 3 + 1] + ',' + sim4.fb[i * 3 + 2]).join('|');
+  };
+  const jsNear = runNear();
+  ok((cAux[6] || []).map(px => px.join(',')).join('|') === jsNear,
+     `阈值下沿（音量 ${NEAR} < 阈值 ${THR}）：C 侧与 JS 逐字节一致`);
+  ok(jsNear === jsQuiet,
+     `音量 ${NEAR} 低于阈值 ${THR} 时按「安静」走（与全程静音那一版相同）—— 阈值确实是导出的那个`);
 
   /* 长间隔闪：没音乐 400 拍 = 8 秒一次，全程安静跑 405 拍 —— 收尾正落在第 400 拍那次闪的
    * 第 5 拍上（亮）。这一条是「三列时间真的是 uint16」的 C 侧证据：400 被截成 uint8 的话

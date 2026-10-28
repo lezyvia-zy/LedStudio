@@ -252,7 +252,7 @@ const pinDown = (listeners['aThrPin:pointerdown'] || [])[0];
 ok(typeof pinDown === 'function', '阈值针挂了 pointerdown（拖得动）');
 pinDown({ clientX: 600, pointerId: 1, preventDefault(){} });
 await new Promise(r => realST(r, 70));
-ok(animOf(0).thr >= 120 && animOf(0).thr <= 136, `拖到滑杆中间 → 阈值 ${animOf(0).thr}（≈128）`);
+ok(animOf(0).thr >= 9 && animOf(0).thr <= 11, `拖到滑杆中间 → 阈值 ${animOf(0).thr}（0..20 刻度的中间 ≈10）`);
 const pinMove = (listeners['aThrPin:pointermove'] || [])[0];
 pinMove({ clientX: -9999 });
 await new Promise(r => realST(r, 70));
@@ -260,7 +260,7 @@ ok(animOf(0).thr === 0 && thrIn.value === '0', `拖到最左 → 阈值 0（格�
 /* 拖到最右 = 255：只有满音量才算「有音乐」 */
 pinMove({ clientX: 99999 });
 await new Promise(r => realST(r, 70));
-ok(animOf(0).thr === 255, `拖到最右 → 阈值 ${animOf(0).thr}（夹在 0..255）`);
+ok(animOf(0).thr === 20, `拖到最右 → 阈值 ${animOf(0).thr}（夹在 0..20）`);
 spd.value = 'slow'; spd.onchange();
 await new Promise(r => setTimeout(r, 100));
 ok(thrIn.disabled === true && thrPin.classList.contains('off') && aud.disabled === true,
