@@ -389,6 +389,32 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
   ok(srcSel.value === 'system' && animOf(0).audioSrc === 'system',
      '失败也记住选的是「电脑声音」（下次打开开关就是它）');
 
+  /* 电脑声音（成功）：**关掉开关保持共享**，再打开不重新弹共享框（这才是「不烦」的关键） */
+  let stoppedBefore = stopped;
+  const callsBefore = displayCalls;
+  globalThis.navigator.mediaDevices.getDisplayMedia = async () => {
+    displayCalls++;
+    const aTrack = { stop(){ stopped++; }, onended: null };
+    const vTrack = { stop(){ stopped++; }, onended: null };
+    return { getTracks: () => [aTrack, vTrack], getAudioTracks: () => [aTrack], getVideoTracks: () => [vTrack] };
+  };
+  aud.onclick();
+  await new Promise(r => realST(r, 70));
+  ok(displayCalls === callsBefore + 1 && animOf(0).audio === true,
+     `电脑声音：打开开关弹一次共享（getDisplayMedia ${displayCalls} 次）`);
+  aud.onclick();                          /* 关掉：只是不放信号 */
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audio === false && displayCalls === callsBefore + 1 && stopped === stoppedBefore,
+     '关掉开关不放信号，但**共享保持**（没释放轨道、也没再弹共享框）');
+  aud.onclick();                          /* 再打开：复用 */
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audio === true && displayCalls === callsBefore + 1,
+     '再打开直接复用刚才的共享（getDisplayMedia 没有第二次）');
+  srcSel.value = 'random'; srcSel.onchange();   /* 换音源才断开共享 */
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audio === true && stopped > stoppedBefore,
+     '换到「随机」：共享才断开（轨道释放），信号不断');
+
   /* 导出物与音源完全无关：板上仍只认 HAL + 参数 */
   const hdr = CORE2.exportEffectsC(stOf(), { form:'header', comment:'ascii', eol:'lf' });
   ok(!/audioSrc|getUserMedia|getDisplayMedia|麦克风/.test(hdr),

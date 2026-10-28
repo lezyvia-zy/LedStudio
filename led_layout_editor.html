@@ -458,12 +458,12 @@
         <span class="thrBox" data-tip="出快档的「过渡」（ms）：快→慢不再直切，而是用这么久把「每格拍数」从快档爬到慢档 —— 想要「滑行减速」的阻尼感就加大；0 = 直切（加滑移之前的行为）。&#10;落进 20ms 一拍时向上取整算每拍爬多少。随导出写进 C 的 LED_GEN_STAGE_GLIDE_MS。">过渡(ms)<input type="number" id="aGlide" min="0" max="3000" step="10" value="350"></span>
       </div>
       <div class="pr"><span class="lb">音源</span>
-        <select id="aSrc" data-tip="「音乐来了」打开后听什么：**随机** = 每 20ms 造一个音量（底噪 + 随机鼓点 + 余音，演示 / 录屏用）；**麦克风** = 电脑麦克风（外放的音乐也能收到）；**电脑声音** = 共享一个标签页 / 屏幕，共享时勾「分享音频」（Chrome / Edge）。&#10;只在打开「音乐来了」时生效；开着的时候换源会立刻换过去。真声音按 -60dB..0dB 映射到 0..最大值。&#10;**只影响工具预览** —— 导出物不变，板上仍由 led_gen_hal_audio_level() 给音量。">
+        <select id="aSrc" data-tip="「音乐来了」打开后听什么：**随机** = 每 20ms 造一个音量（底噪 + 随机鼓点 + 余音，演示 / 录屏用）；**麦克风** = 电脑麦克风（外放的音乐也能收到）；**电脑声音** = 共享一个标签页 / 屏幕，共享时勾「分享音频」（Chrome / Edge）。&#10;只在打开「音乐来了」时生效；开着的时候换源会立刻换过去。真声音按 -60dB..0dB 映射到 0..最大值。&#10;**电脑声音的共享会一直保持**（关掉开关只是不放信号），所以反复开关不会重选；换音源 / 换项目 / 停止共享才断开。&#10;**只影响工具预览** —— 导出物不变，板上仍由 led_gen_hal_audio_level() 给音量。">
           <option value="random">随机</option>
           <option value="mic">麦克风</option>
           <option value="system">电脑声音</option>
         </select>
-        <button id="aAudio" data-tip="**一个开关**：打开就有信号进来（按左边选的音源），关掉就没有。&#10;随机 = 立刻开始（模拟板上信号，暂停也会跳）；麦克风 / 电脑声音 = 真声音，打开这一下会请求授权 —— 电脑声音还要在共享弹窗里勾「分享音频」。&#10;开着的时候换音源会立刻换过去；切到手动慢/快档、换项目、停止共享都会自动关掉。">音乐来了</button>
+        <button id="aAudio" data-tip="**一个开关**：打开就有信号进来（按左边选的音源），关掉就没有。&#10;随机 = 立刻开始（模拟板上信号，暂停也会跳）；麦克风 / 电脑声音 = 真声音，打开这一下会请求授权 —— 电脑声音还要在共享弹窗里勾「分享音频」。&#10;**电脑声音的共享会保持住**：之后反复开关都不再弹共享框（换音源 / 换项目 / 停止共享才断开）。&#10;开着的时候换音源会立刻换过去；切到手动慢/快档、换项目、停止共享都会自动关掉。">音乐来了</button>
       </div>
     </div>
 
@@ -1103,7 +1103,8 @@
           <b>音源</b>（预览条最下面一行）：<b>随机</b> / <b>麦克风</b> / <b>电脑声音</b> —— 右边<b>「音乐来了」就是一个开关</b>：
           打开就有信号（按选中的音源）、关掉就没有。随机立刻开始；麦克风 / 电脑声音是<b>真声音</b>，
           打开这一下会请求授权 —— 「电脑声音」还要共享一个标签页 / 屏幕并勾上<b>「分享音频」</b>。
-          <b>开着的时候换音源会立刻换过去</b>。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，
+          <b>开着的时候换音源会立刻换过去</b>；<b>「电脑声音」的共享会保持住</b>（关掉开关只是不放信号），
+          反复开关音乐不会再次弹共享框 —— 换音源 / 换项目 / 停止共享时才断开。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，
           再走同一套 40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
           C 里没有「音源」这一项。切到手动档 / 换项目 / 停止共享会自动关掉开关。<br>
           「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
@@ -5966,6 +5967,15 @@ function audioCapStop() {
   try { audioCap.ctx.close(); } catch (e) {}
   audioCap = null;
 }
+/* 关掉开关时怎么处理采集：
+ *   电脑声音 —— **保持这条共享**（关掉只是不放信号）。浏览器每次 getDisplayMedia 都要重选，
+ *     反复开关音乐时别让人每次都点一遍共享框；共享本身在「换音源 / 换项目 / 停止共享」时才释放。
+ *   麦克风 —— 直接放掉（授权是一次性的，下次 getUserMedia 不会再弹）。 */
+function audioCapHold() {
+  if (!audioCap) return;
+  if (audioCap.kind === 'system') return;
+  audioCapStop();
+}
 function audioCapLevel(max) {
   if (!audioCap) return 0;               /* 没在采音 = 安静（不要偷偷回退成随机） */
   try {
@@ -7382,10 +7392,13 @@ function buildAnimPanel() {
    * 开着的时候换音源 = 立刻换过去；换不过去就退回原来的选择并关掉开关。 */
   function audioOff(msg) {
     const a = A();
+    const held = !!(audioCap && audioCap.kind === 'system');
     a.audio = false; a.fft = 0;
-    audioCapStop();
+    audioCapHold();
     syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
-    status(msg || '音乐停了：音量回到 0（拖滑杆可手动改）');
+    status(msg || (held
+      ? '音乐停了：音量回到 0（电脑声音的共享保持中 —— 再打开不用重选；换音源 / 换项目会断开）'
+      : '音乐停了：音量回到 0（拖滑杆可手动改）'));
   }
   async function audioOnWith(src) {
     const a = A();
@@ -7396,6 +7409,17 @@ function buildAnimPanel() {
       resetClock();
       startLoop();
       status(`音乐来了：每 20ms 随机注入音量（阈值 ${fftThreshold(a.thr, a.audioMax)}），动画跟着忽快忽慢`);
+      return true;
+    }
+    /* 电脑声音的共享还留着（关开关只是不放信号）→ 直接接着用，不再弹共享框 */
+    if (audioCap && audioCap.kind === src) {
+      if (audioCap.ctx && audioCap.ctx.resume) { try { audioCap.ctx.resume(); } catch (e) {} }
+      a.audio = true; a.fft = 0;
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+      resetClock();
+      startLoop();
+      status(src === 'mic' ? '音乐来了：继续听麦克风'
+                           : '音乐来了：继续用刚才的共享（不用再选一次；换音源 / 换项目会断开）');
       return true;
     }
     const btn = $('#aAudio');
@@ -7433,6 +7457,8 @@ function buildAnimPanel() {
       if (next === prev) { syncAudioBtn(); return; }
       a.audioSrc = next;
       saveStore();
+      /* 共享只在「电脑声音」下保留：换成随机 / 麦克风就断开 */
+      if (audioCap && audioCap.kind !== next) audioCapStop();
       let failed = false;
       if (a.audio) {                     /* 开着换源：立刻换；换不过去退回原选择并停下 */
         audioCapStop(); a.audio = false; a.fft = 0;
