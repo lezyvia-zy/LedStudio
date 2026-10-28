@@ -95,7 +95,7 @@
   }
   #previewBar .thrPin.off{opacity:.35; cursor:default; pointer-events:none}
   #previewBar .thrBox{flex:0 0 auto; display:flex; align-items:center; gap:2px; font-size:11px; color:var(--dim)}
-  #previewBar .thrBox input{width:42px; padding:1px 3px; font-size:11px}
+  #previewBar .thrBox input{width:62px; padding:1px 3px; font-size:11px}
   #previewBar #aFftTxt{flex:0 0 auto; font-weight:400; font-size:11px; color:var(--dim); white-space:nowrap}
   #previewBar button{flex:0 0 auto; font-size:12px}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
@@ -146,7 +146,7 @@
   button:hover{border-color:var(--hover-line)}
   button.on{background:var(--sel-bg); border-color:var(--accent); color:var(--btn-on-fg)}
   button.pri{background:var(--pri-bg); border-color:var(--pri-line)}
-  input[type=number]{width:auto; min-width:46px}
+  input[type=number]{width:auto; min-width:72px}
   input[type=text]{width:auto}
   /* 一行里放两个数字框时，各占一半 */
   label.row>input[type=number]+input[type=number]{flex:1 1 46px}
@@ -445,9 +445,8 @@
         <span class="thrBox" data-tip="音乐阈值（音量**大于**它才算「有音乐」，正好等于仍算安静）。&#10;0..20，出厂 4；导出成 C 的 LED_GEN_FFT_THRESHOLD，固件照它判档。&#10;等价于拖滑杆上那根竖针。">阈<input type="number" id="aThr" min="0" max="20" step="1" value="4"></span>
       </div>
       <div class="pr"><span class="lb">音乐</span>
-        <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS；采样周期固定 40ms（固件那边的计时定死，工具不暴露）。">阻尼<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
-        <b id="aStageTxt">460 ms</b>
-        <span class="thrBox" data-tip="出快档的「过渡」（ms）：快→慢不再直切，而是用这么久把「每格拍数」从快档爬到慢档 —— 想要「滑行减速」的阻尼感就加大；0 = 直切（加滑移之前的行为）。&#10;落进 20ms 一拍时向上取整算每拍爬多少。随导出写进 C 的 LED_GEN_STAGE_GLIDE_MS。">过渡<input type="number" id="aGlide" min="0" max="3000" step="10" value="350"></span>
+        <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS；采样周期固定 40ms（固件那边的计时定死，工具不暴露）。">阻尼(ms)<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
+        <span class="thrBox" data-tip="出快档的「过渡」（ms）：快→慢不再直切，而是用这么久把「每格拍数」从快档爬到慢档 —— 想要「滑行减速」的阻尼感就加大；0 = 直切（加滑移之前的行为）。&#10;落进 20ms 一拍时向上取整算每拍爬多少。随导出写进 C 的 LED_GEN_STAGE_GLIDE_MS。">过渡(ms)<input type="number" id="aGlide" min="0" max="3000" step="10" value="350"></span>
       </div>
       <div class="pr"><span class="lb"></span>
         <button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 点一下开始**随机**注入音量（底噪 + 随机鼓点 + 余音衰减，按板子上的真实节奏走），再点一下停、音量回到 0。&#10;暂停时也会自己跳（模拟的是板上 signal，跟播不播放无关）；样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()。&#10;效果页按播放、或直接拖上面那根滑杆，看到的都是同一份音量。">音乐来了（音量随机跳）</button>
@@ -5720,14 +5719,13 @@ function syncAudioBtn() {
     if (!focused) tb.value = thr;
     tb.disabled = !auto;
   }
-  /* 阻尼 / 过渡：框里是用户填的 ms，读数写实际生效的阻尼（向上取整到拍）。
+  /* 阻尼 / 过渡：单位写在标签里（「阻尼(ms)」「过渡(ms)」），不再额外跟读数。
      采样周期固定 40ms（固件那边的计时定死），工具里不暴露、只随导出写进 C。 */
   {
-    const hld = $('#aHold'), gld = $('#aGlide'), stTxt = $('#aStageTxt');
+    const hld = $('#aHold'), gld = $('#aGlide');
     const act = el => !(typeof document !== 'undefined' && document.activeElement === el);
     if (hld && act(hld)) hld.value = a.stageHoldMs;
     if (gld && act(gld)) gld.value = a.glideMs;
-    if (stTxt) stTxt.textContent = `${stageHoldTicks(a) * FW.TICK_MS} ms`;
   }
   if (b) {
     /* 文案短一点：它住在 300px 宽的常驻预览条里，长句会把滑杆挤没 */

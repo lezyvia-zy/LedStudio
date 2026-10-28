@@ -262,19 +262,18 @@ pinMove({ clientX: 99999 });
 await new Promise(r => realST(r, 70));
 ok(animOf(0).thr === 20, `拖到最右 → 阈值 ${animOf(0).thr}（夹在 0..20）`);
 
-/* ---- F) 快档阻尼（450 → 460ms，向上取整；采样固定 40ms，工具不暴露）---- */
-console.log('--- 快档阻尼 ---');
-const hldIn = byId.get('aHold'), stTxt = byId.get('aStageTxt');
-ok(!!hldIn && !byId.get('aSample') && hldIn.value === '450' && /460 ms/.test(stTxt.textContent),
-   `只有「阻尼」一格（采样固定 40ms 不暴露）：${hldIn && hldIn.value} → 读数 ${stTxt.textContent}`);
+/* ---- F) 快档阻尼 / 过渡（单位写在标签里，不再跟读数；采样固定 40ms 不暴露）---- */
+console.log('--- 快档阻尼 / 过渡 ---');
+const hldIn = byId.get('aHold'), gldIn0 = byId.get('aGlide');
+ok(!!hldIn && !!gldIn0 && !byId.get('aSample') && !byId.get('aStageTxt') &&
+   hldIn.value === '450' && gldIn0.value === '350',
+   `只有两个框、单位在标签里：阻尼 ${hldIn && hldIn.value} / 过渡 ${gldIn0 && gldIn0.value}（采样固定 40ms 不暴露、也没有多余的读数）`);
 hldIn.value = '0'; hldIn.oninput();
 await new Promise(r => realST(r, 70));
-ok(animOf(0).stageHoldMs === 0 && /^0 ms$/.test(stTxt.textContent),
-   `阻尼 = 0（不保持）→ 读数 ${stTxt.textContent}`);
+ok(animOf(0).stageHoldMs === 0, '阻尼 = 0（不保持，掉到阈值以下就回慢档）');
 hldIn.value = '450'; hldIn.oninput();
 await new Promise(r => realST(r, 70));
-ok(animOf(0).stageHoldMs === 450 && /460 ms/.test(stTxt.textContent),
-   `阻尼填 450ms → 向上取整 23 拍，读数 ${stTxt.textContent}`);
+ok(animOf(0).stageHoldMs === 450, `阻尼填 ${animOf(0).stageHoldMs}ms（生效 460ms / 23 拍）`);
 ok(animOf(0).audioSampleMs === 40, `采样周期固定 40ms（存在工程里、随导出写进 C）`);
 hldIn.value = '450'; hldIn.oninput();
 await new Promise(r => realST(r, 70));
