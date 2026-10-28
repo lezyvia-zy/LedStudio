@@ -562,6 +562,24 @@ console.log('--- 新配色（效果级）---');
   ok(show('rowSpeed') && show('rowHold') && show('rowFade') && show('rowRise') &&
      byId.get('fRise').value === '4' && byId.get('fHold').value === '8' && byId.get('fFade').value === '8',
      `七彩跳变：四个数都填进输入框（${byId.get('fSpeed').value}/${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value}）`);
+
+  /* 「跳变(渐暗后跳回)」= **配色「跳变」**（2026-10-27 用户：「色彩配置里面我们已经添加了跳变这个配置，
+   * 这两者应该是一回事。选择动画跳变，即颜色也默认切换为跳变，同时调参接口也都是用同一套」）。
+   * 老写法 = 填充层锯齿脉动（wave 2 / pulse 30）+ 配色「渐变」：套完配色下拉停在「渐变」，
+   * 包络也不在「渐亮 / 亮 / 变暗」那三行里 —— 同一件事两个旋钮（同 F18 的「呼吸」）。 */
+  pick.value = '跳变(渐暗后跳回)'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  const eJ = fxListOf(0)[0];
+  ok(eJ.color === CORE.FW.COLOR.STEP && eJ.palette.length === 3 &&
+     eJ.rise === 0 && eJ.hold === 0 && eJ.fade === 30 && eJ.speed === 30,
+     `「跳变(渐暗后跳回)」套完 = 配色跳变（color ${eJ.color} / 3 色 / 渐亮 ${eJ.rise} 亮 ${eJ.hold} 暗 ${eJ.fade} → 停留 ${eJ.speed}）`);
+  ok(!(eJ.layers[0].pulse_period | 0) && !(eJ.layers[0].pulse_amp | 0),
+     `图层不再靠填充层锯齿脉动（pulse_period ${eJ.layers[0].pulse_period} / pulse_amp ${eJ.layers[0].pulse_amp} / wave ${eJ.layers[0].wave}）`);
+  ok(col.value === String(CORE.FW.COLOR.STEP) && show('rowHold') && show('rowFade') && show('rowRise') &&
+     byId.get('fSpeedLab').textContent === '停留(拍)' &&
+     byId.get('fFade').value === '30' && byId.get('fSpeed').value === '30',
+     `色彩配置自己切到「跳变」、旋钮也在同一排（${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value} → 停留 ${byId.get('fSpeed').value}）`);
+  ok(palN() === 3, `调色板 = 预置给的 3 色（${palN()} 个色块，想单色就删到 1 个）`);
 }
 
 /* ---- 11) 暂停时也要「看得出改了配色」 ---- */
