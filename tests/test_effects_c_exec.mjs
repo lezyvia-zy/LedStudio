@@ -267,6 +267,8 @@ const FLASH_LONG_MODE = st.modes.list.findIndex(m => m.id === 'mN');
 const THR  = fftThreshold(st.anim && st.anim.thr);
 const LOUD = Math.min(FW.AUDIO_MAX, THR + 5);
 const NEAR = Math.max(0, THR - 2);
+/* 迟滞追踪的拍数：够看到「进快档 → 保持 → 掉回慢档」 */
+const STAGE_TRACE_TICKS = 60;
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -411,6 +413,23 @@ const main = [
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
 
+  /* 迟滞语义（C 侧直接读引擎内部状态）：只在第 10..14 拍给「有音乐」，20 拍之后安静 ——
+     档位应当很快进快档，然后拖够阻尼（460ms = 23 拍）才掉回慢档。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    led_gen_apply_mode(&g_ring, ' + FLASH_MODE + ');',
+  '    for (t = 0; t < ' + STAGE_TRACE_TICKS + '; t++) {',
+  '        g_audio = ((t >= 10u) && (t < 15u)) ? (uint8_t)' + LOUD + 'u : 0u;',
+  '        led_gen_tick(&g_ring);',
+  '        printf("%u:%u,", (unsigned)t, (unsigned)led_gen_stage);',
+  '    }',
+  '    printf("|");',
+
   '    printf("\\n");',
   '    return 0;',
   '}',
@@ -442,9 +461,9 @@ try {
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
 const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 5 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 7, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 7 段附加场景）`);
+ok(cAll === st.modes.list.length + 8, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 8 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -734,6 +753,33 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
      `长间隔闪：全程安静 ${FLASH_LONG_TICKS} 拍（间隔 400 拍），C 侧与 JS 逐字节一致`);
   ok(longRow.length === FW.LED_COUNT && (longRow[0] || [0])[0] === pxOf(200),
      `长间隔闪跑到第 ${FLASH_LONG_TICKS} 拍仍在第 400 拍那次闪的亮段上（${(longRow[0] || [0])[0]} = 最高亮度 200 的渲染值；uint8 会截成 144 拍，这里早就暗了）`);
+}
+
+/* ---------- 4f) 快档迟滞（阻尼）：C 侧内部状态与 JS 逐拍一致吗 ----------
+ * 只在第 10..14 拍给「有音乐」，之后一直安静。期望：很快进快档，然后拖够阻尼
+ * （450ms → 向上取整 460ms = 23 拍）才掉回慢档 —— 这就是「慢→快迅速、快→慢有阻尼」。 */
+{
+  const mode = st.modes.list.find(m => m.id === 'mM');
+  const s5 = JSON.parse(JSON.stringify(st));
+  s5.anim.modeId = mode.id;
+  const sim5 = simInit();
+  simApplyMode(sim5, s5);
+  let jsTrace = '';
+  for (let t = 0; t < STAGE_TRACE_TICKS; t++) {
+    simSetAudioLevel(sim5, (t >= 10 && t < 15) ? LOUD : 0, THR);
+    simTick(sim5, s5, false);
+    jsTrace += `${t}:${sim5.stage},`;
+  }
+  const rawSegs = out.trim().split('|');
+  const cTrace = (rawSegs[st.modes.list.length + 7] || '').trim();
+  ok(cTrace === jsTrace, `快档迟滞的逐拍状态 C ↔ JS 完全一致（${cTrace.slice(0, 40)}…）`);
+  /* 语义：进快档在音量出现后的第一个采样点（40ms 一次 → 最多晚 1 拍），
+     回慢档要等阻尼到期（23 拍）之后的采样点。 */
+  const enter = +((jsTrace.match(/(\d+):1,/) || [])[1] || -1);
+  const back  = +((jsTrace.match(/1,(?:(\d+:\d+,)*?)(\d+):0,/) || [])[2] || -1);
+  ok(enter >= 10 && enter <= 11, `进快档很快：第 ${enter} 拍（音量从第 10 拍开始）`);
+  ok(back - enter >= 22 && back - enter <= 24,
+     `回慢档被阻尼拖住：第 ${enter} 拍进、第 ${back} 拍才回（差 ${back - enter} 拍 ≈ 460ms）`);
 }
 
 /* 覆盖度自检 */

@@ -478,30 +478,43 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
      '0 / 4（等于阈值）还是慢档 —— 判据是「大于」，不是「大于等于」');
   ok(ringSpeedFromAudio(sim, 5) === 1 && ringSpeedFromAudio(sim, 255) === 1,
      '5 / 255（大于阈值）切快档');
-  /* 走一遍 simSetAudioLevel()：音量本身、ring 级档位、各实例 speed_cur 一起变 */
+  /* 走一遍采样 + 迟滞（2026-10-28 用户：「采完以后直接读取参数当前值…快档 450ms 是更新参数值的时间」）：
+   *   simSetAudioLevel() 只写音量，档位在 simAudioStep()（= 每 20ms 一拍）里按
+   *   「每 40ms 采样一次 + 进快档立刻 + 回慢档要等够 460ms」决定。 */
+  const { simAudioStep } = CORE;
   simSetAudioLevel(sim, 15);
-  ok(sim.audio_level === 15 && sim.speed_cur === 1 && sim.insts[0].speed_cur === 1,
-     '音量 15 → ring 级 1、实例 speed_cur 也变成 1（等价 ring_set_audio_level()）');
-  /* 每个 8 拍走一格；切回安静后一次走满 8 拍 */
+  ok(sim.audio_level === 15 && sim.stage === 0 && sim.speed_cur === 8,
+     '音量 15 只写进 ring；档位要等采样（40ms）才更新');
+  simAudioStep(sim, null);                     /* 第 1 拍：累加到 20ms，采样周期没到 */
+  ok(sim.stage === 0 && sim.speed_cur === 8, '采样周期没到（20 < 40ms）→ 仍是慢档');
+  simAudioStep(sim, null);                     /* 第 2 拍：采到 → 立刻进快档 */
+  ok(sim.stage === 1 && sim.speed_cur === 1 && sim.insts[0].speed_cur === 1,
+     '采到 > 阈值 → 立刻进快档，并广播给实例');
+  /* 安静下来也要等够「阻尼」（450 → 向上取整 460ms = 23 拍）才回慢档 */
   simSetAudioLevel(sim, 0);
-  ok(sim.audio_level === 0 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
-     '音乐停了（音量 0）→ 回到慢档 8');
+  for (let i = 0; i < 20; i++) simAudioStep(sim, null);   /* 20 拍 = 400ms < 460ms */
+  ok(sim.stage === 1 && sim.speed_cur === 1, '保持期内（400ms < 460ms）安静也还是快档 —— 阻尼');
+  for (let i = 0; i < 6; i++) simAudioStep(sim, null);    /* 26 拍 = 520ms > 460ms */
+  ok(sim.stage === 0 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
+     '保持期到了再采样：已经安静 → 回慢档 8');
   /* 夹到 0..AUDIO_MAX(20)，别让界面传负数/超界把判据弄反 */
   ok(simSetAudioLevel(sim, -5) === 0 && simSetAudioLevel(sim, 999) === FW.AUDIO_MAX,
      `音量夹在 0..${FW.AUDIO_MAX}（-5 → 0、999 → ${FW.AUDIO_MAX}）`);
-  /* 退化配置（fast 不小于 slow）时，即便音量很大也走慢档 —— 与 C 的判据一致 */
+  /* 退化配置（fast 不小于 slow）时，即便（采到）大音量也走慢档 —— 与 C 的判据一致 */
   sim.insts[0].speed_fast = 8; sim.insts[0].speed_slow = 8;
-  simSetAudioLevel(sim, 200);
+  simSetAudioLevel(sim, 20);
+  simAudioStep(sim, null); simAudioStep(sim, null);
   ok(sim.insts[0].speed_cur === 8, 'fast == slow 时音量再大也不切档（与 ringIsFast 同一条判据）');
   /* 换档不改 step_cnt：相位不跳（固件每拍只写 speed_cur） */
   sim.insts[0].speed_fast = 1; sim.insts[0].speed_slow = 8;
+  sim.stage = 0; sim.stage_hold = 0; sim.audio_acc = 0; sim.lvl_sample = 0;
   sim.insts[0].step_cnt = 3;
-  simSetAudioLevel(sim, 200);
+  simSetAudioLevel(sim, 20);
+  simAudioStep(sim, null); simAudioStep(sim, null);
   ok(sim.insts[0].step_cnt === 3, '切档不重置 step_cnt（正在走的这一格不会跳）');
 
   /* 阈值可调（2026-10-28 用户：「音乐信号的阈值要可调，现在固定到4了」）：
-   * 第三个参数就是阈值；不传 = 固件那个 LED_FFT_THRESHOLD(=4)。
-   * 只影响工具里的预览判档 —— 导出代码读固件 led_ring.h 的宏。 */
+   * 第三个参数就是阈值；不传 = 固件那个 LED_FFT_THRESHOLD(=4)。 */
   sim.insts[0].speed_fast = 1; sim.insts[0].speed_slow = 8;
   ok(ringSpeedFromAudio(sim, 10, 15) === 8 && ringSpeedFromAudio(sim, 16, 15) === 1,
      '自定义阈值 15：音量 10 慢档、16 快档');
@@ -510,11 +523,29 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
   ok(fftThreshold(-3) === 0 && fftThreshold(999) === FW.AUDIO_MAX &&
      fftThreshold(null) === 4 && fftThreshold(undefined) === 4 && fftThreshold('') === 4,
      `阈值夹在 0..${FW.AUDIO_MAX}；不传（null / undefined / 空串）就是出厂那个 4`);
-  simSetAudioLevel(sim, 10, 15);
-  ok(sim.audio_level === 10 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
-     'simSetAudioLevel 的第三个参数就是阈值（10 < 15 → 慢档）');
-  simSetAudioLevel(sim, 16, 15);
-  ok(sim.speed_cur === 1 && sim.insts[0].speed_cur === 1, '音量 16 > 阈值 15 → 快档（广播到实例）');
+  /* simSetAudioLevel 的第三个参数 = 阈值：10 < 15 不进快档、16 > 15 进 */
+  {
+    sim.stage = 0; sim.stage_hold = 0; sim.audio_acc = 0; sim.lvl_sample = 0;
+    simSetAudioLevel(sim, 10, 15);
+    simAudioStep(sim, null); simAudioStep(sim, null);
+    ok(sim.stage === 0 && sim.speed_cur === 8, 'simSetAudioLevel 的第三个参数就是阈值（10 < 15 → 慢档）');
+    sim.stage = 0; sim.stage_hold = 0; sim.audio_acc = 0; sim.lvl_sample = 0;
+    simSetAudioLevel(sim, 16, 15);
+    simAudioStep(sim, null); simAudioStep(sim, null);
+    ok(sim.stage === 1 && sim.speed_cur === 1 && sim.insts[0].speed_cur === 1,
+       '音量 16 > 阈值 15 → 快档（采样两次后生效并广播到实例）');
+  }
+  /* 采样周期 / 阻尼也可以调：面向前两项是 ms，落进拍向上取整 */
+  {
+    const st2 = { anim: { audioSampleMs: 60, stageHoldMs: 450 } };
+    ok(CORE.audioSampleTicks(st2) === 3 && CORE.stageHoldTicks(st2) === 23,
+       `采样 60ms → ${CORE.audioSampleTicks(st2)} 拍、阻尼 450ms → ${CORE.stageHoldTicks(st2)} 拍（向上取整）`);
+    ok(CORE.audioSampleTicks({ anim: { audioSampleMs: 30 } }) === 2 &&
+       CORE.msToTicksUp(21) === 2 && CORE.msToTicksUp(20) === 1 && CORE.msToTicksUp(0) === 0,
+       '一律向上取整：30ms → 2 拍、21ms → 2 拍、20ms → 1 拍、0 → 0（0 保持「关」的语义）');
+    ok(CORE.stageHoldTicks({ anim: { stageHoldMs: 0 } }) === 0,
+       '阻尼 0 = 不保持（掉到阈值以下就能立刻回慢档）');
+  }
 }
 
 /* ---- 9c) 「音乐来了」的随机音源：底噪 + 随机鼓点 + 余音（固定种子）---- */

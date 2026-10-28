@@ -116,16 +116,24 @@
 **判据归引擎**：生成的 `led_gen_tick()` 每帧读一次平台的音量，跟**导出进同一个头文件的阈值宏**比：
 
 ```c
-/* led_effects_gen.h（工具导出，阈值就是工具里那根针 /「阈」格调的那个数） */
-#define LED_GEN_AUDIO_MAX       20u
-#define LED_GEN_FFT_THRESHOLD   4u
+/* led_effects_gen.h（工具导出；阈值 / 采样 / 阻尼就是预览条上那三个数） */
+#define LED_GEN_AUDIO_MAX        20u
+#define LED_GEN_FFT_THRESHOLD    4u     /* 音量 > 它才算「有音乐」 */
+#define LED_GEN_AUDIO_SAMPLE_MS  40u    /* 每 40ms 采一次，不是每拍都读 */
+#define LED_GEN_STAGE_HOLD_MS    460u   /* 进快档后至少保持 460ms（450 向上取整）*/
 
 /* led_gen_tick() 里 */
-fast = (uint8_t)(((led_gen_hal_audio_level() > LED_GEN_FFT_THRESHOLD) &&
-                  (ring->speed_fast < ring->speed_slow)) ? 1u : 0u);
+led_gen_audio_step();                   /* 采样 + 迟滞，见下 */
+fast = (uint8_t)(((led_gen_stage != 0u) && (ring->speed_fast < ring->speed_slow)) ? 1u : 0u);
 ...
 I->speed_cur = (fast != 0u) ? I->speed_fast : I->speed_slow;   /* 各效果仍用自己配的 fast/slow */
 ```
+
+`led_gen_audio_step()` 的三条规则（每条都在 `test_effects_c_exec` 里逐拍比对过）：
+
+1. 每 `LED_GEN_AUDIO_SAMPLE_MS` 才真去读一次 `led_gen_hal_audio_level()`（音量抖一下就切档很难看）；
+2. 采到 **> 阈值** → **立刻**进快档，并记下「至少保持 `LED_GEN_STAGE_HOLD_MS / TICK_MS` 拍」；
+3. 保持期内不许回慢档；到期后再看采样值，仍安静才回 —— 于是「慢→快干脆、快→慢有阻尼」。
 
 平台原来那条 `ring_set_audio_level(&g_ring, mainAppCt.FFTLevel)` **不在新链路上了** ——
 留着也不会影响观感（引擎不读 `ring->speed_cur`），但也可以顺手删掉；音量只要通过

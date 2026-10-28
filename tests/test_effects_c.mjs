@@ -94,9 +94,14 @@ ok(/uint8_t flash_low;\s+\/\* audio flash: brightness during the dark frames/.te
 ok(/#define LED_GEN_AUDIO_MAX\s+20u/.test(h2) && /#define LED_GEN_FFT_THRESHOLD\s+\d+u/.test(h2),
    '导出带音量刻度 / 阈值两个宏（LED_GEN_AUDIO_MAX / LED_GEN_FFT_THRESHOLD）: '
    + ((h2.match(/#define LED_GEN_(AUDIO_MAX|FFT_THRESHOLD).*/g) || []).join(' | ')));
-ok(/led_gen_hal_audio_level\(\) > LED_GEN_FFT_THRESHOLD/.test(h2) &&
+ok(/#define LED_GEN_AUDIO_SAMPLE_MS\s+40u/.test(h2) && /#define LED_GEN_STAGE_HOLD_MS\s+460u/.test(h2),
+   '采样周期 / 快档阻尼也导出成宏（40ms、450→460ms 向上取整）: '
+   + ((h2.match(/#define LED_GEN_(AUDIO_SAMPLE_MS|STAGE_HOLD_MS).*/g) || []).join(' | ')));
+ok(/static void led_gen_audio_step\(void\)/.test(h2) &&
+   /led_gen_audio_lvl > \(uint8_t\)LED_GEN_FFT_THRESHOLD/.test(h2) &&
+   /led_gen_stage != 0u/.test(h2) &&
    /uint8_t led_gen_hal_audio_level\(void\);/.test(h2),
-   '生成的 tick 自己拿 HAL 音量跟导出的阈值比（平台只需要实现 led_gen_hal_audio_level）');
+   '生成的 tick 自己跑「每 40ms 采样 + 快档迟滞」再判档（平台只需要实现 led_gen_hal_audio_level）');
 ok(!/ring->speed_cur\s*<=/.test(h2),
    '不再从 ring->speed_cur 读档位 —— 那条路要平台按同一个阈值改档，两处容易分家');
 {
