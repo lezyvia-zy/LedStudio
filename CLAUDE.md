@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1897 项断言。五类：
+26 个套件、1903 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -187,7 +187,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 42. **阈值要跟着导出走，不要留在固件里手改；「音乐来了」只是注入源**（2026-10-28，用户「音乐信号的阈值要可调，现在固定到4了。可以在音量的滑块上增加一个滑针来调整阈值，同时在音量条的末尾处增加一个参数输入框」＋「点击【音乐来了】就开始自动输入随机数，模仿板上真实情况。再次点击就取消，默认输入的是0」；同日第二轮「不行，阈值设定在这里设置好了以后，也要在固件里面应用。最后所有的都要以此工具导出的c为准……除条件限制需要认为手动修改的外，都要以此为准。所以不要考虑现在的固件已有的彩灯驱动，只是作为思路参考。还有音量范围不需要那么大，最多也就【0~20】」）：① **导出即真相**：`exportEffectsC()` 写 `#define LED_GEN_AUDIO_MAX 20u` + `#define LED_GEN_FFT_THRESHOLD <A().thr>u`，`led_gen_tick()` 里 `fast = led_gen_hal_audio_level() > LED_GEN_FFT_THRESHOLD && ring->speed_fast < ring->speed_slow` —— **不再读 `ring->speed_cur`**，也不再要求固件那边把 `LED_FFT_THRESHOLD` 改成同一个数（两份来源必然分家）。② 音量刻度统一 **0..20**（`FW.AUDIO_MAX`）：滑杆 / 阈值格 / `A().fft` / `simSetAudioLevel()` / `fftMusicLevel()` 全按这个刻度；别再把 0..255 的老刻度留一半。③ 界面两个入口写同一个数：滑杆上那根可拖的竖针 `#aThrPin`（`cpBindDrag` + `thrAtClientX()`：按 `#aFft` 的 `getBoundingClientRect()` 折算，**两端扣掉 range 滑块半径 8px**）＋末尾的「阈」格 `#aThr`；手动档下两者跟滑杆一起灰掉（**手动档只影响预览，导出代码永远按音量判档**）。④ 「音乐来了」= **注入源**：`fftMusicLevel()` 每 20ms 给一个随机音量（底噪 0..1 + ≈10% 起鼓点 8..20 + 余音），用**固定种子的 LCG**，**别用 `Math.random`** —— 同一份存档两次预览节奏不同，录屏 / 逐字节比对 / 测试全会飘；`fftMusicReset(seed)` 换「一首歌」。⑤ 关掉它音量回 **0**（用户明确要求）；它模拟的是**板上信号**，所以暂停也要跳 —— `loop()` 的退出条件改成「板 / 编辑台 / 音乐**三者都停**」，只开音乐时循环继续但**不推进帧**，并用 `startLoop()` 防止叠出两条 rAF 链（双倍速）。⑥ 换注入源只动 `fftMusicLevel()`，**别碰** `simSetAudioLevel()` 里那条判档与广播（invariants §13-1/12），也别改 `led_gen_hal_audio_level()` 的契约（0..AUDIO_MAX）。
 
-工具本体功能完整、1897 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1897 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、1903 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1903 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。
