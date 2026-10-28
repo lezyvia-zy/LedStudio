@@ -228,7 +228,7 @@ ok(nSlow > 1 && nFast === 1,
 aud.onclick();
 await new Promise(r => realST(r, 70));
 ok(animOf(0).audio === true, '「音乐来了」状态存住了（audio = true）');
-ok(aud.classList.contains('on') && /随机跳/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
+ok(aud.classList.contains('on') && /停止听音/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
 /* 关掉 = 取消注射，音量回到 0（用户：「再次点击就取消，默认输入的是 0」） */
 aud.onclick();
 await new Promise(r => realST(r, 70));
@@ -317,6 +317,68 @@ console.log('--- 音量刻度（最大）/ 阈值上限 ---');
      `恢复默认刻度 20（阈值 ${animOf(0).thr} 没超、保持不变）`);
   ok(/#previewBar #aFftTxt\{[^}]*flex:0 0 \d+px/.test(html),
      '音量读数固定宽度 —— 随机跳时不会把滑杆挤来挤去（阈值针不再抖）');
+}
+
+/* ---- H) 真声音：麦克风 / 电脑声音（只影响预览；导出物不变）---- */
+console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
+{
+  const CORE2 = new Function(coreSrc + '\n; return CORE;')();
+  const srcSel = byId.get('aSrc');
+  const stOf = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state;
+  ok(!!srcSel && srcSel.value === 'random' && aud.textContent === '音乐来了（随机）',
+     `音源下拉在、默认随机（按钮「${aud.textContent}」）`);
+  srcSel.value = 'mic'; srcSel.onchange();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audioSrc === 'mic' && aud.textContent === '听麦克风' &&
+     /麦克风/.test(byId.get('status').textContent),
+     `切到麦克风：存档 audioSrc=${animOf(0).audioSrc}、按钮「${aud.textContent}」`);
+
+  /* 桩掉浏览器 API（真采音只能在浏览器里验）：麦克风给一条音轨，AudioContext 给最简实现 */
+  let stopped = 0;
+  const micTrack = { stop(){ stopped++; }, onended: null };
+  globalThis.navigator.mediaDevices = {
+    getUserMedia: async () => ({ getTracks: () => [micTrack], getAudioTracks: () => [micTrack], getVideoTracks: () => [] }),
+  };
+  globalThis.window.AudioContext = class {
+    constructor() { this.closed = false; }
+    async resume() {}
+    createMediaStreamSource() { return { connect() {} }; }
+    createAnalyser() { return { fftSize: 1024, smoothingTimeConstant: 0,
+      getByteTimeDomainData(a) { a.fill(128); } }; }
+    close() { this.closed = true; }
+  };
+  aud.onclick();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audio === true && aud.classList.contains('on') && aud.textContent === '停止听音',
+     `点「听麦克风」→ 开始采集（audio=${animOf(0).audio}、按钮「${aud.textContent}」）`);
+  aud.onclick();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audio === false && stopped >= 1 && aud.textContent === '听麦克风',
+     `再点一下停：麦克风轨道已释放（${stopped} 条）`);
+
+  /* 电脑声音：共享时没勾「分享音频」→ 明确提示，别假装在听 */
+  srcSel.value = 'system'; srcSel.onchange();
+  await new Promise(r => realST(r, 70));
+  let displayCalls = 0;
+  globalThis.navigator.mediaDevices.getDisplayMedia = async () => {
+    displayCalls++;
+    const v = { stop(){ stopped++; }, onended: null };
+    return { getTracks: () => [v], getAudioTracks: () => [], getVideoTracks: () => [v] };
+  };
+  aud.onclick();
+  await new Promise(r => realST(r, 70));
+  ok(displayCalls === 1 && animOf(0).audio === false && /分享音频/.test(byId.get('status').textContent),
+     `共享没勾音频 → 提示「分享音频」并保持停止（状态：${byId.get('status').textContent}）`);
+  ok(srcSel.value === 'system' && animOf(0).audioSrc === 'system',
+     '失败也记住选的是「电脑声音」（下次点一下就能重试）');
+
+  /* 导出物与音源完全无关：板上仍只认 HAL + 参数 */
+  const hdr = CORE2.exportEffectsC(stOf(), { form:'header', comment:'ascii', eol:'lf' });
+  ok(!/audioSrc|getUserMedia|getDisplayMedia|麦克风/.test(hdr),
+     '导出的 C 里没有任何「音源 / 采集」痕迹（音源只是工具预览）');
+
+  srcSel.value = 'random'; srcSel.onchange();
+  await new Promise(r => realST(r, 70));
 }
 
 spd.value = 'slow'; spd.onchange();

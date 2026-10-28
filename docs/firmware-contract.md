@@ -142,6 +142,7 @@ I->speed_cur = (fast != 0u) ? I->speed_fast : I->speed_slow;   /* 各效果仍�
 三点要注意：
 
 - **刻度是 `0..LED_GEN_AUDIO_MAX`**（工具里可调，**出厂 20**）：平台给的就是这个刻度上的 `FFTLevel`，阈值也在同一刻度上（阈值不能大于最大值，工具里会夹）。
+- 工具里的**音源**（随机 / 麦克风 / 电脑声音）**只是预览**：它不会写进生成头，平台照旧实现 `led_gen_hal_audio_level()`。
 - **判据是保守的**：只有「快档确实更快」（`speed_fast < speed_slow`）且音量过阈值时才认快档；
   平台没接音量（`return 0`）、或参数被改成 `fast >= slow`，行为与打补丁前一模一样。
 - **`ring->speed_slow / speed_fast` 只是判档参考**：打补丁后 `ring_apply_preset()` 不再被调用，

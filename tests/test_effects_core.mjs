@@ -613,6 +613,24 @@ console.log('--- 「音乐来了」的随机音源 ---');
      `默认阈值下快档 ${fastN} 拍 / 慢档 ${a.length - fastN} 拍（两边都看得到）`);
 }
 
+/* ---- 9d) 真声音 → 音量刻度（麦克风 / 电脑声音；只用于预览，导出物不变）---- */
+console.log('--- 真声音 → 0..最大值（预览用）---');
+{
+  const { audioLevelFromRms, audioLevelFromTimeData, AUDIO_SRC, audioMaxOf } = CORE;
+  ok(AUDIO_SRC.join(',') === 'random,mic,system', `音源枚举：${AUDIO_SRC.join(' / ')}`);
+  ok(audioLevelFromRms(0, 20) === 0 && audioLevelFromRms(1, 20) === 20 &&
+     audioLevelFromRms(0.5, 20) === 18 && audioLevelFromRms(2, 20) === 20,
+     `RMS → 0..20：静音 0、满幅 20、半幅(-6dB) 18、超过 1 也夹到 20`);
+  ok(audioLevelFromRms(0.5, audioMaxOf({ audioMax: 40 })) === 36,
+     '同一个 RMS 换成 40 的刻度 → 36（跟着最大值走）');
+  /* AnalyserNode 的时域数据：128 = 静音；0/255 交替 = 满幅方波 */
+  const quiet = new Uint8Array(64).fill(128);
+  const loud = new Uint8Array(64).map((_, i) => (i & 1 ? 255 : 0));
+  ok(audioLevelFromTimeData(quiet, 20) === 0 && audioLevelFromTimeData(loud, 20) === 20 &&
+     audioLevelFromTimeData(new Uint8Array(0), 20) === 0,
+     '时域波形：全 128 = 0、满幅方波 = 20、空数组 = 0（不会 NaN）');
+}
+
 
 /* ---- 10) 效果名自动生成：「模板 / 配色」——name 不再由用户给 ---- */
 console.log('--- 效果名：模板 / 配色 ---');

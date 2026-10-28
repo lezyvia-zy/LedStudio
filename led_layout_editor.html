@@ -455,8 +455,13 @@
         <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS；采样周期固定 40ms（固件那边的计时定死，工具不暴露）。">阻尼(ms)<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
         <span class="thrBox" data-tip="出快档的「过渡」（ms）：快→慢不再直切，而是用这么久把「每格拍数」从快档爬到慢档 —— 想要「滑行减速」的阻尼感就加大；0 = 直切（加滑移之前的行为）。&#10;落进 20ms 一拍时向上取整算每拍爬多少。随导出写进 C 的 LED_GEN_STAGE_GLIDE_MS。">过渡(ms)<input type="number" id="aGlide" min="0" max="3000" step="10" value="350"></span>
       </div>
-      <div class="pr"><span class="lb"></span>
-        <button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 点一下开始**随机**注入音量（底噪 + 随机鼓点 + 余音衰减，按板子上的真实节奏走），再点一下停、音量回到 0。&#10;暂停时也会自己跳（模拟的是板上 signal，跟播不播放无关）；样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()。&#10;效果页按播放、或直接拖上面那根滑杆，看到的都是同一份音量。">音乐来了（音量随机跳）</button>
+      <div class="pr"><span class="lb">音源</span>
+        <select id="aSrc" data-tip="音量的来源（**只影响工具预览**，导出物不变 —— 板上仍由 led_gen_hal_audio_level() 给音量）。&#10;随机（模拟）= 每 20ms 造一个音量（底噪 + 随机鼓点 + 余音），演示 / 录屏用；&#10;麦克风 = 采电脑的麦克风（外放的音乐也能收到）；&#10;电脑声音 = 共享一个标签页 / 屏幕，共享时要勾「分享音频」（Chrome / Edge 支持；没有音轨会提示）。&#10;真声音按 -60dB..0dB 映射到 0..最大值，再走同一套 40ms 采样 + 阈值 + 阻尼。">
+          <option value="random">随机（模拟）</option>
+          <option value="mic">麦克风</option>
+          <option value="system">电脑声音</option>
+        </select>
+        <button id="aAudio" data-tip="开始 / 停止听声音（按左边选中的音源）。&#10;随机 = 模拟板上信号，暂停时也会跳；麦克风 / 电脑声音 = 真声音，只在预览里用，导出代码不受影响。&#10;浏览器会请求一次授权；共享屏幕/标签页时记得勾「分享音频」。切到手动慢/快档、或换项目会自动停止。">音乐来了（随机）</button>
       </div>
     </div>
 
@@ -1093,6 +1098,11 @@
           <b>过渡(ms)</b>：出快档**不再直切**——用这么久把「每格拍数」从快档爬到慢档（默认 <b>350ms</b>，约 7 拍，每拍 +1），
           所以快→慢是「滑行减速」而不是「急刹」；填 <b>0 = 直切</b>（加滑移之前的行为）。随导出写进 <code>LED_GEN_STAGE_GLIDE_MS</code>。
           进/出阈值也做了**双阈值**：音量 > 阈值才进快档，要掉到 ≤ 阈值−1 才算安静 —— 在阈值附近抖不会来回切。<br>
+          <b>音源</b>（预览条最下面一行）：<b>随机（模拟）</b> / <b>麦克风</b> / <b>电脑声音</b> ——
+          后两个是<b>真声音</b>，只在工具里预览用：点「听…」会请求一次授权；「电脑声音」要共享一个标签页 / 屏幕
+          并勾上<b>「分享音频」</b>。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，再走同一套
+          40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
+          C 里没有「音源」这一项。切到手动档 / 换项目 / 停止共享会自动停止采集。<br>
           「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
           <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代。<br>
           点<b>「音乐来了」</b>= 模拟板上真的在放音乐：每 20ms（一拍）<b>随机注入</b>一个音量 —— 平时是 0..1 的底噪，
@@ -2233,6 +2243,9 @@ function defaultAnim() {
             *     LED_GEN_AUDIO_MAX**；阈值不能大于它。
             * audio：模拟「音乐来了」—— 播放/暂停都会按 20ms 一拍随机注入音量。 */
            fft: 0, thr: FW.AUDIO_THR_DEF, audioMax: FW.AUDIO_MAX, audio: false,
+           /* 预览用的音量来源（只影响工具，不进导出）：random = 随机注入（模拟板上信号）；
+            * mic = 麦克风；system = 电脑声音（共享标签页/屏幕时勾「分享音频」）。 */
+           audioSrc: 'random',
            /* 音频采样周期 / 快档阻尼（ms，存原值，落进拍按向上取整）：
             *   audioSampleMs = 40（每 2 拍采一次；固件那边 30/40 都行）
             *   stageHoldMs   = 450（→ 460ms / 23 拍：进快档后至少保持这么久 = 阻尼）
@@ -3728,6 +3741,32 @@ function fftMusicLevel(max) {
     return fftBurstAmp;
   }
   return fftRand() % 2;                         /* 底噪 0..1 */
+}
+
+
+/* —— 真声音（麦克风 / 电脑声音）→ 音量刻度（2026-10-28 用户：「能不能采样电脑的声音来作为信号
+ * 输入进行量化」）—— 只给**工具预览**用：读时域波形算 RMS，按 dBFS 映射到 0..最大值
+ * （-60dB → 0、0dB → 最大值），之后仍走同一条「40ms 采样 + 阈值 + 阻尼」链路。
+ * **导出物一点不变**：板上仍然由平台的 led_gen_hal_audio_level() 给音量。 */
+const AUDIO_SRC = ['random', 'mic', 'system'];
+function audioLevelFromRms(rms, max) {
+  const mx = (max == null) ? FW.AUDIO_MAX : audioMaxOf({ audioMax: max });
+  const r = +rms;
+  if (!(r > 0)) return 0;                       /* 静音 / NaN */
+  const db = 20 * Math.log10(Math.min(1, r));   /* 0dBFS = 1.0 */
+  const FLOOR = -60;                            /* 比 -60dB 还轻的一律当安静 */
+  if (db <= FLOOR) return 0;
+  return Math.max(0, Math.min(mx, Math.round(((db - FLOOR) / -FLOOR) * mx)));
+}
+/* AnalyserNode.getByteTimeDomainData() 的 128-中心波形 → 0..最大值 */
+function audioLevelFromTimeData(data, max) {
+  if (!data || !data.length) return 0;
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    const v = ((data[i] | 0) - 128) / 128;
+    sum += v * v;
+  }
+  return audioLevelFromRms(Math.sqrt(sum / data.length), max);
 }
 
 
@@ -5625,6 +5664,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
                ringSpeedFromAudio, simSetAudioLevel, fftThreshold,
                audioMaxOf, AUDIO_MAX_MIN, AUDIO_MAX_LIMIT,
+               audioLevelFromRms, audioLevelFromTimeData, AUDIO_SRC,
                fftMusicLevel, fftMusicReset,
                msToTicksUp, audioSampleTicks, stageHoldTicks, stageGlideMs, glideStep,
                simSetSpeedLocked, simApplyStage, simAudioStep,
@@ -5814,6 +5854,8 @@ function A() {
   /* 音量刻度（最大值）：老存档没有 → 出厂 20；2..255 之间夹。
      thr 跟着它夹（阈值不能大于最大值），fft 也按同一个刻度夹。 */
   a.audioMax = audioMaxOf(a);
+  /* 音量来源（只影响预览）：老存档没有 / 手改乱写 → 随机 */
+  if (AUDIO_SRC.indexOf(a.audioSrc) < 0) a.audioSrc = 'random';
   /* thr：音乐阈值（0..最大值，老存档没有 → 出厂 4）。夹范围，别让手改 JSON 的怪值把判据弄反；
      这个数会被导出成 C 的 LED_GEN_FFT_THRESHOLD（固件照它判档，不再手改宏）。 */
   a.thr = fftThreshold(a.thr, a.audioMax);
@@ -5883,9 +5925,15 @@ function syncAudioBtn() {
     if (hld && act(hld)) hld.value = a.stageHoldMs;
     if (gld && act(gld)) gld.value = a.glideMs;
   }
+  const sb = $('#aSrc');
+  if (sb) {
+    if (!focused(sb)) sb.value = a.audioSrc || 'random';
+    sb.disabled = !auto;
+  }
   if (b) {
     /* 文案短一点：它住在 300px 宽的常驻预览条里，长句会把滑杆挤没 */
-    b.textContent = a.audio ? '音乐来了：随机跳（点掉停）' : '音乐来了（音量随机跳）';
+    const idle = { random: '音乐来了（随机）', mic: '听麦克风', system: '听电脑声音' };
+    b.textContent = a.audio ? '停止听音' : (idle[a.audioSrc] || idle.random);
     b.classList.toggle('on', !!a.audio);
     b.disabled = !auto;
   }
@@ -5900,6 +5948,70 @@ function thrAtClientX(x, max) {
   const t = Math.max(0, Math.min(1, (x - r.left - THR_PAD) / w));
   return Math.round(t * mx);
 }
+/* —— 真声音采集（麦克风 / 电脑声音）—— **只给预览用**，导出物一点都不变 ——
+ * 麦克风：getUserMedia({audio:true})；
+ * 电脑声音：getDisplayMedia({video:true, audio:true}) —— Chrome/Edge 只在「共享标签页/屏幕
+ *          并勾选『分享音频』」时才给音轨，所以必须同时要 video（那个画面不用、也不显示）。
+ * 采到的是时域波形（128 = 静音），交给 audioLevelFromTimeData() 量化成 0..最大值，
+ * 再走和随机音源完全相同的 40ms 采样 + 阈值 + 阻尼链路。
+ * 浏览器要求用户手势：点「听…」那一下才启动；换项目 / 切手动档 / 停止共享会自动收摊。 */
+let audioCap = null;
+function audioCapStop() {
+  if (!audioCap) return;
+  try { audioCap.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { audioCap.ctx.close(); } catch (e) {}
+  audioCap = null;
+}
+function audioCapLevel(max) {
+  if (!audioCap) return 0;               /* 没在采音 = 安静（不要偷偷回退成随机） */
+  try {
+    audioCap.anal.getByteTimeDomainData(audioCap.buf);
+    return audioLevelFromTimeData(audioCap.buf, max);
+  } catch (e) { return 0; }
+}
+async function audioCapStart(kind) {
+  audioCapStop();
+  const md = (typeof navigator !== 'undefined' && navigator.mediaDevices) || null;
+  if (!md) throw new Error('这个浏览器不支持采集声音');
+  let stream;
+  if (kind === 'system') {
+    if (!md.getDisplayMedia) throw new Error('这个浏览器不支持「电脑声音」（要共享标签页 / 屏幕）');
+    stream = await md.getDisplayMedia({ video: true, audio: true });
+    if (!stream.getAudioTracks || !stream.getAudioTracks().length) {
+      try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+      throw new Error('共享时没有勾选「分享音频」—— 重新共享一次，勾上那个框');
+    }
+  } else {
+    if (!md.getUserMedia) throw new Error('这个浏览器不支持麦克风');
+    stream = await md.getUserMedia({ audio: true });
+  }
+  const AC = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
+  if (!AC) {
+    try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    throw new Error('这个浏览器不支持 Web Audio');
+  }
+  const ctx = new AC();
+  if (ctx.resume) { try { await ctx.resume(); } catch (e) {} }
+  const node = ctx.createMediaStreamSource(stream);
+  const anal = ctx.createAnalyser();
+  anal.fftSize = 1024;
+  anal.smoothingTimeConstant = 0.4;
+  node.connect(anal);
+  audioCap = { ctx, anal, stream, kind, buf: new Uint8Array(anal.fftSize) };
+  /* 用户点「停止共享」/ 拔掉设备：立刻收摊，别让按钮一直显示「停止听音」 */
+  try {
+    stream.getTracks().forEach(t => {
+      t.onended = () => {
+        audioCapStop();
+        const a = A(); a.audio = false; a.fft = 0;
+        syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+        status('声音输入断了（共享结束 / 设备拔出）：已停止听音', 'warn');
+      };
+    });
+  } catch (e) {}
+  return audioCap;
+}
+/* 阈值针 / 「阈」格 → 阈值本身（0..最大值）：填超最大值就夹住并提示一句。 */
 function setThreshold(v) {
   const a = A(), mx = audioMaxOf(a);
   const raw = Math.round(+v || 0);
@@ -7200,6 +7312,12 @@ function buildAnimPanel() {
   /* 速度档：auto 时按「音乐音量」(FFTLevel) 判快慢（对应固件 ring_set_audio_level()） */
   $('#aSpeed').onchange = () => {
     A().speed = $('#aSpeed').value;
+    if (A().speed !== 'auto' && A().audio) {
+      /* 手动档 = 只预览档位：真声音采集没有意义，顺手放掉麦克风 / 共享 */
+      A().audio = false; A().fft = 0;
+      audioCapStop();
+      status('切到手动档：已停止听声音（手动档只是预览，导出仍按音量判档）');
+    }
     syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
   };
   /* FFTLevel 滑杆：拖动就是手动模拟「音乐一会儿响一会儿静」 */
@@ -7252,19 +7370,63 @@ function buildAnimPanel() {
                              syncAudioBtn(); saveStore(); };
     gldIn.onchange = () => { gldIn.value = A().glideMs; saveStore(); };
   }
-  /* 「音乐来了」= 随机注入音量（底噪 + 随机鼓点 + 余音，core 的 fftMusicLevel）；
-   * 再点一下取消，音量回到 **0**（用户 2026-10-28：「再次点击就取消，默认输入的是 0」）。
-   * 暂停时也在跳 —— 模拟的是板上信号，跟播不播放无关，所以这里手动把循环踢起来。 */
-  $('#aAudio').onclick = () => {
-    A().audio = !A().audio;
-    A().fft = 0;                       /* 开 / 关都从 0 起（关掉就是「没音乐」） */
-    if (A().audio) fftMusicReset();    /* 重新开始一段「音乐」（固定种子，重放一样） */
-    syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
-    resetClock();
-    if (A().audio) startLoop();        /* 已停的循环踢起来（已在跑则只重置计时，不叠链） */
-    status(A().audio ? `音乐来了：每 20ms 随机注入音量（阈值 ${fftThreshold(A().thr)}），动画跟着忽快忽慢`
-                     : '音乐停了：音量回到 0（拖滑杆可手动改）');
+  /* 「音乐来了 / 听声音」：按左边选的音源启动；再点一下停、音量回到 **0**。
+   *   随机 = fftMusicLevel()（固定种子，暂停也跳，演示用）；
+   *   麦克风 / 电脑声音 = 真声音采集（浏览器要手势 + 授权，所以放在点击里 await）。
+   * **只影响预览**：导出的 C 仍然只认 HAL + 参数，没有「音源」这一项。 */
+  $('#aAudio').onclick = async () => {
+    const a = A();
+    if (a.audio) {                       /* 停：放掉麦克风 / 共享，音量回 0 */
+      a.audio = false; a.fft = 0;
+      audioCapStop();
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+      status('已停止听音：音量回到 0（拖滑杆可手动改）');
+      return;
+    }
+    const src = a.audioSrc || 'random';
+    if (src === 'random') {              /* 随机注入：和以前完全一样 */
+      a.audio = true; a.fft = 0;
+      fftMusicReset();                   /* 重新开始一段「音乐」（固定种子，重放一样） */
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+      resetClock();
+      startLoop();
+      status(`音乐来了：每 20ms 随机注入音量（阈值 ${fftThreshold(a.thr, a.audioMax)}），动画跟着忽快忽慢`);
+      return;
+    }
+    const btn = $('#aAudio');
+    if (btn) btn.disabled = true;
+    try {
+      await audioCapStart(src);
+      a.audio = true; a.fft = 0;
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+      resetClock();
+      startLoop();
+      status(src === 'mic'
+        ? '正在听麦克风：响度按 -60..0 dB 映射到 0..最大值（只影响预览）'
+        : '正在听电脑声音：共享的标签页/窗口要有声音（只影响预览）');
+    } catch (err) {
+      audioCapStop();
+      a.audio = false; a.fft = 0;
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+      status('没能开始听声音：' + ((err && err.message) || err), 'warn');
+    } finally {
+      if (btn) btn.disabled = false;
+      syncAudioBtn();
+    }
   };
+  /* 音源切换：换源就停掉正在听的声音（浏览器要求用户手势，等用户重新点开始） */
+  const srcSel = $('#aSrc');
+  if (srcSel) {
+    srcSel.onchange = () => {
+      const a = A();
+      a.audioSrc = AUDIO_SRC.indexOf(srcSel.value) >= 0 ? srcSel.value : 'random';
+      if (a.audio) { a.audio = false; a.fft = 0; audioCapStop(); }
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+      status(a.audioSrc === 'random' ? '音源：随机（模拟板上信号）'
+        : a.audioSrc === 'mic' ? '音源：麦克风 —— 点「听麦克风」开始（会请求一次授权）'
+        : '音源：电脑声音 —— 点「听电脑声音」，共享时记得勾「分享音频」');
+    };
+  }
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };
   $('#aPlay').onclick   = () => { playToggle(!A().playing); saveStore(); };
   $('#aStep').onclick   = () => {
@@ -7410,7 +7572,12 @@ function loop(t) {
   if (audioOn) {
     fftAcc += dt;
     let g = 0;
-    while (fftAcc >= 20 && g++ < 50) { fftAcc -= 20; A().fft = fftMusicLevel(audioMaxOf(A())); }
+    const realSrc = (A().audioSrc || 'random') !== 'random';
+    while (fftAcc >= 20 && g++ < 50) {
+      fftAcc -= 20;
+      /* 音源：随机（模拟）/ 麦克风 / 电脑声音 —— 真声音只影响预览，导出物不变 */
+      A().fft = realSrc ? audioCapLevel(audioMaxOf(A())) : fftMusicLevel(audioMaxOf(A()));
+    }
     syncAudioBtn();                      /* 滑杆 / 读数 / 阈值针跟着走 */
   } else fftAcc = 0;
   if (!boardOn && !stageOn) { requestAnimationFrame(loop); return; }   /* 只放音乐：不推进帧 */
@@ -7431,7 +7598,9 @@ function loop(t) {
     let guard = 0;
     while (accS >= tickMs && guard++ < 500) {
       accS -= tickMs;
-      if (audioOn) stageSetSpeed(stageInst);
+      /* 每拍都按当前档位同步一次（手动档 / 自动档 / 停掉音乐之后都要立刻回到该有的档）——
+       * 编辑台不做 40ms 采样迟滞，它只是「看效果」；灯板那条链路仍走 simAudioStep。 */
+      stageSetSpeed(stageInst);
       /* 一拍 = 一次 instTick；平滑缓冲也在这里按拍推进（不是按重绘次数），
        * 这样倍率 / 掉帧都不会让「平滑 T」看起来变快变慢。 */
       stageTickOnce(stageInst);
@@ -10022,6 +10191,10 @@ function bindProject() {
   if (state.meta.zoneMax    == null) state.meta.zoneMax    = FW.ZONE_MAX;
   if (state.meta.zoneMaxLen == null) state.meta.zoneMaxLen = FW.ZONE_MAX_LEN;
   if (!state.anim)   state.anim = defaultAnim();          /* 老存档补默认值 */
+  /* 换项目：上一个项目的真声音采集要停掉（麦克风 / 共享音频），而且采音需要用户手势，
+     所以「音源 = 麦克风/电脑声音」的工程打开后是停着的，等用户点一下「听…」。 */
+  audioCapStop();
+  if (state.anim.audio && state.anim.audioSrc && state.anim.audioSrc !== 'random') state.anim.audio = false;
   /* 老存档迁移：以前是 anim.preset（FW.presets 的下标），现在是效果 id */
   if (!state.effects) state.effects = defaultEffects();
   (state.effects.list || []).forEach(normalizeEffect);
