@@ -675,7 +675,7 @@
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
         <label class="row"><span>慢速(ms)</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要多少 ms（内部按 20ms 一拍、**向上取整**）。数值越大越慢。&#10;150ms 相当于以前的 8 拍（160ms）。" min="20" max="5100" step="20"></label>
         <label class="row"><span>快速(ms)</span><input type="number" id="fFast" data-tip="快速档：有音乐（快档）时每走一格要多少 ms。&#10;20ms = 每拍走一格（最快）。" min="20" max="5100" step="20"></label>
-        <label class="row"><span>平滑(ms)</span><input type="number" id="fSmooth" data-tip="每效果独立的「平滑 T」：亮度（mask）变化时按这个时间慢慢爬过去，**只在慢速档生效**，快档直通（省算力）。&#10;0 = 关（硬切；老工程与内建行就是这个）；新效果 / 套预置默认 60ms；越大越柔，上限 1000ms。&#10;逐灯爬坡：每拍最多变 ceil(255 × 20 ÷ T) 级，剩下的不足一步就吸附到位（60ms ≈ 每拍 85 级、约 3 拍走满）。"></label>
+        <label class="row"><span>平滑(ms)</span><input type="number" id="fSmooth" data-tip="每效果独立的「平滑 T」：亮度（mask）变化时按这个时间慢慢爬过去，**只在慢速档生效**，快档直通（省算力）。&#10;0 = 关（硬切；老工程与内建行就是这个）；新效果 / 套预置默认 60ms；越大越柔，上限 1000ms。&#10;逐灯爬坡：每拍最多变 ceil(255 × 20 ÷ T) 级，剩下的不足一步就吸附到位（60ms ≈ 每拍 85 级、约 3 拍走满）。&#10;看效果要点播放条上的「播放」—— 暂停时画的是目标帧（形状 / 亮度原样），过渡只有在跑起来时才看得到。"></label>
         <label class="row"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
       </fieldset>
 
@@ -1027,7 +1027,7 @@
           <tr><td>步进(级)</td><td>渐变专用：每动一次在色环上<b>前进几级</b>（1..16，默认 1）。「速度」最小是 1 拍 —— 想比「1 拍 1 级」更快就抬步进：速度 1 + 步进 8 = 32 拍 ≈ 0.64 秒一圈（50Hz 一拍 20ms），最大 16 ≈ 0.32 秒一圈。下面那行灰字实时算「一整圈 = 多少拍 / 多少秒」。只改颜色走多快，不动起始色 / 顺序。</td></tr>
           <tr><td>渐亮(ms) / 亮(ms) / 变暗(ms)</td><td>跳变专用：匀速爬到满亮用多少 ms（第一拍 = 255 / 渐亮、最后一拍正好满亮；0 = 硬启亮，一拍照跳）；满亮保持多少 ms；再用多少 ms 匀速暗下去（数值越大越慢；最后一拍 ≈255/(变暗+1) 不完全黑 —— 全黑一帧就是一次闪，换色会抖一下；0 = 立刻换色）。三段加起来就是「停留」（最多 255 拍 ≈ 5.1 秒）。<br>呼吸只出现前两行：<b>渐亮 = 变暗</b>（对称），「亮」照旧，周期自动 = 渐亮 × 2 + 亮。</td></tr>
           <tr><td>慢速(ms) / 快速(ms)</td><td>每走一格要多少 ms（越大越慢；按 20ms 一拍、一律向上取整，填 30 会变成 40）。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
-          <tr><td>平滑(ms)</td><td><b>每个效果各一份</b>：亮度变化时按这个时间慢慢爬过去（逐灯爬坡，不是整条一起渐变）。<b>只在慢速档生效</b>，快档直通（省算力）。0 = 关（硬切，老工程 / 内建行就是这个）；新效果 / 套预置默认 <b>60ms</b>（每拍 85 级、约 3 拍走满）；越大越柔，上限 1000ms。随机闪那类「一格一格跳」的效果显式给 0，抹平了就看不见闪。</td></tr>
+          <tr><td>平滑(ms)</td><td><b>每个效果各一份</b>：亮度变化时按这个时间慢慢爬过去（逐灯爬坡，不是整条一起渐变）。<b>只在慢速档生效</b>，快档直通（省算力）。0 = 关（硬切，老工程 / 内建行就是这个）；新效果 / 套预置默认 <b>60ms</b>（每拍 85 级、约 3 拍走满）；越大越柔，上限 1000ms。随机闪那类「一格一格跳」的效果显式给 0，抹平了就看不见闪。<br>效果页的编辑台也吃这个参数：<b>按播放</b>才看得到过渡（暂停时画的是目标帧，形状 / 亮度原样，不然会误以为没生效）。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
           <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。</td></tr>
         </table>
@@ -3160,6 +3160,22 @@ function smoothStepOf(ms) {
   const st = Math.ceil((255 * FW.TICK_MS) / v);
   return Math.max(1, Math.min(255, st));
 }
+/* 逐灯亮度斜坡（平滑 T）：把这一拍的目标 mask 爬进 shown（就地更新）。
+ * 与 C 的 led_gen_render_mode() 逐值相同；fast 或 smooth = 0 时一步吸附
+ * （= 直通，并把 shown 同步成目标，切档不残留）。
+ * 渲染层（renderAllSim）与效果编辑台（renderStage）共用这一条 —— 三处别各写一份。 */
+function smoothShown(inst, mask, shown, len, fast) {
+  const ms = (inst && inst.smooth) | 0;
+  const step = (!fast && ms > 0) ? smoothStepOf(ms) : 255;
+  for (let i = 0; i < len; i++) {
+    const tgt = mask[i];
+    let b = shown[i];
+    if (b < tgt) b = ((tgt - b) <= step) ? tgt : (b + step);
+    else if (b > tgt) b = ((b - tgt) <= step) ? tgt : (b - step);
+    shown[i] = b;
+  }
+  return shown;
+}
 
 /* 覆盖 = 「这一趟的条目把上一趟的样子盖掉 → 下一趟再盖回来 → …」的连环扫：
  *   一趟 period 拍扫完 S 颗灯（S = 覆盖灯数，0 / 超过 len = 整条），扫完立刻换下一趟；
@@ -3817,8 +3833,8 @@ function renderAllSim(sim, state, applyReverse) {
     const a = inst.anim, c = inst.color;
     const pos = a.position.current;
     const smoothMs = (inst.smooth == null) ? 0 : (inst.smooth | 0);
-    /* 每拍最多变几级：T = 0 或快档 → 255（一步吸附 = 直通，并同步 shown） */
-    const step = (!fastNow && smoothMs > 0) ? smoothStepOf(smoothMs) : 255;
+    /* 平滑只在慢档做：快档 / T = 0 走一步吸附（= 直通，并把 shown 同步成目标） */
+    const fastForSmooth = fastNow || smoothMs <= 0;
 
     for (const zi of p.zones) {
       const z = state.zones[zi];
@@ -3837,14 +3853,11 @@ function renderAllSim(sim, state, applyReverse) {
 
       const rev = applyReverse && zoneReverse(state, z, nominal);
       const sh = simShownOf(sim, zi);
+      /* 逐灯亮度斜坡：shown 往这一拍的目标爬 step 级，剩下不足一步就吸附。
+       * 规则住在 smoothShown()，与 C 的 led_gen_render_mode() 逐值相同。 */
+      smoothShown(inst, a.mask, sh, len, fastForSmooth);
       for (let i = 0; i < len; i++) {
-        /* 逐灯亮度斜坡：shown 往这一拍的目标爬 step 级，剩下不足一步就吸附。
-         * 步长取整 / 吸附规则与 C 的 led_gen_render_mode() 逐值相同（逐字节比对守着）。 */
-        const tgt = a.mask[i];
-        let b = sh[i];
-        if (b < tgt) b = ((tgt - b) <= step) ? tgt : (b + step);
-        else if (b > tgt) b = ((b - tgt) <= step) ? tgt : (b - step);
-        sh[i] = b;
+        const b = sh[i];
         if (!b) continue;
         const idx  = rev ? (len - 1 - i) : i;
         const phys = z.start + idx;
@@ -5595,7 +5608,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                coverEntry, wipeSpan, wipeEntryAt,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
-               simClearShown, simShownOf, effSmooth, smoothStepOf, SMOOTH_MS_MAX, SMOOTH_MS_DEF,
+               simClearShown, simShownOf, smoothShown, effSmooth, smoothStepOf, SMOOTH_MS_MAX, SMOOTH_MS_DEF,
                breathEnv, breathPlan, effBreathRise, effBreathHold, effShape, BREATH_PERIOD_MAX,
                stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
                effPalette, effPaletteRaw, palIsGrad, PAL_MAX, PAL_GRAD_LEN,
@@ -6149,16 +6162,33 @@ function renderStage() {
   }
 
   const pos = inst.anim.position.current;
+  /* 平滑 T：播放中才逐拍爬（同一拍里重绘多次不重复爬）；暂停时吸附到目标。
+   * fast 与 instTick 的 loud 同一条判据（speedWhich() = ring 级档位）。 */
+  const stageFast = speedWhich() === 'fast';
+  const stageAdvance = stagePlaying && inst.anim.gen_tick !== stageShownTick;
+  /* 同一个 N 会画两次（圆环 + 直线默认都是 24 颗；对比条里也可能撞长度）：
+   * 一次渲染里每个长度只爬一步，否则 24/24 时爬坡速度翻倍。 */
+  const stageRamped = new Set();
+  const shownFor = (N, mask) => {
+    const shown = stageShownOf(N);
+    if (!stagePlaying) shown.set(mask);
+    else if (stageAdvance && !stageRamped.has(N)) {
+      smoothShown(inst, mask, shown, N, stageFast);
+      stageRamped.add(N);
+    }
+    return shown;
+  };
 
   const row = (N, x0, x1, y, label) => {
     const step = (x1 - x0) / Math.max(1, N - 1);
     const R = stageLedR(step);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
     renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    const shown = shownFor(N, mask);
     for (let i = 0; i < N; i++) {
       ctx.beginPath();
       ctx.arc(x0 + step * i, y, R, 0, Math.PI * 2);
-      ctx.fillStyle = stageFill(inst, i, N, hue, mask);
+      ctx.fillStyle = stageFill(inst, i, N, hue, shown);
       ctx.fill();
     }
     ctx.fillStyle = TC.label; ctx.textAlign = 'left';
@@ -6168,11 +6198,12 @@ function renderStage() {
     const Rl = stageLedR((2 * Math.PI * Rr) / N);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
     renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    const shown = shownFor(N, mask);
     for (let i = 0; i < N; i++) {
       const th = -Math.PI / 2 + (i / N) * Math.PI * 2;
       ctx.beginPath();
       ctx.arc(cx + Rr * Math.cos(th), cy + Rr * Math.sin(th), Rl, 0, Math.PI * 2);
-      ctx.fillStyle = stageFill(inst, i, N, hue, mask);
+      ctx.fillStyle = stageFill(inst, i, N, hue, shown);
       ctx.fill();
     }
     ctx.fillStyle = TC.label; ctx.textAlign = 'center';
@@ -6189,6 +6220,7 @@ function renderStage() {
   ctx.fillText((stagePlaying ? '播放中' : '已暂停') +
     ` · 位置 ${zIdx}/${st.ringN} 颗` +
     ` · ${inst.speed_cur} 拍走 1 格（快档 ${inst.speed_fast} / 慢档 ${inst.speed_slow}）` +
+    (effSmooth(e) ? ` · 平滑 ${effSmooth(e)}ms（快档直通）` : ' · 平滑 0ms（直通）') +
     (A().speed === 'auto'
       ? ` · FFTLevel ${A().fft | 0}（阈值 ${fftThreshold(A().thr)} → ${speedWhich() === 'fast' ? '快档' : '慢档'}）`
       : ' · 手动档') +
@@ -6213,6 +6245,9 @@ function renderStage() {
          st.ringN + ' 颗圆环');
     row(st.stripN, 60, W - 60, H - 64, st.stripN + ' 颗直线');
   }
+  /* 这一拍的爬坡已经做过（对比条上多条长度共用同一个 gen_tick）：记下来，
+   * 同一拍里再重绘（改标题 / 换选中）就不会重复爬两步。 */
+  if (stagePlaying) stageShownTick = inst.anim.gen_tick;
 }
 
 function render() {
@@ -7436,6 +7471,17 @@ let stagePlaying = false;
 /* 效果页改参数时只把模式预览标脏，下次用到再重建 —— 别当场把灯板的相位重置掉 */
 let simDirty = false;
 let stageMask = null, stageHue = null;
+/* 编辑台的平滑缓冲：对比条上同一个效果会同时画 8 / 24 / 40 颗，每个长度各一份 shown。
+ * 只有**播放中**才逐拍爬（同一拍里重绘多次不重复爬）；暂停时直接吸附到目标 ——
+ * 暂停帧必须看得出形状 / 配色原样，不能因为从 0 起爬而变暗。 */
+let stageShownBufs = new Map();
+let stageShownTick = -1;
+function stageShownClear() { stageShownBufs = new Map(); stageShownTick = -1; }
+function stageShownOf(N) {
+  let s = stageShownBufs.get(N);
+  if (!s || s.length !== N) { s = new Uint8Array(N); stageShownBufs.set(N, s); }
+  return s;
+}
 function stageParams() {
   if (!state.stage) state.stage = { ringN: 24, stripN: 24, compare: false, rate: 1 };
   return state.stage;
@@ -7464,6 +7510,7 @@ function stageSync(force) {
   stageInst = instNew();
   simApplyEffect(stageInst, e, effectIndex(state, e.id), state);
   stageSetSpeed(stageInst);
+  stageShownClear();                 /* 换了效果 / 结构：平滑缓冲从 0 起爬（播放时是淡入） */
   if (!stagePlaying) stageSampleFrame(stageInst);
   stageEffectId = key;
   return stageInst;

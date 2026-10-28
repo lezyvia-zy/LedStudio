@@ -123,6 +123,7 @@ byId.get('stCompare').onchange({ target: byId.get('stCompare') });
   ok(/播放中|已暂停/.test(line), `状态行带播放状态: "${line}"`);
   ok(/位置 \d+\/24 颗/.test(line), '状态行带当前位置（按编辑台圆环颗数换算）');
   ok(/快档 \d+ \/ 慢档 \d+/.test(line), '状态行带快慢档拍数');
+  ok(/平滑 \d+ms/.test(line), '状态行带平滑 T（50Hz 下改完立刻看得出这个数生效了）');
 }
 
 /* ---- 3) 颗数可以自定义 ---- */
