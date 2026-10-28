@@ -101,6 +101,8 @@
   #previewBar #aFftTxt{flex:0 0 64px; width:64px; font-weight:400; font-size:11px; color:var(--dim);
     white-space:nowrap; overflow:hidden; text-align:left; font-variant-numeric:tabular-nums}
   #previewBar button{flex:0 0 auto; font-size:12px}
+  /* 「音乐来了」开关：开/关两种文案宽度不同，固定一下，免得整行跟着跳 */
+  #previewBar #aAudio{min-width:146px}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
   .pane.on{display:block}
   /* 效果页的「播放」条：钉在这一页底部（翻多长都看得见、一像素都不动）——
@@ -456,12 +458,12 @@
         <span class="thrBox" data-tip="出快档的「过渡」（ms）：快→慢不再直切，而是用这么久把「每格拍数」从快档爬到慢档 —— 想要「滑行减速」的阻尼感就加大；0 = 直切（加滑移之前的行为）。&#10;落进 20ms 一拍时向上取整算每拍爬多少。随导出写进 C 的 LED_GEN_STAGE_GLIDE_MS。">过渡(ms)<input type="number" id="aGlide" min="0" max="3000" step="10" value="350"></span>
       </div>
       <div class="pr"><span class="lb">音源</span>
-        <select id="aSrc" data-tip="音量的来源（**只影响工具预览**，导出物不变 —— 板上仍由 led_gen_hal_audio_level() 给音量）。&#10;随机（模拟）= 每 20ms 造一个音量（底噪 + 随机鼓点 + 余音），演示 / 录屏用；&#10;麦克风 = 采电脑的麦克风（外放的音乐也能收到）；&#10;电脑声音 = 共享一个标签页 / 屏幕，共享时要勾「分享音频」（Chrome / Edge 支持；没有音轨会提示）。&#10;真声音按 -60dB..0dB 映射到 0..最大值，再走同一套 40ms 采样 + 阈值 + 阻尼。">
-          <option value="random">随机（模拟）</option>
+        <select id="aSrc" data-tip="「音乐来了」打开后听什么：**随机** = 每 20ms 造一个音量（底噪 + 随机鼓点 + 余音，演示 / 录屏用）；**麦克风** = 电脑麦克风（外放的音乐也能收到）；**电脑声音** = 共享一个标签页 / 屏幕，共享时勾「分享音频」（Chrome / Edge）。&#10;只在打开「音乐来了」时生效；开着的时候换源会立刻换过去。真声音按 -60dB..0dB 映射到 0..最大值。&#10;**只影响工具预览** —— 导出物不变，板上仍由 led_gen_hal_audio_level() 给音量。">
+          <option value="random">随机</option>
           <option value="mic">麦克风</option>
           <option value="system">电脑声音</option>
         </select>
-        <button id="aAudio" data-tip="开始 / 停止听声音（按左边选中的音源）。&#10;随机 = 模拟板上信号，暂停时也会跳；麦克风 / 电脑声音 = 真声音，只在预览里用，导出代码不受影响。&#10;浏览器会请求一次授权；共享屏幕/标签页时记得勾「分享音频」。切到手动慢/快档、或换项目会自动停止。">音乐来了（随机）</button>
+        <button id="aAudio" data-tip="**一个开关**：打开就有信号进来（按左边选的音源），关掉就没有。&#10;随机 = 立刻开始（模拟板上信号，暂停也会跳）；麦克风 / 电脑声音 = 真声音，打开这一下会请求授权 —— 电脑声音还要在共享弹窗里勾「分享音频」。&#10;开着的时候换音源会立刻换过去；切到手动慢/快档、换项目、停止共享都会自动关掉。">音乐来了</button>
       </div>
     </div>
 
@@ -1098,11 +1100,12 @@
           <b>过渡(ms)</b>：出快档**不再直切**——用这么久把「每格拍数」从快档爬到慢档（默认 <b>350ms</b>，约 7 拍，每拍 +1），
           所以快→慢是「滑行减速」而不是「急刹」；填 <b>0 = 直切</b>（加滑移之前的行为）。随导出写进 <code>LED_GEN_STAGE_GLIDE_MS</code>。
           进/出阈值也做了**双阈值**：音量 > 阈值才进快档，要掉到 ≤ 阈值−1 才算安静 —— 在阈值附近抖不会来回切。<br>
-          <b>音源</b>（预览条最下面一行）：<b>随机（模拟）</b> / <b>麦克风</b> / <b>电脑声音</b> ——
-          后两个是<b>真声音</b>，只在工具里预览用：点「听…」会请求一次授权；「电脑声音」要共享一个标签页 / 屏幕
-          并勾上<b>「分享音频」</b>。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，再走同一套
-          40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
-          C 里没有「音源」这一项。切到手动档 / 换项目 / 停止共享会自动停止采集。<br>
+          <b>音源</b>（预览条最下面一行）：<b>随机</b> / <b>麦克风</b> / <b>电脑声音</b> —— 右边<b>「音乐来了」就是一个开关</b>：
+          打开就有信号（按选中的音源）、关掉就没有。随机立刻开始；麦克风 / 电脑声音是<b>真声音</b>，
+          打开这一下会请求授权 —— 「电脑声音」还要共享一个标签页 / 屏幕并勾上<b>「分享音频」</b>。
+          <b>开着的时候换音源会立刻换过去</b>。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，
+          再走同一套 40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
+          C 里没有「音源」这一项。切到手动档 / 换项目 / 停止共享会自动关掉开关。<br>
           「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
           <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代。<br>
           点<b>「音乐来了」</b>= 模拟板上真的在放音乐：每 20ms（一拍）<b>随机注入</b>一个音量 —— 平时是 0..1 的底噪，
@@ -5931,9 +5934,10 @@ function syncAudioBtn() {
     sb.disabled = !auto;
   }
   if (b) {
-    /* 文案短一点：它住在 300px 宽的常驻预览条里，长句会把滑杆挤没 */
-    const idle = { random: '音乐来了（随机）', mic: '听麦克风', system: '听电脑声音' };
-    b.textContent = a.audio ? '停止听音' : (idle[a.audioSrc] || idle.random);
+    /* 文案短一点：它住在 300px 宽的常驻预览条里，长句会把滑杆挤没。
+       开关语义：打开 = 按左边「音源」开始有信号，关掉 = 没有信号（随机立刻开始；
+       麦克风 / 电脑声音会在这一下请求授权 / 弹共享框）。 */
+    b.textContent = a.audio ? '音乐来了：开（点掉停）' : '音乐来了';
     b.classList.toggle('on', !!a.audio);
     b.disabled = !auto;
   }
@@ -7370,28 +7374,29 @@ function buildAnimPanel() {
                              syncAudioBtn(); saveStore(); };
     gldIn.onchange = () => { gldIn.value = A().glideMs; saveStore(); };
   }
-  /* 「音乐来了 / 听声音」：按左边选的音源启动；再点一下停、音量回到 **0**。
-   *   随机 = fftMusicLevel()（固定种子，暂停也跳，演示用）；
-   *   麦克风 / 电脑声音 = 真声音采集（浏览器要手势 + 授权，所以放在点击里 await）。
-   * **只影响预览**：导出的 C 仍然只认 HAL + 参数，没有「音源」这一项。 */
-  $('#aAudio').onclick = async () => {
+  /* 「音乐来了」= **一个开关**：打开就有信号、关掉就没有（2026-10-28 用户：
+   * 「就只保留类似于之前的那个音乐来了开关，打开就能有信号进来，关闭就没有」）。
+   * 左边「音源」只决定听什么：随机 = 立刻开始（fftMusicLevel，固定种子，暂停也跳）；
+   * 麦克风 / 电脑声音 = 真声音（打开这一下请求授权 / 弹共享框，浏览器要求手势），
+   * 量化后仍走同一套 40ms 采样 + 阈值 + 阻尼。**只影响预览，导出物不变**。
+   * 开着的时候换音源 = 立刻换过去；换不过去就退回原来的选择并关掉开关。 */
+  function audioOff(msg) {
     const a = A();
-    if (a.audio) {                       /* 停：放掉麦克风 / 共享，音量回 0 */
-      a.audio = false; a.fft = 0;
-      audioCapStop();
-      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
-      status('已停止听音：音量回到 0（拖滑杆可手动改）');
-      return;
-    }
-    const src = a.audioSrc || 'random';
-    if (src === 'random') {              /* 随机注入：和以前完全一样 */
+    a.audio = false; a.fft = 0;
+    audioCapStop();
+    syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+    status(msg || '音乐停了：音量回到 0（拖滑杆可手动改）');
+  }
+  async function audioOnWith(src) {
+    const a = A();
+    if (src === 'random') {              /* 随机注入：和以前完全一样，一个开关立刻有信号 */
       a.audio = true; a.fft = 0;
       fftMusicReset();                   /* 重新开始一段「音乐」（固定种子，重放一样） */
       syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
       resetClock();
       startLoop();
       status(`音乐来了：每 20ms 随机注入音量（阈值 ${fftThreshold(a.thr, a.audioMax)}），动画跟着忽快忽慢`);
-      return;
+      return true;
     }
     const btn = $('#aAudio');
     if (btn) btn.disabled = true;
@@ -7402,29 +7407,46 @@ function buildAnimPanel() {
       resetClock();
       startLoop();
       status(src === 'mic'
-        ? '正在听麦克风：响度按 -60..0 dB 映射到 0..最大值（只影响预览）'
-        : '正在听电脑声音：共享的标签页/窗口要有声音（只影响预览）');
+        ? '音乐来了：正在听麦克风（响度按 -60..0 dB 映射到 0..最大值，只影响预览）'
+        : '音乐来了：正在听电脑声音（共享的标签页/窗口要有声音，只影响预览）');
+      return true;
     } catch (err) {
       audioCapStop();
       a.audio = false; a.fft = 0;
-      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
       status('没能开始听声音：' + ((err && err.message) || err), 'warn');
+      return false;
     } finally {
       if (btn) btn.disabled = false;
-      syncAudioBtn();
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
     }
+  }
+  $('#aAudio').onclick = async () => {
+    if (A().audio) { audioOff(); return; }
+    await audioOnWith(A().audioSrc || 'random');
   };
-  /* 音源切换：换源就停掉正在听的声音（浏览器要求用户手势，等用户重新点开始） */
   const srcSel = $('#aSrc');
   if (srcSel) {
-    srcSel.onchange = () => {
+    srcSel.onchange = async () => {
       const a = A();
-      a.audioSrc = AUDIO_SRC.indexOf(srcSel.value) >= 0 ? srcSel.value : 'random';
-      if (a.audio) { a.audio = false; a.fft = 0; audioCapStop(); }
-      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
-      status(a.audioSrc === 'random' ? '音源：随机（模拟板上信号）'
-        : a.audioSrc === 'mic' ? '音源：麦克风 —— 点「听麦克风」开始（会请求一次授权）'
-        : '音源：电脑声音 —— 点「听电脑声音」，共享时记得勾「分享音频」');
+      const prev = a.audioSrc || 'random';
+      const next = AUDIO_SRC.indexOf(srcSel.value) >= 0 ? srcSel.value : 'random';
+      if (next === prev) { syncAudioBtn(); return; }
+      a.audioSrc = next;
+      saveStore();
+      let failed = false;
+      if (a.audio) {                     /* 开着换源：立刻换；换不过去退回原选择并停下 */
+        audioCapStop(); a.audio = false; a.fft = 0;
+        failed = !(await audioOnWith(next));
+        if (failed) a.audioSrc = prev;
+      }
+      syncAudioBtn(); saveStore();
+      const nm = v => v === 'mic' ? '麦克风' : v === 'system' ? '电脑声音' : '随机';
+      if (failed) status(`换音源没成功，已退回「${nm(prev)}」（开关已关，再打开就是原来的音源）`, 'warn');
+      else if (!a.audio) {
+        status(a.audioSrc === 'random' ? '音源：随机 —— 打开「音乐来了」就有信号'
+          : a.audioSrc === 'mic' ? '音源：麦克风 —— 打开「音乐来了」时请求一次授权'
+          : '音源：电脑声音 —— 打开「音乐来了」时共享一个标签页/屏幕，勾「分享音频」');
+      }
     };
   }
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };

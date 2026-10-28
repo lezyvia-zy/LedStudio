@@ -11,9 +11,9 @@
 
 **根因**：预览的 `A().fft` 只由 `fftMusicLevel()`（随机注入）产生，调阈值 / 阻尼时看到的不是真音乐；但板上那条链路本来就是平台给 `led_gen_hal_audio_level()`，工具里换成真声音**不需要改导出**。
 
-**改动**：① core 新增 `audioLevelFromRms()` / `audioLevelFromTimeData()`（时域波形算 RMS → dBFS → `0..最大值`，-60dB..0dB 映射；空 / NaN → 0）与 `AUDIO_SRC = ['random','mic','system']`。② 工程加 `state.anim.audioSrc`（**只进工程、不进导出**），`A()` 归一化。③ 预览条新增「音源」下拉 + 按钮：随机（模拟）/ 麦克风（`getUserMedia`）/ 电脑声音（`getDisplayMedia({video,audio})` —— 共享标签页 / 屏幕时勾「分享音频」）；`loop()` 每 20ms 按音源取 `audioCapLevel()` 或 `fftMusicLevel()`，之后仍走同一套 40ms 采样 + 阈值 + 阻尼。④ 采集生命周期：点「听…」启动（浏览器手势 + 授权）、再点停止；切手动档 / 换项目 / 停止共享自动收摊（`track.stop()` + `ctx.close()`），失败在状态栏说清原因（没权限 / 没勾分享音频 / 不支持）。⑤ 编辑台每拍都 `stageSetSpeed()` —— 停掉音乐后不会卡在快档（原来遗留的小毛病）。
+**改动**：① core 新增 `audioLevelFromRms()` / `audioLevelFromTimeData()`（时域波形算 RMS → dBFS → `0..最大值`，-60dB..0dB 映射；空 / NaN → 0）与 `AUDIO_SRC = ['random','mic','system']`。② 工程加 `state.anim.audioSrc`（**只进工程、不进导出**），`A()` 归一化。③ 预览条新增「音源」下拉 + **「音乐来了」一个开关**（打开就有信号、关掉就没有）：随机（`fftMusicLevel`，立刻开始）/ 麦克风（`getUserMedia`）/ 电脑声音（`getDisplayMedia({video,audio})` —— 共享标签页 / 屏幕时勾「分享音频」）；**开着换音源会立刻换过去，换不过去退回原选择并关掉开关**；`loop()` 每 20ms 按音源取 `audioCapLevel()` 或 `fftMusicLevel()`，之后仍走同一套 40ms 采样 + 阈值 + 阻尼。④ 采集生命周期：打开开关这一下请求授权（浏览器手势），关掉 / 切手动档 / 换项目 / 停止共享自动 `track.stop()` + 关 AudioContext，失败在状态栏说清原因（没权限 / 没勾分享音频 / 不支持）。⑤ 编辑台每拍都 `stageSetSpeed()` —— 停掉音乐后不会卡在快档（原来遗留的小毛病）。
 
-**测试**：`test_effects_core` 9d +4（音源枚举 / RMS 映射含 40 刻度 / 时域波形含空数组）；`test_anim2` H 段 +7（默认随机 / 切麦克风存档+按钮 / 桩 `getUserMedia`+`AudioContext` 开始采集 / 停止释放轨道 / 共享没勾音频的提示 / 失败仍记住音源 / **导出的 C 里没有音源痕迹**）。全量 26 套件 / **1971 项** / 0 FAIL。
+**测试**：`test_effects_core` 9d +4（音源枚举 / RMS 映射含 40 刻度 / 时域波形含空数组）；`test_anim2` H 段 +9（默认随机 / 只换音源不自启 / 打开开关立刻听麦克风 / 开着换随机（释放麦克风）/ 开着换回麦克风 / 关掉开关 / 共享没勾音频的提示 / 失败仍记住音源 / **导出的 C 里没有音源痕迹**）。全量 26 套件 / **1973 项** / 0 FAIL。
 
 **影响**：`docs/audit/anim.md` A7 ⑦、`CLAUDE.md` 坑 47、`HANDOFF.md` 第十五轮、帮助页 / README。**导出物、HAL 契约、结构体零改动**（板上仍由 `led_gen_hal_audio_level()` 给音量，音源只是工具预览）；真采音只能在 Chrome / Edge 里手动验（Node 测试桩掉浏览器 API）。
 
