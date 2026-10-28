@@ -215,8 +215,8 @@ ok(/^    \{ 2, 1, 1, 8, 0, 0, 0, 0, 48, 4, 0, 255, 255, 0, 0, 0 \},/m.test(out) 
 
 const eblk = out.slice(out.indexOf('static const led_gen_effect_t'));
 const eblkRows = (eblk.match(/^    \{.*\},/gm) || []);
-ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 4, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
-   '效果行 = kind=1 / ctype=4（彩虹）/ 末尾带渐亮·亮·变暗 + 渐变两列（grad_first / grad_step）: ' + (eblkRows[0] || '(无)'));
+ok(eblkRows.length && /^    \{ 1, 0, 0, 0, 4, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 1, 0, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/.test(eblkRows[0]),
+   '效果行 = kind=1 / ctype=4（彩虹）/ 末尾带渐亮·亮·变暗 + 渐变两列（grad_first / grad_step）+ 平滑（smooth_ms）: ' + (eblkRows[0] || '(无)'));
 
 
 /* ---- 8) 起始位也能存 ---- */
@@ -596,8 +596,29 @@ console.log('--- 新配色（效果级）---');
     slow.value = '160'; slow.oninput({ target: slow });      /* 复原成 8 拍 */
     await new Promise(r => setTimeout(r, 700));
   }
+  /* 平滑 T（2026-10-28 第十三轮）：存的就是 ms（不折拍）；套预置缺省 60，「随机闪」显式 0 */
+  console.log('--- 平滑 T：每效果一份，只在慢档 ---');
+  {
+    const sm = byId.get('fSmooth');
+    ok(!!sm && +sm.value === 60,
+       `「平滑(ms)」跟着套的预置走：缺省 ${sm && sm.value}ms（新效果 / 套预置 = 60）`);
+    sm.value = '120'; sm.oninput({ target: sm });
+    await new Promise(r => setTimeout(r, 700));
+    const v120 = fxListOf(0)[0].smooth;
+    sm.value = '5000'; sm.oninput({ target: sm });
+    await new Promise(r => setTimeout(r, 700));
+    const vMax = fxListOf(0)[0].smooth;
+    sm.onchange();
+    ok(v120 === 120 && vMax === 1000 && sm.value === '1000',
+       `填 120ms 直接存 ${v120}ms（不折拍）；填 5000 夹到 ${vMax}ms 并回显 ${sm.value}`);
+    pick.value = '随机闪'; click('fxPresetApply');
+    await new Promise(r => setTimeout(r, 700));
+    ok(fxListOf(0)[0].smooth === 0 && +byId.get('fSmooth').value === 0,
+       '「随机闪」套完平滑 = 0（闪的那一格是硬跳，抹平了就看不出闪）');
+  }
   /* 图层卡上的「脉动周期 / 刷新间隔 / 旋转」也是 ms（内部存拍） */
   pick.value = '呼吸彩虹'; click('fxPresetApply');
+
   await new Promise(r => setTimeout(r, 700));
   {
     const box = byId.get('fLayers').children[0];

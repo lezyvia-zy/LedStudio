@@ -675,6 +675,7 @@
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
         <label class="row"><span>慢速(ms)</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要多少 ms（内部按 20ms 一拍、**向上取整**）。数值越大越慢。&#10;150ms 相当于以前的 8 拍（160ms）。" min="20" max="5100" step="20"></label>
         <label class="row"><span>快速(ms)</span><input type="number" id="fFast" data-tip="快速档：有音乐（快档）时每走一格要多少 ms。&#10;20ms = 每拍走一格（最快）。" min="20" max="5100" step="20"></label>
+        <label class="row"><span>平滑(ms)</span><input type="number" id="fSmooth" data-tip="每效果独立的「平滑 T」：亮度（mask）变化时按这个时间慢慢爬过去，**只在慢速档生效**，快档直通（省算力）。&#10;0 = 关（硬切；老工程与内建行就是这个）；新效果 / 套预置默认 60ms；越大越柔，上限 1000ms。&#10;逐灯爬坡：每拍最多变 ceil(255 × 20 ÷ T) 级，剩下的不足一步就吸附到位（60ms ≈ 每拍 85 级、约 3 拍走满）。"></label>
         <label class="row"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
       </fieldset>
 
@@ -1026,6 +1027,7 @@
           <tr><td>步进(级)</td><td>渐变专用：每动一次在色环上<b>前进几级</b>（1..16，默认 1）。「速度」最小是 1 拍 —— 想比「1 拍 1 级」更快就抬步进：速度 1 + 步进 8 = 32 拍 ≈ 0.64 秒一圈（50Hz 一拍 20ms），最大 16 ≈ 0.32 秒一圈。下面那行灰字实时算「一整圈 = 多少拍 / 多少秒」。只改颜色走多快，不动起始色 / 顺序。</td></tr>
           <tr><td>渐亮(ms) / 亮(ms) / 变暗(ms)</td><td>跳变专用：匀速爬到满亮用多少 ms（第一拍 = 255 / 渐亮、最后一拍正好满亮；0 = 硬启亮，一拍照跳）；满亮保持多少 ms；再用多少 ms 匀速暗下去（数值越大越慢；最后一拍 ≈255/(变暗+1) 不完全黑 —— 全黑一帧就是一次闪，换色会抖一下；0 = 立刻换色）。三段加起来就是「停留」（最多 255 拍 ≈ 5.1 秒）。<br>呼吸只出现前两行：<b>渐亮 = 变暗</b>（对称），「亮」照旧，周期自动 = 渐亮 × 2 + 亮。</td></tr>
           <tr><td>慢速(ms) / 快速(ms)</td><td>每走一格要多少 ms（越大越慢；按 20ms 一拍、一律向上取整，填 30 会变成 40）。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
+          <tr><td>平滑(ms)</td><td><b>每个效果各一份</b>：亮度变化时按这个时间慢慢爬过去（逐灯爬坡，不是整条一起渐变）。<b>只在慢速档生效</b>，快档直通（省算力）。0 = 关（硬切，老工程 / 内建行就是这个）；新效果 / 套预置默认 <b>60ms</b>（每拍 85 级、约 3 拍走满）；越大越柔，上限 1000ms。随机闪那类「一格一格跳」的效果显式给 0，抹平了就看不见闪。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
           <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。</td></tr>
         </table>
@@ -2564,6 +2566,10 @@ function normalizeEffect(e) {
    * 老存档没有 → 整条 + 往返（只有「盖满之后接着用下一个条目盖回来」是新行为）。 */
   e.cover_span = effCoverSpan(e);
   e.cover_dir = effCoverDir(e);
+  /* 平滑 T（ms）：只在慢档对 mask 做逐灯亮度斜坡。老存档没有这一项 → **0 = 关**
+   * （观感与上一版逐字节相同）；新效果 / 套预置的 60 在 newCustomEffect / applyPreset 里给。 */
+  if (e.smooth == null) e.smooth = 0;
+  e.smooth = effSmooth(e);
   return e;
 }
 
@@ -2603,6 +2609,8 @@ function newCustomEffect(slot, name) {
     palette: [[255, 0, 0], [0, 0, 255]],
     levels: 30, hue_base: 0, hue_speed: 0, period: 60,
     slow: 8, fast: 1, speed: 0, moves: true,
+    /* 平滑 T（ms）：新效果出厂 60 ≈ 每拍 85 级、约 3 拍走满；0 = 关（老工程 / 内建行） */
+    smooth: SMOOTH_MS_DEF,
     layers: [{ kind: 'spot', count: 1, width: 8, phase: 0, falloff: 'cos',
                pulse_period: 0, pulse_amp: 0, direction: 1 }],
   };
@@ -3135,6 +3143,24 @@ function effShape(e) {
            period: effPeriod(e), symmetric: false };
 }
 
+/* ---- 每效果「平滑 T」（2026-10-28 第十三轮，用户定）-------------------------------
+ * 作用在**亮度（mask）**上、每个效果独立、**只在慢档生效**（快档直通省算力）；
+ * 参数只有一个「全幅时间 T」(ms)：0 = 关（老工程 / 内建行的观感），新效果 / 套预置缺省 60。
+ * 每拍最多变化 ceil(255 × 20 / T) 级（夹 1..255），剩下的不足一步就吸附到目标 ——
+ * 与生成的 C 里 led_gen_smooth_step() 逐值相同。 */
+const SMOOTH_MS_MAX = 1000;
+const SMOOTH_MS_DEF = 60;
+function effSmooth(e) {
+  if (!e || e.smooth == null) return 0;          /* 老存档 / 手拼的效果对象：0 = 直通 */
+  return Math.max(0, Math.min(SMOOTH_MS_MAX, e.smooth | 0));
+}
+function smoothStepOf(ms) {
+  const v = +ms || 0;
+  if (v <= 0) return 255;                        /* 关：一拍照满 */
+  const st = Math.ceil((255 * FW.TICK_MS) / v);
+  return Math.max(1, Math.min(255, st));
+}
+
 /* 覆盖 = 「这一趟的条目把上一趟的样子盖掉 → 下一趟再盖回来 → …」的连环扫：
  *   一趟 period 拍扫完 S 颗灯（S = 覆盖灯数，0 / 超过 len = 整条），扫完立刻换下一趟；
  *   方向由 dir 定：0 = 往返（第 0 趟 0→S-1、第 1 趟 S-1→0…）、1 = 单向（每趟都 0→S-1）；
@@ -3348,6 +3374,8 @@ function instNew() {
                 铺法看条目本身（palette 首端 / paletteB 末端同色 = 纯色） */
              cover_span: 0, cover_dir: 0 },
     speed_slow: 8, speed_fast: 1, speed_cur: 8, step_cnt: 0,
+    /* 平滑 T（ms，效果级）：慢档时 renderAllSim 按它逐灯爬亮度；0 / 快档 = 直通 */
+    smooth: 0,
     /* 往返用：走过接缝的次数取奇偶（0 = 正着走的那几圈 / 1 = 倒着走的那几圈），
        以及「上一拍的位置」用来发现「光标跨过接缝」（见 instTick）。
        与 C 的 led_gen_inst_t.lap / lap_pos 一一对应。 */
@@ -3409,6 +3437,10 @@ function simInit() {
      *   stage_lock 非 null = 手动档（工具里的慢/快预览），此时不跑采样与迟滞 */
     stage: 0, stage_hold: 0, audio_acc: 0, lvl_sample: 0, stage_lock: null, glide: 0,
     gen_tick: 0, power_on: true, fb: new Uint8Array(FW.LED_COUNT * 3),
+    /* 每效果「平滑 T」的逐分区缓冲（sim.shown[分区下标] = Uint8Array(ZONE_MAX_LEN)）：
+     * 这一拍真正要显示的亮度，逐拍往 mask 目标爬。与 C 的 led_gen_shown[][] 一一对应；
+     * 懒建（第一次渲染时才有），换模式 / 重铺时清空 —— 见 simClearShown()。 */
+    shown: [],
   };
 }
 
@@ -3425,6 +3457,14 @@ function simApplyEffect(inst, eff, idx, state) {
   }
   inst.anim.offset  = (eff.kind === 'custom') ? (eff.offset | 0) : 0;
   inst.anim.gen_tick = 0;
+}
+
+/* 首次渲染之前就建好，换模式时整片丢掉（C 侧 apply_mode 里的 memset） */
+function simClearShown(sim) { sim.shown = []; }
+function simShownOf(sim, zi) {
+  if (!Array.isArray(sim.shown)) sim.shown = [];
+  if (!sim.shown[zi]) sim.shown[zi] = new Uint8Array(FW.ZONE_MAX_LEN);
+  return sim.shown[zi];
 }
 
 /* 按模式重建整个仿真：每条「分区组→效果」绑定一个实例，同一效果只建一次（所以是同步的） */
@@ -3453,6 +3493,7 @@ function simApplyMode(sim, state) {
   insts.forEach(i => { i.step_cnt = 0; });
   /* 换模式 = C 侧 led_gen_apply_mode()：采样 / 迟滞状态清掉，别把上一模式的档位带过来 */
   sim.stage = 0; sim.stage_hold = 0; sim.audio_acc = 0; sim.lvl_sample = 0;
+  simClearShown(sim);          /* 同理：平滑缓冲也从 0 起爬（C 的 led_gen_shown[][] 清零） */
   simApplyStage(sim);
   return plan;
 }
@@ -3465,6 +3506,7 @@ function simSetupPreset(sim, state, p) {
   sim.insts = [inst];
   sim.plan  = [{ inst: 0, zones: state.zones.map((_, i) => i) }];
   sim.gen_tick = 0;
+  simClearShown(sim);
   return inst;
 }
 
@@ -3482,6 +3524,7 @@ function simApplySolo(sim, state, effectId) {
   sim.insts = [inst];
   sim.plan  = [{ inst: 0, zones: state.zones.map((_, i) => i) }];
   sim.gen_tick = 0;
+  simClearShown(sim);              /* 换一条效果单独看：平滑缓冲从 0 起爬 */
   return inst;
 }
 
@@ -3660,6 +3703,8 @@ function effectPreset(eff, idx, state) {
                  ? gradTableFor(state, eff) : null,
     width: eff.width | 0, gap: eff.gap | 0,
     slow:  eff.slow | 0,  fast: eff.fast | 0, speed: eff.speed | 0,
+    /* 平滑 T（ms）：实例只看慢档用它；快档 / 0 = 直通 */
+    smooth: effSmooth(eff),
     grad_step: effGradStep(eff),
     /* 纯色的主色仍以 c1 为准（「覆盖参数」只改 c1 时立刻生效）；
        色板类模式（跳变/呼吸/覆盖/彩虹）以 palette 为准。 */
@@ -3762,12 +3807,18 @@ function renderAllSim(sim, state, applyReverse) {
   fb.fill(0);
   const br = sim.brightness.current;
   const nominal = 'cw';
+  /* 平滑只在慢档做：快档直通（用户定 —— 快档本来就在赶时间，省算力）。
+   * fast 与 C 的 led_gen_render_mode() 同一句判据（stage + 档位参数没退化）。 */
+  const fastNow = ringIsFast(sim);
 
   for (const p of (sim.plan || [])) {
     const inst = sim.insts[p.inst];
     if (!inst) continue;
     const a = inst.anim, c = inst.color;
     const pos = a.position.current;
+    const smoothMs = (inst.smooth == null) ? 0 : (inst.smooth | 0);
+    /* 每拍最多变几级：T = 0 或快档 → 255（一步吸附 = 直通，并同步 shown） */
+    const step = (!fastNow && smoothMs > 0) ? smoothStepOf(smoothMs) : 255;
 
     for (const zi of p.zones) {
       const z = state.zones[zi];
@@ -3785,8 +3836,15 @@ function renderAllSim(sim, state, applyReverse) {
       renderZoneMask(inst, len, zpos);
 
       const rev = applyReverse && zoneReverse(state, z, nominal);
+      const sh = simShownOf(sim, zi);
       for (let i = 0; i < len; i++) {
-        const b = a.mask[i];
+        /* 逐灯亮度斜坡：shown 往这一拍的目标爬 step 级，剩下不足一步就吸附。
+         * 步长取整 / 吸附规则与 C 的 led_gen_render_mode() 逐值相同（逐字节比对守着）。 */
+        const tgt = a.mask[i];
+        let b = sh[i];
+        if (b < tgt) b = ((tgt - b) <= step) ? tgt : (b + step);
+        else if (b > tgt) b = ((b - tgt) <= step) ? tgt : (b - step);
+        sh[i] = b;
         if (!b) continue;
         const idx  = rev ? (len - 1 - i) : i;
         const phys = z.start + idx;
@@ -3860,6 +3918,8 @@ function instApplyPreset(inst, p) {
   inst.anim.position.target  = 0;
   inst.lap = 0; inst.lapPrev = 0;
   inst.step_cnt = 0;
+  /* 平滑 T（ms）：ring_preset_t 形状的调用方（测试 / 老 API）没这个字段 → 0 = 直通 */
+  inst.smooth = effSmooth(p);
   inst.anim.mask.fill(0);
   inst.anim.hue.fill(0xFF);
 
@@ -4132,6 +4192,8 @@ function modesPlan(state) {
                    hue_speed: e.hue_speed | 0,
                    /* 包络：跳变三段 + 停留；呼吸 = 渐亮/亮/渐亮 + 周期（周期自己算） */
                    period: sh.period, rise: sh.rise, hold: sh.hold, fade: sh.fade,
+                   /* 平滑 T（ms）：只在慢档生效；0 = 直通（老工程 / 内建行） */
+                   smooth: effSmooth(e),
                    name: name || e.name, latin: e.latin || '' };
     if (e.kind !== 'custom')
       return Object.assign(base, { kind: 0, anim: e.anim | 0,
@@ -4211,6 +4273,7 @@ const LED_GEN_IMPL = [
 '',
 'static uint8_t        led_gen_zone_mask[ZONE_MAX_LEN];   /* @cmt1@ */',
 'static uint8_t        led_gen_hue[ZONE_MAX_LEN];         /* @hueArr@ */',
+'static uint8_t        led_gen_shown[ZONE_MAX][ZONE_MAX_LEN];   /* @shownarr@ */',
 'static led_gen_inst_t led_gen_inst[LED_GEN_MAX_INST];',
 'static uint8_t        led_gen_inst_eff[LED_GEN_MAX_INST];  /* @cmt2@ */',
 'static uint8_t        led_gen_zone_inst[ZONE_MAX];         /* @cmt3@ */',
@@ -4587,6 +4650,8 @@ const LED_GEN_IMPL = [
 '    led_gen_cur_mode = mode_idx;',
 '    M = &led_gen_modes[mode_idx];',
 '    memset(led_gen_inst, 0, sizeof(led_gen_inst));',
+'    /* @smoothreset@ */',
+'    memset(led_gen_shown, 0, sizeof(led_gen_shown));',
 '    for (z = 0; z < ZONE_MAX; z++) led_gen_zone_inst[z] = 0xFFu;',
 '    for (i = 0; i < M->count; i++) {',
 '        B = &led_gen_binds[M->first + i];',
@@ -4742,30 +4807,58 @@ const LED_GEN_IMPL = [
 '    }',
 '}',
 '',
+'/* @smoothstep@ */',
+'static uint8_t led_gen_smooth_step(uint16_t ms)',
+'{',
+'    uint32_t st;',
+'    if (ms == 0u) return 255u;',
+'    st = ((uint32_t)255u * (uint32_t)LED_GEN_TICK_MS + (uint32_t)ms - 1u) / (uint32_t)ms;',
+'    if (st < 1u) st = 1u;',
+'    if (st > 255u) st = 255u;',
+'    return (uint8_t)st;',
+'}',
+'',
 '/* @genrender@ */',
 'void led_gen_render_mode(ring_t *ring)',
 '{',
-'    uint8_t z, i, len, phys, hh;',
+'    uint8_t z, i, len, phys, hh, fast;',
 '    int16_t zpos;',
 '    uint16_t b, br;',
 '    uint32_t rb, gb, bb;',
 '    int32_t dr, dg, db;',
 '    rgb_t col;',
 '    led_gen_inst_t *I;',
+'    const led_gen_effect_t *E;',
 '    memset(ring->fb, 0, sizeof(ring->fb));',
 '    br = (uint16_t)ring->brightness.current;',
+'    /* @smoothgate@ */',
+'    fast = (uint8_t)(((led_gen_stage != 0u) && (ring->speed_fast < ring->speed_slow)) ? 1u : 0u);',
 '    for (z = 0; z < ring->zone_count; z++) {',
 '        const led_zone_t *zn = &ring->zones[z];',
 '        if (led_gen_zone_inst[z] == 0xFFu) continue;',
 '        if (!ring->zone_en[z]) continue;',
 '        len = zn->count; if (len == 0u) continue;',
 '        I = &led_gen_inst[led_gen_zone_inst[z]];',
+'        E = &led_gen_effects[I->eff];',
 '        zpos = (int16_t)(((int32_t)I->anim.position.current * (int32_t)len) / RING_SIZE);',
 '        if (zpos < 0) zpos = (int16_t)(zpos + (int16_t)(len * 256));',
 '        else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 256));',
 '        led_gen_zone_render(I, len, zpos, led_gen_zone_mask, led_gen_hue);',
+'        /* @smoothramp@ */',
+'        if ((fast != 0u) || (E->smooth_ms == 0u)) {',
+'            memcpy(led_gen_shown[z], led_gen_zone_mask, len);',
+'        } else {',
+'            uint8_t st = led_gen_smooth_step(E->smooth_ms);',
+'            for (i = 0; i < len; i++) {',
+'                uint8_t tg = led_gen_zone_mask[i];',
+'                uint8_t cv = led_gen_shown[z][i];',
+'                if (cv < tg) cv = (uint8_t)(((uint16_t)(tg - cv) <= (uint16_t)st) ? tg : (uint16_t)(cv + st));',
+'                else if (cv > tg) cv = (uint8_t)(((uint16_t)(cv - tg) <= (uint16_t)st) ? tg : (uint16_t)(cv - st));',
+'                led_gen_shown[z][i] = cv;',
+'            }',
+'        }',
 '        for (i = 0; i < len; i++) {',
-'            b = led_gen_zone_mask[i]; if (b == 0u) continue;',
+'            b = led_gen_shown[z][i]; if (b == 0u) continue;',
 '            phys = (uint8_t)(zn->start + i);',
 '            if (phys >= LED_COUNT) continue;',
 '            hh = led_gen_hue[i];',
@@ -4845,6 +4938,12 @@ const GEN_COMMENTS = {
   cmt2: { zh:'实例 → 效果下标', en:'instance -> effect index' },
   cmt3: { zh:'分区 → 实例下标；0xFF = 该分区不参与', en:'zone -> instance index; 0xFF = this zone is not driven' },
   cmt4: { zh:'同一个效果只建一次实例 —— 这就是「同步」的由来', en:'one instance per distinct effect - this is what makes shared zones synchronised' },
+  shownarr: { zh:'每效果「平滑 T」的逐分区亮度缓冲：这一拍真正显示的值，逐拍往 mask 目标爬（只在慢档用，换模式清零）', en:'per-zone brightness buffer for the per-effect smoothing: what is really shown this frame, ramped towards the mask target (slow stage only; cleared on mode change)' },
+  effSmooth: { zh:'每效果平滑 T（ms）：慢档时逐灯把亮度往 mask 目标爬；快档或 0 = 直通并同步缓冲（切档不残留）', en:'per-effect smoothing time in ms: on the slow stage each LED brightness ramps towards the mask target; fast stage or 0 = pass through and sync the buffer (no residue when the stage changes)' },
+  smoothstep: { zh:'平滑步长：每拍最多变 ceil(255 × LED_GEN_TICK_MS / smooth_ms) 级，夹 1..255；0 = 一拍照满（直通）', en:'smoothing step: at most ceil(255 * LED_GEN_TICK_MS / smooth_ms) levels per frame, clamped to 1..255; 0 = jump to the target at once (pass through)' },
+  smoothgate: { zh:'平滑只在慢档做：快档直通（省算力）—— 判据与 led_gen_tick() 里那个 fast 同源', en:'smoothing only runs on the slow stage; the fast stage passes through (saves cycles) - same predicate as fast in led_gen_tick()' },
+  smoothramp: { zh:'逐灯亮度斜坡：shown 往这一拍的目标爬一步，剩下不足一步就吸附；快档 / smooth = 0 时直通并同步 shown', en:'per-LED brightness ramp: shown moves one step towards this frame target, snapping when the remainder fits; pass through and sync shown on the fast stage / when smooth = 0' },
+  smoothreset: { zh:'换模式：平滑缓冲清零（与实例一起从黑开始爬）', en:'mode change: clear the smoothing buffers (they ramp up from black along with the instances)' },
   hueArr: { zh:'每个灯位的色相数组; 0xFF 表示用效果的全局配色', en:'per-LED hue array; 0xFF means use the effect global colour' },
   bounce: { zh:'往返（乒乓）：走到环的接缝（绕满一整圈）才掉头', en:'ping-pong: turn around at the seam, i.e. after a full lap' },
   bounceq: { zh:'往返：奇数圈倒着走 —— 一个来回 = 两圈（lap 是整圈数的奇偶）', en:'bounce: odd laps run backwards - one round trip = two laps (lap = lap-count parity)' },
@@ -5020,6 +5119,7 @@ function exportEffectsC(state, opt) {
     effPalCount: '色板条目数（纯色/跳变/呼吸/覆盖用；条目 k 的两行 = pal_first + 2k、+2k+1）',
     effGrad: '渐变/旧双色渐变: 该效果的色环在 led_gen_grad 里的起点（一条渐变 256 行；其余配色为 0）',
     effGradStep: '渐变/旧双色渐变: 每动一次前进几级 (1..16)；一整圈 = 256 * spectrum_speed / grad_step 拍（其余配色存着不用）',
+    effSmooth: GEN_COMMENTS.effSmooth.zh,
     effLevels: '彩虹: 走完一轮红->红要多少颗灯 (>=6)',
     effHueBase: '彩虹: 色相起点 0..255（覆盖时 = 方向：0 往返 / 1 单向）',
     effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转',
@@ -5086,6 +5186,7 @@ function exportEffectsC(state, opt) {
     effPalCount: 'palette entry count (solid/step/breath/wipe); entry k = pal_first + 2k, +2k+1',
     effGrad: 'gradient/legacy duo: start index of this effect grad ring in led_gen_grad (256 rows per ring; 0 for other colour modes)',
     effGradStep: 'gradient/legacy duo: levels advanced per step (1..16); one revolution = 256 * spectrum_speed / grad_step ticks (stored but unused by other colour modes)',
+    effSmooth: GEN_COMMENTS.effSmooth.en,
     effLevels: 'rainbow: LEDs per full red->red cycle (>=6)',
     effHueBase: 'rainbow: hue start 0..255 (wipe: direction, 0 = ping-pong / 1 = one way)',
     effHueSpeed: 'rainbow: shift one level every N frames, 0 = static',
@@ -5236,6 +5337,7 @@ function exportEffectsC(state, opt) {
        '    uint8_t step_fade;      /* ' + t.effFade + ' */',
        '    uint16_t grad_first;    /* ' + t.effGrad + ' */',
        '    uint8_t grad_step;      /* ' + t.effGradStep + ' */',
+       '    uint16_t smooth_ms;     /* ' + t.effSmooth + ' */',
        '} led_gen_effect_t;',
        '',
        'typedef struct { uint8_t effect; uint16_t zone_mask; } led_gen_bind_t;  /* ' + t.bindt + ' */',
@@ -5293,7 +5395,7 @@ function exportEffectsC(state, opt) {
                      e.c2r, e.c2g, e.c2b, e.speed, e.slow, e.fast,
                      e.first, e.count, e.offset, e.moves,
                      e.pal_first, e.pal_count, e.levels, e.hue_base, e.hue_speed, e.period,
-                     e.rise, e.hold, e.fade, e.grad_first, e.grad_step].join(', ') +
+                     e.rise, e.hold, e.fade, e.grad_first, e.grad_step, e.smooth].join(', ') +
          ' },   /* ' + i + ' ' + nm(e) + ' */');
   });
   push('};', '');
@@ -5493,6 +5595,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                coverEntry, wipeSpan, wipeEntryAt,
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
+               simClearShown, simShownOf, effSmooth, smoothStepOf, SMOOTH_MS_MAX, SMOOTH_MS_DEF,
                breathEnv, breathPlan, effBreathRise, effBreathHold, effShape, BREATH_PERIOD_MAX,
                stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
                effPalette, effPaletteRaw, palIsGrad, PAL_MAX, PAL_GRAD_LEN,
@@ -7746,6 +7849,8 @@ const FX_PRESETS = [
       levels:30, hue_base:0, hue_speed:4,
       layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:60, pulse_amp:255 }) ] }) },
   { name:'随机闪',          make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
+      /* 随机闪的每一格都是硬跳（密度 / 刷新率决定亮灭），平滑会把它抹成一片灰 */
+      smooth:0,
       layers:[ Object.assign(mkLayer('twinkle'), { density:48, rate:4, lo:0, hi:220 }) ] }) },
   { name:'闪 + 底色',       make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('fill'),  { level:60 }),
@@ -7805,6 +7910,9 @@ function applyPreset(name) {
   e.cover_dir = (made.cover_dir != null) ? (made.cover_dir | 0) : 0;
   e.period = made.period || 60;
   e.slow = made.slow; e.fast = made.fast; e.speed = made.speed;
+  /* 平滑 T：模板没写就落出厂 60ms；「随机闪」显式写 0 —— 闪的那一格是硬跳，
+   * 抹平了就看不出「闪」。不重置的话，上一条效果留下的大数会带到新套的预置上。 */
+  e.smooth = (made.smooth != null) ? effSmooth(made) : SMOOTH_MS_DEF;
   /* 跳变：模板没写 rise / hold / fade 就按缺省落一份具体值（rise 缺省 0 = 硬启亮） */
   e.rise = (made.rise != null) ? (made.rise | 0) : effStepRise(made);
   e.hold = (made.hold != null) ? (made.hold | 0) : effStepHold(made);
@@ -8637,7 +8745,7 @@ function syncFxEdit() {
   const e = editTarget();
   const on = !!e;
   /* 名称不在这一串里 —— 它只读（自动生成），不用跟着禁用 / 启用 */
-  const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSpeed','fGradStep','fRise','fHold','fFade',
+  const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSmooth','fSpeed','fGradStep','fRise','fHold','fFade',
                'fLevels','fHueBase','fHueSpeed','fPeriod','fGrad','fCoverDir','fCoverSpan',
                'fxGradNew','fxGradSave','fxGradDrop','fxGradAdd','fxGradSub',
                'fAnim','fWidth','fGap','fMoves','fOffset','fxPresetApply','fxPresetPick'];
@@ -8684,6 +8792,8 @@ function syncFxEdit() {
   msBox('fSpeed', 255, 0);
   $('#fPeriod').value = fxMsOf(bs ? bs.period : e.period);
   $('#fSlow').value = fxMsOf(e.slow); $('#fFast').value = fxMsOf(e.fast);
+  /* 平滑 T 存的就是 ms（不折拍），所以不走 msBox；缺字段 = 0（老工程） */
+  $('#fSmooth').value = effSmooth(e);
   $('#fSpeed').value = fxMsOf(e.speed);
   $('#fGradStep').value = e.grad_step;
   $('#fRise').value = fxMsOf(bs ? bs.rise : e.rise);
@@ -8985,6 +9095,12 @@ function buildFxPanel() {
   }, 'onchange');
   bind('fSlow',  e => { const x = editTarget(); if (x) { x.slow = Math.min(255, fxTicksOf(+e.target.value, 1)); fxLive(); } });
   bind('fFast',  e => { const x = editTarget(); if (x) { x.fast = Math.min(255, fxTicksOf(+e.target.value, 1)); fxLive(); } });
+  /* 平滑 T：存的就是 ms（只在慢档生效，0 = 关）；上限 SMOOTH_MS_MAX = 1000 */
+  bind('fSmooth', e => {
+    const x = editTarget(); if (!x) return;
+    x.smooth = Math.max(0, Math.min(SMOOTH_MS_MAX, +e.target.value || 0));
+    fxLive();
+  });
   /* 跳变时「停留」是算出来的（只读）：用户真把它改了也只当没改，免得两处数打架。
    * 渐变：1..GRAD_SPEED_MAX 拍（0 也当 1 —— 不能「每 0 拍动一次」）。框里都是 ms。 */
   bind('fSpeed', e => {
@@ -9037,7 +9153,7 @@ function buildFxPanel() {
     fxLive();
   });
   /* 时间类格子都是「显示 ms、存拍」：离开框时按模型回显实际生效的 ms（填 30 → 40） */
-  ['fSlow','fFast','fRise','fHold','fFade','fHueSpeed','fPeriod','fSpeed'].forEach(id => {
+  ['fSlow','fFast','fSmooth','fRise','fHold','fFade','fHueSpeed','fPeriod','fSpeed'].forEach(id => {
     const el = $('#' + id);
     if (el) el.onchange = () => { if (editTarget()) syncFxEdit(); };
   });

@@ -90,6 +90,20 @@ ok(/uint16_t flash_fast;/.test(h2) && /uint16_t flash_on;/.test(h2) && /uint8_t 
    '末尾再追加 flash_fast / flash_on / flash_low 三列（有音乐间隔 / 亮的时间 / 最低亮度），两列时间加宽成 uint16，前面的列一列没挪位');
 ok(/uint8_t flash_low;\s+\/\* audio flash: brightness during the dark frames/.test(h2),
    'flash_low 的注释说清了它填的是「亮度本身」而不是衰减量');
+/* 每效果平滑 T：效果行**末尾**追加第 30 列 smooth_ms；前面的列一列不动 */
+{
+  const e0c = numsOf(effRows[0]);                 /* hdr：默认 9 条内建 → 0 */
+  const e3c = numsOf(e3row);                      /* h2：第 3 条是 newCustomEffect → 60 */
+  ok(e0c.length === 30 && e0c[29] === 0 && e3c.length === 30 && e3c[29] === 60,
+     `效果行 ${e0c.length} 列，末尾 smooth_ms = 内建 ${e0c[29]} / 新效果 ${e3c[29]}（老工程直通、新效果出厂 60）`);
+  ok(h2.indexOf('uint16_t smooth_ms;') > h2.indexOf('uint8_t grad_step;') &&
+     /uint16_t smooth_ms;\s+\/\* per-effect smoothing time in ms/.test(h2),
+     '结构体末尾是 uint16_t smooth_ms（排在 grad_step 之后），注释说明「只在慢档 / 0 = 关」');
+  ok(/led_gen_smooth_step\(E->smooth_ms\)/.test(h2) &&
+     /memcpy\(led_gen_shown\[z\], led_gen_zone_mask, len\)/.test(h2) &&
+     /memset\(led_gen_shown, 0, sizeof\(led_gen_shown\)\)/.test(h2),
+     '渲染器里有平滑步长 / 直通同步 / 换模式清零（fast 或 smooth = 0 时整体 memcpy）');
+}
 /* 阈值随导出走：刻度与阈值都是宏，判档在生成代码里（不再依赖固件那条 ring_set_audio_level()） */
 ok(/#define LED_GEN_AUDIO_MAX\s+20u/.test(h2) && /#define LED_GEN_FFT_THRESHOLD\s+\d+u/.test(h2),
    '导出带音量刻度 / 阈值两个宏（LED_GEN_AUDIO_MAX / LED_GEN_FFT_THRESHOLD）: '

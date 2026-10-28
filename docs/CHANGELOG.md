@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-10-28（第十三轮）—— 每效果「平滑 T」（只在慢档、快档直通）
+
+**动机**（用户定稿）：平滑作用在**亮度（mask）**上、**每个效果独立**、**只在慢档生效**（快档直通省算力）；参数只有一个「全幅时间 T」，**新效果默认 60ms / 老工程迁移 0**，换算一律向上取整。
+
+**根因**：mask 每拍直接替换，慢档下光带边缘、呼吸 / 覆盖的明暗都是一格一格跳；快档本来就在赶时间，那里做平滑纯属浪费算力。
+
+**改动**：① core 新增 `effSmooth()` / `smoothStepOf()`（`SMOOTH_MS_MAX = 1000` / `SMOOTH_MS_DEF = 60`，都进 `CORE`）；`newCustomEffect` 给 60、`applyPreset` 用 `made.smooth ?? 60`（「随机闪」显式 0）、`normalizeEffect` 只给缺字段的老存档补 0。② 导出：`led_gen_effect_t` **末尾**加 `uint16_t smooth_ms`（第 30 列，前面的列一列不动）+ `GEN_COMMENTS.effSmooth`；`modesPlan()` 效果行带上它。③ C：`led_gen_shown[ZONE_MAX][ZONE_MAX_LEN]`（+320B RAM）+ `led_gen_smooth_step()` = `clamp(ceil(255×LED_GEN_TICK_MS/T), 1, 255)`，`led_gen_render_mode()` 逐分区逐灯往 mask 目标爬、剩余 ≤ step 吸附；**快档或 T = 0 时整体 `memcpy` 直通并同步 shown**，`led_gen_apply_mode()` 清零。④ JS：`renderAllSim()` 同位置同算法（`sim.shown[zi]`，`simClearShown()` 在 `simApplyMode / simApplySolo / simSetupPreset` 里清空），与 C 逐字节对齐。⑤ 界面：效果卡「快速(ms)」下新增 **「平滑(ms)」**（0..1000、步长 20，tip 写明只在慢档 / 0 = 关 / 越大越柔）；`syncFxEdit` 直接回显 ms；帮助页加一行。
+
+**测试**：`test_effects_core` +5（步长 + 升 / 降斜坡、T = 0 直通、快档直通、切档不残留）；`test_effects_c_exec` 新增两段「平滑慢档 / 平滑快档」（C 侧**每拍都渲染**，各跑 2 拍：慢档 169/199 还在爬、快档 199/199 直通，两段都与 JS 逐字节）；`test_effects_c` +3（效果行 30 列 / `uint16_t smooth_ms` 位置 + 注释 / 渲染器三处文本）；`test_fx_presets` +3（缺省 60 / 填 120 存 120 与超限夹到 1000 / 随机闪 = 0）、`test_grad` / `test_effects_ui` 的效果行列数跟着改。全量 26 套件 / **1945 项** / 0 FAIL。
+
+**影响**：`docs/audit/fx.md` F22、`CLAUDE.md` 坑 44、`HANDOFF.md` 第十三轮、帮助页。**结构体 +2B/效果 → 老工程必须重导出重编**（`LED_GEN_STAGE_GLIDE_MS` 那一轮之后的导出也要一起重编）；老工程打开后 `smooth = 0`，观感与上一版逐字节相同。
+
+---
+
 ## 2026-10-28（第九轮）—— 音乐阈值可调（滑杆针 + 「阈」格）+ 「音乐来了」随机注入
 
 **动机**（用户原话）：「1、音乐信号的阈值要可调，现在固定到4了。可以在音量的滑块上增加一个滑针来调整阈值，同时在音量条的末尾处增加一个参数输入框。2、点击【音乐来了】就开始自动输入随机数，模仿板上真实情况。再次点击就取消，默认输入的是0；」

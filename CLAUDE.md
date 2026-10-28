@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1929 项断言。五类：
+26 个套件、1945 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -189,7 +189,10 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 43. **界面按 ms、底层存「拍」；ms → 拍一律向上取整**（2026-10-28 第十二轮，用户「现在的计时都是根据拍子数来的…我希望将所有可调速的参数都改为根据实际时间来填，单位就还是 ms」＋「一律向上」）：① 时间类格子的**唯一换算口径**是 `msToTicksUp(ms)`（0 → 0，其余 `max(1, ceil(ms/20))`）+ 显示 `拍 × FW.TICK_MS` —— 效果卡用 `fxMsOf / fxTicksOf / msBox`，图层卡用 `MS_FIELDS` + `MS_TICK_MAX`；两边都**别自己写 `Math.round`**（四舍五入会让「填 30 → 20」，比用户要的短）；② **只改显示层**：`effect.slow/rise/hold/fade/period/…` 与 `layer.pulse_period/rate/rotate` 存的仍是拍，导出表也是拍 —— 所以这轮**不动结构体、不迁移老工程、不用重编固件**；③ `max / min / step` 必须跟着换算（`tickMax × 20`、`step = 20`），否则输入框自己的箭头会拨到不存在的值；④ 每个 ms 框都要有 `onchange` 回显（填 30 显示 40），不然用户会以为没生效；⑤ **0 永远是「关 / 硬启亮 / 不保持 / 不转」**，别被取整改成 1；⑥ 同理，`msToTicksUp` 只用于**时间**格子 —— 步进 / 级数 / 绕环轮数 / 起始位这些不是时间，照旧按个数填。
 
-工具本体功能完整、1929 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1929 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+44. **平滑是「逐灯亮度斜坡」：只在慢档，快档直通并同步缓冲**（2026-10-28 第十三轮，用户定稿：平滑作用在**亮度（mask）**上、**每个效果独立**、**只在慢档生效**（快档直通省算力），参数只有一个「全幅时间 T」，**新效果默认 60ms / 老工程迁移 0**，换算一律向上取整）：① 存的是 **ms（0..1000）**，`effSmooth()` 是唯一读法（缺字段 = 0），`smoothStepOf(ms) = clamp(ceil(255×20/ms), 1, 255)`；`newCustomEffect` = 60、`applyPreset` = `made.smooth ?? 60`（「随机闪」显式 0）、`normalizeEffect` 只给缺字段的老存档补 0 —— **别在别处再给一套默认值**（三处打架，老工程会突然变柔）。② 缓冲是**每分区一份**：C 是 `led_gen_shown[ZONE_MAX][ZONE_MAX_LEN]`（+320B RAM，静态、不 malloc），JS 是 `sim.shown[zi]`（懒建，`simClearShown()` 在 `simApplyMode / simApplySolo / simSetupPreset` 里清空）；**别按实例开缓冲** —— 同一效果会被多个分区共用，但每个分区 mask 的长度不同。③ 斜坡规则三处（core 的 `renderAllSim` / C 的 `led_gen_render_mode` / 测试）必须逐值相同：`if (b < tgt) b = (tgt - b <= step) ? tgt : b + step; else if (b > tgt) b = (b - tgt <= step) ? tgt : b - step;` —— **剩余 ≤ step 就吸附**、绝不越过目标；**快档或 T = 0 直接 `memcpy`（JS 里 step = 255）**，并把 shown 同步成目标。不同步的话，快档那一拍显示的是「旧值往新目标爬一步」的残影，切回慢档还会从旧的低值续爬（`test_effects_core` 的「切档不残留」守着）。④ 换模式时 `led_gen_apply_mode()` 里 `memset(led_gen_shown, 0, sizeof(led_gen_shown))`（JS 是 `sim.shown = []`）：新模式的实例从 0 开始爬，不带上一个模式的残影。⑤ 导出 `led_gen_effect_t` **末尾**加 `uint16_t smooth_ms`（29 → 30 列，前面的列一列不许挪）；数行 / 数列的断言在 `test_effects_c` / `test_grad` / `test_effects_ui` / `test_fx_presets` 四处，改列数就得四处一起改（`test_grad` 取 grad_first 用的是「倒数第 3 列」）。⑥ `test_effects_c_exec` 的模式段现在**每拍都渲染**（不然 C 只爬一次、JS 每拍都爬，逐字节必红）；批量模式的 `mkFx()` 必须 `e.smooth = 0`，平滑只在新增的「平滑慢档 / 平滑快档」两段里测（各跑 2 拍：慢档 169/199 还在爬、快档 199/199 直通）。⑦ 快档判据用 `led_gen_stage` + `ring->speed_fast < ring->speed_slow`（与 `led_gen_tick()` 的 `fast` 同源），JS 用 `ringIsFast(sim)` —— **别读 `sim.stage_lock` 或 `audio_level`**（手动档 / 自动档会分家）。⑧ **结构体 +2B/效果 → 老工程必须重导出重编**（`LED_GEN_STAGE_GLIDE_MS` 之后的导出也要一起重编）；老工程打开后 `smooth = 0`，观感与上一版逐字节相同。
+
+
+工具本体功能完整、1945 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1945 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

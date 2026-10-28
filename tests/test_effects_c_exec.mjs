@@ -28,6 +28,10 @@ function mkFx(i, layerSets) {
   const e = newCustomEffect(i, 'FX' + i);
   e.latin = 'FX' + i;
   e.layers = layerSets;
+  /* 这一批模式跑的是「跑 37 拍后**渲染一帧**」的逐字节比对 —— 平滑 T 必须关掉：
+   * 开着的话 C 只做了一次爬坡、JS 每拍都爬，两边必然差一截。平滑单独两段测（见下面
+   * 「平滑慢档 / 平滑快档」那两段，那里每拍都渲染）。 */
+  e.smooth = 0;
   effs.push(e);
   return e;
 }
@@ -164,6 +168,14 @@ const BLINK_LONG = mkFx(15, [{ kind:'fill', level:200, pulse_period:400, wave:3,
                                direction:1, bounce:0, spans:0, rotate:0 }]);
 st.modes.list.push({ id:'mN', name:'长间隔闪', latin:'AUDIO_FLASH_LONG', enabled:true,
                      binds:[{ effect:BLINK_LONG.id, zones:[] }] });
+/* 每效果「平滑 T」：满亮填充（level 200 + smooth 60ms = 每拍 85 级）。
+ * 慢档跑 2 拍应停在 170（还在爬），快档在采样到的那一拍直通到 200 —— 两段都**每拍渲染**，
+ * 与 JS 的 simTick 同节奏，下面逐字节比对（单看末尾一帧是看不出爬坡过程的）。 */
+const SMOOTH = mkFx(16, [{ kind:'fill', level:200, pulse_period:0, pulse_amp:0, wave:0,
+                           direction:1, bounce:0, spans:0, rotate:0 }]);
+SMOOTH.smooth = 60;
+st.modes.list.push({ id:'mS', name:'平滑', latin:'SMOOTH', enabled:true,
+                     binds:[{ effect:SMOOTH.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -269,6 +281,10 @@ const LOUD = Math.min(FW.AUDIO_MAX, THR + 5);
 const NEAR = Math.max(0, THR - 2);
 /* 迟滞追踪的拍数：够看到「进快档 → 保持 → 掉回慢档」 */
 const STAGE_TRACE_TICKS = 60;
+/* 平滑 T：只跑 2 拍就收尾 —— T = 60ms（每拍 85 级）时第 2 拍停在 170/200，
+ * 一眼看得出「还在爬」；跑到第 3 拍就满 200、与直通看不出差别了。 */
+const SMOOTH_TICKS = 2;
+const SMOOTH_MODE = st.modes.list.findIndex(m => m.id === 'mS');
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -291,8 +307,8 @@ const main = [
   '        for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
   '        g_ring.brightness.current = 256;',
   '        led_gen_apply_mode(&g_ring, m);',
-  '        for (t = 0; t < ' + TICKS + '; t++) led_gen_tick(&g_ring);',
-  '        led_gen_render_mode(&g_ring);',
+  '        /* render every tick: smoothing ramps per tick, a single render at the end differs from JS */',
+  '        for (t = 0; t < ' + TICKS + '; t++) { led_gen_tick(&g_ring); led_gen_render_mode(&g_ring); }',
   '        for (i = 0; i < LED_COUNT; i++)',
   '            printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '        printf("|");',
@@ -430,6 +446,37 @@ const main = [
   '    }',
   '    printf("|");',
 
+  /* 平滑 T（慢档）：满亮填充 level 200、T = 60ms → 每拍 85 级。每拍都渲染，跑 2 拍收尾，
+     第 1 颗应停在 170（85 × 2，还在往 200 爬）。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_audio = 0u;',
+  '    led_gen_apply_mode(&g_ring, ' + SMOOTH_MODE + ');',
+  '    for (t = 0; t < ' + SMOOTH_TICKS + '; t++) { led_gen_tick(&g_ring); led_gen_render_mode(&g_ring); }',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+  /* 平滑 T（快档）：同一个效果、音量从一开始就大 —— 第 2 拍采样到就进快档，那一拍直通到 200
+     （慢档这一拍只有 170）。两段都跑 2 拍，唯一的差别就是档位。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_audio = (uint8_t)' + LOUD + 'u;',
+  '    led_gen_apply_mode(&g_ring, ' + SMOOTH_MODE + ');',
+  '    for (t = 0; t < ' + SMOOTH_TICKS + '; t++) { led_gen_tick(&g_ring); led_gen_render_mode(&g_ring); }',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+
   '    printf("\\n");',
   '    return 0;',
   '}',
@@ -460,10 +507,10 @@ try {
 }
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 5 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 */
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 10 段附加场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 8, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 8 段附加场景）`);
+ok(cAll === st.modes.list.length + 10, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 10 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -787,6 +834,38 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
   const spd = t => (rows[t] ? rows[t][2] : -1);
   ok(spd(back) === 2 && spd(back + 3) === 5 && spd(back + 6) === 8,
      `出快档是滑移的：第 ${back} 拍 speed=${spd(back)}，+3 拍 ${spd(back + 3)}，+6 拍 ${spd(back + 6)}（350ms 过渡、每拍 +1）`);
+}
+
+/* ---------- 4g) 每效果平滑 T：慢档逐拍爬 / 快档直通（两段都与 C 逐字节） ----------
+ * T = 60ms → 每拍 ceil(255×20/60) = 85 级；效果是满亮填充 level 200，
+ * 所以慢档第 2 拍 = 170（还在爬），快档第 2 拍（采样到音量那一拍）= 200（直通）。 */
+console.log('--- 每效果平滑 T（只在慢档）---');
+{
+  const mode = st.modes.list.find(m => m.id === 'mS');
+  const runJs = loud => {
+    const s = JSON.parse(JSON.stringify(st));
+    s.anim.modeId = mode.id;
+    const sim = simInit();
+    simApplyMode(sim, s);
+    for (let t = 0; t < SMOOTH_TICKS; t++) {
+      simSetAudioLevel(sim, loud ? LOUD : 0, THR);
+      simTick(sim, s, false);
+    }
+    return Array.from({ length: FW.LED_COUNT },
+      (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
+  };
+  const jsSlow = runJs(false), jsFast = runJs(true);
+  const cSlow = (cAux[8] || []).map(px => px.join(',')).join('|');
+  const cFast = (cAux[9] || []).map(px => px.join(',')).join('|');
+  ok(cSlow === jsSlow, '平滑（慢档）跑 2 拍：C 侧与 JS 逐字节一致（每拍都渲染）');
+  ok(cFast === jsFast, '平滑（快档）跑 2 拍：C 侧与 JS 逐字节一致（每拍都渲染）');
+  const slowPx = (cAux[8] || [])[0] || [0, 0, 0];
+  const fastPx = (cAux[9] || [])[0] || [0, 0, 0];
+  /* 渲染是 (255 × mask × 256) >> 16（mask = 170 / 200 时出来是 169 / 199） */
+  const px = v => Math.floor((255 * v * 256) / 65536);
+  ok(slowPx[0] === px(170), `慢档第 2 拍还在爬坡：${slowPx[0]}/${px(200)}（T = 60ms → 每拍 85 级，第 2 拍 170）`);
+  ok(fastPx[0] === px(200), `快档那一拍直通：${fastPx[0]}/${px(200)}（快档不做平滑，省算力）`);
+  ok(px(170) < px(200) && cSlow !== cFast, '同样 2 拍，慢档（爬坡）与快档（直通）的帧确实不一样（上面两条不是空断言）');
 }
 
 /* 覆盖度自检 */

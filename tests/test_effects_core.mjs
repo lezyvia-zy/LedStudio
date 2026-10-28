@@ -1187,5 +1187,81 @@ console.log('--- 音控闪（预置「闪烁」）---');
      `音乐停了之后又回到「自己闪」(${fr.join(', ')} 拍)`);
 }
 
+/* ============================================================================
+ * 每效果「平滑 T」（2026-10-28 第十三轮，用户定）
+ *
+ * 作用在**亮度（mask）**上、每个效果独立、**只在慢档生效**（快档直通省算力）；
+ * 参数只有一个「全幅时间 T」(ms)：0 = 关（老工程 / 内建行），新效果 / 套预置缺省 60。
+ * 每拍最多变 ceil(255 × 20 / T) 级（夹 1..255），剩下不足一步就吸附到目标。
+ * 这里守五件事：① 慢档逐拍爬上去；② 目标变暗时也逐拍爬下来；③ T = 0 直通；
+ * ④ 快档直通（不进斜坡）；⑤ 切档不残留（直通那一拍把缓冲同步好，回慢档不会从旧值续爬）。
+ * ==========================================================================*/
+console.log('--- 每效果平滑 T（只在慢档）---');
+{
+  const { smoothStepOf, effSmooth, newCustomEffect, projectFromPreset: proj,
+          simInit, simApplyMode, simSetSpeed, simTick, SMOOTH_MS_DEF } = CORE;
+  /* 一条满亮填充（纯白），只绑分区 0；T 由参数给。 */
+  const mkState = smooth => {
+    const s = proj(CORE.PRESET_SP3122D);
+    const e = Object.assign(newCustomEffect(0, '平滑'), {
+      color: FW.COLOR.SOLID, c1: [255, 255, 255], smooth, moves: false,
+      layers: [{ kind:'fill', level:255, en:1, pulse_period:0, pulse_amp:0, wave:0,
+                 direction:1, bounce:0, spans:0, rotate:0 }],
+    });
+    s.effects = { version: 1, list: [e] };
+    s.modes = { version: 1, list: [{ id:'m0', name:'平滑', latin:'SMOOTH', enabled: true,
+                                      binds: [{ effect: e.id, zones: [0] }] }] };
+    return s;
+  };
+  const run = (smooth, ticks, speed) => {
+    const s = mkState(smooth);
+    const sim = simInit();
+    simApplyMode(sim, s);
+    simSetSpeed(sim, speed);
+    const vals = [], shown = [];
+    for (let t = 0; t < ticks; t++) {
+      simTick(sim, s, false);
+      shown.push(sim.shown[0][0]);
+      vals.push(sim.fb[0]);            /* 纯白 × mask × 256 >> 16（mask 255 时是 254） */
+    }
+    return { sim, s, vals, shown };
+  };
+
+  /* ① 慢档：0 → 255 分三拍爬（T = 60ms → 每拍 ceil(255×20/60) = 85 级） */
+  const up = run(60, 3, 'slow');
+  ok(JSON.stringify(up.shown) === '[85,170,255]' && up.vals[2] === 254 &&
+     smoothStepOf(60) === 85 && effSmooth(newCustomEffect(0)) === SMOOTH_MS_DEF,
+     `慢档逐拍爬坡：${up.shown.join(' → ')}（T = 60ms = 每拍 85 级），第 3 拍画面 ${up.vals[2]}/254；`
+     + `新效果默认 ${SMOOTH_MS_DEF}ms`);
+
+  /* ② 降：满亮之后把目标改成 0 —— 同样是每拍 85 级地爬下去，不是一帧全灭 */
+  const down = run(60, 3, 'slow');
+  down.sim.insts[0].anim.layers[0].level = 0;
+  const dn = [];
+  for (let t = 0; t < 3; t++) { simTick(down.sim, down.s, false); dn.push(down.sim.shown[0][0]); }
+  ok(JSON.stringify(dn) === '[170,85,0]',
+     `目标变暗时也逐拍爬下去：${dn.join(' → ')}（剩下不足一步就吸附到 0）`);
+
+  /* ③ T = 0 = 关（老工程 / 内建行）：一拍照满，没有爬坡 */
+  const flat = run(0, 2, 'slow');
+  ok(flat.shown[0] === 255 && flat.shown[1] === 255 && flat.vals[1] === 254 && effSmooth({}) === 0,
+     'T = 0（老工程 / 内建行）= 直通：第一拍照满 255，画面与上一版逐字节相同');
+
+  /* ④ 快档直通：T 虽然 60ms，快档第一拍就已经是 255（快档不做平滑，省算力） */
+  const fast = run(60, 2, 'fast');
+  ok(fast.shown[0] === 255 && fast.shown[1] === 255 && fast.vals[0] === 254,
+     '快档直通：T = 60ms 时第 1 拍就已经是 255（快档不跑斜坡）');
+
+  /* ⑤ 切档不残留：慢档爬到 170 → 进快档直通（缓冲同步成 255）→ 回慢档仍是 255，
+   *    不会从快档之前的旧值接着爬（否则切一次档会莫名暗一下再爬回来）。 */
+  const sw = run(60, 2, 'slow');
+  simSetSpeed(sw.sim, 'fast'); simTick(sw.sim, sw.s, false);
+  const midShown = sw.sim.shown[0][0];
+  simSetSpeed(sw.sim, 'slow'); simTick(sw.sim, sw.s, false);
+  ok(sw.shown[1] === 170 && midShown === 255 && sw.sim.shown[0][0] === 255,
+     `切档不残留：慢档爬到 ${sw.shown[1]} → 快档直通到 ${midShown} → 回慢档仍是 `
+     + `${sw.sim.shown[0][0]}（没有从旧的低值续爬）`);
+}
+
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
 process.exit(fails ? 1 : 0);
