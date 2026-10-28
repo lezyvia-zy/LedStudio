@@ -258,7 +258,7 @@ console.log('--- 新配色（效果级）---');
   await new Promise(r => setTimeout(r, 700));
   ok(show('rowPal') && show('rowSpeed'), '跳变：调色板与「停留」都出来');
   ok(show('rowHold') && show('rowFade') && show('rowRise'), '跳变：渐亮(拍) / 亮(拍) / 变暗(拍) 三行都出来');
-  ok(byId.get('fSpeedLab').textContent === '停留(拍)', `跳变的数值叫「停留(拍)」: ${byId.get('fSpeedLab').textContent}`);
+  ok(byId.get('fSpeedLab').textContent === '停留(ms)', `跳变的数值叫「停留(ms)」: ${byId.get('fSpeedLab').textContent}`);
   const n0 = palN();
   click('fxPalAdd');
   await new Promise(r => setTimeout(r, 700));
@@ -274,24 +274,25 @@ console.log('--- 新配色（效果级）---');
   ok(fxListOf(0)[0].palette.length === 16 && /16/.test(stMsg),
      `色板最多 16 个（存盘后 ${fxListOf(0)[0].palette.length} 个｜${stMsg}）`);
 
-  /* 渐亮 / 亮 / 变暗：改了立刻落盘，并且「停留(拍)」自动 = 三者之和（那一格只读，不用手填） */
+  /* 渐亮 / 亮 / 变暗：改了立刻落盘，并且「停留」自动 = 三者之和（那一格只读，不用手填）。
+   * 三个框都是 **ms**（内部存拍、向上取整）：80ms = 4 拍、120ms = 6 拍、180ms = 9 拍。 */
   const rIn = byId.get('fRise'), hIn = byId.get('fHold'), fIn = byId.get('fFade'), spIn = byId.get('fSpeed');
-  ok(spIn.readOnly === true, '跳变时「停留(拍)」是自动算的（只读）');
-  hIn.value = '6'; hIn.oninput({ target: hIn });
+  ok(spIn.readOnly === true, '跳变时「停留」是自动算的（只读）');
+  hIn.value = '120'; hIn.oninput({ target: hIn });
   await new Promise(r => setTimeout(r, 700));
-  ok(fxListOf(0)[0].hold === 6 && fxListOf(0)[0].speed === 6 && spIn.value === '6',
-     `只改「亮」：停留跟着算成 6（speed=${fxListOf(0)[0].speed}，格子=${spIn.value}）`);
-  rIn.value = '4'; rIn.oninput({ target: rIn });
+  ok(fxListOf(0)[0].hold === 6 && fxListOf(0)[0].speed === 6 && spIn.value === '120',
+     `只改「亮」：填 120ms（6 拍）→ 停留 ${fxListOf(0)[0].speed} 拍 = ${spIn.value}ms`);
+  rIn.value = '80'; rIn.oninput({ target: rIn });
   await new Promise(r => setTimeout(r, 700));
-  ok(fxListOf(0)[0].rise === 4 && fxListOf(0)[0].speed === 10 && spIn.value === '10',
-     `渐亮 4 + 亮 6 → 停留 10（speed=${fxListOf(0)[0].speed}，格子=${spIn.value}）`);
-  fIn.value = '9'; fIn.oninput({ target: fIn });
+  ok(fxListOf(0)[0].rise === 4 && fxListOf(0)[0].speed === 10 && spIn.value === '200',
+     `渐亮 80ms(4 拍) + 亮 120ms(6 拍) → 停留 ${fxListOf(0)[0].speed} 拍 = ${spIn.value}ms`);
+  fIn.value = '180'; fIn.oninput({ target: fIn });
   await new Promise(r => setTimeout(r, 700));
   ok(fxListOf(0)[0].rise === 4 && fxListOf(0)[0].hold === 6 && fxListOf(0)[0].fade === 9 &&
-     fxListOf(0)[0].speed === 19 && spIn.value === '19',
-     `渐亮 4 + 亮 6 + 暗 9 → 停留 19 自动填好（speed=${fxListOf(0)[0].speed}，格子=${spIn.value}）`);
+     fxListOf(0)[0].speed === 19 && spIn.value === '380',
+     `渐亮 4 + 亮 6 + 暗 9 → 停留 19 拍自动填好（${spIn.value}ms）`);
   /* 停留是 8 位：三段加起来超 255 时封顶，状态栏说明（不会静默改数） */
-  hIn.value = '250'; hIn.oninput({ target: hIn });
+  hIn.value = '5000'; hIn.oninput({ target: hIn });
   await new Promise(r => setTimeout(r, 700));
   ok(fxListOf(0)[0].speed === 255 && /255/.test(byId.get('status').textContent),
      `三段加起来超过 255 拍：停留封顶 255（speed=${fxListOf(0)[0].speed}｜${byId.get('status').textContent}）`);
@@ -318,9 +319,9 @@ console.log('--- 新配色（效果级）---');
   {
     const e5 = fxListOf(0)[0];
     ok(e5.speed === Math.min(255, e5.rise + e5.hold + e5.fade) &&
-       byId.get('fSpeed').value === String(e5.speed) &&
+       +byId.get('fSpeed').value === e5.speed * 20 &&
        byId.get('fSpeed').readOnly === true,
-       `切回跳变：停留还是 渐亮 + 亮 + 暗（${e5.rise} + ${e5.hold} + ${e5.fade} → ${e5.speed}，格子 ${byId.get('fSpeed').value}）`);
+       `切回跳变：停留还是 渐亮 + 亮 + 暗（${e5.rise} + ${e5.hold} + ${e5.fade} → ${e5.speed} 拍，格子 ${byId.get('fSpeed').value}ms）`);
   }
 
   col.value = String(CORE.FW.COLOR.SPECTRUM);
@@ -340,20 +341,20 @@ console.log('--- 新配色（效果级）---');
   /* 呼吸 = 对称的跳变：只有「渐亮=变暗」和「亮」两行，周期自动 = 渐亮×2 + 亮（只读） */
   ok(show('rowRise') && show('rowHold') && !show('rowFade'),
      '呼吸：渐亮 / 亮 两行都在，没有「变暗」那一行（渐亮 = 渐暗）');
-  ok(byId.get('fRiseLab').textContent === '渐亮=变暗(拍)',
-     `呼吸：渐亮那一格的标题换成「渐亮=变暗(拍)」（${byId.get('fRiseLab').textContent}）`);
+  ok(byId.get('fRiseLab').textContent === '渐亮=变暗(ms)',
+     `呼吸：渐亮那一格的标题换成「渐亮=变暗(ms)」（${byId.get('fRiseLab').textContent}）`);
   {
     const fr = byId.get('fRise').value, fh = byId.get('fHold').value, fp = byId.get('fPeriod');
-    ok(fp.value === String(+fr * 2 + +fh) && fp.readOnly === true,
-       `呼吸：周期只读、自动 = 渐亮 ${fr} × 2 + 亮 ${fh} = ${fp.value}`);
-    byId.get('fRise').value = '10';
+    ok(+fp.value === (+fr) * 2 + (+fh) && fp.readOnly === true,
+       `呼吸：周期只读、自动 = 渐亮 ${fr} × 2 + 亮 ${fh} = ${fp.value} ms`);
+    byId.get('fRise').value = '20';          /* 20ms → 1 拍 */
     byId.get('fRise').oninput({ target: byId.get('fRise') });
-    ok(fp.value === String(+fh + 20),
-       `呼吸：渐亮改成 10 拍 → 周期当场算成 ${fp.value}（= 10 × 2 + ${fh}）`);
+    ok(+fp.value === 2 * 20 + (+fh),
+       `呼吸：渐亮改成 20ms（1 拍）→ 周期当场算成 ${fp.value} ms`);
     await new Promise(r => setTimeout(r, 700));    /* 存盘是防抖的，读存档前等一拍 */
     const eB2 = fxListOf(0)[0];       /* 存档是新解析出来的对象，断言得重新取一次 */
-    ok(eB2.b_rise === 10 && eB2.period === (+fh + 20),
-       `呼吸：两个数落盘（b_rise=${eB2.b_rise} / period=${eB2.period}）`);
+    ok(eB2.b_rise === 1 && eB2.period === (2 + (+fh) / 20),
+       `呼吸：两个数落盘（b_rise=${eB2.b_rise} / period=${eB2.period} 拍）`);
     ok(eB2.b_hold === 10 && eB2.rise === eB.rise && eB2.hold === eB.hold,
        `呼吸的数存在 b_rise / b_hold 上（${eB2.b_rise} / ${eB2.b_hold}），跳变的 rise/hold 没动（${eB2.rise} / ${eB2.hold}）`);
   }
@@ -361,7 +362,7 @@ console.log('--- 新配色（效果级）---');
   await new Promise(r => setTimeout(r, 700));
   {
     const eB3 = fxListOf(0)[0];
-    ok(eB3.period === 90 && eB3.b_rise === 40 && eB3.b_hold === 10 && byId.get('fRise').value === '40',
+    ok(eB3.period === 90 && eB3.b_rise === 40 && eB3.b_hold === 10 && byId.get('fRise').value === '800',
        `重新套呼吸预置：回到 period 90 / 渐亮 40 / 亮 10（${eB3.period} / ${eB3.b_rise} / ${eB3.b_hold}）—— 上一次改的 10 没赖着`);
   }
   /* 第一次切到呼吸（这一条从没设过 b_rise）：落出厂手感 40 / 10，而不是空着的 period/2 = 30。
@@ -375,7 +376,7 @@ console.log('--- 新配色（效果级）---');
     col.onchange({ target: col });
     await new Promise(r => setTimeout(r, 700));
     const eN = fxListOf(0)[0];
-    ok(eN.b_rise === 40 && eN.b_hold === 10 && eN.period === 90 && byId.get('fRise').value === '40',
+    ok(eN.b_rise === 40 && eN.b_hold === 10 && eN.period === 90 && byId.get('fRise').value === '800',
        `第一次切到呼吸：落出厂手感 渐亮 40 / 亮 10 / 周期 ${eN.period} 拍（不是空着的 period/2）`);
   }
   /* ---- 「动画里的呼吸」和「色彩配置里的呼吸」是同一套（2026-10-27 用户提问） ----
@@ -431,7 +432,7 @@ console.log('--- 新配色（效果级）---');
      '切回跳变：「变暗」那一行回来、周期又能手填了');
   ok(!show('rowCoverDir') && !show('rowCoverSpan') && !byId.has('rowCoverMode') && !byId.has('rowCoverGroup'),
      '切回跳变：覆盖那几行收起（覆盖方式 / 每组趟数已从界面移除）');
-  ok(byId.get('fRiseLab').textContent === '渐亮(拍)',
+  ok(byId.get('fRiseLab').textContent === '渐亮(ms)',
      `切回跳变：渐亮标题还原（${byId.get('fRiseLab').textContent}）`);
 
   pick.value = '颜色覆盖'; click('fxPresetApply');
@@ -460,8 +461,8 @@ console.log('--- 新配色（效果级）---');
   ok(show('rowCoverDir') && show('rowCoverSpan') &&
      !byId.has('rowCoverMode') && !byId.has('rowCoverGroup'),
      '覆盖：只剩「覆盖方向」「覆盖灯数」两行（覆盖方式 / 每组趟数已移除）');
-  ok(byId.get('fPeriodLab').textContent === '速度(拍/趟)',
-     `覆盖：周期那一行改叫「速度(拍/趟)」（${byId.get('fPeriodLab').textContent}）`);
+  ok(byId.get('fPeriodLab').textContent === '速度(ms/趟)',
+     `覆盖：周期那一行改叫「速度(ms/趟)」（${byId.get('fPeriodLab').textContent}）`);
   const elSpan = byId.get('fCoverSpan');
   elSpan.value = '16'; elSpan.oninput({ target: elSpan });
   await new Promise(r => setTimeout(r, 700));
@@ -560,8 +561,8 @@ console.log('--- 新配色（效果级）---');
      eS.hold === 8 && eS.fade === 8,
      `七彩跳变预置：停留 ${eS.speed} / 渐亮 ${eS.rise} / 亮 ${eS.hold} / 暗 ${eS.fade}（开箱就有渐亮，换色处不抖）`);
   ok(show('rowSpeed') && show('rowHold') && show('rowFade') && show('rowRise') &&
-     byId.get('fRise').value === '4' && byId.get('fHold').value === '8' && byId.get('fFade').value === '8',
-     `七彩跳变：四个数都填进输入框（${byId.get('fSpeed').value}/${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value}）`);
+     byId.get('fRise').value === '80' && byId.get('fHold').value === '160' && byId.get('fFade').value === '160',
+     `七彩跳变：四个数都填进输入框（${byId.get('fSpeed').value}/${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value} ms）`);
 
   /* 「跳变(渐暗后跳回)」= **配色「跳变」**（2026-10-27 用户：「色彩配置里面我们已经添加了跳变这个配置，
    * 这两者应该是一回事。选择动画跳变，即颜色也默认切换为跳变，同时调参接口也都是用同一套」）。
@@ -576,10 +577,43 @@ console.log('--- 新配色（效果级）---');
   ok(!(eJ.layers[0].pulse_period | 0) && !(eJ.layers[0].pulse_amp | 0),
      `图层不再靠填充层锯齿脉动（pulse_period ${eJ.layers[0].pulse_period} / pulse_amp ${eJ.layers[0].pulse_amp} / wave ${eJ.layers[0].wave}）`);
   ok(col.value === String(CORE.FW.COLOR.STEP) && show('rowHold') && show('rowFade') && show('rowRise') &&
-     byId.get('fSpeedLab').textContent === '停留(拍)' &&
-     byId.get('fFade').value === '30' && byId.get('fSpeed').value === '30',
+     byId.get('fSpeedLab').textContent === '停留(ms)' &&
+     byId.get('fFade').value === '600' && byId.get('fSpeed').value === '600',
      `色彩配置自己切到「跳变」、旋钮也在同一排（${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value} → 停留 ${byId.get('fSpeed').value}）`);
   ok(palN() === 3, `调色板 = 预置给的 3 色（${palN()} 个色块，想单色就删到 1 个）`);
+
+  /* ---- 时间类格子按 ms 显示（2026-10-28 第二轮）：填 ms、内部存拍、**一律向上取整** ---- */
+  console.log('--- 时间类格子：显示 ms / 内部存拍 ---');
+  {
+    const slow = byId.get('fSlow');
+    ok(+slow.value === 160 && slow.step === '20' && +slow.max === 5100,
+       `「慢速」按 ms 显示：8 拍 → ${slow.value}ms（步长 ${slow.step} / 上限 ${slow.max}）`);
+    slow.value = '30'; slow.oninput({ target: slow });
+    await new Promise(r => setTimeout(r, 700));
+    ok(fxListOf(0)[0].slow === 2, `填 30ms → 向上取整 ${fxListOf(0)[0].slow} 拍（30/20 = 1.5 → 2）`);
+    slow.onchange();
+    ok(slow.value === '40', `离开格子回显实际生效值 ${slow.value}ms`);
+    slow.value = '160'; slow.oninput({ target: slow });      /* 复原成 8 拍 */
+    await new Promise(r => setTimeout(r, 700));
+  }
+  /* 图层卡上的「脉动周期 / 刷新间隔 / 旋转」也是 ms（内部存拍） */
+  pick.value = '呼吸彩虹'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  {
+    const box = byId.get('fLayers').children[0];
+    const nums = [];
+    (function walk(n) { (n.children || []).forEach(c => {
+      if (c.tagName === 'INPUT' && c.type === 'number') nums.push(c);
+      walk(c); }); })(box);
+    ok(nums.length === 3 && nums[1].value === '1200' && String(nums[1].step) === '20',
+       `图层「脉动周期」60 拍 → ${nums[1].value}ms（${nums.map(n => n.value).join('/')}）`);
+    nums[1].value = '30'; nums[1].oninput();
+    await new Promise(r => setTimeout(r, 700));
+    nums[1].onchange();
+    ok(fxListOf(0)[0].layers[0].pulse_period === 2 &&
+       nums[1].value === '40',
+       `图层填 30ms → 2 拍，框里回显 ${nums[1].value}ms`);
+  }
 }
 
 /* ---- 11) 暂停时也要「看得出改了配色」 ---- */
@@ -625,7 +659,7 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
   /* 渐亮 > 0 且「亮」= 0：包络顶点在渐亮最后一拍（tick 0 反而是黑的）—— 暂停帧也跟着换 */
   {
     const rI = byId.get('fRise'), hI = byId.get('fHold');
-    rI.value = '4'; rI.oninput({ target: rI });
+    rI.value = '80'; rI.oninput({ target: rI });      /* 80ms = 4 拍 */
     await new Promise(r => setTimeout(r, 700));
     fills.length = 0;
     hI.value = '0'; hI.oninput({ target: hI });

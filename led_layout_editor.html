@@ -674,8 +674,8 @@
           <span class="hint" style="flex:1;margin:0">只是库里的编号；哪个模式用哪个效果，在「模式」页里配</span></label>
         <label class="row"><span>类型</span><span id="fKind">—</span></label>
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
-        <label class="row"><span>慢速</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要几个 20ms 节拍。数值越大越慢。" min="1" max="99"></label>
-        <label class="row"><span>快速</span><input type="number" id="fFast" data-tip="快速档：播放时按音量自动切换用的那一档。" min="1" max="99"></label>
+        <label class="row"><span>慢速(ms)</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要多少 ms（内部按 20ms 一拍、**向上取整**）。数值越大越慢。&#10;150ms 相当于以前的 8 拍（160ms）。" min="20" max="5100" step="20"></label>
+        <label class="row"><span>快速(ms)</span><input type="number" id="fFast" data-tip="快速档：有音乐（快档）时每走一格要多少 ms。&#10;20ms = 每拍走一格（最快）。" min="20" max="5100" step="20"></label>
         <label class="row"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
       </fieldset>
 
@@ -713,18 +713,18 @@
           <button id="fxPalDel" data-tip="删掉调色板最后一个条目（覆盖至少留 2 个，其余至少留 1 个）。">−</button>
         </div>
         <div class="hint" id="fPalHint">调色板：纯色条目（一个色块）/ [A→B] 两端渐变条目（胶囊）</div>
-        <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="255" data-tip="跳变：停留几拍 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每 N 拍沿色环往前一格（1..16，越小越快；一整圈 = 256 × N 拍 —— 1 = 5.12 秒、4 = 20 秒、16 = 82 秒）。想比 1 拍/级更快 → 抬下面的「步进(级)」。&#10;从跳变切到渐变时这一格会挟带「停留」那个大数（30~60 = 一圈好几分钟、看着像没动），切过去那一刻会自动收进 4（20 秒一圈）并提示 —— 想慢下来再自己调大。"></label>
+        <label class="row" id="rowSpeed"><span id="fSpeedLab">速度</span><input type="number" id="fSpeed" min="0" max="5100" step="20" data-tip="跳变：停留 = 渐亮 + 亮 + 变暗，填那三行时自动算（这儿不用手填）；渐变：每多少 ms 沿色环往前一格（20..320ms，越小越快；一整圈 = 256 × 这个值 —— 20ms ≈ 5.1 秒、80ms = 20 秒、320ms = 82 秒）。想比「20ms 一级」更快 → 抬下面的「步进(级)」。&#10;从跳变切到渐变时这一格会挟带「停留」那个大数（600~1200ms = 一圈好几分钟、看着像没动），切过去那一刻会自动收进 4 拍（80ms、20 秒一圈）并提示 —— 想慢下来再自己调大。&#10;填的 ms 一律向上取整到 20ms 的整拍。"></label>
         <label class="row" id="rowGradStep"><span>步进(级)</span><input type="number" id="fGradStep" min="1" max="16" data-tip="渐变专用：每动一次在色环上前进几级（1..16，默认 1）。&#10;「速度」回答「几拍动一次」（最小 1 拍），这里回答「一次走几级」—— 想比速度 = 1 还快，就抬这个：一整圈 = 256 × 速度 ÷ 步进 拍（速度 1 + 步进 8 → 32 拍 ≈ 0.64 秒一圈；50Hz 一拍 20ms）。&#10;1 = 老行为（逐拍一级）；最大 16 —— 16 个采样点走完一圈，再多就不是「流动」而是「闪」了。&#10;只改颜色走多快，不动起始色 / 顺序。"></label>
         <div class="hint" id="fxGradStepHint">一整圈 = …</div>
-        <label class="row" id="rowRise"><span id="fRiseLab">渐亮(拍)</span><input type="number" id="fRise" min="0" max="255" data-tip="跳变：每种颜色点亮用几拍（20ms 一拍）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
-        <label class="row" id="rowHold"><span id="fHoldLab">亮(拍)</span><input type="number" id="fHold" min="0" max="255" data-tip="跳变：渐亮到满亮之后保持几拍（20ms 一拍）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留(拍)」会自动 = 渐亮 + 亮 + 变暗。"></label>
-        <label class="row" id="rowFade"><span>变暗(拍)</span><input type="number" id="fFade" min="0" max="255" data-tip="跳变：满亮之后用几拍匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留(拍)」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数）。"></label>
+        <label class="row" id="rowRise"><span id="fRiseLab">渐亮(ms)</span><input type="number" id="fRise" min="0" max="5100" step="20" data-tip="跳变：每种颜色点亮用多少 ms（按 20ms 一拍、向上取整）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留」会自动 = 渐亮 + 亮 + 变暗。"></label>
+        <label class="row" id="rowHold"><span id="fHoldLab">亮(ms)</span><input type="number" id="fHold" min="0" max="5100" step="20" data-tip="跳变：渐亮到满亮之后保持多少 ms（按 20ms 一拍向上取整）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留」会自动 = 渐亮 + 亮 + 变暗。"></label>
+        <label class="row" id="rowFade"><span>变暗(ms)</span><input type="number" id="fFade" min="0" max="5100" step="20" data-tip="跳变：满亮之后用多少 ms 匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗拍数+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数，≈5.1 秒）。"></label>
         <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
         <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
-        <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="255" data-tip="每 N 拍整体转一格；0 = 不动。"></label>
+        <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="5100" step="20" data-tip="每多少 ms 整体转一格（按 20ms 一拍向上取整）；0 = 不动。"></label>
         <label class="row" id="rowCoverDir"><span>覆盖方向</span><select id="fCoverDir" data-tip="往返：盖满之后从另一头把底色盖回来（第 2 趟反向、第 3 趟再反回来），来回交替不停。&#10;单向：每趟都从同一头推过去 —— 盖满后颜色换一种、再从这一头重新盖一遍（像跑马灯从头刷过去）。&#10;两种都是连环的：颜色一趟一换（底色 / 盖色），所以永远不会整条「跳回」；「覆盖灯数」以外的那几颗一直是底色。"><option value="0">往返（来回）</option><option value="1">单向</option></select></label>
         <label class="row" id="rowCoverSpan"><span>覆盖灯数</span><input type="number" id="fCoverSpan" min="0" max="64" data-tip="覆盖等级：一趟最多扫过多少颗灯（0 = 整条分区）。&#10;填 16 就只在前面 16 颗之间来回盖，后面的灯一直保持底色 —— 一条 40 颗的顶环看着就像只有前 16 颗在动。&#10;超过分区灯数按整条算，最大 64。"></label>
-        <label class="row" id="rowPeriod"><span id="fPeriodLab">周期(拍)</span><input type="number" id="fPeriod" min="2" max="600" data-tip="呼吸：一次「灭→亮→灭」多少拍，每过一个周期换一种颜色。&#10;覆盖：一趟（从一头扫到另一头）多少拍 —— 越小越快。往返两趟 = 一个完整的来回。"></label>
+        <label class="row" id="rowPeriod"><span id="fPeriodLab">周期(ms)</span><input type="number" id="fPeriod" min="40" max="12000" step="20" data-tip="呼吸：一次「灭→亮→灭」多少 ms，每过一个周期换一种颜色（= 渐亮×2 + 亮，自动算，只读）。&#10;覆盖：一趟（从一头扫到另一头）多少 ms —— 越小越快。往返两趟 = 一个完整的来回。&#10;填的 ms 一律向上取整到 20ms 的整拍。"></label>
       </fieldset>
 
       <!-- 播放（常驻）：钉在这一页底部，改完效果随手就能播、一帧一帧看、换下一条巡览。
@@ -1022,11 +1022,11 @@
           <tr><td>取色面板</td><td>点任何一个色块（调色板 / 渐变起始色 / 渐变顺序 / 分区颜色）都弹同一个面板：<b>色环</b>上点或拖 = 直接选色相（出来就是满饱和、满亮度 —— 灯珠要的就是这种纯色，环顶红 → 顺时针黄、绿、青、蓝、紫；当前色是<b>黑 / 灰</b>时会先把亮度和饱和提满，否则换色相也看不出变化）；要灰、要暗、要白，才展开<b>「▸ 高级设置」</b>里的二维色图（横轴 = 饱和，最左是灰；纵轴 = 亮度，最下是黑），或者在色号框里直接敲 <b>#RRGGBB</b>（<b>#0f0</b> 这种三位简写也认）。点面板外面 / 按 Esc / 再点同一个色块收起；改一下立即生效，拖着的时候编辑台 / 灯板当场跟着变。</td></tr>
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
-          <tr><td>周期(拍)</td><td>呼吸：<b>自动 = 渐亮(=变暗) × 2 + 亮</b>（只读，改上面两行就自己算好）；覆盖：一遍颜色盖过去多少拍。</td></tr>
-          <tr><td>停留(拍) / 速度(拍)</td><td>跳变：<b>自动 = 渐亮 + 亮 + 变暗</b>（填那三行就填好，只读）；渐变：每 N 拍沿色环往前一格（<b>1..16</b>，越小越快；一整圈 = 256 × N 拍 —— 1 = 5.12 秒、4 = 20 秒、16 = 82 秒）。再快就要靠下面的「步进(级)」。<br><b>切到渐变时会自动收进 4</b>：这一格在跳变下是「停留」（常是 30~60），带过来一圈要好几分钟、看着像「渐变没生效」，所以切过去那一刻会压到 4（20 秒一圈）并在状态栏说明；想更慢再自己往上调（上限 16）。</td></tr>
+          <tr><td>周期(ms)</td><td>呼吸：<b>自动 = 渐亮(=变暗) × 2 + 亮</b>（只读，改上面两行就自己算好；按 20ms 一拍换算）；覆盖：一遍颜色盖过去多少 ms。</td></tr>
+          <tr><td>停留(ms) / 速度(ms)</td><td>跳变：<b>自动 = 渐亮 + 亮 + 变暗</b>（填那三行就填好，只读）；渐变：每多少 ms 沿色环往前一格（<b>20..320ms</b>，越小越快；一整圈 = 256 × 这个值 —— 20ms ≈ 5.1 秒、80ms = 20 秒、320ms = 82 秒）。再快就要靠下面的「步进(级)」。<br><b>切到渐变时会自动收进 80ms</b>：这一格在跳变下是「停留」（常是 600~1200ms），带过来一圈要好几分钟、看着像「渐变没生效」，所以切过去那一刻会压到 80ms（20 秒一圈）并在状态栏说明；想更慢再自己往上调。</td></tr>
           <tr><td>步进(级)</td><td>渐变专用：每动一次在色环上<b>前进几级</b>（1..16，默认 1）。「速度」最小是 1 拍 —— 想比「1 拍 1 级」更快就抬步进：速度 1 + 步进 8 = 32 拍 ≈ 0.64 秒一圈（50Hz 一拍 20ms），最大 16 ≈ 0.32 秒一圈。下面那行灰字实时算「一整圈 = 多少拍 / 多少秒」。只改颜色走多快，不动起始色 / 顺序。</td></tr>
-          <tr><td>渐亮(拍) / 亮(拍) / 变暗(拍)</td><td>跳变专用：匀速爬到满亮用几拍（第一拍 = 255 / 渐亮、最后一拍正好满亮；0 = 硬启亮，一拍照跳）；满亮保持几拍；再用几拍匀速暗下去（数值越大越慢；最后一拍 ≈255/(变暗+1) 不完全黑 —— 全黑一帧就是一次闪，换色会抖一下；0 = 立刻换色）。三段加起来就是「停留(拍)」（最多 255 拍）。<br>呼吸只出现前两行：<b>渐亮 = 变暗</b>（对称），「亮(拍)」照旧，周期自动 = 渐亮 × 2 + 亮。</td></tr>
-          <tr><td>慢速 / 快速</td><td>每走一格要几帧。数值越大越慢。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
+          <tr><td>渐亮(ms) / 亮(ms) / 变暗(ms)</td><td>跳变专用：匀速爬到满亮用多少 ms（第一拍 = 255 / 渐亮、最后一拍正好满亮；0 = 硬启亮，一拍照跳）；满亮保持多少 ms；再用多少 ms 匀速暗下去（数值越大越慢；最后一拍 ≈255/(变暗+1) 不完全黑 —— 全黑一帧就是一次闪，换色会抖一下；0 = 立刻换色）。三段加起来就是「停留」（最多 255 拍 ≈ 5.1 秒）。<br>呼吸只出现前两行：<b>渐亮 = 变暗</b>（对称），「亮」照旧，周期自动 = 渐亮 × 2 + 亮。</td></tr>
+          <tr><td>慢速(ms) / 快速(ms)</td><td>每走一格要多少 ms（越大越慢；按 20ms 一拍、一律向上取整，填 30 会变成 40）。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
           <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。</td></tr>
         </table>
@@ -1089,6 +1089,10 @@
           随机来一拍鼓点冲到 8..20，再按余音一格格掉下来，所以动画会<b>忽快忽慢</b>，而不是按固定节拍跳；
           <b>再点一下取消</b>，音量回到 <b>0</b>（= 没音乐）。它模拟的是<b>板上信号</b>，暂停时也在跳（跟播不播放无关）；
           预览和导出的代码走<b>同一条判档逻辑</b>（同样按采样 + 阻尼），在这里看到的快慢就是样机上的快慢。</div>
+
+        <div class="hint"><b>所有时间都按 ms 填</b>（2026-10-28 起）：图层卡与效果卡的「脉动周期 / 刷新间隔 / 旋转 / 慢速 / 快速 / 渐亮 / 亮 / 变暗 / 停留 / 周期 / 速度(ms/趟) / 彩虹旋转」全部显示成毫秒，
+          内部仍按固件的 <b>20ms 一拍</b>计算 —— 填的 ms 会<b>一律向上取整</b>到整拍（填 30 → 40、填 210 → 220），离开输入框就回显实际生效值。
+          这样你按实际时间填，不用数拍子；预览、导出和固件跑的都是同一个拍数。</div>
 
         <h3 id="hs-export">导出与固件</h3>
         <p>导出都在一个<b>独立窗口</b>里做：在「导出」页签点「动效头文件…」「排布表 C…」「HAL 接口…」「导出 JSON…」把它打开。
@@ -7229,14 +7233,14 @@ const LAYER_FIELDS = {
     ['间距','spacing',0,255,'0 = 按光点数均布（整环 ÷ 点数）。\n> 0 = 相邻两点的中心相隔几颗灯 —— 想让几个点聚在一起跑就调小，想拉开就调大。\n只对光点层有用；间距 × 点数超过环长时，后面的点会绕回来叠在前面的点上。'],
   ],
   twinkle: [
-    ['点亮密度','density',1,255], ['刷新间隔','rate',1,255,'每 N 帧换一批'],
+    ['点亮密度','density',1,255], ['刷新间隔','rate',1,255,'每多少 ms 换一批（按 20ms 一拍向上取整）；越大越慢'],
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
   ],
   fill: [
     ['最高亮度','level',0,255,
      '整环最亮时有多亮（0..255）。\n音控闪层上它就是闪「亮」的那几拍有多亮 —— 跟「最低亮度」配对，两格填的都是亮度本身（数值越大越亮）。'],
     ['脉动周期','pulse_period',0,255,
-     '0 = 不脉动。\n三角包络（呼吸 / 跳变 / 呼吸彩虹用）：一亮一暗走完一轮要多少拍。\n**音控闪（预置「闪烁」）**：这一格是「**没有音乐时**多久闪一次」—— 按 ms 填（1 拍 = 20 ms），5000 = 5 秒；0 = 不闪（常亮）。上限 1310700 ms ≈ 21.8 分钟（内部是 uint16 帧，最长 65535 拍）。'],
+     '0 = 不脉动。\n三角包络（呼吸 / 跳变 / 呼吸彩虹用）：一亮一暗走完一轮要多少 ms（按 20ms 一拍、向上取整）。\n**音控闪（预置「闪烁」）**：这一格是「**没有音乐时**多久闪一次」—— 5000 = 5 秒；0 = 不闪（常亮）。上限 1310700 ms ≈ 21.8 分钟。'],
     ['脉动深度','pulse_amp',0,255,
      '0 = 不脉动（一直满亮）。\n三角包络的深度：往暗里走多少（255 = 一暗到底）。\n音控闪层不用这一格（改用「最低亮度」，填的是亮度本身），闪的时候这一格不显示。'],
     ['最低亮度','flash_low',0,255,
@@ -7250,20 +7254,20 @@ const LAYER_FIELDS = {
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
     ['起始位','phase',0,255,'渐变从环上哪个位置开始'],
     ['绕环轮数','spans',1,8,'环上铺几个来回'],
-    ['旋转','rotate',0,255,'每 N 帧推进一格；0 = 不动'],
+    ['旋转','rotate',0,255,'每多少 ms 推进一格（按 20ms 一拍向上取整）；0 = 不动'],
   ],
 };
 /* 只对音控闪层（wave == FLASH，预置「闪烁」）显示的三格 —— 见 renderLayers() */
 const FLASH_ONLY_FIELDS = { flash_low: 1, flash_fast: 1, flash_on: 1 };
 /* 音控闪层上用「最低亮度」代替「脉动深度」：这一格收起来（字段本身留着，老存档照读） */
 const FLASH_HIDDEN_FIELDS = { pulse_amp: 1 };
-/* 这三个是**时间**：图层里存「拍」（固件一拍 20 ms），界面上按 ms 显示 / 录入。
- * 为什么不在存的时候直接换成 ms：C 结构体那三列是 uint16 帧数，pulse_period 还被
- * 三角 / 方波 / 锯齿那些脉动共用（它们说的就是拍）。所以只在音控闪的图层卡上换单位 ——
- * 用户按实际时间填（5000 / 500 / 200），一个数都不用数拍子。 */
-const MS_FIELDS = { pulse_period: 1, flash_fast: 1, flash_on: 1 };
-const TICK_MS = 20;              /* 固件节拍（50Hz）：一拍 = 20 ms */
-const FLASH_MS_MAX = FRAME16_MAX * TICK_MS;   /* 这三格是 uint16 帧 → 最多 65535 拍 = 1310700 ms */
+/* 图层卡上「时间」类格子：内部存「拍」（固件一拍 20ms），界面按 ms 显示 / 录入，
+ * ms → 拍**一律向上取整**（2026-10-28 用户定）。非时间的格子（光宽 / 密度 / 间距…）不在此列。 */
+const MS_FIELDS = { pulse_period: 1, flash_fast: 1, flash_on: 1, rate: 1, rotate: 1 };
+/* 每格的拍上限：导出结构体里这三列是 uint16（0..65535），其余时间格是 uint8（LAYER_FIELDS 的 255） */
+const MS_TICK_MAX = { pulse_period: FRAME16_MAX, flash_fast: FRAME16_MAX, flash_on: FRAME16_MAX };
+const TICK_MS = FW.TICK_MS;      /* 固件节拍（50Hz）：一拍 = 20 ms */
+const FLASH_MS_MAX = FRAME16_MAX * TICK_MS;   /* uint16 帧的上限 → 最多 65535 拍 = 1310700 ms */
 
 function rgbHex(c) {
   const h = v => ('0' + (v | 0).toString(16)).slice(-2);
@@ -7579,11 +7583,13 @@ function renderLayers() {
                : (flash && key === 'flash_fast')   ? '有音乐间隔(ms)'
                : (flash && key === 'flash_on')     ? '亮的时间(ms)'
                : label;
-      const msf = !!(flash && MS_FIELDS[key]);
+      const msf = !!MS_FIELDS[key];
+      /* 这一格的拍上限：uint16 列（闪烁的时间 / 脉动周期）到 65535，其余是 LAYER_FIELDS 的 255 之类 */
+      const tickMax = (MS_TICK_MAX[key] != null) ? MS_TICK_MAX[key] : max;
       const get = msf ? () => (L[key] | 0) * TICK_MS : () => L[key] | 0;
-      const set = msf ? v => { L[key] = Math.min(FRAME16_MAX, Math.round(v / TICK_MS)); fxLive(); }
+      const set = msf ? v => { L[key] = Math.min(tickMax, msToTicksUp(v)); fxLive(); }
                       : v => { L[key] = v; fxLive(); };
-      const inp = numInput(get, set, msf ? 0 : min, msf ? FLASH_MS_MAX : max, tip, msf ? TICK_MS : 1);
+      const inp = numInput(get, set, msf ? 0 : min, msf ? tickMax * TICK_MS : max, tip, msf ? TICK_MS : 1);
       /* 填了不是 20 的整数倍（或超过上限）时，离开这一格就把输入框写成实际生效的毫秒数 ——
          预览和固件用的都是取整后的值，框里显示的必须跟它一致。 */
       if (msf) inp.onchange = () => { inp.value = get(); };
@@ -8484,10 +8490,10 @@ function syncFxColorRows(e) {
   show('rowCoverDir', isWipeColor);
   show('rowCoverSpan', isWipeColor);
   const perLab = $('#fPeriodLab');
-  if (perLab) perLab.textContent = isWipeColor ? '速度(拍/趟)' : '周期(拍)';
+  if (perLab) perLab.textContent = isWipeColor ? '速度(ms/趟)' : '周期(ms)';
   const riseLab = $('#fRiseLab'), holdLab = $('#fHoldLab');
-  if (riseLab) riseLab.textContent = isBreathColor ? '渐亮=变暗(拍)' : '渐亮(拍)';
-  if (holdLab) holdLab.textContent = '亮(拍)';
+  if (riseLab) riseLab.textContent = isBreathColor ? '渐亮=变暗(ms)' : '渐亮(ms)';
+  if (holdLab) holdLab.textContent = '亮(ms)';
   const riseIn = $('#fRise'), holdIn = $('#fHold'), perIn = $('#fPeriod');
   if (isBreathColor) {
     tip(riseIn, '呼吸：一次「暗 → 亮」用几拍（20ms 一拍）；「亮 → 暗」用同样多拍 —— 对称，所以只填这一格。\n走的是平滑曲线：起步慢、中段快、到顶自然减速 —— 看着是「一口气」，不是一格一格跳。\n最暗那一拍停在 ≈255/(渐亮+1)，不落到全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。换色就发生在这一拍。\n想出「绵长」的感觉就加大：40 拍 = 0.8 秒（出厂值）；20 拍以下会开始看出一格一格的台阶。\n0 = 一直满亮（不呼吸）。\n填完「周期(拍)」会自动 = 渐亮 × 2 + 亮。');
@@ -8513,18 +8519,16 @@ function syncFxColorRows(e) {
   show('rowHueSpeed', mode === FW.COLOR.RAINBOW);
   show('rowPeriod', mode === FW.COLOR.BREATH || mode === FW.COLOR.WIPE);
   const labS = $('#fSpeedLab'), sp = $('#fSpeed'), hint = $('#fPalHint');
-  if (labS) labS.textContent = (mode === FW.COLOR.STEP) ? '停留(拍)' : '速度(拍)';
+  if (labS) labS.textContent = (mode === FW.COLOR.STEP) ? '停留(ms)' : '速度(ms)';
   if (sp) {
     /* 跳变的停留是算出来的（渐亮 + 亮 + 变暗），不让手填 —— 填了也会被下一次重算盖掉 */
     sp.readOnly = (mode === FW.COLOR.STEP);
-    /* 渐变的「速度」= 每 N 拍走 1 级，上限 16（一圈 ≈ 82 秒；再大就看着不动了）。
-     * 别的配色仍放开到 255 —— 覆盖根本不用这一格，纯色 / 彩虹 / 呼吸也不用。 */
-    sp.max = String(isGradColor ? GRAD_SPEED_MAX : 255);
-    /* 渐变的下限是 1（每 N 拍走 1 级，N = 0 没有意义）—— 让输入框自己的箭头也守住，
-     * 别让用户拨到 0 之后被 bind('fSpeed') 悄悄夹回 1，看着像「填了没生效」 */
-    sp.min = String(isGradColor ? 1 : 0);
-    if (mode === FW.COLOR.STEP) tip(sp, '自动 = 渐亮(拍) + 亮(拍) + 变暗(拍)：改那三行就会自己算好（20ms 一拍），这一格不用管 ——\n三段拼满整个颜色周期，中间不留黑拍。');
-    else if (isGradColor) tip(sp, '渐变：每 N 拍沿色环往前走 1 级（1..' + GRAD_SPEED_MAX + '，越小越快）。\n一整圈 = 256 × N 拍 —— 1 = 5.12 秒、4 = 20 秒、16 = 82 秒；想更快就抬下面的「步进(级)」。\n（从跳变切过来时这一格会挟带「停留」那个大数，那样一圈要好几分钟、看着像没在动 —— 切过去时会自动收进 ' + GRAD_SPEED_CUT + '。）');
+    /* 渐变的「速度」= 每 N 拍走 1 级，上限 16 拍（一圈 ≈ 82 秒；再大就看着不动了）。
+     * 框里是 ms：max / min 都按拍换算。别的配色仍放开到 255 拍。 */
+    sp.max = String((isGradColor ? GRAD_SPEED_MAX : 255) * FW.TICK_MS);
+    sp.min = String(isGradColor ? FW.TICK_MS : 0);
+    if (mode === FW.COLOR.STEP) tip(sp, '自动 = 渐亮 + 亮 + 变暗（都按 ms 填）：改那三行就会自己算好，这一格不用管 ——\n三段拼满整个颜色周期，中间不留黑拍。');
+    else if (isGradColor) tip(sp, '渐变：每这么久沿色环往前走 1 级（' + (FW.TICK_MS) + '..' + (GRAD_SPEED_MAX * FW.TICK_MS) + ' ms，越小越快；按 20ms 一拍取整）。\n一整圈 = 256 × 这个值 —— 20ms ≈ 5.1 秒、80ms = 20 秒、320ms = 82 秒；想更快就抬下面的「步进(级)」。\n（从跳变切过来时这一格会挟带「停留」那个大数，那样一圈要好几分钟、看着像没在动 —— 切过去时会自动收进 ' + (GRAD_SPEED_CUT * FW.TICK_MS) + 'ms。）');
     /* rowSpeed 只在「跳变 / 渐变 / 旧双色渐变」出现，上面两个分支已经包完；
      * 别的配色不显示这一格，所以不再留一条「谁都不该看到」的兜底文案。 */
   }
@@ -8550,7 +8554,7 @@ function stepSyncSpeed(x) {
   const sp = Math.max(1, Math.min(255, sum));
   x.speed = sp;
   const el = $('#fSpeed');
-  if (el) el.value = sp;
+  if (el) el.value = fxMsOf(sp);
   if (sum > 255) {
     const c = stepClamp(sp, r, h, f);
     status(`渐亮 ${r} + 亮 ${h} + 变暗 ${f} = ${sum} 拍，超过 255（停留上限）：实际按渐亮 ${c[0]} / 亮 ${c[1]} / 暗 ${c[2]} 播`, 'warn');
@@ -8565,11 +8569,25 @@ function breathSyncPeriod(x) {
   const b = breathPlan(x);
   x.period = b.period;
   const el = $('#fPeriod');
-  if (el) el.value = b.period;
+  if (el) el.value = fxMsOf(b.period);
   if (want > b.period) {
     status(`渐亮(=变暗) ${b.rise} × 2 + 亮 ${effBreathHold(x)} = ${want} 拍，超过 ${BREATH_PERIOD_MAX}（周期上限）：实际按渐亮 ${b.rise} / 亮 ${b.hold} 播`, 'warn');
   }
   return b.period;
+}
+/* ---- 时间类输入框：界面按 ms 显示 / 录入，内部仍存「拍」（2026-10-28 用户定）
+ *  · 显示 = 拍 × 20ms；录入 = **向上取整** 到拍（填 30ms → 40ms），0 保持「关 / 硬启亮」语义；
+ *  · 每个框的 `max` 也按拍上限 × 20 算（uint8 的 255 拍 = 5100ms）。 */
+const fxMsOf    = ticks => (ticks | 0) * FW.TICK_MS;
+const fxTicksOf = (ms, min) => Math.max(min | 0, msToTicksUp(ms));
+/* 把一个输入框变成「ms 框」：max / min / step 都按拍换算，离开时回显实际生效值 */
+function msBox(id, tickMax, tickMin) {
+  const el = $('#' + id);
+  if (!el) return null;
+  el.max = String(tickMax * FW.TICK_MS);
+  el.min = String((tickMin | 0) * FW.TICK_MS);
+  el.step = String(FW.TICK_MS);
+  return el;
 }
 function syncFxEdit() {
   const e = editTarget();
@@ -8614,12 +8632,19 @@ function syncFxEdit() {
    * 跳变照旧用 rise / hold / fade（停留 = 三段之和） */
   const isBreathFx = (e.color | 0) === FW.COLOR.BREATH;
   const bs = isBreathFx ? breathPlan(e) : null;
-  $('#fPeriod').value = bs ? bs.period : e.period;
-  $('#fSlow').value = e.slow; $('#fFast').value = e.fast; $('#fSpeed').value = e.speed;
+  /* 时间类：盒子里写 ms（内部存拍）。max/step 按拍上限换算，离开框时回显实际值 */
+  msBox('fSlow', 255, 1); msBox('fFast', 255, 1);
+  msBox('fRise', 255, 0); msBox('fHold', 255, 0); msBox('fFade', 255, 0);
+  msBox('fHueSpeed', 255, 0);
+  msBox('fPeriod', BREATH_PERIOD_MAX, 2);
+  msBox('fSpeed', 255, 0);
+  $('#fPeriod').value = fxMsOf(bs ? bs.period : e.period);
+  $('#fSlow').value = fxMsOf(e.slow); $('#fFast').value = fxMsOf(e.fast);
+  $('#fSpeed').value = fxMsOf(e.speed);
   $('#fGradStep').value = e.grad_step;
-  $('#fRise').value = bs ? bs.rise : e.rise;
-  $('#fHold').value = bs ? bs.hold : e.hold;
-  $('#fFade').value = e.fade;
+  $('#fRise').value = fxMsOf(bs ? bs.rise : e.rise);
+  $('#fHold').value = fxMsOf(bs ? bs.hold : e.hold);
+  $('#fFade').value = fxMsOf(e.fade);
   $('#fCoverDir').value = e.cover_dir;
   $('#fCoverSpan').value = e.cover_span;
   $('#fOffset').value = e.offset | 0;
@@ -8914,17 +8939,17 @@ function buildFxPanel() {
     stepSyncSpeed(x);
     fxLive(); syncFxEdit(); renderFxList();
   }, 'onchange');
-  bind('fSlow',  e => { const x = editTarget(); if (x) { x.slow = Math.max(1, +e.target.value || 1); fxLive(); } });
-  bind('fFast',  e => { const x = editTarget(); if (x) { x.fast = Math.max(1, +e.target.value || 1); fxLive(); } });
+  bind('fSlow',  e => { const x = editTarget(); if (x) { x.slow = Math.min(255, fxTicksOf(+e.target.value, 1)); fxLive(); } });
+  bind('fFast',  e => { const x = editTarget(); if (x) { x.fast = Math.min(255, fxTicksOf(+e.target.value, 1)); fxLive(); } });
   /* 跳变时「停留」是算出来的（只读）：用户真把它改了也只当没改，免得两处数打架。
-   * 渐变：1..GRAD_SPEED_MAX（0 也当 1 —— 不能「每 0 拍动一次」）。 */
+   * 渐变：1..GRAD_SPEED_MAX 拍（0 也当 1 —— 不能「每 0 拍动一次」）。框里都是 ms。 */
   bind('fSpeed', e => {
     const x = editTarget(); if (!x) return;
     const mode = x.color | 0;
     if (mode === FW.COLOR.STEP) return;
     x.speed = mode === FW.COLOR.SPECTRUM
-      ? Math.max(1, Math.min(GRAD_SPEED_MAX, +e.target.value || 1))
-      : Math.max(0, Math.min(255, +e.target.value || 0));
+      ? Math.min(GRAD_SPEED_MAX, fxTicksOf(+e.target.value, 1))
+      : Math.min(255, fxTicksOf(+e.target.value, 0));
     fxLive(); gradStepHint(x);
   });
   /* 步进：每动一次前进几级（1..16）—— 渐变想比「速度 = 1」更快就抬它 */
@@ -8937,21 +8962,21 @@ function buildFxPanel() {
    * 呼吸时这两行是它自己的 b_rise / b_hold（渐亮 = 渐暗），改完把「周期」重算一遍。 */
   bind('fRise',  e => {
     const x = editTarget(); if (!x) return;
-    const v = Math.max(0, Math.min(255, +e.target.value || 0));
+    const v = Math.min(255, fxTicksOf(+e.target.value, 0));
     if ((x.color | 0) === FW.COLOR.BREATH) { x.b_rise = v; breathSyncPeriod(x); }
     else { x.rise = v; stepSyncSpeed(x); }
     fxLive();
   });
   bind('fHold',  e => {
     const x = editTarget(); if (!x) return;
-    const v = Math.max(0, Math.min(255, +e.target.value || 0));
+    const v = Math.min(255, fxTicksOf(+e.target.value, 0));
     if ((x.color | 0) === FW.COLOR.BREATH) { x.b_hold = v; breathSyncPeriod(x); }
     else { x.hold = v; stepSyncSpeed(x); }
     fxLive();
   });
   bind('fFade',  e => {
     const x = editTarget(); if (!x) return;
-    x.fade = Math.max(0, Math.min(255, +e.target.value || 0));
+    x.fade = Math.min(255, fxTicksOf(+e.target.value, 0));
     stepSyncSpeed(x); fxLive();
   });
   bind('fLevels', e => {
@@ -8960,12 +8985,17 @@ function buildFxPanel() {
     fxLive();
   });
   bind('fHueBase',  e => { const x = editTarget(); if (x) { x.hue_base = Math.max(0, Math.min(255, +e.target.value || 0)); fxLive(); } });
-  bind('fHueSpeed', e => { const x = editTarget(); if (x) { x.hue_speed = Math.max(0, Math.min(255, +e.target.value || 0)); fxLive(); } });
+  bind('fHueSpeed', e => { const x = editTarget(); if (x) { x.hue_speed = Math.min(255, fxTicksOf(+e.target.value, 0)); fxLive(); } });
   bind('fPeriod',   e => {
     const x = editTarget(); if (!x) return;
     if ((x.color | 0) === FW.COLOR.BREATH) return;   /* 呼吸的周期 = 渐亮×2 + 亮，是算出来的（只读） */
-    x.period = Math.max(2, Math.min(600, +e.target.value || 60));
+    x.period = Math.min(BREATH_PERIOD_MAX, fxTicksOf(+e.target.value, 2));
     fxLive();
+  });
+  /* 时间类格子都是「显示 ms、存拍」：离开框时按模型回显实际生效的 ms（填 30 → 40） */
+  ['fSlow','fFast','fRise','fHold','fFade','fHueSpeed','fPeriod','fSpeed'].forEach(id => {
+    const el = $('#' + id);
+    if (el) el.onchange = () => { if (editTarget()) syncFxEdit(); };
   });
   /* 覆盖：覆盖灯数（0 = 整条）+ 方向（往返 / 单向）；铺法看调色板条目本身（纯色 / 两端渐变） */
   bind('fCoverDir', e => {

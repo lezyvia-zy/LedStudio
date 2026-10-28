@@ -386,12 +386,12 @@ console.log('--- B1b) 「步进(级)」：渐变才有；抬上去就把一整�
   ok(fxListOf(0)[0].grad_step === 8, `改成 8 就写进这条效果（${fxListOf(0)[0].grad_step}）`);
   const y2 = String(byId.get('fxGradStepHint').textContent);
   ok(/= 32 拍/.test(y2) && /640 毫秒/.test(y2), '读数跟着变成 32 拍 ≈ 640 毫秒 —— ' + y2);
-  /* 速度也一起算：速度 4 × 步进 8 → 128 拍 */
-  spEl.value = '4';
+  /* 速度也一起算：速度 4 拍 × 步进 8 → 128 拍（框里填 ms：4 拍 = 80ms） */
+  spEl.value = '80';
   spEl.oninput({ target: spEl });
   await sleep(30);
   ok(/= 128 拍/.test(String(byId.get('fxGradStepHint').textContent)),
-     '速度和步进一起算：4 拍/次 × 8 级 = 128 拍一圈');
+     '速度和步进一起算：4 拍/次（= 80ms）× 8 级 = 128 拍一圈');
   /* 切到纯色：步进行收起；切回渐变值还在（存在效果上，不是每次重来） */
   colSel.value = String(FW.COLOR.SOLID);
   colSel.onchange({ target: colSel });
@@ -400,8 +400,8 @@ console.log('--- B1b) 「步进(级)」：渐变才有；抬上去就把一整�
   colSel.value = String(FW.COLOR.SPECTRUM);
   colSel.onchange({ target: colSel });
   await sleep(30);
-  ok(String(byId.get('fGradStep').value) === '8' && byId.get('fSpeed').value === '4',
-     '切回渐变：步进 8 / 速度 4 都还在（存在效果上）');
+  ok(String(byId.get('fGradStep').value) === '8' && byId.get('fSpeed').value === '80',
+     '切回渐变：步进 8 / 速度 4 拍（80ms）都还在（存在效果上）');
   /* 越界夹紧：填 99 → 16，填 0 → 1（界面上有 min/max，手改 JSON / 粘数字也兜得住） */
   const gs2 = byId.get('fGradStep');
   gs2.value = '99'; gs2.oninput({ target: gs2 });
@@ -411,8 +411,8 @@ console.log('--- B1b) 「步进(级)」：渐变才有；抬上去就把一整�
   gs3.value = '0'; gs3.oninput({ target: gs3 });
   await sleep(700);
   ok(fxListOf(0)[0].grad_step === GRAD_STEP_MIN, `填 0 兜底成 ${fxListOf(0)[0].grad_step}`);
-  /* 后面的用例按老样子跑：复原成 1 拍/次 + 1 级 */
-  spEl.value = '1'; spEl.oninput({ target: spEl });
+  /* 后面的用例按老样子跑：复原成 1 拍/次（20ms）+ 1 级 */
+  spEl.value = '20'; spEl.oninput({ target: spEl });
   const gs4 = byId.get('fGradStep');
   gs4.value = '1'; gs4.oninput({ target: gs4 });
   await sleep(700);
@@ -424,13 +424,13 @@ console.log('--- B1c) 「速度」在渐变下只认 1..16（一圈几十分钟 
   /* 用户实测报的现象：「选了渐变，编辑台 / 灯板的颜色一直不变」。
    * 根因不在渐变本身（色环算法 / 渲染都正常），而是「速度」这一格多义：跳变下它是算出来的
    * 「停留(拍)」（30~60），切到渐变后被当成「每 N 拍走 1 级」→ 一圈 5 分钟。 */
-  ok(String(byId.get('fSpeed').max) === String(GRAD_SPEED_MAX),
-     `渐变下「速度」的上限 = ${byId.get('fSpeed').max}（其余配色仍 255）`);
+  ok(String(byId.get('fSpeed').max) === String(GRAD_SPEED_MAX * 20),
+     `渐变下「速度」的上限 = ${byId.get('fSpeed').max}（= 16 拍；其余配色仍 5100）`);
   const sp2 = byId.get('fSpeed');
-  sp2.value = '60'; sp2.oninput({ target: sp2 });
+  sp2.value = '1200'; sp2.oninput({ target: sp2 });   /* 1200ms = 60 拍 → 夹到 16 拍 */
   await sleep(700);
   ok((fxListOf(0)[0].speed | 0) === GRAD_SPEED_MAX,
-     `渐变下填 60 夹到 ${fxListOf(0)[0].speed}（一圈 82 秒；60 拍会是一圈 307 秒）`);
+     `渐变下填 1200ms 夹到 ${fxListOf(0)[0].speed} 拍（一圈 82 秒；60 拍会是一圈 307 秒）`);
   const sp3 = byId.get('fSpeed');
   sp3.value = '0'; sp3.oninput({ target: sp3 });
   await sleep(700);
@@ -439,11 +439,11 @@ console.log('--- B1c) 「速度」在渐变下只认 1..16（一圈几十分钟 
   colSel.value = String(FW.COLOR.WIPE);
   colSel.onchange({ target: colSel });
   await sleep(30);
-  ok(String(byId.get('fSpeed').max) === '255', '覆盖下「速度」上限放回 255（覆盖扫多快看「周期(拍/趟)」）');
+  ok(String(byId.get('fSpeed').max) === '5100', '覆盖下「速度」上限放回 5100ms（覆盖扫多快看「周期(ms/趟)」）');
   const sp4 = byId.get('fSpeed');
-  sp4.value = '60'; sp4.oninput({ target: sp4 });
+  sp4.value = '1200'; sp4.oninput({ target: sp4 });   /* 1200ms = 60 拍 */
   await sleep(700);
-  ok((fxListOf(0)[0].speed | 0) === 60, `覆盖下 60 原样存住（${fxListOf(0)[0].speed}）`);
+  ok((fxListOf(0)[0].speed | 0) === 60, `覆盖下 1200ms 原样存成 60 拍（${fxListOf(0)[0].speed}）`);
   colSel.value = String(FW.COLOR.SPECTRUM);
   colSel.onchange({ target: colSel });
   await sleep(700);

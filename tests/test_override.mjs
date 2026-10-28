@@ -193,12 +193,12 @@ byId.get('mdTbl').children[0].onclick(); await wait(700);
      '横条说明了当前在微调哪条绑定');
   /* 在效果页改参数，改的是覆盖而不是原效果 */
   const slowEl = byId.get('fSlow');
-  ok(+slowEl.value === 40, `编辑器里显示的慢速档是覆盖后的 ${slowEl.value}`);
-  slowEl.value = '33'; slowEl.oninput({ target: slowEl });
+  ok(+slowEl.value === 800, `编辑器里显示的慢速档是覆盖后的 ${slowEl.value} ms（40 拍）`);
+  slowEl.value = '700'; slowEl.oninput({ target: slowEl });   /* 700ms → 35 拍 */
   await wait(700);
   const st = projState(0);
-  ok(st.modes.list[0].binds[0].override.slow === 33, '改动写进了覆盖');
-  ok(st.effects.list[0].slow !== 33, `原效果没被动（slow 仍是 ${st.effects.list[0].slow}）`);
+  ok(st.modes.list[0].binds[0].override.slow === 35, '改动写进了覆盖（700ms → 35 拍）');
+  ok(st.effects.list[0].slow !== 35, `原效果没被动（slow 仍是 ${st.effects.list[0].slow}）`);
 
   /* 编辑台画的必须是「覆盖」那份：改配色 / 改调色板要立刻看得见。
    * （stageSync() 早先按 curEffect() 建实例，微调时画的一直是库里的原效果。） */
@@ -237,8 +237,8 @@ byId.get('mdTbl').children[0].onclick(); await wait(700);
   back.onclick();
   await wait(60);
   ok(byId.get('fxTarget').style.display === 'none', '返回后横条消失');
-  ok(+byId.get('fSlow').value === projState(0).effects.list[0].slow,
-     '编辑器回到了效果库里那个原效果');
+  ok(+byId.get('fSlow').value === projState(0).effects.list[0].slow * 20,
+     '编辑器回到了效果库里那个原效果（慢速按 ms 显示）');
 }
 
 console.log(fails ? `\n=== ${fails} 项未通过 ===` : '\n=== 全部通过 ===');
