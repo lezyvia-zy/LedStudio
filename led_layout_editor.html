@@ -80,6 +80,22 @@
   #previewBar .pr>span.lb{flex:0 0 40px; font-size:12px; color:var(--dim)}
   #previewBar select{flex:1 1 auto; min-width:0}
   #previewBar input[type=range]{flex:1 1 auto; min-width:56px; margin:0}
+  /* 音量滑杆 + 阈值针：针贴在滑杆上，拖它 = 改「多大声才算有音乐」。
+     针的位置用 calc 扣掉 range 两端滑块半径（8px），不然刻度会歪一点。 */
+  #previewBar .fftWrap{position:relative; flex:1 1 auto; min-width:56px; display:flex; align-items:center}
+  #previewBar .fftWrap input[type=range]{flex:1 1 auto; width:100%; min-width:0; margin:0}
+  #previewBar .thrPin{
+    position:absolute; top:50%; left:0; width:3px; height:15px; margin-left:-1.5px;
+    background:var(--accent); border-radius:2px; transform:translateY(-50%);
+    box-shadow:0 0 0 1px var(--panel); cursor:ew-resize; touch-action:none;
+  }
+  #previewBar .thrPin::after{
+    content:''; position:absolute; left:50%; top:-4px; width:7px; height:7px; margin-left:-3.5px;
+    background:var(--accent); transform:rotate(45deg); border-radius:1px;
+  }
+  #previewBar .thrPin.off{opacity:.35; cursor:default; pointer-events:none}
+  #previewBar .thrBox{flex:0 0 auto; display:flex; align-items:center; gap:2px; font-size:11px; color:var(--dim)}
+  #previewBar .thrBox input{width:42px; padding:1px 3px; font-size:11px}
   #previewBar #aFftTxt{flex:0 0 auto; font-weight:400; font-size:11px; color:var(--dim); white-space:nowrap}
   #previewBar button{flex:0 0 auto; font-size:12px}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
@@ -421,11 +437,15 @@
         </select>
       </div>
       <div class="pr"><span class="lb">音量</span>
-        <input type="range" id="aFft" min="0" max="255" step="1" value="0" data-tip="FFTLevel 0..255 —— 就是固件里的 mainAppCt.FFTLevel（音乐越响 / 节奏越强越高）。&#10;固件拿它跟 LED_FFT_THRESHOLD(=4) 比：大于 4 切快档，小于等于 4 走慢档。&#10;只在「速度档 = 自动」时起作用；拖它等于手动模拟「音乐一会儿有一会儿没有」。&#10;暂停状态下拖一下，效果页的编辑台会当场换档（不用先按播放）。">
+        <span class="fftWrap">
+          <input type="range" id="aFft" min="0" max="255" step="1" value="0" data-tip="FFTLevel 0..255 —— 就是固件里的 mainAppCt.FFTLevel（音乐越响 / 节奏越强越高）。&#10;它跟右边那个「阈」值比：大于阈值切快档，小于等于走慢档（默认阈值 4 = 固件 LED_FFT_THRESHOLD）。&#10;只在「速度档 = 自动」时起作用；拖它等于手动模拟「音乐一会儿有一会儿没有」。&#10;暂停状态下拖一下，效果页的编辑台会当场换档（不用先按播放）。">
+          <i id="aThrPin" class="thrPin" data-tip="阈值：**拖我**调「多大声才算有音乐」（0..255，默认 4 = 固件 LED_FFT_THRESHOLD）。&#10;针左边 = 慢档（安静），针右边 = 快档（有音乐）；也可以直接填滑杆末尾那个「阈」字框。&#10;只影响工具里的预览 —— 导出代码跟着固件 led_ring.h 里的 LED_FFT_THRESHOLD 走。"></i>
+        </span>
         <b id="aFftTxt">0 → 慢档</b>
+        <span class="thrBox" data-tip="音乐阈值（音量**大于**它才算「有音乐」，正好等于仍算安静）。&#10;默认 4 = 固件 led_ring.h 的 LED_FFT_THRESHOLD；改它只影响工具里的预览与「音乐来了」的判档。&#10;等价于拖滑杆上那根竖针。">阈<input type="number" id="aThr" min="0" max="255" step="1" value="4"></span>
       </div>
       <div class="pr"><span class="lb"></span>
-        <button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 播放时 FFTLevel 按鼓点自己跳（重音冲高 → 衰减），动画就会跟着忽快忽慢。&#10;样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()，按 FFTLevel 改 ring->speed_cur。&#10;效果页按播放、或直接拖上面那根滑杆，看到的都是同一份音量。">音乐来了（音量自己跳）</button>
+        <button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 点一下开始**随机**注入音量（底噪 + 随机鼓点 + 余音衰减，按板子上的真实节奏走），再点一下停、音量回到 0。&#10;暂停时也会自己跳（模拟的是板上 signal，跟播不播放无关）；样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()。&#10;效果页按播放、或直接拖上面那根滑杆，看到的都是同一份音量。">音乐来了（音量随机跳）</button>
       </div>
     </div>
 
@@ -942,7 +962,8 @@
             <b>有音乐间隔(ms)</b>（出厂 <b>500 ms</b>）、<b>亮的时间(ms)</b>（出厂 <b>200 ms</b>）。<br>
             三格时间都按 <b>ms</b> 直接填 —— 不用再数拍子（内部按固件的 20 ms 一拍取整：
             200 / 500 / 5000 都是整拍，一个数都不差；最长 1310700 ms ≈ 21.8 分钟，够填到「几分钟闪一次」）。<br>
-            「有没有音乐」用固件那条现成的判据：<code>FFTLevel</code> 大于 <code>LED_FFT_THRESHOLD</code>(=4)
+            「有没有音乐」用固件那条现成的判据：<code>FFTLevel</code> 大于<b>阈值</b>（出厂 4 = 固件 <code>LED_FFT_THRESHOLD</code>，
+            预览条上那根<b>竖针 / 「阈」格</b>可以改）
             就是<b>有音乐</b>（预览条上那根「音量」滑杆 / 「音乐来了」就是它）。越过阈值那一拍<b>立刻闪一次</b>，
             之后只要还在阈值以上就按「有音乐间隔」一直闪；音乐一停就回到「没音乐时闪的间隔」。<br>
             参照的是固件<b>老 SPI RGB 灯功能</b>（<code>CFG_FUNC_SPI_RGB_EN</code> → <code>spim_led.c</code> 的
@@ -1035,23 +1056,27 @@
         <table>
           <tr><th>控件</th><th>作用</th></tr>
           <tr><td>选哪个</td><td>选要预览的模式 / 效果。</td></tr>
-          <tr><td>速度档 / 音量（预览条）</td><td>在<b>页签下面那条常驻条</b>里，效果页与这一页共用同一份。速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>：音量滑杆就是固件里的 <code>mainAppCt.FFTLevel</code>，<b>大于阈值 4 切快档</b>、小于等于 4 走慢档（见下）。</td></tr>
+          <tr><td>速度档 / 音量 / 阈值（预览条）</td><td>在<b>页签下面那条常驻条</b>里，效果页与这一页共用同一份。速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>：音量滑杆就是固件里的 <code>mainAppCt.FFTLevel</code>，<b>大于阈值切快档</b>、小于等于走慢档。阈值<b>可以调</b>：拖音量滑杆上那根<b>竖针</b>、或者改末尾那个<b>「阈」</b>格（0..255，默认 4 = 固件 <code>LED_FFT_THRESHOLD</code>）—— 它只影响工具里的预览判档，导出代码读固件自己的宏。</td></tr>
           <tr><td>播放倍率</td><td>只影响这一页的灯板预览（效果页的编辑台有它自己那一条倍率），不改导出参数。</td></tr>
           <tr><td>播放 / 单步 / 归零</td><td>单步走一格（固件的 speed_cur 个节拍），归零回到起始帧。</td></tr>
           <tr><td>方向修正</td><td>关 = 当前固件的真实表现；开 = 按各分区实际绕行方向反向映射（配 reverse 补丁后的表现）。它下面那行会显示每个分区此刻亮到几号灯。</td></tr>
           <tr><td>显示</td><td>编号 / 圆圈灯位 / 方向箭头 / 动效帧 四个开关，播放中也能随时切。</td></tr>
         </table>
-        <div class="hint"><b>「自动」速度档 / 音量 / 「音乐来了」按钮</b>（都在页签下面那条预览条里，<b>效果页也看得见、也能拖</b>）：这是<b>老 SPI RGB 灯功能
+        <div class="hint"><b>「自动」速度档 / 音量 / 阈值 / 「音乐来了」按钮</b>（都在页签下面那条预览条里，<b>效果页也看得见、也能拖</b>）：这是<b>老 SPI RGB 灯功能
           （<code>CFG_FUNC_SPI_RGB_EN</code>）本来就有的联动</b>，与 <code>CFG_FUNC_LED_RING_EN</code> 那套无关 ——
           固件 <code>spimled_service.c</code> 每 20ms 调
-          <code>ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)</code>：<b>FFTLevel 大于 <code>LED_FFT_THRESHOLD</code>(=4)
+          <code>ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)</code>：<b>FFTLevel 大于 <code>LED_FFT_THRESHOLD</code>
           就切快档，小于等于就慢档</b>。<br>
-          「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到 4 以下是慢档，5 以上是快档 —— 拖一下就能看到
+          <b>阈值可调</b>：音量滑杆上那根<b>竖针</b>就是阈值，拖着它左右移；滑杆末尾的<b>「阈」</b>格填同一个数（0..255）。
+          出厂 4 = 固件 <code>led_ring.h</code> 的 <code>LED_FFT_THRESHOLD</code>，判据是「<b>大于</b>」—— 正好等于阈值仍算安静。
+          改它<b>只影响工具里的预览</b>（导出代码里没有这个数，固件用的是它自己的宏）；手动档下这根针和「阈」格都灰掉。<br>
+          「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
           <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代，
           写 <code>ring-&gt;speed_cur</code> 的仍然是它，生成代码每拍从这个 ring 级档位同步进各实例。<br>
-          点「音乐来了」= 模拟音乐一直在放：播放时 FFTLevel 按鼓点自己跳（重音冲高 → 余音衰减），
-          动画就会跟着忽快忽慢。预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），
-          在这里看到的快慢就是样机上的快慢。</div>
+          点<b>「音乐来了」</b>= 模拟板上真的在放音乐：每 20ms（一拍）<b>随机注入</b>一个音量 —— 平时是 0..5 的底噪，
+          随机来一拍鼓点冲到一百多两百，再按余音一格格掉下来，所以动画会<b>忽快忽慢</b>，而不是按固定节拍跳；
+          <b>再点一下取消</b>，音量回到 <b>0</b>（= 没音乐）。它模拟的是<b>板上信号</b>，暂停时也在跳（跟播不播放无关）；
+          预览和导出的代码走<b>同一条判档逻辑</b>（只有「快档确实更快」时才认快档），在这里看到的快慢就是样机上的快慢。</div>
 
         <h3 id="hs-export">导出与固件</h3>
         <p>导出都在一个<b>独立窗口</b>里做：在「导出」页签点「动效头文件…」「排布表 C…」「HAL 接口…」「导出 JSON…」把它打开。
@@ -1078,7 +1103,7 @@
         <table>
           <tr><th>想要</th><th>怎么配</th><th>去做</th></tr>
           <tr><td>呼吸灯</td><td>效果页「模板」里直接套<b>呼吸</b>（= 静态 + 配色<b>「呼吸」</b>；暗→亮→暗，出厂 渐亮 40 / 亮 10 ≈ 1.8 秒一个来回）。想让每个周期换一种颜色，就在调色板里多加几个颜色（或直接套「多色呼吸」）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「呼吸」再点套用。">效果页</button></td></tr>
-          <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b> = <b>音控闪</b>：没有音乐（或音乐信号小）时<b>每 5 秒闪一次</b>；有音乐（<code>FFTLevel &gt; 4</code>）时<b>间隔变短、每 500 ms 闪一次</b>；一直很吵就一直按这个节奏闪。五个数都在图层卡上，时间按 <b>ms</b> 直接填：<b>最高亮度</b>（255）、<b>最低亮度</b>（0 = 全灭，填的是亮度本身）、<b>没音乐时闪的间隔(ms)</b>（5000）、<b>有音乐间隔(ms)</b>（500）、<b>亮的时间(ms)</b>（200）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用；想换间隔 / 亮度就在图层卡上改那五个数字（时间按 ms 填）。">效果页</button></td></tr>
+          <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b> = <b>音控闪</b>：没有音乐（或音乐信号小）时<b>每 5 秒闪一次</b>；有音乐（<code>FFTLevel</code> 大于预览条上的<b>阈值</b>，默认 4）时<b>间隔变短、每 500 ms 闪一次</b>；一直很吵就一直按这个节奏闪。五个数都在图层卡上，时间按 <b>ms</b> 直接填：<b>最高亮度</b>（255）、<b>最低亮度</b>（0 = 全灭，填的是亮度本身）、<b>没音乐时闪的间隔(ms)</b>（5000）、<b>有音乐间隔(ms)</b>（500）、<b>亮的时间(ms)</b>（200）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用；想换间隔 / 亮度就在图层卡上改那五个数字（时间按 ms 填）。">效果页</button></td></tr>
           <tr><td>跳变（几种颜色轮着亮）</td><td>效果页「模板」里直接套<b>跳变(渐暗后跳回)</b>（= 静态 + 配色<b>「跳变」</b>，和手动把配色选成「跳变」完全同一套旋钮）：一色满亮 → 匀速暗下去 → 暗到看不见那一拍换下一色，出厂 3 色 / 渐亮 0 / 亮 0 / 变暗 30（600 ms）。颜色个数就在调色板里加减（删到 1 个 = 单色渐暗后跳回）；想点亮和变暗都柔和一点，套<b>「七彩跳变」</b>或把「渐亮 / 变暗」调大。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「跳变(渐暗后跳回)」再点套用；节奏与颜色在页面最下面的「色彩配置」里改。">效果页</button></td></tr>
           <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
@@ -2162,10 +2187,13 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function defaultAnim() {
   return { preset: 0, speed: 'slow', rate: 1, fix: true, playing: false,
            /* fft：模拟固件 mainAppCt.FFTLevel（0..255）。speed='auto' 时拿它跟
-            *     LED_FFT_THRESHOLD(=4) 比：大于就是快档、否则慢档（老 SPI RGB 灯功能
-            *     里 ring_set_audio_level() 就是这一句）。
-            * audio：模拟「音乐一直在放」—— 播放时 fft 按鼓点自己跳，能看到快慢来回切。 */
-           fft: 0, audio: false,
+            *     阈值 thr 比：大于就是快档、否则慢档（老 SPI RGB 灯功能里
+            *     ring_set_audio_level() 就是这一句）。
+            * thr：音乐阈值（0..255），出厂 = 固件 LED_FFT_THRESHOLD(=4)。
+            *     工具里可调（预览条上那根针 / 「阈」格）—— **只影响预览**，
+            *     导出代码读的是固件 led_ring.h 里那个宏。
+            * audio：模拟「音乐来了」—— 播放/暂停都会按 20ms 一拍随机注入音量。 */
+           fft: 0, thr: FW.LED_FFT_THRESHOLD, audio: false,
            showNum: true, showRing: true, showArrow: true, showFrame: true,
            previewTarget: 'mode', soloEffectId: '' };
 }
@@ -3448,14 +3476,50 @@ function simSetSpeed(sim, which) {
  *       生成代码每拍从这个 ring 级档位同步进各实例 —— 所以工具这边要能模拟
  *       「音量跳一下、档位跟着跳」，而不只是一个「有没有声音」的布尔。
  * 返回值是夹到 0..255 之后的音量，界面拿它显示。 */
-function ringSpeedFromAudio(r, level) {
-  return ((level | 0) > FW.LED_FFT_THRESHOLD) ? r.speed_fast : r.speed_slow;
+function ringSpeedFromAudio(r, level, thr) {
+  return ((level | 0) > fftThreshold(thr)) ? r.speed_fast : r.speed_slow;
 }
-function simSetAudioLevel(sim, level) {
+/* 阈值 0..255：不传 = 固件那个 LED_FFT_THRESHOLD(=4)。
+ * 工具里「阈」格 / 滑杆上那根针改的就是它 —— 只影响**预览**（导出代码读固件自己的宏）。 */
+function fftThreshold(thr) {
+  if (thr == null || thr === '') return FW.LED_FFT_THRESHOLD;
+  const t = thr | 0;
+  return t < 0 ? 0 : (t > 255 ? 255 : t);
+}
+function simSetAudioLevel(sim, level, thr) {
   sim.audio_level = Math.max(0, Math.min(255, level | 0));
-  sim.speed_cur   = ringSpeedFromAudio(sim, sim.audio_level);
+  sim.speed_cur   = ringSpeedFromAudio(sim, sim.audio_level, thr);
   simSyncSpeed(sim);
   return sim.audio_level;
+}
+/* —— 「音乐来了」的模拟音源 ————————————————————————————————————————
+ * 板上真实音乐的样子：平时只有一点底噪（0..5），随机来一拍鼓点冲到 110..255，
+ * 再按余音一格格衰减回去；听感上就是「有时候安静、有时候砸一下」。
+ * 用**固定种子的 LCG**，不是 Math.random：同一份存档每次预览的节奏一样
+ * （比对帧、录屏、给客户演示时不会「这次有鼓点、那次没有」），测试也能断言。
+ * fftMusicReset() = 归零 / 换一段「音乐」（换种子）。一拍 = 20ms，
+ * 由 loop() 按**真实时间**驱动，与预览倍率无关（音乐不会因为你放慢预览就变慢）。 */
+let fftSeed = 0x5EED2026, fftBurstLeft = 0, fftBurstAmp = 0;
+function fftMusicReset(seed) {
+  fftSeed = (seed == null) ? 0x5EED2026 : (seed >>> 0);
+  fftBurstLeft = 0; fftBurstAmp = 0;
+}
+function fftRand() {                            /* 0..255 的伪随机整数 */
+  fftSeed = (Math.imul(fftSeed, 1664525) + 1013904223) >>> 0;
+  return (fftSeed >>> 16) & 0xFF;
+}
+function fftMusicLevel() {
+  if (fftBurstLeft > 0) {                       /* 余音：从峰值一格格掉下来 */
+    fftBurstLeft--;
+    fftBurstAmp = Math.max(0, fftBurstAmp - (10 + (fftRand() % 20)));
+    return Math.min(255, fftBurstAmp + (fftRand() % 10));
+  }
+  if (fftRand() < 26) {                         /* ≈10% 的拍子起一个新鼓点 */
+    fftBurstLeft = 6 + (fftRand() % 22);
+    fftBurstAmp = 110 + (fftRand() % 146);      /* 110..255 */
+    return fftBurstAmp;
+  }
+  return fftRand() % 6;                         /* 底噪 0..5（默认阈值 4 附近抖） */
 }
 
 
@@ -5219,7 +5283,8 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                colorUpdate, simInit, instApplyPreset, simApplyEffect, simApplyMode,
                simSetSpeed, simSetupPreset, simApplySolo, instTick, instAdvances, simTick, modeOf, effectById, effectIndex,
                ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
-               ringSpeedFromAudio, simSetAudioLevel,
+               ringSpeedFromAudio, simSetAudioLevel, fftThreshold,
+               fftMusicLevel, fftMusicReset,
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
                FALL, LAYER, WAVE, pulseGain, bouncePos,
@@ -5385,8 +5450,13 @@ let undoStack = [], redoStack = [];
  * 两处各按自己的倍率走（A().rate / stage.rate），谁也不拖累谁。
  * 「从头开始计时」一律走 resetClock()。 */
 let acc = 0, accS = 0, lastT = 0;
-let fftAcc = 0, fftTickN = 0;      /* 「音乐来了」的节拍累加器（真实时间，不受播放倍率影响） */
-function resetClock() { lastT = performance.now(); acc = 0; accS = 0; fftAcc = 0; fftTickN = 0; }
+let loopOn = false;                /* 循环是否已经在跑（防两条 rAF 链叠起来 → 双倍速） */
+let fftAcc = 0;                    /* 「音乐来了」的节拍累加器（真实时间，不受播放倍率影响） */
+function resetClock() { lastT = performance.now(); acc = 0; accS = 0; fftAcc = 0; }
+/* 起 loop：**已经在跑就只重置计时**，不再叠一条 rAF 链。
+ * 「音乐来了」开着时循环本来就没停（它模拟板上信号，跟播不播放无关），
+ * 这时再点「播放」若又 requestAnimationFrame(loop) 就会两个循环各推一份帧 = 双倍速。 */
+function startLoop() { resetClock(); if (loopOn) return; loopOn = true; requestAnimationFrame(loop); }
 const sims = new Map();        /* 每个项目一份动画运行时状态，键 = 项目 id */
 
 /* 当前项目的动画设置（老存档没有 anim 字段，这里兜底补上） */
@@ -5397,6 +5467,8 @@ function A() {
    * 现在拆成两个：fft（FFTLevel 本身）+ audio（让音量自己跳）。老 true 迁成满音量，
    * 打开老工程立刻还是快档，不会莫名其妙变慢。 */
   if (a.fft == null) { a.fft = a.audio ? 255 : 0; a.audio = false; }
+  /* thr：音乐阈值（老存档没有 → 固件那个 4）。夹 0..255，别让手改 JSON 的怪值把判据弄反 */
+  a.thr = fftThreshold(a.thr);
   return a;
 }
 /* 当前该用哪一档速度。auto = 固件那句判据：
@@ -5404,41 +5476,63 @@ function A() {
 function speedWhich() {
   const a = A();
   if (a.speed !== 'auto') return a.speed || 'slow';
-  return ((a.fft | 0) > FW.LED_FFT_THRESHOLD) ? 'fast' : 'slow';
+  return ((a.fft | 0) > fftThreshold(a.thr)) ? 'fast' : 'slow';
 }
 /* 把当前档位同步给预览：只改速度档，不动相位 / step_cnt（切档瞬间不跳帧）。
  * 自动档走 simSetAudioLevel()（等价 ring_set_audio_level()：先按音量判档再广播），
  * 手动档走 simSetSpeed()（等于直接指定档位，样机上碰不到，调效果时好复现）。 */
 function syncPreviewSpeed(s) {
   const a = A(), sim = s || S();
-  if (a.speed === 'auto') simSetAudioLevel(sim, a.fft | 0);
+  if (a.speed === 'auto') simSetAudioLevel(sim, a.fft | 0, a.thr);
   else                    simSetSpeed(sim, a.speed || 'slow');
 }
-/* 速度档那一行的外观：音量滑杆 + 读数（含阈值判定）+ 「音乐来了」按钮 */
+/* 速度档那一行的外观：音量滑杆 + 阈值针 + 读数 + 「阈」格 + 「音乐来了」按钮 */
 function syncAudioBtn() {
   const a = A(), auto = a.speed === 'auto';
+  const thr = fftThreshold(a.thr);
   const lvl = Math.max(0, Math.min(255, a.fft | 0));
-  const fast = auto && lvl > FW.LED_FFT_THRESHOLD;
+  const fast = auto && lvl > thr;
   const t = $('#aFftTxt'), r = $('#aFft'), b = $('#aAudio');
+  const pin = $('#aThrPin'), tb = $('#aThr');
   if (r) { r.value = lvl; r.disabled = !auto; }        /* 自动跳时滑杆跟着当前音量走 */
-  if (t) t.textContent = auto ? `${lvl} → ${fast ? '快档' : '慢档'}（阈值 ${FW.LED_FFT_THRESHOLD}）`
-                              : `手动 ${a.speed === 'fast' ? '快档' : '慢档'}`;
+  if (t) t.textContent = auto ? `${lvl} → ${fast ? '快档' : '慢档'}` : `手动 ${a.speed === 'fast' ? '快档' : '慢档'}`;
+  /* 阈值针：位置按 0..255 摊在滑杆上（两端扣掉 range 的滑块半径 8px，刻度才准）。
+     手动档下这根针和「阈」格都灰掉 —— 那时档位是手选的，阈值不起作用。 */
+  if (pin) {
+    const pct = thr / 255;
+    pin.style.left = `calc(${(pct * 100).toFixed(2)}% + ${(8 - pct * 16).toFixed(2)}px)`;
+    pin.classList.toggle('off', !auto);
+  }
+  if (tb) {
+    /* 正在这个格里打字时别抢：否则输「12」刚敲 1 就被改写成 1 */
+    const focused = (typeof document !== 'undefined' && document.activeElement === tb);
+    if (!focused) tb.value = thr;
+    tb.disabled = !auto;
+  }
   if (b) {
     /* 文案短一点：它住在 300px 宽的常驻预览条里，长句会把滑杆挤没 */
-    b.textContent = a.audio ? '音乐来了：自己跳（点掉停）' : '音乐来了（音量自己跳）';
+    b.textContent = a.audio ? '音乐来了：随机跳（点掉停）' : '音乐来了（音量随机跳）';
     b.classList.toggle('on', !!a.audio);
     b.disabled = !auto;
   }
 }
-/* 模拟音乐的 FFTLevel：50 拍（1 秒 @ 20ms）一个循环 —— 前 6 拍重音冲高，
- * 再 20 拍余音衰减回 0，剩下 24 拍安静。形状是算出来的、不用随机：
- * 每次播放看到的一样，也方便对着「快档那 26 拍 / 慢档那 24 拍」数格子。 */
-function fftDemoLevel(tick) {
-  const p = ((tick | 0) % 50 + 50) % 50;
-  if (p < 6)  return Math.min(255, 210 + p * 7);          /* 210..245 → 快档 */
-  if (p < 26) return Math.max(0, (26 - p) * 10);          /* 200..10 → 前 19 拍仍 > 4 */
-  return 0;
+/* 阈值针 / 「阈」格 → 阈值本身。拖针时按指针对应的 x 折算成 0..255。 */
+const THR_PAD = 8;                    /* range 两端滑块半径（px） */
+function thrAtClientX(x) {
+  const r = ($('#aFft') || {}).getBoundingClientRect ? $('#aFft').getBoundingClientRect()
+                                                     : { left: 0, width: 255 };
+  const w = Math.max(1, r.width - THR_PAD * 2);
+  const t = Math.max(0, Math.min(1, (x - r.left - THR_PAD) / w));
+  return Math.round(t * 255);
 }
+function setThreshold(v) {
+  const a = A();
+  a.thr = fftThreshold(v);
+  syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+}
+/* 「音乐来了」的模拟音源搬到了 core（`fftMusicLevel()` / `fftMusicReset()`）——
+ * 底噪 + 随机鼓点 + 余音衰减，固定种子，播放与暂停都在跳。
+ * 这里只留一个「开/关」：关掉时音量回到 0（用户 2026-10-28：「再次点击就取消，默认输入的是 0」）。 */
 /* 当前项目的动画运行时。第一次取用时就按模式铺好实例 ——
  * 少了这一步，开局点任何只重画不推进的按钮（比如方向修正）都会面对空实例表，
  * 画面直接变黑。 */
@@ -5775,7 +5869,7 @@ function renderStage() {
     ` · 位置 ${zIdx}/${st.ringN} 颗` +
     ` · ${inst.speed_cur} 拍走 1 格（快档 ${inst.speed_fast} / 慢档 ${inst.speed_slow}）` +
     (A().speed === 'auto'
-      ? ` · FFTLevel ${A().fft | 0}（阈值 ${FW.LED_FFT_THRESHOLD} → ${speedWhich() === 'fast' ? '快档' : '慢档'}）`
+      ? ` · FFTLevel ${A().fft | 0}（阈值 ${fftThreshold(A().thr)} → ${speedWhich() === 'fast' ? '快档' : '慢档'}）`
       : ' · 手动档') +
     ` · 倍率 ${stageRate()}×` +
     ` · 第 ${selFx + 1}/${fxList().length} 条`, 24, 44);
@@ -6493,7 +6587,7 @@ function tab(name) {
   if (state) {
     resizeCanvas(); render();
     /* 编辑台本来在播、刚切回来 → 重新起循环（计时从这一刻算起，别补放切页那段时间） */
-    if (stageView && stagePlaying && stageInst) { resetClock(); requestAnimationFrame(loop); }
+    if (stageView && stagePlaying && stageInst) { startLoop(); }
   }
   if (name === 'mode') { renderMdList(); syncMdEdit(); }
   if (name === 'help') { const d = $('#helpDoc');
@@ -6732,12 +6826,27 @@ function buildAnimPanel() {
     syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
   };
   $('#aFft').onchange = () => saveStore();
-  /* 「音乐来了」= 播放时让 FFTLevel 按鼓点自己跳（暂停时音量不动，看不出变化） */
+  /* 阈值：拖滑杆上那根针 / 直接填末尾的「阈」格 —— 同一个数，只影响工具里的预览判档
+     （导出代码读固件 led_ring.h 的 LED_FFT_THRESHOLD，见 A().thr 的注释）。 */
+  const thrIn = $('#aThr'), thrPin = $('#aThrPin');
+  if (thrIn) {
+    thrIn.oninput  = () => setThreshold(+thrIn.value);
+    /* 离开这一格再把值写成夹好的数（输 300 → 255、输空 → 0），打字过程中不抢 */
+    thrIn.onchange = () => { thrIn.value = fftThreshold(A().thr); saveStore(); };
+  }
+  if (thrPin) cpBindDrag(thrPin, ev => { if (ev && ev.clientX != null) setThreshold(thrAtClientX(ev.clientX)); });
+  /* 「音乐来了」= 随机注入音量（底噪 + 随机鼓点 + 余音，core 的 fftMusicLevel）；
+   * 再点一下取消，音量回到 **0**（用户 2026-10-28：「再次点击就取消，默认输入的是 0」）。
+   * 暂停时也在跳 —— 模拟的是板上信号，跟播不播放无关，所以这里手动把循环踢起来。 */
   $('#aAudio').onclick = () => {
     A().audio = !A().audio;
+    A().fft = 0;                       /* 开 / 关都从 0 起（关掉就是「没音乐」） */
+    if (A().audio) fftMusicReset();    /* 重新开始一段「音乐」（固定种子，重放一样） */
     syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
-    status(A().audio ? '音乐来了：播放起来，音量会按鼓点跳，动画跟着忽快忽慢'
-                     : '音乐停了：音量停在当前值（拖滑杆可手动改）');
+    resetClock();
+    if (A().audio) startLoop();        /* 已停的循环踢起来（已在跑则只重置计时，不叠链） */
+    status(A().audio ? `音乐来了：每 20ms 随机注入音量（阈值 ${fftThreshold(A().thr)}），动画跟着忽快忽慢`
+                     : '音乐停了：音量回到 0（拖滑杆可手动改）');
   };
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };
   $('#aPlay').onclick   = () => { playToggle(!A().playing); saveStore(); };
@@ -6823,7 +6932,7 @@ function playToggle(on) {
   a.playing = on;
   $('#aPlay').textContent = a.playing ? '暂停' : '播放';
   $('#aPlay').classList.toggle('on', a.playing);
-  if (on) { resetClock(); requestAnimationFrame(loop); }
+  if (on) { startLoop(); }
   else applyFrame();
   syncStagePlayBtn();
 }
@@ -6865,21 +6974,25 @@ function fixDiag() {
 
 function loop(t) {
   /* 两处预览各跑各的：灯板看 A().playing + A().rate，编辑台看 stagePlaying + stage.rate。
-   * 都停了就退出循环；切到别的项目时也会自然停。 */
+   * 「音乐来了」开着时循环也不停 —— 它模拟的是**板上信号**，跟播不播放无关。 */
   const boardOn = !!A().playing;
   const stageOn = stageView && stagePlaying && !!stageInst;
-  if (!boardOn && !stageOn) { acc = 0; accS = 0; return; }
-  const dt = Math.min(t - lastT, 200);         /* 标签页切回来时不要疯狂追帧 */
+  const audioOn = (A().speed === 'auto') && !!A().audio;
+  if (!boardOn && !stageOn && !audioOn) { loopOn = false; acc = 0; accS = 0; lastT = t; return; }
+  const dt = Math.min(t - (lastT || t), 200);  /* 标签页切回来时不要疯狂追帧 */
   lastT = t;
   /* 「音乐来了」：FFTLevel 按**真实时间**走（20ms 一拍），与预览倍率无关 ——
    * 音乐不会因为你放慢预览就变慢。两边预览用的是同一个值，跟固件里那个全局
-   * mainAppCt.FFTLevel 一样；每拍用它走一遍 ring_set_audio_level() 的判据。 */
-  const audioOn = (A().speed === 'auto') && !!A().audio;
+   * mainAppCt.FFTLevel 一样；每拍用它走一遍 ring_set_audio_level() 的判据。
+   * 值是随机的（core 里的 fftMusicLevel：底噪 + 随机鼓点 + 余音），所以每拍取一次、
+   * 不是在帧上算一次 —— 否则倍率一变，鼓点密度就跟着变了。 */
   if (audioOn) {
     fftAcc += dt;
-    while (fftAcc >= 20) { fftAcc -= 20; fftTickN++; }
-    A().fft = fftDemoLevel(fftTickN);
-  }
+    let g = 0;
+    while (fftAcc >= 20 && g++ < 50) { fftAcc -= 20; A().fft = fftMusicLevel(); }
+    syncAudioBtn();                      /* 滑杆 / 读数 / 阈值针跟着走 */
+  } else fftAcc = 0;
+  if (!boardOn && !stageOn) { requestAnimationFrame(loop); return; }   /* 只放音乐：不推进帧 */
   if (boardOn) {
     acc += dt;
     const tickMs = 20 / (A().rate || 1);
@@ -6887,7 +7000,7 @@ function loop(t) {
     let guard = 0;
     while (acc >= tickMs && guard++ < 500) {
       acc -= tickMs;
-      if (audioOn) simSetAudioLevel(s, A().fft);   /* 换档 → 广播到各实例的 speed_cur */
+      if (audioOn) simSetAudioLevel(s, A().fft, A().thr);   /* 换档 → 广播到各实例的 speed_cur */
       simTick(s, state, fixOn());
     }
   } else acc = 0;                              /* 停着的那边别攒时间 */
@@ -6902,7 +7015,6 @@ function loop(t) {
       instTick(stageInst, speedWhich() === 'fast');
     }
   } else accS = 0;
-  if (audioOn) syncAudioBtn();          /* 读数 / 滑杆跟着音量走（每帧只写文本，不重画灯板） */
   render();
   maybeFixDiag();
   requestAnimationFrame(loop);
@@ -8379,7 +8491,7 @@ function stageToggle(on, restart) {
    * 从头上播放必须从 tick 0 开始，不能带上暂停时那一帧。 */
   stagePlaying = !!on;
   if (on && (restart || !stageInst)) stageSync(true);
-  if (stagePlaying) { resetClock(); requestAnimationFrame(loop); }
+  if (stagePlaying) { startLoop(); }
   syncStagePlayBtn();
   render();
 }
@@ -8435,7 +8547,7 @@ function fxSelMove(d) {
   fxFilterClear();                       /* 巡览时「现在看的那条」必须看得见 */
   renderFxList(); syncFxEdit();
   stageSync(true);                       /* 编辑台换到新效果、从头放 */
-  if (stagePlaying) { resetClock(); requestAnimationFrame(loop); }
+  if (stagePlaying) { startLoop(); }
   syncStagePlayBtn();
   render();
   saveStore();
@@ -9385,7 +9497,7 @@ function bindProject() {
   syncAnimPanel();
   fitView(); afterChange();
   /* 本项目上次是播放状态就接着放；不是就停下（循环里会自行退出） */
-  if (state.anim.playing) { resetClock(); requestAnimationFrame(loop); }
+  if (state.anim.playing) { startLoop(); }
 }
 
 function addProject(st, name) {

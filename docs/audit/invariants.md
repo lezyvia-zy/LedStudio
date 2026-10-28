@@ -5,7 +5,7 @@
 
 ## 13. 有意为之，不要「顺手改」（改这些等于改产品语义）
 
-1. **「音乐来了」模拟的是固件那条链路，不是真 FFT**：`A().fft` = `mainAppCt.FFTLevel`（0..255，界面上的「音乐音量」滑杆），`ringSpeedFromAudio()` = 固件 `ring_set_audio_level()` 里那一句 **`FFTLevel > LED_FFT_THRESHOLD(=4)` → 快档、否则慢档**（「大于」不是「大于等于」）。点「音乐来了」只是让 `fftDemoLevel(tick)` 按鼓点自己跳（50 拍一轮、真实时间、不受播放倍率影响）；要接真音频，改的是这条注入（`simSetAudioLevel`），**不要**绕过它直接写 `speed_cur`。
+1. **「音乐来了」模拟的是固件那条链路，不是真 FFT**：`A().fft` = `mainAppCt.FFTLevel`（0..255，界面上的「音乐音量」滑杆），`ringSpeedFromAudio()` = 固件 `ring_set_audio_level()` 里那一句 **`FFTLevel > 阈值` → 快档、否则慢档**（「大于」不是「大于等于」）。阈值 = `A().thr`，出厂是固件那个 `LED_FFT_THRESHOLD(=4)`（2026-10-28 起可调：预览条滑杆上的竖针 / 「阈」格）—— **它只影响工具里的预览判档，导出代码里没有这个数**（固件读自己的宏），别顺手把它塞进 `led_effects_gen.h`（那会变成第二份来源）。点「音乐来了」只是让 `fftMusicLevel()` 每 20ms 注入一个随机音量（底噪 0..5 + 随机鼓点 + 余音，固定种子的 LCG；真实时间、不受播放倍率影响），再点一下取消并回到 0；要接真音频，改的是这条注入（`simSetAudioLevel`），**不要**绕过它直接写 `speed_cur`。
 2. **判档是保守的**：`fast >= slow` 时一律慢档，与打补丁前行为一致（`ringIsFast` / `led_gen_tick` 的 C 侧表达式）。要"更激进"就是改判据 —— 那必须 C/JS 同步 + 跑真编译。
 3. **`ring->speed_slow / speed_fast` 只是判档参考**：各效果用自己配的 `fast/slow`（firmware-contract.md 第三节），不要改回"ring 级覆盖实例级"。
 4. **`zones: []` = 覆盖全部分区**（`bindZones`）：新增分区能自动跟上，这是特性；要表达「一个分区都不跑」得用 `b.none = true`（模式页「全不选」），**不能**再用空数组 —— 否则「全取消」会被当成「全部分区」，画面反而全亮。

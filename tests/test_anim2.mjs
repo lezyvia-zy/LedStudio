@@ -228,13 +228,43 @@ ok(nSlow > 1 && nFast === 1,
 aud.onclick();
 await new Promise(r => realST(r, 70));
 ok(animOf(0).audio === true, '「音乐来了」状态存住了（audio = true）');
-ok(aud.classList.contains('on') && /自己跳/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
+ok(aud.classList.contains('on') && /随机跳/.test(aud.textContent), `按钮已按下: "${aud.textContent}"`);
+/* 关掉 = 取消注射，音量回到 0（用户：「再次点击就取消，默认输入的是 0」） */
 aud.onclick();
 await new Promise(r => realST(r, 70));
-ok(animOf(0).audio === false, '再点一下停（audio = false）');
+ok(animOf(0).audio === false && animOf(0).fft === 0,
+   `再点一下停（audio = false，音量回到 ${animOf(0).fft}）`);
+
+/* ---- E) 音乐阈值可调：滑杆上的针 + 末尾的「阈」格 ---- */
+console.log('--- 音乐阈值（滑杆针 / 阈格）---');
+const thrIn = byId.get('aThr'), thrPin = byId.get('aThrPin');
+ok(!!thrIn && !!thrPin && thrIn.value === '4' && /%/.test(thrPin.style.left || ''),
+   `阈值控件都在：格子里 ${thrIn && thrIn.value}、针在 ${thrPin && thrPin.style.left}`);
+thrIn.value = '10'; thrIn.oninput();
+fft.value = '5'; fft.oninput();
+ok(/慢档/.test(ftxt.textContent), `阈值改成 10 后，音量 5 是慢档：${ftxt.textContent}`);
+fft.value = '11'; fft.oninput();
+ok(/快档/.test(ftxt.textContent), `音量 11（> 阈值 10）才快档：${ftxt.textContent}`);
+await new Promise(r => realST(r, 70));
+ok(animOf(0).thr === 10, `阈值存进存档（thr = ${animOf(0).thr}）`);
+/* 拖针：假 DOM 的滑杆 1200px 宽，指到正中间 → 约 128 */
+const pinDown = (listeners['aThrPin:pointerdown'] || [])[0];
+ok(typeof pinDown === 'function', '阈值针挂了 pointerdown（拖得动）');
+pinDown({ clientX: 600, pointerId: 1, preventDefault(){} });
+await new Promise(r => realST(r, 70));
+ok(animOf(0).thr >= 120 && animOf(0).thr <= 136, `拖到滑杆中间 → 阈值 ${animOf(0).thr}（≈128）`);
+const pinMove = (listeners['aThrPin:pointermove'] || [])[0];
+pinMove({ clientX: -9999 });
+await new Promise(r => realST(r, 70));
+ok(animOf(0).thr === 0 && thrIn.value === '0', `拖到最左 → 阈值 0（格子跟着写 ${thrIn.value}）`);
+/* 拖到最右 = 255：只有满音量才算「有音乐」 */
+pinMove({ clientX: 99999 });
+await new Promise(r => realST(r, 70));
+ok(animOf(0).thr === 255, `拖到最右 → 阈值 ${animOf(0).thr}（夹在 0..255）`);
 spd.value = 'slow'; spd.onchange();
 await new Promise(r => setTimeout(r, 100));
-ok(aud.disabled === true, '回手动档后「音乐来了」又灰掉');
+ok(thrIn.disabled === true && thrPin.classList.contains('off') && aud.disabled === true,
+   '回手动档后阈值格 / 针 / 「音乐来了」都灰掉（那时档位是手选的，阈值不起作用）');
 
 
 console.log(fails?`\n=== ${fails} 项未通过 ===`:'\n=== 全部通过 ===');

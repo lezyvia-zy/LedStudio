@@ -469,7 +469,7 @@ console.log('--- 速度档（ring 级 → 实例）---');
 /* ---- 9b) 音乐音量 → 速度档：FFTLevel > LED_FFT_THRESHOLD（固件那句判据）---- */
 console.log('--- FFTLevel → 速度档（> 阈值才快）---');
 {
-  const { FW, simInit, instNew, ringSpeedFromAudio, simSetAudioLevel, simTick } = CORE;
+  const { FW, simInit, instNew, ringSpeedFromAudio, simSetAudioLevel, simTick, fftThreshold } = CORE;
   ok(FW.LED_FFT_THRESHOLD === 4, `阈值就是固件的 LED_FFT_THRESHOLD = ${FW.LED_FFT_THRESHOLD}`);
   const sim = simInit();
   sim.insts = [Object.assign(instNew(), { speed_slow: 8, speed_fast: 1, speed_cur: 8 })];
@@ -498,6 +498,51 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
   sim.insts[0].step_cnt = 3;
   simSetAudioLevel(sim, 200);
   ok(sim.insts[0].step_cnt === 3, '切档不重置 step_cnt（正在走的这一格不会跳）');
+
+  /* 阈值可调（2026-10-28 用户：「音乐信号的阈值要可调，现在固定到4了」）：
+   * 第三个参数就是阈值；不传 = 固件那个 LED_FFT_THRESHOLD(=4)。
+   * 只影响工具里的预览判档 —— 导出代码读固件 led_ring.h 的宏。 */
+  sim.insts[0].speed_fast = 1; sim.insts[0].speed_slow = 8;
+  ok(ringSpeedFromAudio(sim, 50, 60) === 8 && ringSpeedFromAudio(sim, 61, 60) === 1,
+     '自定义阈值 60：音量 50 慢档、61 快档');
+  ok(ringSpeedFromAudio(sim, 50, 0) === 1 && ringSpeedFromAudio(sim, 0, 0) === 8,
+     '阈值 0：音量 > 0 就算有音乐（0 仍然算安静）');
+  ok(fftThreshold(-3) === 0 && fftThreshold(999) === 255 && fftThreshold(null) === 4 &&
+     fftThreshold(undefined) === 4 && fftThreshold('') === 4,
+     '阈值夹在 0..255；不传（null / undefined / 空串）就是固件那个 4');
+  simSetAudioLevel(sim, 50, 60);
+  ok(sim.audio_level === 50 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
+     'simSetAudioLevel 的第三个参数就是阈值（50 < 60 → 慢档）');
+  simSetAudioLevel(sim, 61, 60);
+  ok(sim.speed_cur === 1 && sim.insts[0].speed_cur === 1, '音量 61 > 阈值 60 → 快档（广播到实例）');
+}
+
+/* ---- 9c) 「音乐来了」的随机音源：底噪 + 随机鼓点 + 余音（固定种子）---- */
+console.log('--- 「音乐来了」的随机音源 ---');
+{
+  const { fftMusicLevel, fftMusicReset } = CORE;
+  fftMusicReset();
+  const a = Array.from({ length: 200 }, () => fftMusicLevel());
+  ok(a.every(v => v >= 0 && v <= 255), '随机音量都落在 0..255');
+  ok(a.some(v => v <= 4) && a.some(v => v > 4),
+     `安静（≤4）和有音乐（>4）都出现：${a.filter(v => v <= 4).length} / ${a.filter(v => v > 4).length}（200 拍）`);
+  ok(a.some(v => v >= 100) && a.filter(v => v >= 100).length < a.length / 2,
+     `有鼓点高峰、也不是一直响（≥100 的占 ${a.filter(v => v >= 100).length}/200）`);
+  /* 余音：鼓点之后是连续 >4 的一段，不是一拍一个孤立尖峰 */
+  let runs = 0;
+  for (let i = 1; i < a.length; i++) if (a[i] > 4 && a[i - 1] > 4) runs++;
+  ok(runs > 30, `鼓点带余音（相邻两拍都 >4 的有 ${runs} 处），不是孤立尖峰`);
+  /* 固定种子：重置之后重放同一段「音乐」（比对帧 / 录屏 / 演示都靠这条） */
+  fftMusicReset();
+  const b = Array.from({ length: 200 }, () => fftMusicLevel());
+  ok(a.join(',') === b.join(','), '固定种子：重置后重放一模一样');
+  fftMusicReset(12345);
+  const c = Array.from({ length: 100 }, () => fftMusicLevel());
+  ok(c.join(',') !== a.slice(0, 100).join(','), '换种子 = 换一段「音乐」');
+  /* 默认阈值 4 下，这段「音乐」能让两个档位都出现过（不是永远快、也不是永远慢） */
+  const fastN = a.filter(v => v > 4).length;
+  ok(fastN > 20 && fastN < a.length - 20,
+     `默认阈值下快档 ${fastN} 拍 / 慢档 ${a.length - fastN} 拍（两边都看得到）`);
 }
 
 
