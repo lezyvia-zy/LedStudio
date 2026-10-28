@@ -5,7 +5,19 @@
 
 ---
 
-## 2026-10-28（第十三轮）—— 每效果「平滑 T」（只在慢档、快档直通）
+## 2026-10-28（第十四轮）—— 音量刻度上限可自定义 + 阈值上限提示 + 阈值针不再抖
+
+**动机**（用户原话）：「音乐信号的最大值…应该可以做成自定义的参数，同阈值设定一样。同时阈值的设定时需要提示不能大于最大值」＋「在打开音乐来了这个功能时，阈值的定位标会来回的抖动」。
+
+**根因**：① 音量刻度 `AUDIO_MAX` 一直是常量 20，`fftThreshold` / `simSetAudioLevel` / `fftMusicLevel` / 导出宏全拿它写死，换一块 FFTLevel 范围不同的板子只能改代码；② 阈值只按 20 夹，没有「不能大于最大值」这层关系与提示；③ 预览条的读数 `#aFftTxt` 是 `flex:0 0 auto`，「音乐来了」让音量随机跳时「8 → 慢档」和「17 → 快档」宽度不同，把同一行的滑杆挤得左右动 —— 阈值针是按百分比绝对定位的，看着就在抖。
+
+**改动**：① 刻度上限进工程 `state.anim.audioMax`（2..255，出厂 20，老存档补默认值），新增 `audioMaxOf()`；`fftThreshold(thr, max)` / `simSetAudioLevel(sim, level, thr, max)` / `simAudioStep()` / `fftMusicLevel(max)` / `ringSpeedFromAudio(..., max)` / `speedWhich()` / 导出宏 `LED_GEN_AUDIO_MAX` 全部改用它（`FW.AUDIO_MAX` 只剩「出厂默认」这一层含义）。② 预览条新增「刻度 · 最大」一行（`#aMax`），滑杆 / 「阈」格的 `max` 跟着它走；**阈值填超最大值就夹到最大值并在状态栏提示**，把最大值调小时超出的阈值与当前音量一起压下来并提示。③ `#previewBar #aFftTxt` 固定成 **64px**（+ `tabular-nums`）—— 读数宽度不再影响滑杆，阈值针不动了。④ 生成头 / HAL 注释 / 帮助页 / 契约文档同步改口。
+
+**测试**：`test_effects_core` 9b +4（上限夹值 / 阈值按上限夹 / 刻度 40 + 阈值 30 时音量 35 能进快档 / 随机音源不超上限且 >20）；`test_effects_c` +1（audioMax 40 → `LED_GEN_AUDIO_MAX 40`、阈值 999 夹到 40）；`test_anim2` G 段 +7（默认 20 / 改 40 / 阈值 30 允许 / 填 50 夹 40 + 提示 / 调小最大把阈值压下来 + 提示 / 恢复 / 读数固定宽度）。全量 26 套件 / **1960 项** / 0 FAIL。
+
+**影响**：`docs/audit/anim.md` A7 ⑥、`docs/audit/invariants.md` §13-1 / §13-12、`docs/firmware-contract.md`、`CLAUDE.md` 坑 46、`HANDOFF.md` 第十四轮、帮助页 / README。老工程没有 `audioMax` → 20（行为不变）；**默认导出仍是 `LED_GEN_AUDIO_MAX 20`，没改上限的老工程不用重导重编**，改了上限才要重导。
+
+---
 
 **动机**（用户定稿）：平滑作用在**亮度（mask）**上、**每个效果独立**、**只在慢档生效**（快档直通省算力）；参数只有一个「全幅时间 T」，**新效果默认 60ms / 老工程迁移 0**，换算一律向上取整。
 

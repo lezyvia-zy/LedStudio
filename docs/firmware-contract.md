@@ -33,7 +33,7 @@
 | 函数原型 | 语义 | 没有这个能力时 |
 |---|---|---|
 | `void led_gen_hal_present(const uint8_t *fb, uint16_t led_count);` | 把一帧推给灯。帧缓冲布局 `fb[灯号 * 3 + 0/1/2] = R/G/B`，长度 `led_count * 3`。真 SPI / DMA / WS2812 都收在这一层 | 必须实现 |
-| `uint8_t led_gen_hal_audio_level(void);` | 音量 / 节奏档，`0..LED_GEN_AUDIO_MAX`（工具里定成 **20**）；引擎拿它跟导出的 `LED_GEN_FFT_THRESHOLD` 比 | `return 0` |
+| `uint8_t led_gen_hal_audio_level(void);` | 音量 / 节奏档，`0..LED_GEN_AUDIO_MAX`（工具里可调，**出厂 20**、默认范围 2..255）；引擎拿它跟导出的 `LED_GEN_FFT_THRESHOLD` 比 | `return 0` |
 | `uint16_t led_gen_hal_brightness(void);` | 全局亮度，`0..256`（256 = 满亮） | `return 256` |
 | `uint8_t led_gen_hal_zone_enable(uint8_t zone_idx);` | 分区开关：`1` = 亮，`0` = 灭 | `return 1` |
 | `uint32_t led_gen_hal_millis(void);` | 单调毫秒计数 | `return 0`（引擎由平台固定周期驱动时不用它） |
@@ -106,7 +106,7 @@
 | HAL 函数 | 在这台样机上 |
 |---|---|
 | `led_gen_hal_present` | 把 `fb`（`LED_COUNT*3` 字节）按 SPI 帧格式搬进发送缓冲，再调现有的 `spi_dma_send()`。原来 `spimled_service.c` 里那段拷贝逻辑搬进这里 |
-| `led_gen_hal_audio_level` | `return (uint8_t)mainAppCt.FFTLevel;`（0..20 的刻度；引擎自己拿它跟 `LED_GEN_FFT_THRESHOLD` 比） |
+| `led_gen_hal_audio_level` | `return (uint8_t)mainAppCt.FFTLevel;`（`0..LED_GEN_AUDIO_MAX` 的刻度，工具里可调、出厂 20；引擎自己拿它跟 `LED_GEN_FFT_THRESHOLD` 比） |
 | `led_gen_hal_brightness` | `return mainAppCt.LEDBrightness;`（0..256） |
 | `led_gen_hal_zone_enable` | `return mainAppCt.Knob*LEDOnOff;`（旋钮灯开关那几位） |
 | `led_gen_hal_millis` | 返回系统 tick 换算的毫秒；也可以 `return 0`，让 `spimled_service.c` 那 20ms 定时器直接调 `led_gen_tick()` |
@@ -141,7 +141,7 @@ I->speed_cur = (fast != 0u) ? I->speed_fast : I->speed_slow;   /* 各效果仍�
 
 三点要注意：
 
-- **刻度是 0..20**（`LED_GEN_AUDIO_MAX`）：平台给的是 0..20 的 `FFTLevel`，阈值也在同一刻度上。
+- **刻度是 `0..LED_GEN_AUDIO_MAX`**（工具里可调，**出厂 20**）：平台给的就是这个刻度上的 `FFTLevel`，阈值也在同一刻度上（阈值不能大于最大值，工具里会夹）。
 - **判据是保守的**：只有「快档确实更快」（`speed_fast < speed_slow`）且音量过阈值时才认快档；
   平台没接音量（`return 0`）、或参数被改成 `fast >= slow`，行为与打补丁前一模一样。
 - **`ring->speed_slow / speed_fast` 只是判档参考**：打补丁后 `ring_apply_preset()` 不再被调用，
@@ -265,7 +265,7 @@ void led_gen_hal_present(const uint8_t *fb, uint16_t led_count)
     spi_led_send_frame(fb, led_count);
 }
 
-uint8_t led_gen_hal_audio_level(void)   { return (uint8_t)mainAppCt.FFTLevel; }   /* 0..LED_GEN_AUDIO_MAX(20) */
+uint8_t led_gen_hal_audio_level(void)   { return (uint8_t)mainAppCt.FFTLevel; }   /* 0..LED_GEN_AUDIO_MAX（工具里可调，出厂 20） */
 uint16_t led_gen_hal_brightness(void)   { return (uint16_t)mainAppCt.LEDBrightness; }
 uint8_t led_gen_hal_zone_enable(uint8_t zone_idx)
 {

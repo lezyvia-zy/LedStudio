@@ -116,6 +116,19 @@ ok(/static void led_gen_audio_step\(void\)/.test(h2) &&
    /led_gen_stage != 0u/.test(h2) &&
    /uint8_t led_gen_hal_audio_level\(void\);/.test(h2),
    '生成的 tick 自己跑「每 40ms 采样 + 快档迟滞」再判档（平台只需要实现 led_gen_hal_audio_level）');
+/* 刻度上限也随导出走（工具里可自定义，出厂 20）：阈值按最大值夹 */ 
+{
+  const stA = JSON.parse(JSON.stringify(st2));
+  stA.anim = Object.assign({}, stA.anim || {}, { audioMax: 40, thr: 30 });
+  const hA = exportEffectsC(stA, { form:'header', comment:'ascii', eol:'lf' });
+  const stB = JSON.parse(JSON.stringify(st2));
+  stB.anim = Object.assign({}, stB.anim || {}, { audioMax: 40, thr: 999 });
+  const hB = exportEffectsC(stB, { form:'header', comment:'ascii', eol:'lf' });
+  ok(/#define LED_GEN_AUDIO_MAX\s+40u/.test(hA) && /#define LED_GEN_FFT_THRESHOLD\s+30u/.test(hA) &&
+     /#define LED_GEN_FFT_THRESHOLD\s+40u/.test(hB),
+     '刻度上限也随导出走：音频上限 40 → LED_GEN_AUDIO_MAX 40；阈值 30 原样、999 夹到 40: '
+     + ((hA.match(/#define LED_GEN_(AUDIO_MAX|FFT_THRESHOLD).*/g) || []).join(' | ')));
+}
 ok(!/ring->speed_cur\s*<=/.test(h2),
    '不再从 ring->speed_cur 读档位 —— 那条路要平台按同一个阈值改档，两处容易分家');
 {

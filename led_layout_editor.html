@@ -96,7 +96,10 @@
   #previewBar .thrPin.off{opacity:.35; cursor:default; pointer-events:none}
   #previewBar .thrBox{flex:0 0 auto; display:flex; align-items:center; gap:2px; font-size:11px; color:var(--dim)}
   #previewBar .thrBox input{width:62px; padding:1px 3px; font-size:11px}
-  #previewBar #aFftTxt{flex:0 0 auto; font-weight:400; font-size:11px; color:var(--dim); white-space:nowrap}
+  /* 读数**固定宽度**：音量随机跳时「8 → 慢档」和「17 → 快档」的宽度不一样，auto 宽会把滑杆
+     挤得左右动，阈值针（按百分比定位）就跟着抖。固定成 64px 之后针不再动（2026-10-28 用户反馈）。 */
+  #previewBar #aFftTxt{flex:0 0 64px; width:64px; font-weight:400; font-size:11px; color:var(--dim);
+    white-space:nowrap; overflow:hidden; text-align:left; font-variant-numeric:tabular-nums}
   #previewBar button{flex:0 0 auto; font-size:12px}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
   .pane.on{display:block}
@@ -438,11 +441,15 @@
       </div>
       <div class="pr"><span class="lb">音量</span>
         <span class="fftWrap">
-          <input type="range" id="aFft" min="0" max="20" step="1" value="0" data-tip="音量 0..20 —— 就是固件里的 mainAppCt.FFTLevel（音乐越响 / 节奏越强越高；刻度按板子上的实际范围定成 0..20）。&#10;它跟右边那个「阈」值比：大于阈值切快档，小于等于走慢档（出厂阈值 4）。&#10;这个刻度和阈值都会随导出写进 C（LED_GEN_AUDIO_MAX / LED_GEN_FFT_THRESHOLD），固件按同一套判。&#10;只在「速度档 = 自动」时起作用；拖它等于手动模拟「音乐一会儿有一会儿没有」。&#10;暂停状态下拖一下，效果页的编辑台会当场换档（不用先按播放）。">
-          <i id="aThrPin" class="thrPin" data-tip="阈值：**拖我**调「多大声才算有音乐」（0..20，出厂 4）。&#10;针左边 = 慢档（安静），针右边 = 快档（有音乐）；也可以直接填滑杆末尾那个「阈」字框。&#10;这个数会导出成 C 里的 LED_GEN_FFT_THRESHOLD —— 固件那边照它判，不用再手改宏。"></i>
+          <input type="range" id="aFft" min="0" max="20" step="1" value="0" data-tip="音量 0..**最大值**（默认 20）—— 就是固件里的 mainAppCt.FFTLevel（音乐越响 / 节奏越强越高；刻度的上限可以在下面那行「最大」里改）。&#10;它跟右边那个「阈」值比：大于阈值切快档，小于等于走慢档（出厂阈值 4）。&#10;这个刻度和阈值都会随导出写进 C（LED_GEN_AUDIO_MAX / LED_GEN_FFT_THRESHOLD），固件按同一套判。&#10;只在「速度档 = 自动」时起作用；拖它等于手动模拟「音乐一会儿有一会儿没有」。&#10;暂停状态下拖一下，效果页的编辑台会当场换档（不用先按播放）。">
+          <i id="aThrPin" class="thrPin" data-tip="阈值：**拖我**调「多大声才算有音乐」（0..最大值，出厂 4）。&#10;针左边 = 慢档（安静），针右边 = 快档（有音乐）；也可以直接填滑杆旁边那个「阈」字框。&#10;阈值不能大于最大值（填超了会按最大值算并提示）。&#10;这个数会导出成 C 里的 LED_GEN_FFT_THRESHOLD —— 固件那边照它判，不用再手改宏。"></i>
         </span>
         <b id="aFftTxt">0 → 慢档</b>
-        <span class="thrBox" data-tip="音乐阈值（音量**大于**它才算「有音乐」，正好等于仍算安静）。&#10;0..20，出厂 4；导出成 C 的 LED_GEN_FFT_THRESHOLD，固件照它判档。&#10;等价于拖滑杆上那根竖针。">阈<input type="number" id="aThr" min="0" max="20" step="1" value="4"></span>
+        <span class="thrBox" data-tip="音乐阈值（音量**大于**它才算「有音乐」，正好等于仍算安静）。&#10;0..最大值（默认 20），出厂 4；导出成 C 的 LED_GEN_FFT_THRESHOLD，固件照它判档。&#10;**不能大于最大值** —— 填超了会按最大值算并提示。&#10;等价于拖滑杆上那根竖针。">阈<input type="number" id="aThr" min="0" max="20" step="1" value="4"></span>
+      </div>
+      <div class="pr"><span class="lb">刻度</span>
+        <span class="thrBox" data-tip="音乐音量刻度的**最大值**（固件 mainAppCt.FFTLevel 的上限）：2..255，出厂 20。&#10;随导出写进 C 的 LED_GEN_AUDIO_MAX；阈值不能大于它（把最大值调小，超过的阈值会一起压下来并提示）。&#10;换一块板子、FFTLevel 范围不一样时改这里，别的地方都不用动。">最大<input type="number" id="aMax" min="2" max="255" step="1" value="20"></span>
+        <span class="hint" style="margin:0;font-size:11px">音量 0..最大；阈值不能超过它</span>
       </div>
       <div class="pr"><span class="lb">音乐</span>
         <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS；采样周期固定 40ms（固件那边的计时定死，工具不暴露）。">阻尼(ms)<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
@@ -1062,7 +1069,7 @@
         <table>
           <tr><th>控件</th><th>作用</th></tr>
           <tr><td>选哪个</td><td>选要预览的模式 / 效果。</td></tr>
-          <tr><td>速度档 / 音量 / 阈值（预览条）</td><td>在<b>页签下面那条常驻条</b>里，效果页与这一页共用同一份。速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>：音量滑杆（<b>0..20</b>，= 固件 <code>mainAppCt.FFTLevel</code>）<b>大于阈值切快档</b>、小于等于走慢档。阈值<b>可以调</b>：拖滑杆上那根<b>竖针</b>、或者改末尾的<b>「阈」</b>格（0..20，出厂 4）—— <b>它随导出写进 C</b>（<code>LED_GEN_AUDIO_MAX</code> / <code>LED_GEN_FFT_THRESHOLD</code>），固件照它判档，不用再手改宏。手动慢 / 快只影响工具里的预览（导出的代码永远按音量判档）。</td></tr>
+          <tr><td>速度档 / 音量 / 阈值 / 最大（预览条）</td><td>在<b>页签下面那条常驻条</b>里，效果页与这一页共用同一份。速度档是固件里的快慢两档；<b>「自动」= 跟着音乐</b>：音量滑杆（<b>0..最大</b>，= 固件 <code>mainAppCt.FFTLevel</code>）<b>大于阈值切快档</b>、小于等于走慢档。阈值<b>可以调</b>：拖滑杆上那根<b>竖针</b>、或者改旁边的<b>「阈」</b>格（0..最大，出厂 4）。<b>「最大」</b>格 = 音量刻度的上限（2..255，出厂 20，换板子时按实际 FFTLevel 范围改）；<b>阈值不能大于最大值</b> —— 填超了会按最大值算并提示一句，把最大值调小时超过的阈值也会一起压下来。两个数<b>都随导出写进 C</b>（<code>LED_GEN_AUDIO_MAX</code> / <code>LED_GEN_FFT_THRESHOLD</code>），固件照它判档，不用再手改宏。手动慢 / 快只影响工具里的预览（导出的代码永远按音量判档）。</td></tr>
           <tr><td>播放倍率</td><td>只影响这一页的灯板预览（效果页的编辑台有它自己那一条倍率），不改导出参数。</td></tr>
           <tr><td>播放 / 单步 / 归零</td><td>单步走一格（固件的 speed_cur 个节拍），归零回到起始帧。</td></tr>
           <tr><td>方向修正</td><td>关 = 当前固件的真实表现；开 = 按各分区实际绕行方向反向映射（配 reverse 补丁后的表现）。它下面那行会显示每个分区此刻亮到几号灯。</td></tr>
@@ -1073,9 +1080,10 @@
           固件 <code>spimled_service.c</code> 每 20ms 调
           <code>ring_set_audio_level(&amp;g_ring, mainAppCt.FFTLevel)</code>：<b>FFTLevel 大于 <code>LED_FFT_THRESHOLD</code>
           就切快档，小于等于就慢档</b>。<br>
-          <b>阈值可调</b>：音量滑杆上那根<b>竖针</b>就是阈值，拖着它左右移；滑杆末尾的<b>「阈」</b>格填同一个数（<b>0..20</b>，出厂 4）。
-          判据是「<b>大于</b>」—— 正好等于阈值仍算安静。
-          <b>这个数随导出写进 C</b>：<code>LED_GEN_FFT_THRESHOLD</code>（刻度是 <code>LED_GEN_AUDIO_MAX = 20</code>），
+          <b>阈值可调</b>：音量滑杆上那根<b>竖针</b>就是阈值，拖着它左右移；滑杆旁边的<b>「阈」</b>格填同一个数（<b>0..最大</b>，出厂 4）。
+          判据是「<b>大于</b>」—— 正好等于阈值仍算安静。<b>「最大」</b>格是音量刻度的上限（2..255，出厂 20）：
+          <b>阈值不能大于它</b>，填超了会按最大值算并提示；把最大值调小时，超过的阈值也会一起压下来。
+          <b>这个数随导出写进 C</b>：<code>LED_GEN_FFT_THRESHOLD</code>（刻度是 <code>LED_GEN_AUDIO_MAX</code>，默认 20、工具里可改），
           生成的 <code>led_gen_tick()</code> 自己拿 <code>led_gen_hal_audio_level()</code> 跟它比 —— 固件那边不用再改宏，
           也不用再靠 <code>ring_set_audio_level()</code> 改档。手动档下这根针和「阈」格都灰掉（手动档只是预览，导出代码永远按音量判）。<br>
           <b>阻尼</b>（预览条同一行，随导出写进 C 的 <code>LED_GEN_STAGE_HOLD_MS</code>）：出厂 <b>450</b>（落进拍向上取整 = <b>460ms / 23 拍</b>）——
@@ -1088,7 +1096,7 @@
           「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
           <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代。<br>
           点<b>「音乐来了」</b>= 模拟板上真的在放音乐：每 20ms（一拍）<b>随机注入</b>一个音量 —— 平时是 0..1 的底噪，
-          随机来一拍鼓点冲到 8..20，再按余音一格格掉下来，所以动画会<b>忽快忽慢</b>，而不是按固定节拍跳；
+          随机来一拍鼓点冲到刻度的 40%..最大（默认最大 20 → 就是 8..20），再按余音一格格掉下来，所以动画会<b>忽快忽慢</b>，而不是按固定节拍跳；
           <b>再点一下取消</b>，音量回到 <b>0</b>（= 没音乐）。它模拟的是<b>板上信号</b>，暂停时也在跳（跟播不播放无关）；
           预览和导出的代码走<b>同一条判档逻辑</b>（同样按采样 + 阻尼），在这里看到的快慢就是样机上的快慢。</div>
 
@@ -2217,12 +2225,14 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 /* 每个项目独立的动画播放设置（跟着项目一起存盘，互不影响） */
 function defaultAnim() {
   return { preset: 0, speed: 'slow', rate: 1, fix: true, playing: false,
-           /* fft：模拟固件 mainAppCt.FFTLevel（**0..20**，见 FW.AUDIO_MAX）。speed='auto' 时拿它跟
+           /* fft：模拟固件 mainAppCt.FFTLevel（**0..audioMax**）。speed='auto' 时拿它跟
             *     阈值 thr 比：大于就是快档、否则慢档 —— 与导出代码里那一句完全一样。
-            * thr：音乐阈值（0..20），出厂 4。工具里可调（预览条上那根针 / 「阈」格），
+            * thr：音乐阈值（0..audioMax），出厂 4。工具里可调（预览条上那根针 / 「阈」格），
             *     **随导出写进 C 的 LED_GEN_FFT_THRESHOLD**，固件照它判档，不用再手改宏。
+            * audioMax：音量刻度的最大值（出厂 20，2..255 可调），**随导出写进 C 的
+            *     LED_GEN_AUDIO_MAX**；阈值不能大于它。
             * audio：模拟「音乐来了」—— 播放/暂停都会按 20ms 一拍随机注入音量。 */
-           fft: 0, thr: FW.AUDIO_THR_DEF, audio: false,
+           fft: 0, thr: FW.AUDIO_THR_DEF, audioMax: FW.AUDIO_MAX, audio: false,
            /* 音频采样周期 / 快档阻尼（ms，存原值，落进拍按向上取整）：
             *   audioSampleMs = 40（每 2 拍采一次；固件那边 30/40 都行）
             *   stageHoldMs   = 450（→ 460ms / 23 拍：进快档后至少保持这么久 = 阻尼）
@@ -3444,7 +3454,7 @@ function simInit() {
     /* 模拟 mainAppCt.FFTLevel（0..AUDIO_MAX）：固件那边有自己的一套计时（30/40ms）采一次，
      * 采样值超过阈值才切快档；进快档立刻、回慢档要等够「阻尼」。预览/测试都从这里喂
      * simSetAudioLevel()，采样与迟滞在 simTick() 的 simAudioStep() 里跑。 */
-    audio_level: 0, audio_thr: null,
+    audio_level: 0, audio_thr: null, audio_max: FW.AUDIO_MAX,
     /* 采样 + 迟滞的运行时状态（与 C 的 3 个静态量一一对应）：
      *   stage      0 慢 / 1 快（自动档的实际档位）
      *   stage_hold 还差几拍才能回慢档
@@ -3586,16 +3596,28 @@ function simSetSpeed(sim, which) {
  *       打补丁把 ring_tick() 换成 led_gen_tick() 之后，写 speed_cur 的还是它，
  *       生成代码每拍从这个 ring 级档位同步进各实例 —— 所以工具这边要能模拟
  *       「音量跳一下、档位跟着跳」，而不只是一个「有没有声音」的布尔。
- * 返回值是夹到 0..AUDIO_MAX 之后的音量，界面拿它显示。 */
-function ringSpeedFromAudio(r, level, thr) {
-  return ((level | 0) > fftThreshold(thr)) ? r.speed_fast : r.speed_slow;
+ * 返回值是夹到 0..最大值 之后的音量，界面拿它显示；第四个参数 = 音量最大值（不传 = 出厂 20）。 */
+function ringSpeedFromAudio(r, level, thr, max) {
+  return ((level | 0) > fftThreshold(thr, max)) ? r.speed_fast : r.speed_slow;
 }
-/* 阈值 0..AUDIO_MAX(20)：不传 = 出厂值 4（老的 LED_FFT_THRESHOLD）。
- * 这个数与音量同刻度，**会被导出成 `LED_GEN_FFT_THRESHOLD`**，生成的 C 自己判档。 */
-function fftThreshold(thr) {
-  if (thr == null || thr === '') return FW.AUDIO_THR_DEF;
+/* 音乐音量刻度（= 固件 mainAppCt.FFTLevel 的上限）可自定义（2026-10-28 用户：
+ * 「音乐信号的最大值…应该可以做成自定义的参数，同阈值设定一样」）：存在工程 `state.anim.audioMax`，
+ * 出厂 20，夹在 2..255（HAL 返回的是 uint8）。**随导出写进 C 的 LED_GEN_AUDIO_MAX**。 */
+const AUDIO_MAX_MIN = 2;
+const AUDIO_MAX_LIMIT = 255;
+function audioMaxOf(a) {
+  const v = (a && a.audioMax != null) ? (a.audioMax | 0) : FW.AUDIO_MAX;
+  return Math.max(AUDIO_MAX_MIN, Math.min(AUDIO_MAX_LIMIT, v));
+}
+/* 阈值 0..最大值（不传最大值 = 出厂刻度 20）：不传阈值 = 出厂值 4（老的 LED_FFT_THRESHOLD）。
+ * 这个数与音量同刻度，**会被导出成 `LED_GEN_FFT_THRESHOLD`**，生成的 C 自己判档。
+ * 阈值不能大于最大值：超过就夹到最大值（界面那边会提示一句）。 */
+function fftThreshold(thr, max) {
+  const mx = (max == null) ? FW.AUDIO_MAX : audioMaxOf({ audioMax: max });
+  const def = Math.min(FW.AUDIO_THR_DEF, mx);
+  if (thr == null || thr === '') return def;
   const t = thr | 0;
-  return t < 0 ? 0 : (t > FW.AUDIO_MAX ? FW.AUDIO_MAX : t);
+  return t < 0 ? 0 : (t > mx ? mx : t);
 }
 /* ms → 拍：**一律向上取整**（2026-10-28 用户定）。0 保持 0 的语义（不脉动 / 不保持 / 不转）。 */
 function msToTicksUp(ms) {
@@ -3628,10 +3650,14 @@ function glideStep(fromFast, toSlow, glideMs) {
   if (glideMs <= 0) return ds;
   return Math.min(ds, Math.max(1, Math.round((ds * FW.TICK_MS) / glideMs)));
 }
-/* simSetAudioLevel() 只写「原始音量」，档位由 simTick() 里的采样 + 迟滞决定（与生成的 C 同构）。 */
-function simSetAudioLevel(sim, level, thr) {
-  sim.audio_level = Math.max(0, Math.min(FW.AUDIO_MAX, level | 0));
-  if (thr != null) sim.audio_thr = fftThreshold(thr);
+/* simSetAudioLevel() 只写「原始音量」，档位由 simTick() 里的采样 + 迟滞决定（与生成的 C 同构）。
+ * 第四个参数 = 音量最大值（刻度可自定义，默认沿用 sim 上那份 / 出厂 20）。 */
+function simSetAudioLevel(sim, level, thr, max) {
+  const mx = (max != null) ? audioMaxOf({ audioMax: max })
+                           : (sim.audio_max != null ? sim.audio_max : FW.AUDIO_MAX);
+  sim.audio_max = mx;
+  sim.audio_level = Math.max(0, Math.min(mx, level | 0));
+  if (thr != null) sim.audio_thr = fftThreshold(thr, mx);
   sim.stage_lock  = null;              /* 自动档：清掉手动锁 */
   simApplyStage(sim);                  /* 只更新 ring 级档位；逐实例的同步/滑移在 simTick 里做一次 */
   return sim.audio_level;
@@ -3659,8 +3685,8 @@ function simAudioStep(sim, state) {
   const tickMs = FW.TICK_MS, perMs = audioSampleTicks(state) * tickMs;
   sim.audio_acc = (sim.audio_acc | 0) + tickMs;
   if (sim.audio_acc >= perMs) { sim.audio_acc = 0; sim.lvl_sample = sim.audio_level | 0; }
-  const thr = fftThreshold(sim.audio_thr != null ? sim.audio_thr
-                                                 : (animCfg(state) ? animCfg(state).thr : null));
+  const thr = fftThreshold(sim.audio_thr != null ? sim.audio_thr : (animCfg(state) ? animCfg(state).thr : null),
+                           sim.audio_max != null ? sim.audio_max : audioMaxOf(animCfg(state)));
   /* 双阈值（2026-10-28）：进快档要 > thr，回慢档要 ≤ thr-1 —— 音量在阈值附近抖时不会来回切 */
   const exitThr = Math.max(0, thr - 1);
   sim.glide = stageGlideMs(state);
@@ -3689,8 +3715,8 @@ function fftRand() {                            /* 0..255 的伪随机整数 */
   fftSeed = (Math.imul(fftSeed, 1664525) + 1013904223) >>> 0;
   return (fftSeed >>> 16) & 0xFF;
 }
-function fftMusicLevel() {
-  const M = FW.AUDIO_MAX;                       /* 20 */
+function fftMusicLevel(max) {
+  const M = (max == null) ? FW.AUDIO_MAX : audioMaxOf({ audioMax: max });   /* 刻度上限（可自定义，出厂 20） */
   if (fftBurstLeft > 0) {                       /* 余音：从峰值一格格掉下来 */
     fftBurstLeft--;
     fftBurstAmp = Math.max(0, fftBurstAmp - (1 + (fftRand() % 3)));   /* -1..-3 */
@@ -5102,9 +5128,10 @@ function exportEffectsC(state, opt) {
   const EOL = (o.eol === 'lf') ? '\n' : '\r\n';
   const zh = o.comment === 'zh';
   const { effRows, layerRows, bindRows, mdRows, palRows, gradRows } = modesPlan(state);
-  /* 音乐阈值（0..AUDIO_MAX）—— **随导出写进 C**，生成的代码自己拿 HAL 的音量跟它比。
-   * 不写的话固件得再去手改 led_ring.h 的宏，两处一对不上就「工具里看到快、板上慢」。 */
-  const thr = fftThreshold(state && state.anim ? state.anim.thr : null);
+  /* 音乐阈值 / 音量刻度上限（**随导出写进 C**）：生成的代码自己拿 HAL 的音量跟它比。
+   * 两个数都在预览条上可调（默认 20 / 4）；阈值会被夹到最大值以内。 */
+  const aMax = audioMaxOf(state && state.anim);
+  const thr = fftThreshold(state && state.anim ? state.anim.thr : null, aMax);
   /* 采样 / 阻尼：存的是 ms，落进拍里**向上取整**，导出的也是取整后的实际值（40 / 460） */
   const sampleMs = audioSampleTicks(state) * FW.TICK_MS;
   const holdMs   = stageHoldTicks(state) * FW.TICK_MS;
@@ -5141,7 +5168,7 @@ function exportEffectsC(state, opt) {
     effHold: '跳变: 满亮保持几拍（0 = 不保持；渐亮爬到满亮那一拍也算满亮）；呼吸: 满亮保持几拍（周期 = 渐亮×2 + 亮）',
     effFade: '跳变: 满亮之后用几拍暗下去（越大越慢；最后一拍 ≈255/(fade+1)、不落 0，换色处不闪；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸不用它（生成代码里 = step_rise）',
     newColors: '新配色模式（0..2 沿用固件的 COLOR_* 枚举；3..6 由生成代码处理）',
-    audioCfg: '音乐音量刻度 / 阈值 / 采样周期 / 快档阻尼：音量来自 led_gen_hal_audio_level()，每 LED_GEN_AUDIO_SAMPLE_MS 采一次，超过阈值立刻进快档并至少保持 LED_GEN_STAGE_HOLD_MS。工具里调完直接导出，固件不用再改宏',
+    audioCfg: '音乐音量刻度 / 阈值 / 采样周期 / 快档阻尼：音量来自 led_gen_hal_audio_level()（0..LED_GEN_AUDIO_MAX，工具里可调、出厂 20），每 LED_GEN_AUDIO_SAMPLE_MS 采一次，超过阈值立刻进快档并至少保持 LED_GEN_STAGE_HOLD_MS。阈值不能大于最大值（工具里会夹）。工具里调完直接导出，固件不用再改宏',
     palRow: '色板: 每个条目两行 {r,g,b} = 首端 / 末端（纯色条目两行相同）；效果行用 pal_first/pal_count 指进来，条目 k = pal_first + 2k',
     gradRow: '渐变色环: 每条渐变 256 行 {r,g,b}（红→黄→绿→青→蓝→紫→回到红，起始色已经转到相位 0）；效果行用 grad_first 指进来',
     bindEffect: '用第几个效果（led_gen_effects 下标）',
@@ -5208,7 +5235,7 @@ function exportEffectsC(state, opt) {
     effHold: 'step: ticks held at full brightness (0 = no hold; the tick that reaches full counts too); breath: ticks held, cycle = rise*2 + hold',
     effFade: 'step: ticks to dim from full (larger = slower; the last tick sits at about 255/(fade+1), never 0 - no dark frame at the colour switch; rise + hold + fade = spectrum_speed); breath: not used (equals step_rise)',
     newColors: 'new colour modes (0..2 reuse the firmware COLOR_* enum; 3..6 are handled here)',
-    audioCfg: 'audio scale / threshold / sample period / fast-stage damping: the level comes from led_gen_hal_audio_level(), sampled every LED_GEN_AUDIO_SAMPLE_MS; a sample above the threshold enters the fast stage at once and holds it for at least LED_GEN_STAGE_HOLD_MS. Tuned in the tool and exported - no macro to edit on the firmware side',
+    audioCfg: 'audio scale / threshold / sample period / fast-stage damping: the level comes from led_gen_hal_audio_level() (0..LED_GEN_AUDIO_MAX, adjustable in the tool, factory 20), sampled every LED_GEN_AUDIO_SAMPLE_MS; a sample above the threshold enters the fast stage at once and holds it for at least LED_GEN_STAGE_HOLD_MS. The threshold can never exceed the maximum (clamped in the tool). Tuned in the tool and exported - no macro to edit on the firmware side',
     palRow: 'palette rows: two {r,g,b} per entry = first / last colour (a solid entry repeats itself), referenced by pal_first/pal_count; entry k = pal_first + 2k',
     gradRow: 'gradient rings: 256 rows {r,g,b} per gradient (red->yellow->green->cyan->blue->magenta->red, rotated so the start colour sits at phase 0); effect rows point in with grad_first',
     bindEffect: 'which effect (index into led_gen_effects)',
@@ -5271,7 +5298,7 @@ function exportEffectsC(state, opt) {
        '#include "led_ring.h"',
        '',
        '/* ' + t.audioCfg + ' */',
-       '#define LED_GEN_AUDIO_MAX       ' + FW.AUDIO_MAX + 'u',
+       '#define LED_GEN_AUDIO_MAX       ' + aMax + 'u',
        '#define LED_GEN_FFT_THRESHOLD   ' + thr + 'u',
        '#ifndef LED_GEN_TICK_MS',
        '#define LED_GEN_TICK_MS         ' + FW.TICK_MS + 'u',
@@ -5460,7 +5487,7 @@ const LED_GEN_HAL = {
   tick_ms: 20,
   proto: [
     'led_gen_hal_present',       /* 一帧推给灯：fb 3 字节/灯 */
-    'led_gen_hal_audio_level',   /* 音量/节奏 0..LED_GEN_AUDIO_MAX(=20) */
+    'led_gen_hal_audio_level',   /* 音量/节奏 0..LED_GEN_AUDIO_MAX（工具里可调，出厂 20） */
     'led_gen_hal_brightness',    /* 全局亮度 0..256 */
     'led_gen_hal_zone_enable',   /* 分区开关 */
     'led_gen_hal_millis',        /* 单调毫秒 */
@@ -5483,7 +5510,7 @@ function exportHalC(state, opt) {
     buf:   '帧缓冲布局：fb[灯号 * 3 + 0/1/2] = R/G/B，长度 = 灯总数 * 3',
     impl:  '下面这些由平台实现（MVsB1 参考实现见 docs/firmware-contract.md 附录 B）',
     p1: '把一帧推给灯（真 SPI / DMA / WS2812 都在这层）',
-    p2: '音量 / 节奏 0..LED_GEN_AUDIO_MAX(=20)（不接音频就 return 0）',
+    p2: '音量 / 节奏 0..LED_GEN_AUDIO_MAX（工具里可调，出厂 20）（不接音频就 return 0）',
     p3: '全局亮度 0..256（平台没有这个控制就 return 256）',
     p4: '分区开关：1 = 亮，0 = 灭（没有分区开关就 return 1）',
     p5: '单调毫秒（引擎若由平台固定周期驱动，这里 return 0 即可）',
@@ -5497,7 +5524,7 @@ function exportHalC(state, opt) {
     buf:   'frame buffer layout: fb[led * 3 + 0/1/2] = R/G/B, length = led_count * 3',
     impl:  'the platform implements these (MVsB1 reference implementation: docs/firmware-contract.md appendix B)',
     p1: 'push one frame to the LEDs (real SPI / DMA / WS2812 lives here)',
-    p2: 'audio level 0..LED_GEN_AUDIO_MAX (=20); return 0 when there is no audio input',
+    p2: 'audio level 0..LED_GEN_AUDIO_MAX (adjustable in the tool, factory 20); return 0 when there is no audio input',
     p3: 'global brightness 0..256 (return 256 when the platform has no such control)',
     p4: 'per-zone enable: 1 = on, 0 = off (return 1 when the platform has no zone switch)',
     p5: 'monotonic milliseconds (return 0 when the engine is driven by a fixed timer instead)',
@@ -5597,6 +5624,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                simSetSpeed, simSetupPreset, simApplySolo, instTick, instAdvances, simTick, modeOf, effectById, effectIndex,
                ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
                ringSpeedFromAudio, simSetAudioLevel, fftThreshold,
+               audioMaxOf, AUDIO_MAX_MIN, AUDIO_MAX_LIMIT,
                fftMusicLevel, fftMusicReset,
                msToTicksUp, audioSampleTicks, stageHoldTicks, stageGlideMs, glideStep,
                simSetSpeedLocked, simApplyStage, simAudioStep,
@@ -5783,11 +5811,14 @@ function A() {
    * 现在拆成两个：fft（FFTLevel 本身）+ audio（让音量自己跳）。老 true 迁成满音量，
    * 打开老工程立刻还是快档，不会莫名其妙变慢。 */
   if (a.fft == null) { a.fft = a.audio ? 255 : 0; a.audio = false; }
-  /* thr：音乐阈值（0..20，老存档没有 → 出厂 4）。夹范围，别让手改 JSON 的怪值把判据弄反；
+  /* 音量刻度（最大值）：老存档没有 → 出厂 20；2..255 之间夹。
+     thr 跟着它夹（阈值不能大于最大值），fft 也按同一个刻度夹。 */
+  a.audioMax = audioMaxOf(a);
+  /* thr：音乐阈值（0..最大值，老存档没有 → 出厂 4）。夹范围，别让手改 JSON 的怪值把判据弄反；
      这个数会被导出成 C 的 LED_GEN_FFT_THRESHOLD（固件照它判档，不再手改宏）。 */
-  a.thr = fftThreshold(a.thr);
-  /* 音量也按 0..20 夹：老工程里可能存着 0..255 的值（旧刻度），不夹的话滑杆读数 / 存档会一直怪着 */
-  a.fft = Math.max(0, Math.min(FW.AUDIO_MAX, a.fft | 0));
+  a.thr = fftThreshold(a.thr, a.audioMax);
+  /* 音量也按 0..最大值 夹：老工程里可能存着 0..255 的值（旧刻度），不夹的话滑杆读数 / 存档会一直怪着 */
+  a.fft = Math.max(0, Math.min(a.audioMax, a.fft | 0));
   /* 音频采样周期 / 快档阻尼（老工程没有 → 40 / 450）。存的是 ms，落进拍按向上取整 */
   if (a.audioSampleMs == null) a.audioSampleMs = FW.AUDIO_SAMPLE_MS;
   if (a.stageHoldMs == null)   a.stageHoldMs   = FW.STAGE_HOLD_MS;
@@ -5802,38 +5833,47 @@ function A() {
 function speedWhich() {
   const a = A();
   if (a.speed !== 'auto') return a.speed || 'slow';
-  return ((a.fft | 0) > fftThreshold(a.thr)) ? 'fast' : 'slow';
+  return ((a.fft | 0) > fftThreshold(a.thr, a.audioMax)) ? 'fast' : 'slow';
 }
 /* 把当前档位同步给预览：只改速度档，不动相位 / step_cnt（切档瞬间不跳帧）。
  * 自动档走 simSetAudioLevel()（等价 ring_set_audio_level()：先按音量判档再广播），
  * 手动档走 simSetSpeed()（等于直接指定档位，样机上碰不到，调效果时好复现）。 */
 function syncPreviewSpeed(s) {
   const a = A(), sim = s || S();
-  if (a.speed === 'auto') simSetAudioLevel(sim, a.fft | 0, a.thr);
+  if (a.speed === 'auto') simSetAudioLevel(sim, a.fft | 0, a.thr, a.audioMax);
   else                    simSetSpeed(sim, a.speed || 'slow');
 }
-/* 速度档那一行的外观：音量滑杆 + 阈值针 + 读数 + 「阈」格 + 「音乐来了」按钮 */
+/* 速度档那一行的外观：音量滑杆 + 阈值针 + 读数 + 「阈」格 + 「最大」格 + 「音乐来了」按钮 */
 function syncAudioBtn() {
   const a = A(), auto = a.speed === 'auto';
-  const thr = fftThreshold(a.thr);
-  const lvl = Math.max(0, Math.min(FW.AUDIO_MAX, a.fft | 0));
+  const mx = audioMaxOf(a);
+  const thr = fftThreshold(a.thr, mx);
+  const lvl = Math.max(0, Math.min(mx, a.fft | 0));
   const fast = auto && lvl > thr;
   const t = $('#aFftTxt'), r = $('#aFft'), b = $('#aAudio');
-  const pin = $('#aThrPin'), tb = $('#aThr');
-  if (r) { r.value = lvl; r.disabled = !auto; }        /* 自动跳时滑杆跟着当前音量走 */
+  const pin = $('#aThrPin'), tb = $('#aThr'), mb = $('#aMax');
+  const focused = el => (typeof document !== 'undefined' && document.activeElement === el);
+  if (r) {
+    r.max = String(mx);                              /* 刻度上限跟着工程走（默认 20） */
+    r.value = lvl; r.disabled = !auto;               /* 自动跳时滑杆跟着当前音量走 */
+  }
   if (t) t.textContent = auto ? `${lvl} → ${fast ? '快档' : '慢档'}` : `手动 ${a.speed === 'fast' ? '快档' : '慢档'}`;
-  /* 阈值针：位置按 0..AUDIO_MAX 摊在滑杆上（两端扣掉 range 的滑块半径 8px，刻度才准）。
+  /* 阈值针：位置按 0..最大值 摊在滑杆上（两端扣掉 range 的滑块半径 8px，刻度才准）。
      手动档下这根针和「阈」格都灰掉 —— 那时档位是手选的，阈值不起作用。 */
   if (pin) {
-    const pct = thr / FW.AUDIO_MAX;
+    const pct = mx > 0 ? thr / mx : 0;
     pin.style.left = `calc(${(pct * 100).toFixed(2)}% + ${(8 - pct * 16).toFixed(2)}px)`;
     pin.classList.toggle('off', !auto);
   }
   if (tb) {
     /* 正在这个格里打字时别抢：否则输「12」刚敲 1 就被改写成 1 */
-    const focused = (typeof document !== 'undefined' && document.activeElement === tb);
-    if (!focused) tb.value = thr;
+    if (!focused(tb)) tb.value = thr;
+    tb.max = String(mx);
     tb.disabled = !auto;
+  }
+  if (mb) {
+    if (!focused(mb)) mb.value = mx;
+    mb.disabled = !auto;
   }
   /* 阻尼 / 过渡：单位写在标签里（「阻尼(ms)」「过渡(ms)」），不再额外跟读数。
      采样周期固定 40ms（固件那边的计时定死），工具里不暴露、只随导出写进 C。 */
@@ -5850,18 +5890,22 @@ function syncAudioBtn() {
     b.disabled = !auto;
   }
 }
-/* 阈值针 / 「阈」格 → 阈值本身。拖针时按指针对应的 x 折算成 0..AUDIO_MAX。 */
+/* 阈值针 / 「阈」格 → 阈值本身。拖针时按指针对应的 x 折算成 0..最大值。 */
 const THR_PAD = 8;                    /* range 两端滑块半径（px） */
-function thrAtClientX(x) {
+function thrAtClientX(x, max) {
+  const mx = (max == null) ? FW.AUDIO_MAX : audioMaxOf({ audioMax: max });
   const r = ($('#aFft') || {}).getBoundingClientRect ? $('#aFft').getBoundingClientRect()
-                                                     : { left: 0, width: FW.AUDIO_MAX };
+                                                     : { left: 0, width: mx };
   const w = Math.max(1, r.width - THR_PAD * 2);
   const t = Math.max(0, Math.min(1, (x - r.left - THR_PAD) / w));
-  return Math.round(t * FW.AUDIO_MAX);
+  return Math.round(t * mx);
 }
 function setThreshold(v) {
-  const a = A();
-  a.thr = fftThreshold(v);
+  const a = A(), mx = audioMaxOf(a);
+  const raw = Math.round(+v || 0);
+  a.thr = fftThreshold(raw, mx);
+  /* 阈值不能大于最大值：填超了就按最大值算，并说一句（拖针不会触发 —— 针本身到头就是最大值） */
+  if (raw > mx) status(`阈值不能大于最大值（${mx}），已按 ${mx} 处理`, 'warn');
   syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
 }
 /* 「音乐来了」的模拟音源搬到了 core（`fftMusicLevel()` / `fftMusicReset()`）——
@@ -7160,20 +7204,40 @@ function buildAnimPanel() {
   };
   /* FFTLevel 滑杆：拖动就是手动模拟「音乐一会儿响一会儿静」 */
   $('#aFft').oninput = () => {
-    A().fft = Math.max(0, Math.min(FW.AUDIO_MAX, +$('#aFft').value || 0));
+    A().fft = Math.max(0, Math.min(audioMaxOf(A()), +$('#aFft').value || 0));
     A().audio = false;                 /* 手一拖就接管，别再让自动跳盖掉 */
     syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
   };
   $('#aFft').onchange = () => saveStore();
   /* 阈值：拖滑杆上那根针 / 直接填末尾的「阈」格 —— 同一个数；
-     **随导出写进 C 的 LED_GEN_FFT_THRESHOLD**（固件照它判档，不用再手改宏）。 */
-  const thrIn = $('#aThr'), thrPin = $('#aThrPin');
+     **随导出写进 C 的 LED_GEN_FFT_THRESHOLD**（固件照它判档，不用再手改宏）。
+     阈值不能大于「最大」（刻度上限）：填超了 setThreshold() 会夹到最大值并在状态栏说一句。 */
+  const thrIn = $('#aThr'), thrPin = $('#aThrPin'), maxIn = $('#aMax');
   if (thrIn) {
     thrIn.oninput  = () => setThreshold(+thrIn.value);
     /* 离开这一格再把值写成夹好的数（输 300 → 255、输空 → 0），打字过程中不抢 */
-    thrIn.onchange = () => { thrIn.value = fftThreshold(A().thr); saveStore(); };
+    thrIn.onchange = () => { thrIn.value = fftThreshold(A().thr, audioMaxOf(A())); saveStore(); };
   }
-  if (thrPin) cpBindDrag(thrPin, ev => { if (ev && ev.clientX != null) setThreshold(thrAtClientX(ev.clientX)); });
+  if (thrPin) cpBindDrag(thrPin, ev => {
+    if (ev && ev.clientX != null) setThreshold(thrAtClientX(ev.clientX, audioMaxOf(A())));
+  });
+  /* 音量刻度的最大值（= 固件 FFTLevel 的上限）：随导出写进 C 的 LED_GEN_AUDIO_MAX。
+     调小时把超过它的阈值 / 音量一起压下来，并提示一句（阈值不能大于最大值）。 */
+  if (maxIn) {
+    maxIn.oninput = () => {
+      const a = A();
+      const mx = Math.max(AUDIO_MAX_MIN, Math.min(AUDIO_MAX_LIMIT, +maxIn.value || FW.AUDIO_MAX));
+      const oldThr = a.thr | 0;
+      a.audioMax = mx;
+      if ((a.fft | 0) > mx) a.fft = mx;
+      if (oldThr > mx) {
+        a.thr = mx;
+        status(`阈值不能大于最大值（${mx}），阈值已从 ${oldThr} 降到 ${mx}`, 'warn');
+      }
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+    };
+    maxIn.onchange = () => { maxIn.value = audioMaxOf(A()); saveStore(); };
+  }
   /* 快档阻尼（ms）：存原值，实际生效值 = 向上取整到拍（450 → 460），
      离开这一格把框里写成用户填的原值、读数显示实际值；导出时用的是实际值。
      采样周期固定 40ms（固件那边的计时定死），界面上不暴露。 */
@@ -7346,7 +7410,7 @@ function loop(t) {
   if (audioOn) {
     fftAcc += dt;
     let g = 0;
-    while (fftAcc >= 20 && g++ < 50) { fftAcc -= 20; A().fft = fftMusicLevel(); }
+    while (fftAcc >= 20 && g++ < 50) { fftAcc -= 20; A().fft = fftMusicLevel(audioMaxOf(A())); }
     syncAudioBtn();                      /* 滑杆 / 读数 / 阈值针跟着走 */
   } else fftAcc = 0;
   if (!boardOn && !stageOn) { requestAnimationFrame(loop); return; }   /* 只放音乐：不推进帧 */
@@ -7357,7 +7421,7 @@ function loop(t) {
     let guard = 0;
     while (acc >= tickMs && guard++ < 500) {
       acc -= tickMs;
-      if (audioOn) simSetAudioLevel(s, A().fft, A().thr);   /* 换档 → 广播到各实例的 speed_cur */
+      if (audioOn) simSetAudioLevel(s, A().fft, A().thr, A().audioMax);   /* 换档 → 广播到各实例的 speed_cur */
       simTick(s, state, fixOn());
     }
   } else acc = 0;                              /* 停着的那边别攒时间 */

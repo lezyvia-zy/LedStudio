@@ -287,6 +287,38 @@ gldIn.value = '700'; gldIn.oninput();
 await new Promise(r => realST(r, 70));
 ok(animOf(0).glideMs === 700, `过渡改成 ${animOf(0).glideMs}ms（越大减速越绵长）`);
 
+/* ---- G) 音量刻度上限（最大）+ 阈值不能超过它 + 阈值针不抖 ---- */
+console.log('--- 音量刻度（最大）/ 阈值上限 ---');
+{
+  const maxIn = byId.get('aMax');
+  ok(!!maxIn && maxIn.value === '20' && fft.max === '20' && thrIn.max === '20',
+     `「最大」格在、刻度上限默认 ${maxIn && maxIn.value}（滑杆 max ${fft.max} / 阈 max ${thrIn.max}）`);
+  maxIn.value = '40'; maxIn.oninput();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audioMax === 40 && fft.max === '40' && thrIn.max === '40',
+     `改成 40：存档 audioMax=${animOf(0).audioMax}、滑杆上限 ${fft.max}、阈上限 ${thrIn.max}`);
+  thrIn.value = '30'; thrIn.oninput();
+  fft.value = '35'; fft.oninput();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).thr === 30 && /快档/.test(ftxt.textContent),
+     `阈值 30（>20 也允许，只要不超过最大 40）、音量 35 → ${ftxt.textContent}`);
+  thrIn.value = '50'; thrIn.oninput();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).thr === 40 && /不能大于最大值/.test(byId.get('status').textContent),
+     `阈值填 50 > 最大 40 → 夹到 ${animOf(0).thr} 并提示`);
+  maxIn.value = '10'; maxIn.oninput();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audioMax === 10 && animOf(0).thr === 10 &&
+     /阈值已从 40 降到 10/.test(byId.get('status').textContent),
+     `把最大值调到 10：超出的阈值一起压到 ${animOf(0).thr} 并提示`);
+  maxIn.value = '20'; maxIn.oninput();
+  await new Promise(r => realST(r, 70));
+  ok(animOf(0).audioMax === 20 && animOf(0).thr === 10,
+     `恢复默认刻度 20（阈值 ${animOf(0).thr} 没超、保持不变）`);
+  ok(/#previewBar #aFftTxt\{[^}]*flex:0 0 \d+px/.test(html),
+     '音量读数固定宽度 —— 随机跳时不会把滑杆挤来挤去（阈值针不再抖）');
+}
+
 spd.value = 'slow'; spd.onchange();
 await new Promise(r => setTimeout(r, 100));
 ok(thrIn.disabled === true && thrPin.classList.contains('off') && aud.disabled === true,

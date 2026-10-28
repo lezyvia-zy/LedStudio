@@ -537,6 +537,35 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
     ok(sim.stage === 1 && sim.speed_cur === 1 && sim.insts[0].speed_cur === 1,
        '音量 16 > 阈值 15 → 快档（采样两次后生效并广播到实例）');
   }
+  /* 音量刻度上限可自定义（2026-10-28 用户：「音乐信号的最大值…应该可以做成自定义的参数，
+   * 同阈值设定一样」）：阈值跟着「最大」夹，音量 / 随机音源 / 导出宏都走同一个上限。 */
+  {
+    const { audioMaxOf, AUDIO_MAX_MIN, AUDIO_MAX_LIMIT, fftMusicLevel, fftMusicReset } = CORE;
+    ok(audioMaxOf({}) === 20 && audioMaxOf({ audioMax: 40 }) === 40 &&
+       audioMaxOf({ audioMax: 1 }) === AUDIO_MAX_MIN && audioMaxOf({ audioMax: 999 }) === AUDIO_MAX_LIMIT,
+       `刻度上限：缺省 20、可改（40）、夹在 ${AUDIO_MAX_MIN}..${AUDIO_MAX_LIMIT}`);
+    ok(fftThreshold(30, 40) === 30 && fftThreshold(50, 40) === 40 && fftThreshold(999, 40) === 40 &&
+       fftThreshold(null, 40) === 4,
+       '阈值按「最大」夹：30/40 保持 30、50 和 999 都夹到 40（不传最大仍是出厂刻度 20）');
+    /* 判档：刻度 40 / 阈值 30，音量 35 才进快档；同一个 35 在默认刻度里会被夹成 20 → 慢档 */
+    sim.stage = 0; sim.stage_hold = 0; sim.audio_acc = 0; sim.lvl_sample = 0;
+    simSetAudioLevel(sim, 35, 30, 40);
+    simAudioStep(sim, null); simAudioStep(sim, null);
+    ok(sim.audio_level === 35 && sim.stage === 1 && sim.speed_cur === 1,
+       '刻度 40 / 阈值 30：音量 35 能进快档（不再被固定的 20 卡住）');
+    sim.stage = 0; sim.stage_hold = 0; sim.audio_acc = 0; sim.lvl_sample = 0;
+    sim.audio_max = 20; sim.audio_thr = null;
+    simSetAudioLevel(sim, 35, 30);
+    simAudioStep(sim, null); simAudioStep(sim, null);
+    ok(sim.audio_level === 20 && sim.stage === 0,
+       '默认刻度 20：音量 35 被夹成 20、阈值也夹成 20 —— 正好等于阈值仍算安静（慢档）');
+    fftMusicReset(4242);
+    const m40 = Array.from({ length: 400 }, () => fftMusicLevel(40));
+    fftMusicReset(4242);
+    const m20 = Array.from({ length: 400 }, () => fftMusicLevel(20));
+    ok(m40.every(v => v <= 40) && m40.some(v => v > 20) && m20.every(v => v <= 20),
+       `「音乐来了」跟着刻度走：上限 40 时出过 ${Math.max(...m40)}（>20），默认 20 时不超过 20`);
+  }
   /* 采样周期 / 阻尼也可以调：面向前两项是 ms，落进拍向上取整 */
   {
     const st2 = { anim: { audioSampleMs: 60, stageHoldMs: 450 } };
