@@ -738,8 +738,8 @@
           <button id="fxTest" class="pri play" data-tip="播放 / 暂停中央那个编辑台（不用跳页）。"><svg class="iPlay" viewBox="0 0 16 16"><path class="rnd" d="M4.9 3.1 12.9 8 4.9 12.9Z"/></svg><svg class="iPause" viewBox="0 0 16 16"><rect x="4" y="3" width="3.2" height="10" rx="1.4"/><rect x="8.8" y="3" width="3.2" height="10" rx="1.4"/></svg><span class="vh" id="fxPlayBtnTxt">播放</span></button>
           <button id="fxNext" data-tip="下一条效果（巡览）：只换现在看哪条效果，不动库里的顺序。"><svg viewBox="0 0 16 16"><path class="rnd" d="M8.9 3 13.7 8 8.9 13Z"/><path class="rnd" d="M2.5 3 7.3 8 2.5 13Z"/></svg><span class="vh">下一条</span></button>
           <span class="div"></span>
-          <button id="fxStepPrev" data-tip="前一帧：往回退一个灯位（正播着会先暂停）。"><svg viewBox="0 0 16 16"><rect x="2.6" y="2.8" width="2.2" height="10.4" rx="1"/><path class="rnd" d="M12.6 3 5.9 8l6.7 5Z"/></svg><span class="vh">前一帧</span></button>
-          <button id="fxStepNext" data-tip="后一帧：往前走一个灯位（正播着会先暂停）。"><svg viewBox="0 0 16 16"><path class="rnd" d="M3.4 3 10.1 8l-6.7 5Z"/><rect x="11.2" y="2.8" width="2.2" height="10.4" rx="1"/></svg><span class="vh">后一帧</span></button>
+          <button id="fxStepPrev" data-tip="前一帧：退回 1 个固件节拍（20ms）。"><svg viewBox="0 0 16 16"><rect x="2.6" y="2.8" width="2.2" height="10.4" rx="1"/><path class="rnd" d="M12.6 3 5.9 8l6.7 5Z"/></svg><span class="vh">前一帧</span></button>
+          <button id="fxStepNext" data-tip="后一帧：前进 1 个固件节拍（20ms）。"><svg viewBox="0 0 16 16"><path class="rnd" d="M3.4 3 10.1 8l-6.7 5Z"/><rect x="11.2" y="2.8" width="2.2" height="10.4" rx="1"/></svg><span class="vh">后一帧</span></button>
           <!-- 「在灯板上看」暂挂起（.hide = 先不摆出来）：等「模式」模块完成后再回来优化。
                按钮与接线都留着（test_solo 的 4b 仍守着这段接线），界面上先不出现。 -->
           <button id="fxShowReal" class="hide" data-tip="把当前效果铺到真实灯板的所有分区上看（切到「动画」页）。编辑台看的是基础排布，这里看的是你现在这块板子。">在灯板上看</button>
@@ -896,7 +896,7 @@
           就地控制这个编辑台 —— <b>最左边那格方块 = 归零</b>（回到起始相位），中间三格是
           <b>上一条 / 播放暂停 / 下一条</b>（把做完的效果<b>从头到尾巡一遍</b>：只换「现在看哪一条」，
           <b>不动效果库里的顺序</b>，也不动模式绑定；正播着换下一条接着播），
-          右边两格是<b>前一帧 / 后一帧</b>（一个灯位一格，正播着会先暂停），最下面是<b>倍率</b> 0.25×~8×。<br>
+          右边两格是<b>前一帧 / 后一帧</b>（一次 <b>1 个固件节拍 = 20ms = 硬件一帧</b>，不是「一个灯位」：慢档 8 拍走一格，连点 8 次才走一格，所以中间的平滑帧都看得到；正播着会先暂停），最下面是<b>倍率</b> 0.25×~8×。<br>
           <b>「在灯板上看」暂挂起</b>（等「模式」模块完成后回来做）：要对到真实灯板，先去「动画」页
           把「预览对象」选成<b>单独一个效果</b>。</div>
         <div class="hint"><b>为什么需要「多长度对比」？</b>因为效果在各分区上是<b>等比缩放</b>的 ——
@@ -6162,29 +6162,15 @@ function renderStage() {
   }
 
   const pos = inst.anim.position.current;
-  /* 平滑 T：播放中才逐拍爬（同一拍里重绘多次不重复爬）；暂停时吸附到目标。
-   * fast 与 instTick 的 loud 同一条判据（speedWhich() = ring 级档位）。 */
-  const stageFast = speedWhich() === 'fast';
-  const stageAdvance = stagePlaying && inst.anim.gen_tick !== stageShownTick;
-  /* 同一个 N 会画两次（圆环 + 直线默认都是 24 颗；对比条里也可能撞长度）：
-   * 一次渲染里每个长度只爬一步，否则 24/24 时爬坡速度翻倍。 */
-  const stageRamped = new Set();
-  const shownFor = (N, mask) => {
-    const shown = stageShownOf(N);
-    if (!stagePlaying) shown.set(mask);
-    else if (stageAdvance && !stageRamped.has(N)) {
-      smoothShown(inst, mask, shown, N, stageFast);
-      stageRamped.add(N);
-    }
-    return shown;
-  };
+  /* 平滑后的 shown 由 stageTickOnce() 按**拍**推进（不是按重绘次数），这里只负责画。
+   * 新出现的长度（改对比 / 颗数）由 stageShownFor() 直接给目标帧。 */
 
   const row = (N, x0, x1, y, label) => {
     const step = (x1 - x0) / Math.max(1, N - 1);
     const R = stageLedR(step);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
     renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
-    const shown = shownFor(N, mask);
+    const shown = stageShownFor(N, mask);
     for (let i = 0; i < N; i++) {
       ctx.beginPath();
       ctx.arc(x0 + step * i, y, R, 0, Math.PI * 2);
@@ -6198,7 +6184,7 @@ function renderStage() {
     const Rl = stageLedR((2 * Math.PI * Rr) / N);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
     renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
-    const shown = shownFor(N, mask);
+    const shown = stageShownFor(N, mask);
     for (let i = 0; i < N; i++) {
       const th = -Math.PI / 2 + (i / N) * Math.PI * 2;
       ctx.beginPath();
@@ -6245,9 +6231,6 @@ function renderStage() {
          st.ringN + ' 颗圆环');
     row(st.stripN, 60, W - 60, H - 64, st.stripN + ' 颗直线');
   }
-  /* 这一拍的爬坡已经做过（对比条上多条长度共用同一个 gen_tick）：记下来，
-   * 同一拍里再重绘（改标题 / 换选中）就不会重复爬两步。 */
-  if (stagePlaying) stageShownTick = inst.anim.gen_tick;
 }
 
 function render() {
@@ -7385,8 +7368,9 @@ function loop(t) {
     while (accS >= tickMs && guard++ < 500) {
       accS -= tickMs;
       if (audioOn) stageSetSpeed(stageInst);
-      /* 编辑台也要能看音控闪（预置「闪烁」）：照固件那条判据把「现在算不算有音乐」给它 */
-      instTick(stageInst, speedWhich() === 'fast');
+      /* 一拍 = 一次 instTick；平滑缓冲也在这里按拍推进（不是按重绘次数），
+       * 这样倍率 / 掉帧都不会让「平滑 T」看起来变快变慢。 */
+      stageTickOnce(stageInst);
     }
   } else accS = 0;
   render();
@@ -7471,16 +7455,104 @@ let stagePlaying = false;
 /* 效果页改参数时只把模式预览标脏，下次用到再重建 —— 别当场把灯板的相位重置掉 */
 let simDirty = false;
 let stageMask = null, stageHue = null;
-/* 编辑台的平滑缓冲：对比条上同一个效果会同时画 8 / 24 / 40 颗，每个长度各一份 shown。
- * 只有**播放中**才逐拍爬（同一拍里重绘多次不重复爬）；暂停时直接吸附到目标 ——
- * 暂停帧必须看得出形状 / 配色原样，不能因为从 0 起爬而变暗。 */
+/* ---- 编辑台的「硬件帧」游标（2026-10-28，用户「下一帧要 20ms 的硬件一帧」）----
+ * 一次步进 = **一个固件节拍**（LED_GEN_TICK_MS = 20ms）= 一次 instTick，不再把相位直接拨一个灯位。
+ * 平滑后的「这一拍真正显示的亮度」也按**拍**推进（不是按重绘次数）—— 不然倍率一变，
+ * 平滑看起来就会变快 / 变慢。每组对比长度各一份 shown 缓冲。
+ * 「前一帧」要能精确退回去（相位 / 颜色 / 闪的相位 / 平滑缓冲都回到那一拍），所以保留最近
+ * STAGE_HIST_MAX 拍的快照；超出窗口再往前就只往前记、退不回窗口之前。 */
+const STAGE_HIST_MAX = 600;                 /* 12 秒（50Hz）—— 够看清任意一段的过渡 */
 let stageShownBufs = new Map();
-let stageShownTick = -1;
-function stageShownClear() { stageShownBufs = new Map(); stageShownTick = -1; }
+let stageHist = [], stageHistBase = 0, stageTicks = 0;
+/* 编辑台正在画的几个长度（圆环 / 直线 / 对比条去重；同一个 N 只算一次） */
+function stageLens() {
+  const p = stageParams(), out = [];
+  const add = n => { n = Math.round(+n) || 0; if (n > 0 && out.indexOf(n) < 0) out.push(n); };
+  if (p.compare) stageCompareRows().forEach(r => add(r.n));
+  else { add(p.ringN); add(p.stripN); }
+  return out;
+}
 function stageShownOf(N) {
   let s = stageShownBufs.get(N);
   if (!s || s.length !== N) { s = new Uint8Array(N); stageShownBufs.set(N, s); }
   return s;
+}
+/* 取这一长度的 shown。第一次见到的长度（改对比 / 颗粒数之后）**直接给目标帧**，
+ * 不从全黑爬 —— 暂停着改布局时不该看着那一行慢慢亮起来。 */
+function stageShownFor(N, mask) {
+  let s = stageShownBufs.get(N);
+  if (!s || s.length !== N) { s = mask.slice(); stageShownBufs.set(N, s); }
+  return s;
+}
+/* 把 shown 一把拉到当前目标：新建实例 / 归零 / 暂停样本帧之后用（暂停帧 = 目标帧） */
+function stageShownSnap(inst) {
+  stageShownBufs = new Map();
+  if (!inst) return;
+  const pos = inst.anim.position.current;
+  for (const N of stageLens()) {
+    const mask = new Uint8Array(N), hue = new Uint8Array(N);
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    stageShownBufs.set(N, mask);
+  }
+}
+/* 实例快照：只拷可变状态，color.spectrum 是 256 行只读表 → 保持引用，别按值拷。 */
+function stageInstClone(inst) {
+  if (!inst) return inst;
+  const c = Object.assign({}, inst);
+  c.anim = Object.assign({}, inst.anim, {
+    params: Object.assign({}, inst.anim.params),
+    position: Object.assign({}, inst.anim.position),
+    mask: inst.anim.mask.slice(),
+    hue: inst.anim.hue.slice(),
+    layers: (inst.anim.layers || []).map(L => Object.assign({}, L)),
+  });
+  c.color = Object.assign({}, inst.color, {
+    current: Object.assign({}, inst.color.current),
+    secondary: Object.assign({}, inst.color.secondary),
+    palette: (inst.color.palette || []).map(p => Object.assign({}, p)),
+    paletteB: (inst.color.paletteB || []).map(p => Object.assign({}, p)),
+  });
+  return c;
+}
+function stageShownCloneMap() {
+  const m = new Map();
+  stageShownBufs.forEach((b, N) => m.set(N, b.slice()));
+  return m;
+}
+function stageFrameSave() {
+  if (!stageInst) return;
+  if (stageHist.length >= STAGE_HIST_MAX) { stageHist.shift(); stageHistBase++; }
+  stageHist.push({ inst: stageInstClone(stageInst), shown: stageShownCloneMap() });
+}
+function stageFrameRestore(t) {
+  const f = stageHist[t - stageHistBase];
+  if (!f) return false;
+  stageInst = stageInstClone(f.inst);
+  stageShownBufs = new Map();
+  f.shown.forEach((b, N) => stageShownBufs.set(N, b.slice()));
+  stageTicks = t;
+  return true;
+}
+/* 重开一条时间轴（换效果 / 归零 / 改结构）：第 0 拍 = 现在这一帧 */
+function stageHistReset() {
+  stageHist = []; stageHistBase = 0; stageTicks = 0;
+  stageFrameSave();
+}
+/* 前进一拍：instTick 一次（固件 ring_tick 一次）+ 每个长度各爬一步平滑 */
+function stageTickOnce(inst) {
+  if (!inst) return;
+  const fast = speedWhich() === 'fast';
+  instTick(inst, fast);
+  const pos = inst.anim.position.current;
+  for (const N of stageLens()) {
+    const mask = new Uint8Array(N), hue = new Uint8Array(N);
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    const buf = stageShownBufs.get(N);
+    if (!buf || buf.length !== N) { stageShownBufs.set(N, mask); continue; }   /* 新长度：给目标帧 */
+    smoothShown(inst, mask, buf, N, fast);
+  }
+  stageTicks++;
+  stageFrameSave();
 }
 function stageParams() {
   if (!state.stage) state.stage = { ringN: 24, stripN: 24, compare: false, rate: 1 };
@@ -7510,8 +7582,10 @@ function stageSync(force) {
   stageInst = instNew();
   simApplyEffect(stageInst, e, effectIndex(state, e.id), state);
   stageSetSpeed(stageInst);
-  stageShownClear();                 /* 换了效果 / 结构：平滑缓冲从 0 起爬（播放时是淡入） */
   if (!stagePlaying) stageSampleFrame(stageInst);
+  /* 新实例 = 新时间轴：shown 拉到目标帧（暂停帧不能是半截爬坡），历史只剩第 0 拍 */
+  stageShownSnap(stageInst);
+  stageHistReset();
   stageEffectId = key;
   return stageInst;
 }
@@ -8910,35 +8984,31 @@ function stageToggle(on, restart) {
   render();
 }
 
-/* 步进播放：一格 = 一个灯位 = 固件里 speed_cur 个 20ms 节拍。dir = +1 后一帧、-1 前一帧。
- *
- * 这里不靠「多跑几拍让固件自己走一格」（那样落点会停在这一格插值的半路上，前/后也没法对称），
- * 而是把相位直接往目标方向拨一个灯位，再用同样多的节拍把这段插值走满 —— 一次按键正好落在一格上。
- * 拨相位前先把 step_cnt 挪到负数：instTick 里那条自动前进在这几拍里就不该再触发。
- * 效果自己不走位置（呼吸 / 闪烁这类）时相位本来就不动，只把这几拍的账（颜色、随机）走掉。
- * 正在播时先暂停 —— 步进就是用来看清一格一格的。 */
+/* 步进播放：**一次 = 一个固件节拍（LED_GEN_TICK_MS = 20ms）= 一次 instTick**，
+ * 与固件 ring_tick 一次同义 —— 看到的是真正的硬件帧（平滑的中间帧也在里面），
+ * 不是一个动画关键帧（以前一次拨一个灯位 = speed_cur 拍，所以会「跳两格 / 跳过平滑帧」）。
+ * 前一帧走帧历史（stageFrameRestore），相位 / 颜色 / 闪的相位 / 平滑缓冲都回到那一拍。
+ * 正在播时先暂停 —— 步进就是用来看清一拍一拍的。 */
 function stageStep(dir) {
   if (!stageInst) stageSync(true);
   if (!stageInst) return 0;
   if (stagePlaying) stageToggle(false);
-  const inst = stageInst;
-  const back = dir < 0;
-  const n = Math.max(1, inst.speed_cur || 8);
-  const moves = instAdvances(inst);
-  if (moves && n > 0) {
-    const span = FW.RING_SIZE * 256;
-    const from = inst.anim.position.target | 0;
-    const to = (((from + (back ? -256 : 256)) % span) + span) % span;
-    inst.step_cnt = -n;                       /* 这一轮别让 instTick 自己再往前走一格 */
-    ringSetPosition(inst.anim.position, to, n, FW.EASE.OUT_QUAD);
+  if (dir < 0) {
+    if (stageTicks <= stageHistBase) {
+      render();
+      status(`已经是最早的一拍（第 ${stageTicks} 拍，保留最近 ${STAGE_HIST_MAX} 拍），退不回去了`);
+      return 0;
+    }
+    stageFrameRestore(stageTicks - 1);
+    render();
+    status(`编辑台步进：后退 1 个固件节拍（20ms）· 第 ${stageTicks} 拍`);
+    return 1;
   }
-  for (let i = 0; i < n; i++) instTick(inst, speedWhich() === 'fast');
-  inst.step_cnt = 0;                          /* 与「固件自己走完一格」后的状态对齐 */
+  stageTickOnce(stageInst);
   render();
-  status(moves
-    ? `编辑台步进：${back ? '回退' : '前进'}一个灯位（${n} 个固件节拍）`
-    : `编辑台步进：这条效果不随位置前进（相位不动，只走了 ${n} 个固件节拍）`);
-  return n;
+  status(`编辑台步进：前进 1 个固件节拍（20ms）· 第 ${stageTicks} 拍`
+    + (instAdvances(stageInst) ? '' : '（这条效果不随位置前进，只走时间）'));
+  return 1;
 }
 
 /* 归零：回到起始相位（重新建一份实例），方便两条效果从同一个起点比 */

@@ -371,40 +371,54 @@ ok(projState(0).stage.compare === true, '对比开关也记得住');
   ok(/function stageRate\(\)/.test(html) && /rate: 1 \}/.test(html),
      'stageRate() 读 stage.rate，老工程没有这个字段时兜底 1×');
 
-  /* 10.3 步进（后一帧）：暂停着一格一格往前走 —— 位置真的动，而且不会把播放打开 */
+  /* 10.3 步进（后一帧）= **1 个固件节拍（20ms）**：不是「一个灯位」，也绝不会一跳两格 ——
+   * 慢档 8 拍走一格，连点 8 次才走一格，所以平滑的中间帧都看得到。 */
   byId.get('fxRate').value = '1'; byId.get('fxRate').onchange({ target: byId.get('fxRate') });
   const posLine = () => (texts.filter(t => /位置 \d+\/\d+ 颗/.test(t)).pop() || '');
   const zIdx = () => Number((posLine().match(/位置 (\d+)\//) || [])[1]);
   const ringN = () => Number((posLine().match(/位置 \d+\/(\d+) 颗/) || [])[1]);
+  const tickOf = () => Number((byId.get('status').textContent.match(/第 (\d+) 拍/) || [])[1]);
+  byId.get('fxZero').onclick();                    /* 从第 0 拍开始数 */
   texts.length = 0; byId.get('stCompare').onchange({ target: byId.get('stCompare') });
   const p0 = posLine();
   const i0 = zIdx();
   for (let i = 0; i < 3; i++) byId.get('fxStepNext').onclick();
-  const p1 = posLine();
-  ok(playTxt() === '播放', '步进之后仍是暂停状态（步进就是停下来看）');
-  ok(p0 !== '' && p1 !== '' && p0 !== p1, `步进让编辑台真的往前走了: "${p0}" → "${p1}"`);
-  ok(zIdx() === (i0 + 3) % ringN(), `三次「后一帧」正好走三个灯位（不是走一半插值）: ${p0} → ${p1}`);
-  ok(/步进/.test(byId.get('status').textContent),
-     `状态栏报了这一步走了几个固件节拍: "${byId.get('status').textContent}"`);
+  ok(tickOf() === 3 && zIdx() === i0,
+     `三次「后一帧」= 3 个固件节拍（20ms × 3），还不到一格：位置没跳（${p0}）`);
+  /* 连点：每一次都必须正好 +1 拍（老写法会走 speed_cur 拍 / 偶尔多拨一格） */
+  let badJumps = 0, lastTick = tickOf();
+  for (let i = 0; i < 5; i++) {
+    byId.get('fxStepNext').onclick();
+    const t = tickOf();
+    if (t !== lastTick + 1) badJumps++;
+    lastTick = t;
+  }
+  ok(badJumps === 0, `连点 5 次「后一帧」每次都只 +1 拍（实测末拍 ${lastTick}，异常 ${badJumps} 次）`);
+  /* 第 8 拍只是把「目标」挪到下一颗；插值再走 8 拍才真的到那儿（固件就是这么走的） */
+  for (let i = 0; i < 8; i++) byId.get('fxStepNext').onclick();
+  ok(tickOf() === 16 && zIdx() === (i0 + 1) % ringN(),
+     `第 8 拍目标换格、第 16 拍插值走完才到下一颗: ${p0} → ${posLine()}`);
 
-  /* 10.3b 前一帧 / 后一帧：一次按键正好一个灯位，两个方向对称 */
+  /* 10.3b 前一帧：帧历史精确回退（相位 + 平滑缓冲都回到那一拍），到头会说明 */
   {
-    const i1 = zIdx();
-    texts.length = 0; byId.get('fxStepNext').onclick();
-    const i2 = zIdx();
-    ok(i2 === (i1 + 1) % ringN(), `「后一帧」往前走一个灯位: ${i1} → ${i2}（共 ${ringN()} 颗）`);
     texts.length = 0; byId.get('fxStepPrev').onclick();
-    ok(zIdx() === i1, `「前一帧」把相位原地退回来: ${i2} → ${zIdx()}`);
-    texts.length = 0; byId.get('fxStepPrev').onclick();
-    ok(zIdx() === (i1 + ringN() - 1) % ringN(),
-       `「前一帧」再退一格（到头绕回最后一颗）: ${i1} → ${zIdx()}`);
+    ok(tickOf() === 15 && /后退 1 个固件节拍/.test(byId.get('status').textContent),
+       `「前一帧」退回 1 拍: 第 16 拍 → 第 ${tickOf()} 拍`);
     ok(playTxt() === '播放', '前后翻帧都保持暂停（步进就是停下来看）');
-    ok(/回退一个灯位/.test(byId.get('status').textContent),
-       `状态栏分得清前后: "${byId.get('status').textContent}"`);
+    for (let i = 0; i < 15; i++) byId.get('fxStepPrev').onclick();
+    ok(tickOf() === 0 && zIdx() === i0, `退满 16 拍回到第 0 拍（位置也回到起点）: ${p0}`);
+    byId.get('fxStepPrev').onclick();
+    ok(tickOf() === 0 && /最早的一拍/.test(byId.get('status').textContent),
+       `第 0 拍再往前退会说明退不回去: "${byId.get('status').textContent}"`);
   }
   /* 走不走位置得先问一句：呼吸 / 闪烁这类相位本来就不动，步进别假装它动了 */
-  ok(/const moves = instAdvances\(inst\)/.test(html) && /不随位置前进/.test(html),
-     '步进先问 instAdvances()（与 instTick 那条判断同一份），不走位置时相位不动、状态栏说明原因');
+  ok(/function stageTickOnce\(inst\)/.test(html) && /instTick\(inst, fast\)/.test(html),
+     '步进 = stageTickOnce()：一次恰好一个 instTick（20ms），不再把相位直接拨一个灯位');
+  ok(/stageFrameSave/.test(html) && /stageFrameRestore/.test(html) && /STAGE_HIST_MAX/.test(html),
+     '「前一帧」走帧历史（stageFrameSave / stageFrameRestore），相位与平滑缓冲都精确回退');
+  ok(!/inst\.step_cnt = -n/.test(html), '老写法（拨相位 + step_cnt 挪负数）已经删掉');
+  ok(/不随位置前进，只走时间/.test(html),
+     '步进先问 instAdvances()（与 instTick 那条判断同一份），不走位置时状态栏说明原因');
 
 
   /* 10.4 归零：回到起始相位（两条效果从同一起点比） */
