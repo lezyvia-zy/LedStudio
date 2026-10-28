@@ -262,28 +262,20 @@ pinMove({ clientX: 99999 });
 await new Promise(r => realST(r, 70));
 ok(animOf(0).thr === 20, `拖到最右 → 阈值 ${animOf(0).thr}（夹在 0..20）`);
 
-/* ---- F) 音频采样 / 快档阻尼（40ms / 450 → 460ms，向上取整）---- */
-console.log('--- 音频采样 / 快档阻尼 ---');
-const smpIn = byId.get('aSample'), hldIn = byId.get('aHold'), stTxt = byId.get('aStageTxt');
-ok(!!smpIn && !!hldIn && smpIn.value === '40' && hldIn.value === '450' &&
-   /40 \/ 460 ms/.test(stTxt.textContent),
-   `两个格子初值 40 / 450，读数写实际生效值：${stTxt.textContent}`);
-smpIn.value = '60'; smpIn.oninput();
-await new Promise(r => realST(r, 70));
-ok(animOf(0).audioSampleMs === 60 && /60 \/ 460 ms/.test(stTxt.textContent),
-   `采样改成 60ms → 读数 ${stTxt.textContent}（60 正好 3 拍）`);
-smpIn.value = '30'; smpIn.oninput();
-await new Promise(r => realST(r, 70));
-ok(animOf(0).audioSampleMs === 30 && /40 \/ 460 ms/.test(stTxt.textContent),
-   `采样填 30ms → 向上取整成 2 拍，读数 ${stTxt.textContent}`);
+/* ---- F) 快档阻尼（450 → 460ms，向上取整；采样固定 40ms，工具不暴露）---- */
+console.log('--- 快档阻尼 ---');
+const hldIn = byId.get('aHold'), stTxt = byId.get('aStageTxt');
+ok(!!hldIn && !byId.get('aSample') && hldIn.value === '450' && /460 ms/.test(stTxt.textContent),
+   `只有「阻尼」一格（采样固定 40ms 不暴露）：${hldIn && hldIn.value} → 读数 ${stTxt.textContent}`);
 hldIn.value = '0'; hldIn.oninput();
 await new Promise(r => realST(r, 70));
-ok(animOf(0).stageHoldMs === 0 && /40 \/ 0 ms/.test(stTxt.textContent),
+ok(animOf(0).stageHoldMs === 0 && /^0 ms$/.test(stTxt.textContent),
    `阻尼 = 0（不保持）→ 读数 ${stTxt.textContent}`);
 hldIn.value = '450'; hldIn.oninput();
 await new Promise(r => realST(r, 70));
-ok(animOf(0).stageHoldMs === 450 && /40 \/ 460 ms/.test(stTxt.textContent),
+ok(animOf(0).stageHoldMs === 450 && /460 ms/.test(stTxt.textContent),
    `阻尼填 450ms → 向上取整 23 拍，读数 ${stTxt.textContent}`);
+ok(animOf(0).audioSampleMs === 40, `采样周期固定 40ms（存在工程里、随导出写进 C）`);
 
 spd.value = 'slow'; spd.onchange();
 await new Promise(r => setTimeout(r, 100));

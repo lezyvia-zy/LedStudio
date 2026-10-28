@@ -445,9 +445,8 @@
         <span class="thrBox" data-tip="音乐阈值（音量**大于**它才算「有音乐」，正好等于仍算安静）。&#10;0..20，出厂 4；导出成 C 的 LED_GEN_FFT_THRESHOLD，固件照它判档。&#10;等价于拖滑杆上那根竖针。">阈<input type="number" id="aThr" min="0" max="20" step="1" value="4"></span>
       </div>
       <div class="pr"><span class="lb">音乐</span>
-        <span class="thrBox" data-tip="音频采样周期（ms）：每这么久才读一次音量 —— 不是每拍都读，免得音量抖一下就切档。&#10;落进 20ms 一拍时**向上取整**（40ms = 2 拍；填 30 → 40）。&#10;随导出写进 C 的 LED_GEN_AUDIO_SAMPLE_MS。">采样<input type="number" id="aSample" min="20" max="400" step="20" value="40"></span>
-        <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS。">阻尼<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
-        <b id="aStageTxt">40 / 460 ms</b>
+        <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS；采样周期固定 40ms（固件那边的计时定死，工具不暴露）。">阻尼<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
+        <b id="aStageTxt">460 ms</b>
       </div>
       <div class="pr"><span class="lb"></span>
         <button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 点一下开始**随机**注入音量（底噪 + 随机鼓点 + 余音衰减，按板子上的真实节奏走），再点一下停、音量回到 0。&#10;暂停时也会自己跳（模拟的是板上 signal，跟播不播放无关）；样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()。&#10;效果页按播放、或直接拖上面那根滑杆，看到的都是同一份音量。">音乐来了（音量随机跳）</button>
@@ -1077,12 +1076,10 @@
           <b>这个数随导出写进 C</b>：<code>LED_GEN_FFT_THRESHOLD</code>（刻度是 <code>LED_GEN_AUDIO_MAX = 20</code>），
           生成的 <code>led_gen_tick()</code> 自己拿 <code>led_gen_hal_audio_level()</code> 跟它比 —— 固件那边不用再改宏，
           也不用再靠 <code>ring_set_audio_level()</code> 改档。手动档下这根针和「阈」格都灰掉（手动档只是预览，导出代码永远按音量判）。<br>
-          <b>采样 / 阻尼</b>（预览条同一行，也是随导出写进 C 的两个宏）：<br>
-          · <b>采样(ms)</b> 出厂 <b>40</b>（= 2 拍，<code>LED_GEN_AUDIO_SAMPLE_MS</code>）—— 不是每拍都读音量，
-            免得音量抖一下就切档；<br>
-          · <b>阻尼(ms)</b> 出厂 <b>450</b>（落进拍向上取整 = <b>460ms / 23 拍</b>，<code>LED_GEN_STAGE_HOLD_MS</code>）——
-            采到「有音乐」<b>立刻</b>进快档，然后<b>至少保持</b>这么久才允许回慢档：<b>慢→快很干脆、快→慢有阻尼感</b>，
-            不会因为一句歌词结束就马上变慢。填 0 = 不保持（掉到阈值以下就回慢）。<br>
+          <b>阻尼</b>（预览条同一行，随导出写进 C 的 <code>LED_GEN_STAGE_HOLD_MS</code>）：出厂 <b>450</b>（落进拍向上取整 = <b>460ms / 23 拍</b>）——
+          采到「有音乐」<b>立刻</b>进快档，然后<b>至少保持</b>这么久才允许回慢档：<b>慢→快很干脆、快→慢有阻尼感</b>，
+          不会因为一句歌词结束就马上变慢。填 0 = 不保持（掉到阈值以下就回慢）。
+          <b>采样周期固定 40ms</b>（固件那边的计时定死，工具不暴露；导出成 <code>LED_GEN_AUDIO_SAMPLE_MS</code>）。<br>
           「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
           <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代。<br>
           点<b>「音乐来了」</b>= 模拟板上真的在放音乐：每 20ms（一拍）<b>随机注入</b>一个音量 —— 平时是 0..1 的底噪，
@@ -5673,16 +5670,13 @@ function syncAudioBtn() {
     if (!focused) tb.value = thr;
     tb.disabled = !auto;
   }
-  /* 采样 / 阻尼：框里是用户填的 ms，右边读数写**实际生效值**（向上取整到拍） */
+  /* 阻尼：框里是用户填的 ms，右边读数写**实际生效值**（向上取整到拍）。
+     采样周期固定 40ms（固件那边的计时定死），工具里不暴露、只随导出写进 C。 */
   {
-    const smp = $('#aSample'), hld = $('#aHold'), stTxt = $('#aStageTxt');
+    const hld = $('#aHold'), stTxt = $('#aStageTxt');
     const act = el => !(typeof document !== 'undefined' && document.activeElement === el);
-    if (smp && act(smp)) smp.value = a.audioSampleMs;
     if (hld && act(hld)) hld.value = a.stageHoldMs;
-    if (stTxt) {
-      const st = audioSampleTicks(a) * FW.TICK_MS, ht = stageHoldTicks(a) * FW.TICK_MS;
-      stTxt.textContent = `${st} / ${ht} ms`;
-    }
+    if (stTxt) stTxt.textContent = `${stageHoldTicks(a) * FW.TICK_MS} ms`;
   }
   if (b) {
     /* 文案短一点：它住在 300px 宽的常驻预览条里，长句会把滑杆挤没 */
@@ -7010,14 +7004,10 @@ function buildAnimPanel() {
     thrIn.onchange = () => { thrIn.value = fftThreshold(A().thr); saveStore(); };
   }
   if (thrPin) cpBindDrag(thrPin, ev => { if (ev && ev.clientX != null) setThreshold(thrAtClientX(ev.clientX)); });
-  /* 音频采样周期 / 快档阻尼（ms）：存原值，实际生效值 = 向上取整到拍（40 / 460），
-     离开这一格把框里写成用户填的原值、读数显示实际值；导出时用的是实际值。 */
-  const smpIn = $('#aSample'), hldIn = $('#aHold');
-  if (smpIn) {
-    smpIn.oninput  = () => { A().audioSampleMs = Math.max(20, Math.min(400, +smpIn.value || FW.AUDIO_SAMPLE_MS));
-                             syncAudioBtn(); saveStore(); };
-    smpIn.onchange = () => { smpIn.value = A().audioSampleMs; saveStore(); };
-  }
+  /* 快档阻尼（ms）：存原值，实际生效值 = 向上取整到拍（450 → 460），
+     离开这一格把框里写成用户填的原值、读数显示实际值；导出时用的是实际值。
+     采样周期固定 40ms（固件那边的计时定死），界面上不暴露。 */
+  const hldIn = $('#aHold');
   if (hldIn) {
     hldIn.oninput  = () => { A().stageHoldMs = Math.max(0, Math.min(3000, +hldIn.value || 0));
                              syncAudioBtn(); saveStore(); };
