@@ -276,6 +276,17 @@ await new Promise(r => realST(r, 70));
 ok(animOf(0).stageHoldMs === 450 && /460 ms/.test(stTxt.textContent),
    `阻尼填 450ms → 向上取整 23 拍，读数 ${stTxt.textContent}`);
 ok(animOf(0).audioSampleMs === 40, `采样周期固定 40ms（存在工程里、随导出写进 C）`);
+hldIn.value = '450'; hldIn.oninput();
+await new Promise(r => realST(r, 70));
+/* 出快档的「过渡」：0 = 直切，默认 350ms */
+const gldIn = byId.get('aGlide');
+ok(!!gldIn && gldIn.value === '350', `「过渡」初值 ${gldIn && gldIn.value}ms（出快档的速度滑移）`);
+gldIn.value = '0'; gldIn.oninput();
+await new Promise(r => realST(r, 70));
+ok(animOf(0).glideMs === 0, '过渡 = 0（直切，= 加滑移之前的行为）');
+gldIn.value = '700'; gldIn.oninput();
+await new Promise(r => realST(r, 70));
+ok(animOf(0).glideMs === 700, `过渡改成 ${animOf(0).glideMs}ms（越大减速越绵长）`);
 
 spd.value = 'slow'; spd.onchange();
 await new Promise(r => setTimeout(r, 100));

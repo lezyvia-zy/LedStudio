@@ -426,7 +426,7 @@ const main = [
   '    for (t = 0; t < ' + STAGE_TRACE_TICKS + '; t++) {',
   '        g_audio = ((t >= 10u) && (t < 15u)) ? (uint8_t)' + LOUD + 'u : 0u;',
   '        led_gen_tick(&g_ring);',
-  '        printf("%u:%u,", (unsigned)t, (unsigned)led_gen_stage);',
+  '        printf("%u:%u:%u,", (unsigned)t, (unsigned)led_gen_stage, (unsigned)led_gen_inst[0].speed_cur);',
   '    }',
   '    printf("|");',
 
@@ -768,18 +768,25 @@ console.log('--- F5) 图层旁路（en=0）与 C 一致 ---');
   for (let t = 0; t < STAGE_TRACE_TICKS; t++) {
     simSetAudioLevel(sim5, (t >= 10 && t < 15) ? LOUD : 0, THR);
     simTick(sim5, s5, false);
-    jsTrace += `${t}:${sim5.stage},`;
+    jsTrace += `${t}:${sim5.stage}:${sim5.insts[0].speed_cur},`;
   }
   const rawSegs = out.trim().split('|');
   const cTrace = (rawSegs[st.modes.list.length + 7] || '').trim();
-  ok(cTrace === jsTrace, `快档迟滞的逐拍状态 C ↔ JS 完全一致（${cTrace.slice(0, 40)}…）`);
-  /* 语义：进快档在音量出现后的第一个采样点（40ms 一次 → 最多晚 1 拍），
-     回慢档要等阻尼到期（23 拍）之后的采样点。 */
-  const enter = +((jsTrace.match(/(\d+):1,/) || [])[1] || -1);
-  const back  = +((jsTrace.match(/1,(?:(\d+:\d+,)*?)(\d+):0,/) || [])[2] || -1);
+  let dAt = -1;
+  for (let i = 0; i < Math.max(cTrace.length, jsTrace.length); i++) if (cTrace[i] !== jsTrace[i]) { dAt = i; break; }
+  ok(cTrace === jsTrace, dAt < 0
+     ? `快档迟滞 + 速度滑移的逐拍状态 C ↔ JS 完全一致（${cTrace.slice(0, 48)}…）`
+     : `C ↔ JS 有差异 @${dAt}：C「${cTrace.slice(Math.max(0, dAt - 24), dAt + 24)}」 JS「${jsTrace.slice(Math.max(0, dAt - 24), dAt + 24)}」`);
+  const rows = jsTrace.split(',').filter(Boolean).map(s => s.split(':').map(Number));
+  const enter = (rows.find(r => r[1] === 1) || [-1])[0];
+  const back  = (rows.find(r => r[0] > enter && r[1] === 0) || [-1])[0];
   ok(enter >= 10 && enter <= 11, `进快档很快：第 ${enter} 拍（音量从第 10 拍开始）`);
   ok(back - enter >= 22 && back - enter <= 24,
      `回慢档被阻尼拖住：第 ${enter} 拍进、第 ${back} 拍才回（差 ${back - enter} 拍 ≈ 460ms）`);
+  /* 滑移：档位回到慢之后，每格拍数还在逐拍往上爬（不是一步到 8）—— 这就是「减速的惯性」 */
+  const spd = t => (rows[t] ? rows[t][2] : -1);
+  ok(spd(back) === 2 && spd(back + 3) === 5 && spd(back + 6) === 8,
+     `出快档是滑移的：第 ${back} 拍 speed=${spd(back)}，+3 拍 ${spd(back + 3)}，+6 拍 ${spd(back + 6)}（350ms 过渡、每拍 +1）`);
 }
 
 /* 覆盖度自检 */

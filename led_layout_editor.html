@@ -447,6 +447,7 @@
       <div class="pr"><span class="lb">音乐</span>
         <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS；采样周期固定 40ms（固件那边的计时定死，工具不暴露）。">阻尼<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
         <b id="aStageTxt">460 ms</b>
+        <span class="thrBox" data-tip="出快档的「过渡」（ms）：快→慢不再直切，而是用这么久把「每格拍数」从快档爬到慢档 —— 想要「滑行减速」的阻尼感就加大；0 = 直切（加滑移之前的行为）。&#10;落进 20ms 一拍时向上取整算每拍爬多少。随导出写进 C 的 LED_GEN_STAGE_GLIDE_MS。">过渡<input type="number" id="aGlide" min="0" max="3000" step="10" value="350"></span>
       </div>
       <div class="pr"><span class="lb"></span>
         <button id="aAudio" data-tip="只在「自动」档下生效：模拟音乐一直在放 —— 点一下开始**随机**注入音量（底噪 + 随机鼓点 + 余音衰减，按板子上的真实节奏走），再点一下停、音量回到 0。&#10;暂停时也会自己跳（模拟的是板上 signal，跟播不播放无关）；样机上这条线是 spimled_service.c 每 20ms 调一次 ring_set_audio_level()。&#10;效果页按播放、或直接拖上面那根滑杆，看到的都是同一份音量。">音乐来了（音量随机跳）</button>
@@ -1080,6 +1081,9 @@
           采到「有音乐」<b>立刻</b>进快档，然后<b>至少保持</b>这么久才允许回慢档：<b>慢→快很干脆、快→慢有阻尼感</b>，
           不会因为一句歌词结束就马上变慢。填 0 = 不保持（掉到阈值以下就回慢）。
           <b>采样周期固定 40ms</b>（固件那边的计时定死，工具不暴露；导出成 <code>LED_GEN_AUDIO_SAMPLE_MS</code>）。<br>
+          <b>过渡(ms)</b>：出快档**不再直切**——用这么久把「每格拍数」从快档爬到慢档（默认 <b>350ms</b>，约 7 拍，每拍 +1），
+          所以快→慢是「滑行减速」而不是「急刹」；填 <b>0 = 直切</b>（加滑移之前的行为）。随导出写进 <code>LED_GEN_STAGE_GLIDE_MS</code>。
+          进/出阈值也做了**双阈值**：音量 > 阈值才进快档，要掉到 ≤ 阈值−1 才算安静 —— 在阈值附近抖不会来回切。<br>
           「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
           <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代。<br>
           点<b>「音乐来了」</b>= 模拟板上真的在放音乐：每 20ms（一拍）<b>随机注入</b>一个音量 —— 平时是 0..1 的底噪，
@@ -1254,6 +1258,9 @@ const FW = {
    *   STAGE_HOLD_MS   = 450（进入快档后**至少保持**这么久才允许回慢档 = 阻尼感；
    *                     落进拍里按向上取整 = 460ms / 23 拍） */
   TICK_MS: 20, AUDIO_SAMPLE_MS: 40, STAGE_HOLD_MS: 450,
+  /* 出快档时的「速度滑移」时间（2026-10-28）：快档 → 慢档不再直切，用这么久把
+   * 每格拍数从 fast 爬到 slow（0 = 直切，也就是加滑移之前的行为）。 */
+  STAGE_GLIDE_MS: 350,
   ANIM:  { CHASE_SINGLE:0, CHASE_DUAL:1, SWING:2, FILL:3, STATIC:4 },
   ANIM_COUNT: 5,                       /* == 固件 ANIM_TYPE_COUNT；自定义动效 id 从这里往后排 */
   ANIM_NAME: ['单点追逐','双点追逐','摆动','填充','静态'],
@@ -2219,7 +2226,7 @@ function defaultAnim() {
             *   audioSampleMs = 40（每 2 拍采一次；固件那边 30/40 都行）
             *   stageHoldMs   = 450（→ 460ms / 23 拍：进快档后至少保持这么久 = 阻尼）
             * 两个都随导出写进 C（LED_GEN_AUDIO_SAMPLE_MS / LED_GEN_STAGE_HOLD_MS）。 */
-           audioSampleMs: FW.AUDIO_SAMPLE_MS, stageHoldMs: FW.STAGE_HOLD_MS,
+           audioSampleMs: FW.AUDIO_SAMPLE_MS, stageHoldMs: FW.STAGE_HOLD_MS, glideMs: FW.STAGE_GLIDE_MS,
            showNum: true, showRing: true, showArrow: true, showFrame: true,
            previewTarget: 'mode', soloEffectId: '' };
 }
@@ -3401,7 +3408,7 @@ function simInit() {
      *   audio_acc  采样累加（ms）
      *   lvl_sample 最近一次采样到的音量
      *   stage_lock 非 null = 手动档（工具里的慢/快预览），此时不跑采样与迟滞 */
-    stage: 0, stage_hold: 0, audio_acc: 0, lvl_sample: 0, stage_lock: null,
+    stage: 0, stage_hold: 0, audio_acc: 0, lvl_sample: 0, stage_lock: null, glide: 0,
     gen_tick: 0, power_on: true, fb: new Uint8Array(FW.LED_COUNT * 3),
   };
 }
@@ -3492,9 +3499,18 @@ function ringIsFast(r) {
 function instSpeedFromRing(inst, r) {
   return ringIsFast(r) ? inst.speed_fast : inst.speed_slow;
 }
-/* 每拍从 ring 级同步一遍（只改 speed_cur，不动 step_cnt —— 切档时相位不跳） */
+/* 每拍从 ring 级同步一遍（只改 speed_cur，不动 step_cnt —— 切档时相位不跳）。
+ * **出快档是滑移的**（2026-10-28）：进快档立刻到 speed_fast；回慢档时每拍往 speed_slow 爬
+ * `glideStep()` 那么多拍，用 sim.glide（= 过渡 ms）算 —— 这就是「快到慢有惯性」。
+ * glide = 0 时一步到位（= 加滑移之前的行为）。 */
 function simSyncSpeed(sim) {
-  sim.insts.forEach(i => { i.speed_cur = instSpeedFromRing(i, sim); });
+  const fast = ringIsFast(sim);
+  const glide = (sim.glide == null) ? 0 : (sim.glide | 0);
+  sim.insts.forEach(i => {
+    if (fast) { i.speed_cur = i.speed_fast; return; }
+    const step = glideStep(i.speed_fast, i.speed_slow, glide);
+    i.speed_cur = Math.min(i.speed_slow, (i.speed_cur | 0) + step);
+  });
 }
 
 function simSetSpeed(sim, which) {
@@ -3542,18 +3558,31 @@ function stageHoldTicks(state) {
   const ms = (a && a.stageHoldMs != null) ? a.stageHoldMs : FW.STAGE_HOLD_MS;
   return msToTicksUp(ms);
 }
+/* 出快档的「速度滑移」时间（ms）：0 = 直切。默认 350ms。 */
+function stageGlideMs(state) {
+  const a = animCfg(state);
+  const v = (a && a.glideMs != null) ? (a.glideMs | 0) : FW.STAGE_GLIDE_MS;
+  return Math.max(0, Math.min(3000, v));
+}
+/* 滑移一步：每拍把每格拍数往 slow 爬多少（≥1；glide = 0 时一步到位） */
+function glideStep(fromFast, toSlow, glideMs) {
+  const ds = Math.max(0, (toSlow | 0) - (fromFast | 0));
+  if (glideMs <= 0) return ds;
+  return Math.min(ds, Math.max(1, Math.round((ds * FW.TICK_MS) / glideMs)));
+}
 /* simSetAudioLevel() 只写「原始音量」，档位由 simTick() 里的采样 + 迟滞决定（与生成的 C 同构）。 */
 function simSetAudioLevel(sim, level, thr) {
   sim.audio_level = Math.max(0, Math.min(FW.AUDIO_MAX, level | 0));
   if (thr != null) sim.audio_thr = fftThreshold(thr);
   sim.stage_lock  = null;              /* 自动档：清掉手动锁 */
-  simApplyStage(sim); simSyncSpeed(sim);
+  simApplyStage(sim);                  /* 只更新 ring 级档位；逐实例的同步/滑移在 simTick 里做一次 */
   return sim.audio_level;
 }
 /* 手动档（只用于工具里「慢 / 快」两档的预览）：锁住档位，采样与迟滞不再生效 */
 function simSetSpeedLocked(sim, which) {
   sim.stage_lock = (which === 'fast') ? 1 : 0;
   sim.stage = sim.stage_lock;
+  sim.glide = 0;                    /* 手动档是预览：直接到档，不滑移 */
   simApplyStage(sim); simSyncSpeed(sim);
 }
 /* 把 stage（或手动锁）写成 ring 级 speed_cur —— 等价固件里 ring_set_audio_level() 那一下 */
@@ -3574,10 +3603,13 @@ function simAudioStep(sim, state) {
   if (sim.audio_acc >= perMs) { sim.audio_acc = 0; sim.lvl_sample = sim.audio_level | 0; }
   const thr = fftThreshold(sim.audio_thr != null ? sim.audio_thr
                                                  : (animCfg(state) ? animCfg(state).thr : null));
+  /* 双阈值（2026-10-28）：进快档要 > thr，回慢档要 ≤ thr-1 —— 音量在阈值附近抖时不会来回切 */
+  const exitThr = Math.max(0, thr - 1);
+  sim.glide = stageGlideMs(state);
   if (sim.stage_hold > 0) sim.stage_hold--;
   if (!sim.stage) {
     if ((sim.lvl_sample | 0) > thr) { sim.stage = 1; sim.stage_hold = stageHoldTicks(state); }
-  } else if (sim.stage_hold <= 0 && (sim.lvl_sample | 0) <= thr) {
+  } else if (sim.stage_hold <= 0 && (sim.lvl_sample | 0) <= exitThr) {
     sim.stage = 0;
   }
   if (sim.stage_lock == null) simApplyStage(sim);
@@ -4538,8 +4570,9 @@ const LED_GEN_IMPL = [
 '            led_gen_stage = 1u;',
 '            led_gen_stage_hold = (uint16_t)((LED_GEN_STAGE_HOLD_MS + LED_GEN_TICK_MS - 1u) / LED_GEN_TICK_MS);',
 '        }',
-'    } else if ((led_gen_stage_hold == 0u) && (led_gen_audio_lvl <= (uint8_t)LED_GEN_FFT_THRESHOLD)) {',
-'        led_gen_stage = 0u;',
+'    } else if ((led_gen_stage_hold == 0u) &&',
+'               (led_gen_audio_lvl <= (uint8_t)((LED_GEN_FFT_THRESHOLD > 0u) ? (LED_GEN_FFT_THRESHOLD - 1u) : 0u))) {',
+'        led_gen_stage = 0u;      /* dual threshold: enter above thr, leave at or below thr-1 */',
 '    }',
 '}',
 '',
@@ -4609,7 +4642,19 @@ const LED_GEN_IMPL = [
 '    for (i = 0; i < led_gen_inst_count; i++) {',
 '        I = &led_gen_inst[i];',
 '        /* @instspeed@ */',
-'        I->speed_cur = (fast != 0u) ? I->speed_fast : I->speed_slow;',
+'        if (fast != 0u) {',
+'            I->speed_cur = I->speed_fast;          /* fast stage: immediate */',
+'        } else if (I->speed_cur < I->speed_slow) {',
+'            /* leaving the fast stage: glide towards slow, step ticks per frame */',
+'            uint16_t ds = (uint16_t)(I->speed_slow - I->speed_fast);',
+'            uint16_t st = (LED_GEN_STAGE_GLIDE_MS == 0u) ? ds',
+'                        : (uint16_t)(((uint32_t)ds * LED_GEN_TICK_MS + (uint32_t)(LED_GEN_STAGE_GLIDE_MS / 2u))',
+'                                     / (uint32_t)LED_GEN_STAGE_GLIDE_MS);',
+'            if (st < 1u) st = 1u;',
+'            if (st > ds) st = ds;',
+'            I->speed_cur = (uint8_t)(((uint16_t)I->speed_cur + st > I->speed_slow)',
+'                                     ? I->speed_slow : ((uint16_t)I->speed_cur + st));',
+'        }',
 '        I->step_cnt++;',
 '        if (I->step_cnt >= I->speed_cur) {',
 '            I->step_cnt = 0;',
@@ -4790,7 +4835,7 @@ const GEN_COMMENTS = {
   audiostep: { zh:'音频采样 + 快档迟滞：采样值 > 阈值就立刻进快档并记下最少保持时间；保持期内不许回慢档，到期后仍安静才回 —— 所以「慢→快」很快、「快→慢」有阻尼', en:'audio sampling + fast-stage hysteresis: a sample above the threshold enters the fast stage at once and arms the minimum hold; the stage cannot drop back while the hold lasts, and only drops once it expires and the level is quiet again' },
   audiostate: { zh:'音频采样 / 迟滞的运行时状态（每个引擎一份，不是每灯）', en:'runtime state of the audio sampling / hysteresis (one per engine, not per LED)' },
   audioreset: { zh:'换模式：采样 / 迟滞状态清零，别把上一个模式的档位带过来', en:'mode change: reset the sampling / hysteresis state so the previous mode stage does not leak in' },
-  instspeed: { zh:'每拍把 ring 级档位同步进本实例；各效果仍用自己配的 fast/slow', en:'sync the ring-level stage into this instance every frame; each effect keeps its own fast/slow' },
+  instspeed: { zh:'每拍把 ring 级档位同步进本实例：进快档立刻到位，出快档按 LED_GEN_STAGE_GLIDE_MS 做「速度滑移」（每拍往 slow 爬几拍），所以快到慢有惯性；glide = 0 就是直切', en:'sync the ring-level stage into this instance every frame: entering the fast stage is immediate, leaving it glides towards slow over LED_GEN_STAGE_GLIDE_MS (a few ticks per frame), so fast->slow keeps some inertia; glide = 0 is a hard cut' },
   genrender: { zh:'把当前模式渲染进 ring->fb。内建效果里双点/摆动/填充调固件原有的渲染函数；单点追逐由生成代码自己画（平顶光带）', en:'render the current mode into ring->fb. built-ins: dual/swing/fill call the firmware own renderers; the single chase is drawn here (flat top)' },
   zonerender:{ zh:'单个分区渲染：内建的单点追逐与自定义走生成代码，双点/摆动/填充走固件原函数', en:'render one zone: single chase + custom via the generated code; dual/swing/fill via the firmware' },
   setpos:    { zh:'位置推进：把 from 折算到离 target 最近的等价位置（顺带修掉「转一圈闪一下」）', en:'position advance; re-bases from to the nearest equivalent (fixes the once-per-revolution flash)' },
@@ -4952,6 +4997,8 @@ function exportEffectsC(state, opt) {
   /* 采样 / 阻尼：存的是 ms，落进拍里**向上取整**，导出的也是取整后的实际值（40 / 460） */
   const sampleMs = audioSampleTicks(state) * FW.TICK_MS;
   const holdMs   = stageHoldTicks(state) * FW.TICK_MS;
+  /* 出快档的速度滑移时间（ms）：0 = 直切；不进拍，直接按 ms 算每拍爬多少 */
+  const glideMs  = stageGlideMs(state);
   const L = [];
   const push = (...xs) => xs.forEach(x => L.push(x));
   const gmax = v => Math.max.apply(null, v.concat([1]));
@@ -5118,6 +5165,7 @@ function exportEffectsC(state, opt) {
        '#endif',
        '#define LED_GEN_AUDIO_SAMPLE_MS ' + sampleMs + 'u',
        '#define LED_GEN_STAGE_HOLD_MS   ' + holdMs + 'u',
+       '#define LED_GEN_STAGE_GLIDE_MS  ' + glideMs + 'u',
        '',
        '#define LED_GEN_EFFECT_COUNT  ' + effRows.length,
        '#define LED_GEN_MODE_COUNT    ' + mdRows.length,
@@ -5436,7 +5484,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                ringIsFast, instSpeedFromRing, simSyncSpeed, litBandCenter,
                ringSpeedFromAudio, simSetAudioLevel, fftThreshold,
                fftMusicLevel, fftMusicReset,
-               msToTicksUp, audioSampleTicks, stageHoldTicks,
+               msToTicksUp, audioSampleTicks, stageHoldTicks, stageGlideMs, glideStep,
                simSetSpeedLocked, simApplyStage, simAudioStep,
                bindZones, defaultModesFromEffects, emptyModes, newMode,
                renderAllSim, exportC, defaultAnim,
@@ -5630,6 +5678,8 @@ function A() {
   if (a.stageHoldMs == null)   a.stageHoldMs   = FW.STAGE_HOLD_MS;
   a.audioSampleMs = Math.max(20, Math.min(400, a.audioSampleMs | 0));
   a.stageHoldMs   = Math.max(0,  Math.min(3000, a.stageHoldMs | 0));
+  if (a.glideMs == null) a.glideMs = FW.STAGE_GLIDE_MS;
+  a.glideMs       = Math.max(0,  Math.min(3000, a.glideMs | 0));
   return a;
 }
 /* 当前该用哪一档速度。auto = 固件那句判据：
@@ -5670,12 +5720,13 @@ function syncAudioBtn() {
     if (!focused) tb.value = thr;
     tb.disabled = !auto;
   }
-  /* 阻尼：框里是用户填的 ms，右边读数写**实际生效值**（向上取整到拍）。
+  /* 阻尼 / 过渡：框里是用户填的 ms，读数写实际生效的阻尼（向上取整到拍）。
      采样周期固定 40ms（固件那边的计时定死），工具里不暴露、只随导出写进 C。 */
   {
-    const hld = $('#aHold'), stTxt = $('#aStageTxt');
+    const hld = $('#aHold'), gld = $('#aGlide'), stTxt = $('#aStageTxt');
     const act = el => !(typeof document !== 'undefined' && document.activeElement === el);
     if (hld && act(hld)) hld.value = a.stageHoldMs;
+    if (gld && act(gld)) gld.value = a.glideMs;
     if (stTxt) stTxt.textContent = `${stageHoldTicks(a) * FW.TICK_MS} ms`;
   }
   if (b) {
@@ -7007,11 +7058,16 @@ function buildAnimPanel() {
   /* 快档阻尼（ms）：存原值，实际生效值 = 向上取整到拍（450 → 460），
      离开这一格把框里写成用户填的原值、读数显示实际值；导出时用的是实际值。
      采样周期固定 40ms（固件那边的计时定死），界面上不暴露。 */
-  const hldIn = $('#aHold');
+  const hldIn = $('#aHold'), gldIn = $('#aGlide');
   if (hldIn) {
     hldIn.oninput  = () => { A().stageHoldMs = Math.max(0, Math.min(3000, +hldIn.value || 0));
                              syncAudioBtn(); saveStore(); };
     hldIn.onchange = () => { hldIn.value = A().stageHoldMs; saveStore(); };
+  }
+  if (gldIn) {
+    gldIn.oninput  = () => { A().glideMs = Math.max(0, Math.min(3000, +gldIn.value || 0));
+                             syncAudioBtn(); saveStore(); };
+    gldIn.onchange = () => { gldIn.value = A().glideMs; saveStore(); };
   }
   /* 「音乐来了」= 随机注入音量（底噪 + 随机鼓点 + 余音，core 的 fftMusicLevel）；
    * 再点一下取消，音量回到 **0**（用户 2026-10-28：「再次点击就取消，默认输入的是 0」）。

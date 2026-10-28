@@ -495,8 +495,10 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
   for (let i = 0; i < 20; i++) simAudioStep(sim, null);   /* 20 拍 = 400ms < 460ms */
   ok(sim.stage === 1 && sim.speed_cur === 1, '保持期内（400ms < 460ms）安静也还是快档 —— 阻尼');
   for (let i = 0; i < 6; i++) simAudioStep(sim, null);    /* 26 拍 = 520ms > 460ms */
-  ok(sim.stage === 0 && sim.speed_cur === 8 && sim.insts[0].speed_cur === 8,
-     '保持期到了再采样：已经安静 → 回慢档 8');
+  ok(sim.stage === 0 && sim.speed_cur === 8 && sim.insts[0].speed_cur < 8,
+     `保持期到了再采样：已经安静 → 回慢档（ring 8；实例每格拍数 ${sim.insts[0].speed_cur} 还在往上爬 —— 滑移）`);
+  for (let i = 0; i < 8; i++) simAudioStep(sim, null);    /* 再过 8 拍：滑移走完 */
+  ok(sim.insts[0].speed_cur === 8, `滑移走完：实例每格拍数回到 8（${sim.insts[0].speed_cur}）`);
   /* 夹到 0..AUDIO_MAX(20)，别让界面传负数/超界把判据弄反 */
   ok(simSetAudioLevel(sim, -5) === 0 && simSetAudioLevel(sim, 999) === FW.AUDIO_MAX,
      `音量夹在 0..${FW.AUDIO_MAX}（-5 → 0、999 → ${FW.AUDIO_MAX}）`);
@@ -545,6 +547,12 @@ console.log('--- FFTLevel → 速度档（> 阈值才快）---');
        '一律向上取整：30ms → 2 拍、21ms → 2 拍、20ms → 1 拍、0 → 0（0 保持「关」的语义）');
     ok(CORE.stageHoldTicks({ anim: { stageHoldMs: 0 } }) === 0,
        '阻尼 0 = 不保持（掉到阈值以下就能立刻回慢档）');
+    /* 出快档的「速度滑移」：每拍往 slow 爬多少（ds = 8-1 = 7 拍） */
+    ok(CORE.glideStep(1, 8, 350) === 1 && CORE.glideStep(1, 8, 70) === 2 &&
+       CORE.glideStep(1, 8, 0) === 7,
+       '滑移步长：350ms → 每拍 +1、70ms → +2、0 → 一次到位（= 直切）');
+    ok(CORE.stageGlideMs({ anim: { glideMs: 500 } }) === 500 && CORE.stageGlideMs(null) === 350,
+       '过渡时间可调（默认 350ms）');
   }
 }
 
