@@ -1201,7 +1201,7 @@
           <tr><td>绕环彩虹</td><td>一个填充层，<b>配色选「彩虹」</b>（级数填成分区灯数）；想让彩虹转起来，再调「彩虹旋转」。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
           <tr><td>一整圈首尾相接的彩虹</td><td>效果级配色选<b>彩虹</b>，<b>级数</b>填这个分区的灯数（30 颗圆环填 30；填 30 而分区只有 8 颗，就只显示红→黄那一小段）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
           <tr><td>一种颜色盖过另一种</td><td>配色选<b>覆盖</b>，调色板第 1/2 个分别是底色和盖上去的颜色，<b>周期</b>管盖得快慢。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
-          <tr><td>彩虹在跑</td><td>外环用「彩虹环」（填充 + 效果级配色「彩虹」），顶环再加一个光点层让亮点扫过。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
+          <tr><td>彩虹在跑</td><td>外环用「绕环彩虹(旋转)」（填充 + 效果级配色「彩虹」），顶环再加一个光点层让亮点扫过。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>随机闪</td><td>一个<b>随机闪</b>层；想让它盖在底色上，再垫一个低亮度的填充层。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>旋钮光晕太窄</td><td>模式页那条绑定勾「覆盖参数」→「微调参数」→ 把光宽调大（效果页的「多长度对比」用的是你板子上真实的几条长度，先在编辑台看清再改）。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
           <tr><td>两个分区要错开相位</td><td>给其中一个分区单独勾「覆盖参数」，把「起始位」改一下。</td><td><button class="help-go" data-go="mode" data-tip="跳到模式页：先选中模式，再动它下面的那条绑定。">模式页</button></td></tr>
@@ -9268,19 +9268,12 @@ const FX_PRESETS = [
       smooth:0,
       layers:[ Object.assign(mkLayer('twinkle'), { density:48, rate:4, lo:0, hi:220,
                                                  tw_max:4, tw_on:3, tw_fade:40 }) ] }) },
-  { name:'闪 + 底色',       make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
-      layers:[ Object.assign(mkLayer('fill'),  { level:60 }),
-               Object.assign(mkLayer('twinkle'), { density:60, rate:3, lo:0, hi:255,
-                                                  tw_max:6, tw_on:3, tw_fade:30 }) ] }) },
   /* ---- 新配色模型（效果级，见 FW.COLOR 3..6） ---- */
   /* 测配色的「底片」：一个满亮填充层 —— 整条常亮，不走位置、不脉动、不铺色相。
    * 套上它再换「配色」下拉，纯色 / 跳变 / 渐变 / 彩虹 / 呼吸 / 覆盖 的差别一眼看完。
    * 色板预置 6 色：切到跳变 / 呼吸立刻就是六色轮转（纯色按 palFixed 只显示第 1 个，其余收起）。 */
   { name:'全点亮(测配色)', make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
       palette:[[255,0,0],[255,255,0],[0,255,0],[0,255,255],[0,0,255],[255,0,255]],
-      layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
-  { name:'彩虹环',         make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
-      levels:30, hue_base:0, hue_speed:0,
       layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
   { name:'七彩跳变',       make: () => ({ moves:false, color:3, c1:[255,0,0], slow:8, fast:1, speed:20,
       rise:4, hold:8, fade:8,

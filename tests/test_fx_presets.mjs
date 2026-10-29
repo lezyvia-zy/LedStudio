@@ -240,7 +240,7 @@ console.log('--- 新配色（效果级）---');
   const palCells = () => (byId.get('fPalette').children || []).filter(c => c.classList && c.classList.contains('palcell'));
   const palN = () => palCells().length;
 
-  pick.value = '彩虹环'; click('fxPresetApply');
+  pick.value = '绕环彩虹(旋转)'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   const eR = fxListOf(0)[0];
   ok(eR.color === CORE.FW.COLOR.RAINBOW && eR.levels === 30,
@@ -665,10 +665,10 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
   /* 11c 套预置（结构变了）也要重画：上一段已经证明「颜色换了」；
          这里再确认套完预置后暂停帧里不再是旧配色的颜色 */
   fills.length = 0;
-  pick.value = '彩虹环'; click('fxPresetApply');
+  pick.value = '绕环彩虹(旋转)'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   ok(new Set(pixels().map(p => p.join(','))).size >= 6,
-     `彩虹环暂停时画出一整圈颜色（${new Set(pixels().map(p => p.join(','))).size} 种色相）`);
+     `绕环彩虹暂停时画出一整圈颜色（${new Set(pixels().map(p => p.join(','))).size} 种色相）`);
 
   /* 11d 跳变：tick 0 只有 255/渐亮（没拨到顶点就看不出颜色），暂停时必须拨到包络顶点 */
   fills.length = 0;
@@ -783,10 +783,10 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
 
   /* 13c 套用 = 可撤销的一笔（效果页以前一条快照都没有） */
   const layersBefore = JSON.stringify(list0()[bi].layers);
-  pick.value = '彩虹环'; click('fxPresetApply');
+  pick.value = '绕环彩虹(旋转)'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   ok(list0()[bi].layers[0].kind === 'fill' && list0()[bi].color === CORE.FW.COLOR.RAINBOW,
-     '套用「彩虹环」：图层与配色都换掉了');
+     '套用「绕环彩虹(旋转)」：图层与配色都换掉了');
   (listeners['window:keydown'] || []).forEach(f =>
     f({ key: 'z', ctrlKey: true, target: { tagName: 'CANVAS' }, preventDefault() {} }));
   await new Promise(r => setTimeout(r, 700));
