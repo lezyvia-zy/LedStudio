@@ -809,6 +809,26 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
        `两端各填 1 颗（${f2.m[0]} / ${f2.m[23]}，high=${inst.swHigh}）`);
     ok(new Set(f0.h).size >= 2, `配色仍是彩虹（${new Set(f0.h).size} 种空间色相）`);
   }
+  /* 13d-2 「头部颜色」色块：默认白，改完图层记下来、实例也跟着换 */
+  {
+    const walk = (n, out) => {
+      if (!n) return out;
+      if (n.classList && n.classList.contains('cchip')) out.push(n);
+      (n.children || []).forEach(c => walk(c, out));
+      return out;
+    };
+    const chips = walk(byId.get('fLayers'), []);
+    ok(chips.length === 1, `扫描填充图层上有「头部颜色」色块（${chips.length} 个色块）`);
+    const chip = chips[0];
+    ok(chip && String(chip.value).toLowerCase() === '#ffffff', `默认白色（${chip && chip.value}）`);
+    if (chip) chip.value = '#00ff00';
+    if (chip && chip.oninput) chip.oninput({ target: chip });
+    await new Promise(r => setTimeout(r, 700));          /* saveStore 有 400ms 防抖 */
+    ok(JSON.stringify(list0()[bi].layers[0].hc) === '[0,255,0]',
+       `改色后图层记下 ${JSON.stringify(list0()[bi].layers[0].hc)}`);
+    const instC = CORE.instNew(); CORE.simApplyEffect(instC, list0()[bi], 0);
+    ok(instC.swColor.r === 0 && instC.swColor.g === 255, '实例拿到新的头部颜色');
+  }
 
   /* 13e 下拉停在占位时点「套用」：什么都不动（说明里报一句） */
   const beforeEmpty = JSON.stringify(list0()[bi].layers);

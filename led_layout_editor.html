@@ -3547,6 +3547,7 @@ function instNew() {
     flow_tick: null, flow_acc: 0,
     /* 扫描填充（预置「单向填充 / 双向填充」）的状态：以 RING_SIZE 为单位 */
     swLow: 0, swHigh: 0, swNum: 0, swDir: 0, swPhase: 0, swClear: 0, swT: 0,
+    swColor: { r: 255, g: 255, b: 255 },
     /* 平滑 T（ms，效果级）：慢档时 renderAllSim 按它逐灯爬亮度；0 / 快档 = 直通 */
     smooth: 0,
     /* 往返用：走过接缝的次数取奇偶（0 = 正着走的那几圈 / 1 = 倒着走的那几圈），
@@ -3642,9 +3643,13 @@ function simApplyEffect(inst, eff, idx, state) {
   if (eff.kind === 'custom') {
     inst.anim.layers = (eff.layers || []).map(layerNums);
     inst.anim.moves = !!eff.moves;
+    /* 扫描填充的头部颜色：跟着这一层走（默认白） */
+    const SL = sweepLayerOf(inst.anim.layers);
+    inst.swColor = SL ? { r: SL.hc_r, g: SL.hc_g, b: SL.hc_b } : { r: 255, g: 255, b: 255 };
   } else {
     inst.anim.layers = [];
     inst.anim.moves = false;
+    inst.swColor = { r: 255, g: 255, b: 255 };
   }
   inst.anim.offset  = (eff.kind === 'custom') ? (eff.offset | 0) : 0;
   inst.anim.gen_tick = 0;
@@ -4083,6 +4088,14 @@ function simTick(sim, state, applyReverse) {
 function effectColorAt(inst, i, len, hue) {
   const a = inst.anim, c = inst.color;
   const hh = hue[i];
+  /* 扫描填充：头部那一颗用它自己的颜色（图层「头部颜色」，默认白）；
+     其余灯位照旧走效果级配色。位置与 genSweep 的缩放规则完全一致。 */
+  if (sweepLayerOf(a.layers)) {
+    const u = (inst.swPhase === 1) ? inst.swClear : inst.swNum;
+    let hd = Math.floor(((u | 0) * len) / FW.RING_SIZE);
+    if (hd > len - 1) hd = len - 1;
+    if (i === hd) return inst.swColor || { r: 255, g: 255, b: 255 };
+  }
   /* 覆盖模式先判：hue[] 是调色板条目索引（不是 tint / 哨兵），按条目 + 灯位取色 */
   if (c.type === FW.COLOR.WIPE) return wipeEntryAt(c, hh, i, wipeSpan(c, len));
   if (hh !== 0xFF) return FW.spectrum_tbl[hh];
@@ -4213,6 +4226,7 @@ function instApplyPreset(inst, p) {
   /* 扫描填充：回到「头部在远端、一颗都没填」的起点 */
   inst.swLow = 0; inst.swHigh = 0; inst.swNum = FW.RING_SIZE - 1;
   inst.swDir = 0; inst.swPhase = 0; inst.swClear = 0; inst.swT = 0;
+  inst.swColor = { r: 255, g: 255, b: 255 };
 
   /* 色板：新字段优先；老调用方（测试 / ring_preset_t 形状）只有 c1/c2 也照常工作。
    * 条目可以是纯色（3 个数）或两端渐变（6 个数）：首端进 palette、末端进 paletteB ——
@@ -4409,6 +4423,10 @@ function layerNums(L) {
   const fall = ['cos', 'linear', 'hard', 'tail'].indexOf(String(L.falloff || 'cos').toLowerCase());
   const dir  = L.direction ? 1 : 0;
   const bn   = L.bounce ? 1 : 0;
+  const hc   = Array.isArray(L.hc)
+             ? [Math.max(0, Math.min(255, L.hc[0] | 0)), Math.max(0, Math.min(255, L.hc[1] | 0)),
+                Math.max(0, Math.min(255, L.hc[2] | 0))]
+             : [255, 255, 255];
   return {
     kind,
     /* en=0 的层照旧写进 C 表，只是合成时跳过 —— 这样「临时关掉第 2 层看差异」
@@ -4425,6 +4443,8 @@ function layerNums(L) {
     flash_fast: frame16(L.flash_fast), flash_on: frame16(L.flash_on), flash_low: L.flash_low | 0,
     density: L.density | 0, rate: L.rate | 0, lo: L.lo | 0, hi: L.hi | 0,
     level: L.level | 0, spans: L.spans | 0, rotate: L.rotate | 0,
+    /* 扫描填充（sweep）的「头部颜色」：只有这一层用；别的层写白（默认） */
+    hc_r: hc[0] | 0, hc_g: hc[1] | 0, hc_b: hc[2] | 0,
     direction: dir, bounce: bn,
     flags: dir | (bn << 1),
   };
@@ -4565,6 +4585,7 @@ const LED_GEN_IMPL = [
 '    uint16_t    flow_acc;',
 '    uint8_t     sw_low, sw_high, sw_num, sw_dir, sw_phase, sw_clear;   /* @sweepf@ */',
 '    uint16_t    sw_last;',
+'    uint8_t     sw_r, sw_g, sw_b, sw_used;   /* @sweepc@ */',
 '} led_gen_inst_t;',
 '',
 'static uint8_t        led_gen_zone_mask[ZONE_MAX_LEN];   /* @cmt1@ */',
@@ -4800,6 +4821,15 @@ const LED_GEN_IMPL = [
 '    head = led_gen_sweep_scale(I->sw_num, len);',
 '    if (head >= len) head = (uint8_t)(len - 1u);',
 '    if (hi > mask[head]) mask[head] = hi;',
+'}',
+'',
+'/* is this logical LED the sweep head? (used by the colour stage) */',
+'static uint8_t led_gen_sweep_head(uint8_t i, uint8_t len, const led_gen_inst_t *I)',
+'{',
+'    uint8_t u = (I->sw_phase != 0u) ? I->sw_clear : I->sw_num;',
+'    uint8_t h = led_gen_sweep_scale(u, len);',
+'    if (h >= len) h = (uint8_t)(len - 1u);',
+'    return (i == h) ? 1u : 0u;',
 '}',
 '',
 '/* @layersrender@ */',
@@ -5049,6 +5079,20 @@ const LED_GEN_IMPL = [
 '            led_gen_inst[cnt].step_cnt   = 0;',
 '            /* @sweepinit@ */',
 '            led_gen_inst[cnt].sw_num = (uint8_t)(RING_SIZE - 1u);',
+'            led_gen_inst[cnt].sw_r = 255u; led_gen_inst[cnt].sw_g = 255u; led_gen_inst[cnt].sw_b = 255u;',
+'            {',
+'                uint8_t k;',
+'                for (k = 0; k < E->layers_count; k++) {',
+'                    const led_gen_layer_t *SL0 = &led_gen_layers[E->layers_first + k];',
+'                    if (SL0->en && (SL0->kind == (uint8_t)LED_GEN_LAYER_SWEEP)) {',
+'                        led_gen_inst[cnt].sw_used = 1u;',
+'                        led_gen_inst[cnt].sw_r = SL0->hc_r;',
+'                        led_gen_inst[cnt].sw_g = SL0->hc_g;',
+'                        led_gen_inst[cnt].sw_b = SL0->hc_b;',
+'                        break;',
+'                    }',
+'                }',
+'            }',
 '            cnt++;',
 '        }',
 '        for (z = 0; z < ZONE_MAX; z++)',
@@ -5251,7 +5295,10 @@ const LED_GEN_IMPL = [
 '            phys = (uint8_t)(zn->start + i);',
 '            if (phys >= LED_COUNT) continue;',
 '            hh = led_gen_hue[i];',
-'            if (I->color.type == (uint8_t)LED_GEN_COLOR_WIPE) {',
+'            if (I->sw_used && led_gen_sweep_head(i, len, I)) {',
+'                col.r = I->sw_r; col.g = I->sw_g; col.b = I->sw_b;',
+'            }',
+'            else if (I->color.type == (uint8_t)LED_GEN_COLOR_WIPE) {',
 '                /* hh = palette entry index (see the wipe block of zone_render).',
 '                   Entry k occupies palette rows pal_first + 2k (first colour) and +1',
 '                   (last colour): a solid entry gives a flat block, a gradient [A->B]',
@@ -5341,6 +5388,7 @@ const GEN_COMMENTS = {
   flowf: { zh:'「旋转 / 流动」时钟：慢档 1:1 跟 gen_tick，快档按 speed_slow/speed_cur 加速；彩虹旋转 / 渐变旋转 / 渐变配色流动都用它', en:'rotation/flow clock: 1:1 with gen_tick on the slow stage, accelerated by speed_slow/speed_cur on the fast stage; used by rainbow rotation, gradient-layer rotation and gradient colour flow' },
   sweep: { zh:'扫描填充（预置「单向填充 / 双向填充」）：移植 spim_led.c 的 PixelFill_OneWay / PixelFill_TwoWay —— 已填区域逐颗长出来，头部从远端跑回边界，填满后从远端清空再重来；wave 0 = 单向 / 1 = 双向，rotate = 每步几拍，lo = 已填亮度，hi = 头部亮度', en:'sweep fill (the FILL presets): port of spim_led.c PixelFill_OneWay / PixelFill_TwoWay - the filled run grows one LED at a time, the head runs from the far end back to the boundary, and the whole ring is cleared from the far end when full; wave 0 = one-way / 1 = two-way, rotate = ticks per step, lo = filled brightness, hi = head brightness' },
   sweepf: { zh:'扫描填充的状态（以 RING_SIZE 为单位）：低端已填 / 高端已填 / 头部位置 / 头部方向 / 阶段（0 填 / 1 清）/ 清空位置 / 上一步的流动拍', en:'sweep state (in RING_SIZE units): low filled / high filled / head / head direction / phase (0 fill, 1 clear) / clear position / flow tick of the last step' },
+  sweepc: { zh:'扫描填充的头部颜色（RGB，来自图层「头部颜色」）+ 有没有这一层：颜色阶段用它给头部那颗上色，其余灯位仍走效果级配色', en:'sweep head colour (RGB, from the layer "head colour") + whether such a layer exists: the colour stage paints the head with it, all other LEDs keep the effect-level colour' },
   sweepstep: { zh:'每 rotate 个「流动拍」走一步（快档自动更快），只作用在第一个启用的扫描填充层', en:'advance one step every rotate flow ticks (faster on the fast stage); only the first enabled sweep layer drives it' },
   sweepinit: { zh:'扫描填充的起点：头部在远端（RING_SIZE-1），一颗都没填', en:'sweep starting state: head at the far end (RING_SIZE-1), nothing filled yet' },
   flashgain: { zh:'音控闪的增益：亮的那几拍满亮，之后按「最低亮度」反算出的增益（0 = 全灭；level = 255 时增益就是最低亮度本身）', en:'audio flash gain: full brightness for the bright frames, then the gain derived from the lowest brightness (0 = fully dark; with level = 255 the gain equals that brightness)' },
@@ -5530,7 +5578,7 @@ function exportEffectsC(state, opt) {
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
     modeEn: '该模式是否启用',
-    layRow: '每行: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low}（图层不带颜色，取色全在效果级配色里）,',
+    layRow: '每行: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b}（图层不带颜色，取色全在效果级配色里；末尾三个 hc_* 只给扫描填充的头部用）,',
     instType: '一个效果实例的运行状态。同一条效果被多个分区引用时共用一个实例 = 相位同步',
     applyMode: '切模式：按绑定表建实例（同一效果只建一次）',
     genTick: '每帧推进一次：所有实例各推进各的',
@@ -5557,6 +5605,7 @@ function exportEffectsC(state, opt) {
     lflashfast: '音控闪: 有音乐(FFTLevel 超过阈值, 快档)时多久闪一次(uint16 帧, 1 帧 = 20ms); 0 = 与 pulse_period 相同',
     lflashon: '音控闪: 每次亮几帧(uint16, 0..65535); 0 = 默认 10 帧(200ms), 超过间隔就夹到间隔',
     lflashlow: '音控闪: 闪完「灭」的那几拍亮到什么程度(亮度本身, 0 = 全灭, 255 = 与最高亮度相同); 内部按 level 反算增益',
+  lheadc: '扫描填充(sweep)的「头部颜色」(RGB): 只有这一层用, 已填那一段仍跟效果级配色走; 其它层写 255,255,255',
     layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
     ringNote2: 'led_ring.h 里原来那句 #define RING_PRESET_COUNT 9 请整句注释掉。',
@@ -5597,7 +5646,7 @@ function exportEffectsC(state, opt) {
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
     modeEn: 'mode enabled',
-    layRow: 'rows: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low} (layers carry no colour: colours come from the effect-level colour mode),',
+    layRow: 'rows: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b} (layers carry no colour: colours come from the effect-level colour mode; the last three hc_* are the sweep head colour only),',
     instType: 'runtime state of one effect instance. Zones sharing an effect share the instance = synchronised',
     applyMode: 'switch mode: build instances from the bind table (one per distinct effect)',
     genTick: 'called once per frame: advance every instance',
@@ -5624,6 +5673,7 @@ function exportEffectsC(state, opt) {
     lflashfast: 'audio flash: interval in uint16 frames while the level is above the threshold (fast stage); 0 = same as pulse_period',
     lflashon: 'audio flash: bright frames per flash (uint16, 0..65535); 0 = default 10 frames (200ms), clamped to the interval',
     lflashlow: 'audio flash: brightness during the dark frames (a level, not an attenuation: 0 = off, 255 = same as level); the gain is derived from level',
+  lheadc: 'sweep head colour (RGB): only the sweep layer uses it, the filled run keeps the effect-level colour; other layers write 255,255,255',
     layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
     ringNote2: 'The original #define RING_PRESET_COUNT 9 in led_ring.h must be commented out.',
@@ -5706,6 +5756,7 @@ function exportEffectsC(state, opt) {
        '    uint16_t flash_fast;   /* ' + t.lflashfast + ' */',
        '    uint16_t flash_on;     /* ' + t.lflashon + ' */',
        '    uint8_t flash_low;     /* ' + t.lflashlow + ' */',
+       '    uint8_t hc_r, hc_g, hc_b;   /* ' + t.lheadc + ' */',
        '} led_gen_layer_t;',
        '',
        'typedef struct {',
@@ -5753,11 +5804,12 @@ function exportEffectsC(state, opt) {
     for (const R of layerRows) {
       push('    { ' + [R.kind, R.en, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
-                       R.wave, R.flags, R.spacing, R.flash_fast, R.flash_on, R.flash_low].join(', ') + ' },');
+                       R.wave, R.flags, R.spacing, R.flash_fast, R.flash_on, R.flash_low,
+                       R.hc_r, R.hc_g, R.hc_b].join(', ') + ' },');
     }
     push('};');
   } else {
-    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
+    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } };');
   }
   push('');
   push('/* ' + t.palRow + ' */');
@@ -8718,6 +8770,17 @@ function renderLayers() {
       row.appendChild(layerRow('填充方向', selInput([['0','单向（一端填到另一端）'], ['1','双向（两端交替填）']],
         () => L.wave | 0, v => { L.wave = +v; fxLive(); },
         '移植固件 spim_led.c 的 PixelFill：\n单向 = PixelFill_OneWay：已填区域从一端长出来，头部从另一端跑回来，跑到边界就长一颗；\n双向 = PixelFill_TwoWay：两端交替长，头部在两端之间来回弹。\n填满后从远端往回清空（固件 CFG_FUNC_RGB_FILL_CLEAR_EN=1），清完重新开始。')));
+      /* 头部颜色（默认白）：只染那一颗在跑的头部，已填那一段仍跟效果级配色走 */
+      const hcArr = Array.isArray(L.hc) ? L.hc : [255, 255, 255];
+      const hcChip = colorChip(rgbHex(hcArr));
+      tip(hcChip, '移动头部的颜色（默认白色）。\n已填的那一整段仍跟着效果级「色彩配置」走 —— 这一格只管那一颗头部。');
+      hcChip.oninput = () => {
+        const c = hexRgb(hcChip.value);
+        if (!c) return;
+        L.hc = [c[0], c[1], c[2]];
+        fxLive();
+      };
+      row.appendChild(layerRow('头部颜色', hcChip));
     }
 
     for (const f of (LAYER_FIELDS[L.kind] || [])) {

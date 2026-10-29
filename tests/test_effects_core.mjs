@@ -1378,6 +1378,22 @@ console.log('--- 扫描填充（单向 / 双向）---');
      mB[0] === 120 && mB[23] === 120,
      `双向 45 步：两端各 1 颗（${mB[0]} / ${mB[23]}）`);
 
+  /* 头部颜色：只有头部那一颗用图层「头部颜色」，已填段仍走效果级配色 */
+  {
+    const eff = { kind:'custom', color: FW.COLOR.SOLID, c1: [1, 2, 3], slow: 8, fast: 1, speed: 0, moves: false,
+                  layers: [{ kind: 'sweep', en: 1, wave: 0, rotate: 1, lo: 120, hi: 255, hc: [10, 20, 30] }] };
+    const I2 = CORE.instNew();
+    CORE.simApplyEffect(I2, eff, 0);
+    instTick(I2, false);
+    const m2 = new Uint8Array(24), h2 = new Uint8Array(24);
+    CORE.renderZoneMaskTo(I2, m2, h2, 24, 0);
+    const ch = CORE.effectColorAt(I2, I2.swNum, 24, h2);
+    ok(ch.r === 10 && ch.g === 20 && ch.b === 30, `头部用图层的头部颜色（${ch.r},${ch.g},${ch.b}）`);
+    ok(m2[I2.swNum] === 255, '头部亮度仍是「头部亮度」那一格');
+    ok(CORE.effectColorAt(I2, 5, 24, h2).r === 1 && CORE.effectColorAt(I2, 5, 24, h2).g === 2,
+       '其它灯位仍走效果级配色（纯色 c1 = 1,2,3）');
+  }
+
   /* 填满 → 清空阶段（固件 CFG_FUNC_RGB_FILL_CLEAR_EN=1），清完再从头开始 */
   const C1 = mk(0, 1);
   let guard = 0;
