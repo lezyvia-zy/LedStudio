@@ -1320,10 +1320,11 @@ console.log('--- 旋转 / 流动跟快慢档（flow 时钟）---');
   genRender(g2, 8, 0, L, 2, 0, 0, 255, 16);
   ok(!g1.every((v, i) => v === g2[i]), '渐变层的旋转用 flowTick（快档转得更多）');
 
-  /* 渐变配色的色环流动 */
+  /* 渐变配色的色环流动：只跟自己的速度 / 真实拍数，不跟快慢档 */
   const c = { type: FW.COLOR.SPECTRUM, phase: 0, tick_cnt: 0, spectrum_speed: 1, spectrum: FW.spectrum_tbl };
-  colorUpdate(c, 2, 16);
-  ok(c.phase === 16 && c.tick_cnt === 0, `渐变配色按流动时钟走：2 拍（快档）相位 ${c.phase}`);
+  colorUpdate(c, 2, 16);                    /* tick = 2、flowTick = 16（快档）→ 相位仍只走 2 */
+  ok(c.phase === 2 && c.tick_cnt === 0,
+     `渐变配色只按真实拍数走（2 拍 → 相位 ${c.phase}，快档的 flowTick 不影响）`);
 
   /* 覆盖的趟号：同一 gen_tick、flow 快 → 扫得更远 */
   const w1 = mk({ color: FW.COLOR.WIPE, period: 10, palette: [[0, 0, 255], [255, 120, 0]] });

@@ -3043,7 +3043,7 @@ function genFill(mask, len, L, gain) {
 }
 
 /* 头部取色：0 = 跟配色（同常亮段），1 = 固定色，2 = 彩虹（按头部位置取环上的色），3 = 渐变（取当前渐变色）。
- * 彩虹 / 渐变都用**流动时钟**驱动相位 —— 与常亮段同一套速度，快档一起变快。 */
+ * 彩虹用**流动时钟**驱动（跟快慢档）；渐变按自己的「速度 / 步进」走真实拍数（不跟档）。 */
 function sweepHeadColor(inst, i, len, st) {
   const SL = sweepLayerOf(inst.anim.layers);
   if (!SL) return null;
@@ -3057,9 +3057,10 @@ function sweepHeadColor(inst, i, len, st) {
     const hue = ((inst.color.hue_base | 0) + Math.floor((i * 256) / levels) + rot) & 0xFF;
     return FW.spectrum_tbl[hue];
   }
-  if (m === 3) {                              /* 渐变：与 colorUpdate 的渐变相位同一公式 */
+  if (m === 3) {                              /* 渐变：按效果自己的「速度 / 步进」走真实拍数（不跟快慢档） */
     const sp = Math.max(1, inst.color.spectrum_speed | 0);
-    const ph = (Math.floor(ft / sp) * gradStepOf(inst.color)) & 0xFF;
+    const t = inst.anim.gen_tick | 0;
+    const ph = (Math.floor(t / sp) * gradStepOf(inst.color)) & 0xFF;
     return (inst.swGrad || inst.color.spectrum)[ph];
   }
   return null;                                /* 0 = 跟配色（交给效果级配色） */
@@ -3491,15 +3492,19 @@ function colorUpdate(c, tick, flowTick) {
   const pal = (c.palette && c.palette.length) ? c.palette : null;
   switch (c.type) {
     case FW.COLOR.SOLID: break;
-    /* 渐变 / 旧双色渐变：**色环流动跟着「快慢档时钟」走**（快档转得快）。
-     * 无状态公式 phase = floor(ft / spectrum_speed) × grad_step，与逐拍累加逐值相同；
-     * 没有 flowTick 时 = tick，老行为 / 老测试一字不差。 */
+    /* 渐变 / 旧双色渐变：**色环流动只按自己的「速度 / 步进」走**（真实拍数 gen_tick），
+     * 不跟快慢档 —— 用户 2026-10-29：「渐变色一定得按照自有的时间参数变化，无论哪个动画」。
+     * 有 tick 时用无状态公式 phase = floor(tick / spectrum_speed) × grad_step（逐值等于逐拍累加）；
+     * 没给 tick（老调用）就走逐拍累加。 */
     case FW.COLOR.SPECTRUM:
     case FW.COLOR.GRADIENT: {                  /* GRADIENT = 旧双色渐变，主/副色差 85 级，老存档还认 */
-      const ft = (flowTick == null) ? ((tick == null) ? c.tick_cnt : tick) : flowTick;
       const sp = Math.max(1, c.spectrum_speed | 0);
-      c.tick_cnt = ft % sp;
-      c.phase = (Math.floor(ft / sp) * gradStepOf(c)) & 0xFF;
+      if (tick == null) {
+        if (++c.tick_cnt >= sp) { c.tick_cnt = 0; c.phase = (c.phase + gradStepOf(c)) & 0xFF; }
+      } else {
+        c.tick_cnt = (tick | 0) % sp;
+        c.phase = (Math.floor((tick | 0) / sp) * gradStepOf(c)) & 0xFF;
+      }
       /* 查效果自己那张渐变表（instApplyPreset 换进去的；没换就是固件彩虹表） */
       c.current   = c.spectrum[c.phase];
       c.secondary = c.spectrum[(c.phase + 85) & 0xFF];   /* 副色只有旧双色渐变用，仍旧一起算好 */
@@ -4924,7 +4929,7 @@ const LED_GEN_IMPL = [
 '    if (m == 3u) {',
 '        uint8_t gs = (E->grad_step != 0u) ? E->grad_step : 1u;',
 '        uint16_t sp = (I->color.spectrum_speed != 0u) ? I->color.spectrum_speed : 1u;',
-'        uint8_t ph = (uint8_t)(((uint32_t)(I->flow_tick / sp) * (uint32_t)gs) & 0xFFu);',
+'        uint8_t ph = (uint8_t)(((uint32_t)(I->anim.gen_tick / sp) * (uint32_t)gs) & 0xFFu);',
 '        *col = led_gen_grad[I->sw_grad_first + ph];',
 '        return 1u;',
 '    }',
@@ -5324,8 +5329,8 @@ const LED_GEN_IMPL = [
 '                /* @gradTick@ */',
 '                uint8_t gs = (E->grad_step != 0u) ? E->grad_step : 1u;',
 '                uint16_t sp = (I->color.spectrum_speed != 0u) ? I->color.spectrum_speed : 1u;',
-'                I->color.tick_cnt = (uint8_t)(I->flow_tick % sp);',
-'                I->color.phase.current = (int16_t)(((uint32_t)(I->flow_tick / sp) * (uint32_t)gs) & 0xFFu);',
+'                I->color.tick_cnt = (uint8_t)(I->anim.gen_tick % sp);',
+'                I->color.phase.current = (int16_t)(((uint32_t)(I->anim.gen_tick / sp) * (uint32_t)gs) & 0xFFu);',
 '                I->color.current   = led_gen_grad[E->grad_first + (uint8_t)I->color.phase.current];',
 '                I->color.secondary = led_gen_grad[E->grad_first + (uint8_t)(I->color.phase.current + 85)];',
 '            }',
@@ -5525,7 +5530,7 @@ const GEN_COMMENTS = {
   rainbowcalc: { zh:'(i * 256 / levels) 用 q/r 递推，循环里没有除法', en:'(i * 256 / levels) via a q/r recurrence: no division in the loop' },
   solidnoop: { zh:'纯色：current 在 apply_mode 里已经定好，每拍什么都不用做', en:'solid: current is already set in apply_mode, nothing to do per frame' },
   grad:   { zh:'亮度渐变层：沿环斜坡/三角/锯齿，可带起始位与旋转', en:'brightness gradient layer: ramp/triangle/saw around the ring' },
-  gradTick: { zh:'渐变配色：相位 = flow_tick / 每级拍数 × grad_step —— 用「流动时钟」，快档转得更快（老代码是逐拍累加，慢档两者逐值相同）', en:'gradient colour: phase = flow_tick / ticks-per-level * grad_step - uses the flow clock, so the fast stage flows faster (the old code incremented per frame; identical on the slow stage)' },
+  gradTick: { zh:'渐变配色：相位 = gen_tick / 每级拍数 × grad_step —— 只按真实拍数与自己的「速度 / 步进」走，**不跟快慢档**（快档不会让它变快）', en:'gradient colour: phase = gen_tick / ticks-per-level * grad_step - driven only by real frames and the effect own speed/step, **independent of the fast/slow stage**' },
 };
 function genImpl(zh) {
   return LED_GEN_IMPL.map(line => line.replace(/@(\w+)@/g, (m, k) => (GEN_COMMENTS[k] ? GEN_COMMENTS[k][zh ? 'zh' : 'en'] : k)));

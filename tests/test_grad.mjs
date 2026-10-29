@@ -261,8 +261,8 @@ console.log('--- A7) 「步进(级)」：比速度 = 1 还快（每动一次前�
      `导出行：槽位 0（渐变，步进 8）=${r3[0][28]}，槽位 1（纯色，存着不用）=${r3[1][28]}`);
   ok(r3[0][27] === 0, 'grad_step 排在 grad_first 之后（grad_first 仍在第 28 列）');
   ok(/uint8_t gs = \(E->grad_step != 0u\) \? E->grad_step : 1u;/.test(hdr3) &&
-     hdr3.indexOf('I->flow_tick / sp') >= 0 && hdr3.indexOf('(uint32_t)gs') >= 0,
-     '生成代码：gs = E->grad_step（0 兜底成 1），相位 = flow_tick / sp × gs —— 用流动时钟，不是写死 +1');
+     hdr3.indexOf('I->anim.gen_tick / sp') >= 0 && hdr3.indexOf('(uint32_t)gs') >= 0,
+     '生成代码：gs = E->grad_step（0 兜底成 1），相位 = gen_tick / sp × gs —— 不用流动时钟，不跟快慢档');
   ok(!/phase\.current \+ 1\) & 0xFF/.test(hdr3), '生成代码里已经没有「写死 +1」的老写法');
 }
 
