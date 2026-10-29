@@ -826,7 +826,7 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
     {
       const inst0 = CORE.instNew();
       CORE.simApplyEffect(inst0, list0()[bi], 0);
-      ok(inst0.swColor === null, '跟配色时实例不带固定头部色');
+      ok(CORE.sweepHeadColor(inst0, 0, 24) === null, '跟配色时头部不覆盖');
     }
     if (sels0[1]) { sels0[1].value = '1'; sels0[1].onchange(); }
     await new Promise(r => setTimeout(r, 700));
@@ -840,7 +840,8 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
     ok(JSON.stringify(list0()[bi].layers[0].hc) === '[0,255,0]',
        `改色后图层记下 ${JSON.stringify(list0()[bi].layers[0].hc)}`);
     const instC = CORE.instNew(); CORE.simApplyEffect(instC, list0()[bi], 0);
-    ok(instC.swColor && instC.swColor.r === 0 && instC.swColor.g === 255, '实例拿到新的固定头部颜色');
+    const hcC = CORE.sweepHeadColor(instC, 0, 24);
+    ok(hcC && hcC.r === 0 && hcC.g === 255, '实例拿到新的固定头部颜色');
   }
 
   /* 13e 下拉停在占位时点「套用」：什么都不动（说明里报一句） */

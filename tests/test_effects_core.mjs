@@ -1400,9 +1400,39 @@ console.log('--- 扫描填充（单向 / 双向）---');
     instTick(I3, false);
     const m3 = new Uint8Array(24), h3 = new Uint8Array(24);
     CORE.renderZoneMaskTo(I3, m3, h3, 24, 0);
-    ok(I3.swColor === null, '没配「固定颜色」→ 头部跟配色（swColor = null）');
+    ok(CORE.sweepHeadColor(I3, I3.swNum, 24) === null, '「跟配色」时头部不覆盖（sweepHeadColor = null）');
     const c3 = CORE.effectColorAt(I3, I3.swNum, 24, h3);
     ok(c3.r === 1 && c3.g === 2 && c3.b === 3, `跟配色时头部用效果色（${c3.r},${c3.g},${c3.b}）`);
+
+    /* 头部「彩虹」：按头部在环上的位置取彩虹色（与效果级同一 levels / 起色 / 旋转） */
+    {
+      const effR = { kind:'custom', color: FW.COLOR.SOLID, c1: [0, 0, 0], slow: 8, fast: 1, speed: 0, moves: false,
+                     levels: 30, hue_base: 0, hue_speed: 0,
+                     layers: [{ kind: 'sweep', en: 1, hm: 2, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
+      const IR = CORE.instNew();
+      CORE.simApplyEffect(IR, effR, 0);
+      instTick(IR, false);
+      const mR = new Uint8Array(24), hR = new Uint8Array(24);
+      CORE.renderZoneMaskTo(IR, mR, hR, 24, 0);
+      const hue = Math.floor((IR.swNum * 256) / 30) & 0xFF;
+      const cR = CORE.effectColorAt(IR, IR.swNum, 24, hR);
+      ok(cR === FW.spectrum_tbl[hue], `头部彩虹：按位置取第 ${hue} 级`);
+      ok(CORE.effectColorAt(IR, 5, 24, hR).r === 0, '头部彩虹不影响常亮段（仍是效果色）');
+    }
+    /* 头部「渐变」：取效果那张渐变环当前相位（与 colorUpdate 同一公式） */
+    {
+      const effG = { kind:'custom', color: FW.COLOR.SPECTRUM, c1: [0, 0, 0], slow: 8, fast: 1, speed: 1,
+                     grad_step: 1, moves: false,
+                     layers: [{ kind: 'sweep', en: 1, hm: 3, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
+      const IG = CORE.instNew();
+      CORE.simApplyEffect(IG, effG, 0);
+      instTick(IG, false);
+      const mG = new Uint8Array(24), hG = new Uint8Array(24);
+      CORE.renderZoneMaskTo(IG, mG, hG, 24, 0);
+      const cG = CORE.effectColorAt(IG, IG.swNum, 24, hG);
+      ok(cG === IG.color.spectrum[IG.color.phase] && IG.color.phase === 1,
+         `头部渐变：取当前相位 ${IG.color.phase} 的颜色`);
+    }
   }
 
   /* 填满 → 清空阶段（固件 CFG_FUNC_RGB_FILL_CLEAR_EN=1），清完再从头开始 */
