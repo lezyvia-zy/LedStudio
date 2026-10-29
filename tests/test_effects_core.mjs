@@ -334,14 +334,17 @@ console.log('--- 随机闪（慢档火花 / 快档老样式）---');
 {
   const len = 24;
   const L = { kind:'twinkle', density:48, rate:4, lo:0, hi:255, tw_max:3, tw_on:2, tw_fade:8 };
-  let maxLit = 0, sawDecay = false, prev = new Uint8Array(len);
+  let maxLit = 0, sawDecay = false, sameLevel = true, prev = new Uint8Array(len);
   for (let t = 0; t < 60; t++) {
     const m = mk(len); genTwinkle(m, len, L, t, 0);
-    maxLit = Math.max(maxLit, m.filter(v => v > 0).length);
+    const lit = Array.from(m).filter(v => v > 0);
+    maxLit = Math.max(maxLit, lit.length);
+    if (lit.length >= 2 && lit.some(v => v !== lit[0])) sameLevel = false;
     for (let i = 0; i < len; i++) if (prev[i] > 0 && m[i] > 0 && m[i] < prev[i]) sawDecay = true;
     prev = m;
   }
   ok(maxLit <= L.tw_max, `慢档同时点亮 ${maxLit} 颗 ≤ 上限 ${L.tw_max}`);
+  ok(sameLevel, '同一发烟花里的几颗亮度相同（一起亮、一起渐灭）');
   ok(sawDecay, '慢档有渐暗：同一颗灯后一拍比前一拍暗（快亮慢灭）');
 
   const f = mk(len); genTwinkle(f, len, L, 10, 1);

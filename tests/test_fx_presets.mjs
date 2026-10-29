@@ -761,6 +761,20 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
   ok(list0()[bi].tpl === '拖尾彗星', `套用后效果记住模板名（tpl=${list0()[bi].tpl}）`);
   ok(byId.get('rowMoves').style.display !== 'none',
      '含光点层的效果显示「随位置前进」');
+  ok(byId.get('rowSlow').style.display !== 'none' &&
+     byId.get('rowFast').style.display !== 'none' &&
+     byId.get('rowSmooth').style.display !== 'none' &&
+     byId.get('rowOffset').style.display !== 'none',
+     '含光点层的效果：慢速 / 快速 / 平滑 / 起始位 都还在');
+  /* 13b-2 纯「随机闪」用不上这四格 → 整行收起 */
+  pick.value = '随机闪'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
+       .every(id => byId.get(id).style.display === 'none'),
+     '纯随机闪效果：慢速 / 快速 / 平滑 / 起始位 四行收起');
+  pick.value = '拖尾彗星'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(byId.get('rowSlow').style.display !== 'none', '换回带光点的模板后四行恢复');
   ok(pick.value === '拖尾彗星', `下拉显示当前效果的模板名（「${pick.value}」）`);
   rowAt(0);
   ok(pick.value === (list0()[0].kind === 'custom' && list0()[0].tpl || ''),

@@ -728,10 +728,10 @@
           <span class="hint" style="flex:1;margin:0">只是库里的编号；哪个模式用哪个效果，在「模式」页里配</span></label>
         <label class="row"><span>类型</span><span id="fKind">—</span></label>
         <label class="row ck"><span>使能</span><input type="checkbox" id="fEn" data-tip="停用后这个效果不参与预览与导出（引用它的绑定会退回内建默认）。" checked></label>
-        <label class="row"><span>慢速(ms)</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要多少 ms（内部按 20ms 一拍、**向上取整**）。数值越大越慢。&#10;150ms 相当于以前的 8 拍（160ms）。" min="20" max="5100" step="20"></label>
-        <label class="row"><span>快速(ms)</span><input type="number" id="fFast" data-tip="快速档：有音乐（快档）时每走一格要多少 ms。&#10;20ms = 每拍走一格（最快）。" min="20" max="5100" step="20"></label>
-        <label class="row"><span>平滑(ms)</span><input type="number" id="fSmooth" data-tip="每效果独立的「平滑 T」：亮度（mask）变化时按这个时间慢慢爬过去，**只在慢速档生效**，快档直通（省算力）。&#10;0 = 关（硬切；老工程与内建行就是这个）；新效果 / 套预置默认 60ms；越大越柔，上限 1000ms。&#10;逐灯爬坡：每拍最多变 ceil(255 × 20 ÷ T) 级，剩下的不足一步就吸附到位（60ms ≈ 每拍 85 级、约 3 拍走满）。&#10;看效果要点播放条上的「播放」—— 暂停时画的是目标帧（形状 / 亮度原样），过渡只有在跑起来时才看得到。"></label>
-        <label class="row"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
+        <label class="row" id="rowSlow"><span>慢速(ms)</span><input type="number" id="fSlow" data-tip="慢速档：每走一格要多少 ms（内部按 20ms 一拍、**向上取整**）。数值越大越慢。&#10;150ms 相当于以前的 8 拍（160ms）。" min="20" max="5100" step="20"></label>
+        <label class="row" id="rowFast"><span>快速(ms)</span><input type="number" id="fFast" data-tip="快速档：有音乐（快档）时每走一格要多少 ms。&#10;20ms = 每拍走一格（最快）。" min="20" max="5100" step="20"></label>
+        <label class="row" id="rowSmooth"><span>平滑(ms)</span><input type="number" id="fSmooth" data-tip="每效果独立的「平滑 T」：亮度（mask）变化时按这个时间慢慢爬过去，**只在慢速档生效**，快档直通（省算力）。&#10;0 = 关（硬切；老工程与内建行就是这个）；新效果 / 套预置默认 60ms；越大越柔，上限 1000ms。&#10;逐灯爬坡：每拍最多变 ceil(255 × 20 ÷ T) 级，剩下的不足一步就吸附到位（60ms ≈ 每拍 85 级、约 3 拍走满）。&#10;看效果要点播放条上的「播放」—— 暂停时画的是目标帧（形状 / 亮度原样），过渡只有在跑起来时才看得到。"></label>
+        <label class="row" id="rowOffset"><span>起始位</span><input type="number" id="fOffset" data-tip="起始位：把整个动画沿环挪一段。0 不挪，255 约等于绕回原处。&#10;只对自定义动效有效（它是图层参数）。" min="0" max="255"></label>
       </fieldset>
 
       <fieldset id="fxBuiltin">
@@ -1037,8 +1037,8 @@
         <table>
           <tr><th>参数</th><th>作用</th></tr>
           <tr><td>快档点亮密度 / 快档刷新间隔</td><td>快档（有音乐）时用：大约多少比例的灯同时亮着、每几帧换一批。</td></tr>
-          <tr><td>慢档最多同时点亮</td><td>慢档（安静）时同时在跑的「火花」上限（单位 = 该分区灯数）。慢档灯数用这一格控制，想让慢档更稀疏就调小。</td></tr>
-          <tr><td>慢档亮(ms) / 慢档灭(ms)</td><td>慢档每颗火花的形状：点亮后保持满亮多久，再从满亮渐暗到「亮度下限」多久 —— 也就是「快亮慢灭」。两个都按 20ms 一拍向上取整。</td></tr>
+          <tr><td>慢档最多同时点亮</td><td>慢档「烟花」：每一发最多同时点亮几颗（每发随机 1..这个数，亮起来的这几颗一起渐灭）。想让慢档更稀疏就调小。</td></tr>
+          <tr><td>慢档亮(ms) / 慢档灭(ms)</td><td>慢档每发烟花的形状：点亮后保持满亮多久，再从满亮渐暗到「亮度下限」多久。两者之和也是**两发烟花之间的间隔**（这一发走完才爆下一发）。都按 20ms 一拍向上取整。</td></tr>
           <tr><td>亮度下限/上限</td><td>火花的亮度区间（上也用于快档）。</td></tr>
         </table>
 
@@ -3021,31 +3021,33 @@ function genSpot(mask, len, pos, L, gain, lap) {
  * 慢档是无状态的：tick t 往回数 max 个点燃时刻，逐个算亮度取最大值 —— C 与 JS 同一套整数。 */
 function genTwinkle(mask, len, L, tick, fast) {
   if (L.hi <= L.lo) return;                    /* C 侧同款护栏：避免负数落到 uint8 上取模后走样 */
-  if (!fast) {                                 /* —— 慢档：快亮慢灭 —— */
+  if (!fast) {                                 /* —— 慢档：烟花式「一群一起亮、一起渐灭」—— */
     const maxN = Math.max(1, L.tw_max | 0);
     const on   = Math.max(0, L.tw_on | 0);
     const fade = Math.max(0, L.tw_fade | 0);
     const life = on + fade;
     if (life > 0) {
-      const step = Math.max(1, Math.ceil(life / maxN));
-      for (let k = 0; k < maxN; k++) {
-        const age = k * step;
-        if (age >= life) break;
-        const ti = (tick | 0) - age;
-        if (ti < 0) break;
-        /* 第 ti 拍点燃在哪颗灯上（哈希与 C 一致：ti+1 避免全零） */
-        let h = Math.imul(ti + 1, 2654435761) >>> 0;
+      const b   = Math.floor((tick | 0) / life);   /* 第几发烟花（一发 life 拍） */
+      const age = (tick | 0) % life;
+      /* 这一发爆几颗：1..maxN（同一个 burst 内所有灯同亮同灭） */
+      let hs = Math.imul(b + 1, 2654435761) >>> 0;
+      hs = (hs ^ (hs >>> 15)) >>> 0;
+      hs = Math.imul(hs, 2654435761) >>> 0;
+      hs = (hs ^ (hs >>> 13)) >>> 0;
+      const n = 1 + (hs % maxN);
+      let v;
+      if (age < on) v = L.hi;
+      else {
+        const d = age - on;
+        v = L.hi - Math.floor(((L.hi - L.lo) * (d + 1)) / Math.max(1, fade));
+        if (v < L.lo) v = L.lo;
+      }
+      for (let j = 0; j < n; j++) {
+        let h = (hs ^ Math.imul(j + 1, 2246822519)) >>> 0;
         h = (h ^ (h >>> 15)) >>> 0;
         h = Math.imul(h, 2654435761) >>> 0;
         h = (h ^ (h >>> 13)) >>> 0;
         const led = ((h >>> 8) & 0xFF) % len;
-        let v;
-        if (age < on) v = L.hi;
-        else {
-          const d = age - on;
-          v = L.hi - Math.floor(((L.hi - L.lo) * (d + 1)) / Math.max(1, fade));
-          if (v < L.lo) v = L.lo;
-        }
         if (v > mask[led]) mask[led] = v;
       }
       return;
@@ -4840,30 +4842,31 @@ const LED_GEN_IMPL = [
 '    uint32_t h, bmix;',
 '    if (L->hi <= L->lo)   return;',
 '    if (fast == 0u) {',
-'        /* slow stage: quick attack + slow decay, at most tw_max sparks at once */',
+'        /* slow stage: fireworks - one burst per "life" frames, 1..tw_max LEDs',
+'           ignite together and fade together */',
 '        uint8_t  maxN = (L->tw_max > 0u) ? L->tw_max : 1u;',
 '        uint16_t on = L->tw_on, fade = L->tw_fade;',
 '        uint32_t life = (uint32_t)on + (uint32_t)fade;',
-'        uint16_t step;',
+'        uint32_t b, age, hs;',
+'        uint8_t  n, j;',
 '        if (life == 0u) goto led_gen_twinkle_legacy;   /* no slow params: keep the old look */',
-'        step = (uint16_t)(((uint32_t)maxN >= life) ? 1u : ((life + maxN - 1u) / maxN));',
-'        for (r = 0; r < maxN; r++) {',
-'            uint32_t age = (uint32_t)r * step;',
-'            int32_t  ti;',
-'            uint8_t  led;',
-'            if (age >= life) break;',
-'            ti = (int32_t)tick - (int32_t)age;',
-'            if (ti < 0) break;',
-'            h = ((uint32_t)ti + 1u) * 2654435761u;',
+'        b   = (uint32_t)tick / life;',
+'        age = (uint32_t)tick % life;',
+'        hs  = ((b + 1u) * 2654435761u);',
+'        hs ^= hs >> 15; hs *= 2654435761u; hs ^= hs >> 13;',
+'        n = (uint8_t)(1u + (hs % (uint32_t)maxN));',
+'        if (age < (uint32_t)on) v = L->hi;',
+'        else {',
+'            uint32_t d = age - (uint32_t)on;',
+'            uint32_t span = (uint32_t)(L->hi - L->lo) * (d + 1u);',
+'            v = (uint8_t)((uint32_t)L->hi - (span / ((fade > 0u) ? (uint32_t)fade : 1u)));',
+'            if (v < L->lo) v = L->lo;',
+'        }',
+'        for (j = 0; j < n; j++) {',
+'            uint8_t led;',
+'            h = hs ^ ((uint32_t)(j + 1u) * 2246822519u);',
 '            h ^= h >> 15; h *= 2654435761u; h ^= h >> 13;',
 '            led = (uint8_t)(((h >> 8) & 0xFFu) % (uint32_t)len);',
-'            if (age < (uint32_t)on) v = L->hi;',
-'            else {',
-'                uint32_t d = age - (uint32_t)on;',
-'                uint32_t span = (uint32_t)(L->hi - L->lo) * (d + 1u);',
-'                v = (uint8_t)((uint32_t)L->hi - (span / ((fade > 0u) ? (uint32_t)fade : 1u)));',
-'                if (v < L->lo) v = L->lo;',
-'            }',
 '            if (v > mask[led]) mask[led] = v;',
 '        }',
 '        return;',
@@ -5804,9 +5807,9 @@ function exportEffectsC(state, opt) {
   lheadm: '头部取色: 0 = 跟配色(同常亮段), 1 = 固定颜色(用 hc_r/g/b), 2 = 彩虹(按头部位置取环上的色), 3 = 渐变(取当前相位色); 其它层写 0',
   lheadg: '头部渐变用哪条色环: 指向 led_gen_grad[] 的起点; 0xFFFF = 用效果自己那张渐变',
   llit: '扫描填充: 初始常亮灯数(每轮回到起点时保留亮着的灯数, 0 = 从全灭开始)',
-  ltwmax: '随机闪(慢档): 同时点亮的最多灯数(单位 = 该分区灯数; 0 按 1 算)',
-  ltwon: '随机闪(慢档): 点亮后保持满亮的拍数(uint16; 界面按 ms 填)',
-  ltwfade: '随机闪(慢档): 从满亮渐暗到「亮度下限」的拍数(uint16; 界面按 ms 填)',
+  ltwmax: '随机闪(慢档): 每一发烟花最多同时点亮几颗(每发随机 1..这个数, 一起渐灭)',
+  ltwon: '随机闪(慢档): 每发烟花保持满亮的拍数(uint16; 界面按 ms 填)',
+  ltwfade: '随机闪(慢档): 每发烟花从满亮渐暗到「亮度下限」的拍数(uint16; 界面按 ms 填); 亮+灭 = 两发之间的间隔',
   fastnow: '这一拍是不是快档（随机闪慢/快两套画法用）',
     layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
@@ -5879,9 +5882,9 @@ function exportEffectsC(state, opt) {
   lheadm: 'head colour source: 0 = follow the effect colour, 1 = fixed (hc_r/g/b), 2 = rainbow at the head position, 3 = gradient at the current phase; other layers write 0',
   lheadg: 'which colour ring the head gradient uses: start index into led_gen_grad[]; 0xFFFF = the effect own gradient',
   llit: 'sweep: LEDs kept lit at the start of every cycle (0 = start from fully dark)',
-  ltwmax: 'twinkle (slow stage): max LEDs lit at the same time (in that zone LEDs; 0 counts as 1)',
-  ltwon: 'twinkle (slow stage): frames held at full brightness after ignition (uint16; UI in ms)',
-  ltwfade: 'twinkle (slow stage): frames fading from full down to the low level (uint16; UI in ms)',
+  ltwmax: 'twinkle (slow stage): max LEDs in one burst (each burst lights 1..this, fading together)',
+  ltwon: 'twinkle (slow stage): frames each burst stays at full brightness (uint16; UI in ms)',
+  ltwfade: 'twinkle (slow stage): frames each burst fades from full down to the low level (uint16; UI in ms); on+fade = the gap between bursts',
   fastnow: 'is this frame on the fast stage (twinkle uses two renderers)',
     layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
@@ -8538,9 +8541,9 @@ const LAYER_FIELDS = {
   twinkle: [
     ['快档点亮密度','density',1,255,'快档时同时亮着的灯大约占多少（0..255，越大越密）。'],
     ['快档刷新间隔','rate',1,255,'快档时每多少 ms 换一批灯（按 20ms 一拍向上取整）；越大越慢。'],
-    ['慢档最多同时点亮','tw_max',1,255,'慢档「快亮慢灭」时，同时最多有几颗火花在跑（单位 = 该分区灯数）。\n想让慢档更稀疏就调小。'],
-    ['慢档亮(ms)','tw_on',0,65535,'慢档：点亮后保持满亮多久（按 20ms 一拍向上取整；0 = 立即开始变暗）。'],
-    ['慢档灭(ms)','tw_fade',0,65535,'慢档：从满亮渐暗到「亮度下限」要多久（按 20ms 一拍向上取整）。'],
+    ['慢档最多同时点亮','tw_max',1,255,'慢档「烟花」：每一发最多同时点亮几颗（1..255；每发随机 1..这个数，亮起来的那几颗一起渐灭）。\n想让慢档更稀疏就调小。'],
+    ['慢档亮(ms)','tw_on',0,65535,'慢档：每发烟花保持满亮多久（按 20ms 一拍向上取整；0 = 立即开始变暗）。'],
+    ['慢档灭(ms)','tw_fade',0,65535,'慢档：每发烟花从满亮渐暗到「亮度下限」要多久（按 20ms 一拍向上取整）。\n「亮 + 灭」也是一发烟花的完整周期：这一段走完才爆下一发。'],
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
   ],
   fill: [
@@ -10105,6 +10108,16 @@ function syncFxEdit() {
   if (!on) { $('#fKind').textContent = '—'; syncStagePlayBtn(); return; }
 
   normalizeEffect(e);
+  /* 纯「随机闪」效果：慢速 / 快速 / 平滑 / 起始位 这四格都用不上（随机闪不吃位置，
+   * 慢/快档已经各有自己的一套参数），整行收起 */
+  {
+    const ls = (e.layers || []).filter(L => L.en !== 0);
+    const pureTw = e.kind === 'custom' && ls.length > 0 && ls.every(L => L.kind === 'twinkle');
+    ['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset'].forEach(id => {
+      const el = $('#' + id);
+      if (el) el.style.display = pureTw ? 'none' : '';
+    });
+  }
   $('#fMode').textContent = selFx + '（共 ' + fxList().length + ' 条）';
 
   $('#fName').textContent = e.name;      /* 只读：名字由「模板 / 配色」算出来（fxEffectName） */
