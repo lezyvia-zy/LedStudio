@@ -776,7 +776,7 @@
         <label class="row" id="rowFade"><span>变暗(ms)</span><input type="number" id="fFade" min="0" max="5100" step="20" data-tip="跳变：满亮之后用多少 ms 匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗拍数+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数，≈5.1 秒）。"></label>
         <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
         <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
-        <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="5100" step="20" data-tip="每多少 ms 整体转一格（按 20ms 一拍向上取整）；0 = 不动。"></label>
+        <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="5100" step="20" data-tip="每多少 ms 整体转一格（按 20ms 一拍向上取整）；0 = 不动。跟着快慢档：快档转得更快（最多 8 倍）。"></label>
         <label class="row" id="rowCoverDir"><span>覆盖方向</span><select id="fCoverDir" data-tip="往返：盖满之后从另一头把底色盖回来（第 2 趟反向、第 3 趟再反回来），来回交替不停。&#10;单向：每趟都从同一头推过去 —— 盖满后颜色换一种、再从这一头重新盖一遍（像跑马灯从头刷过去）。&#10;两种都是连环的：颜色一趟一换（底色 / 盖色），所以永远不会整条「跳回」；「覆盖灯数」以外的那几颗一直是底色。"><option value="0">往返（来回）</option><option value="1">单向</option></select></label>
         <label class="row" id="rowCoverSpan"><span>覆盖灯数</span><input type="number" id="fCoverSpan" min="0" max="64" data-tip="覆盖等级：一趟最多扫过多少颗灯（0 = 整条分区）。&#10;填 16 就只在前面 16 颗之间来回盖，后面的灯一直保持底色 —— 一条 40 颗的顶环看着就像只有前 16 颗在动。&#10;超过分区灯数按整条算，最大 64。"></label>
         <label class="row" id="rowPeriod"><span id="fPeriodLab">周期(ms)</span><input type="number" id="fPeriod" min="40" max="12000" step="20" data-tip="呼吸：一次「灭→亮→灭」多少 ms，每过一个周期换一种颜色（= 渐亮×2 + 亮，自动算，只读）。&#10;覆盖：一趟（从一头扫到另一头）多少 ms —— 越小越快。往返两趟 = 一个完整的来回。&#10;填的 ms 一律向上取整到 20ms 的整拍。"></label>
@@ -3067,9 +3067,10 @@ function genGradient(mask, len, L, tick) {
  * 图层不再自带「本层取色」—— 动画与色彩分离。
  * flash = 音控闪层这一拍该用的增益（0..255）。它由 instTick() 的小状态机算好，
  * 与 C 的 I->flash_gain 同源；只有 wave == FLASH 的层用它，其余层照旧吃 pulseGain。 */
-function genRender(mask, len, pos, layers, tick, offset, lap, flash) {
+function genRender(mask, len, pos, layers, tick, offset, lap, flash, flowTick) {
   mask.fill(0, 0, len);
   if (!layers || !layers.length) return;
+  const ft = (flowTick == null) ? tick : flowTick;   /* 旋转/流动用「快慢档时钟」，其余看 tick */
   const rd = len * 256;
   let p = pos + Math.floor((offset | 0) * len);   /* 效果的起始位（0..255 分数） */
   p %= rd; if (p < 0) p += rd;
@@ -3082,7 +3083,7 @@ function genRender(mask, len, pos, layers, tick, offset, lap, flash) {
       case LAYER.SPOT:     genSpot(mask, len, p, L, gain, lap);  break;
       case LAYER.TWINKLE:  genTwinkle(mask, len, L, tick);       break;
       case LAYER.FILL:     genFill(mask, len, L, gain);          break;
-      case LAYER.GRADIENT: genGradient(mask, len, L, tick);      break;
+      case LAYER.GRADIENT: genGradient(mask, len, L, ft);        break;
       default: break;
     }
   }
@@ -3338,7 +3339,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
   if (c.type === FW.COLOR.WIPE) {
     /* 连环覆盖：hue[] 在这里是**条目索引**（第 r 趟盖条目 (r+1) % n），不再用哨兵 */
     m.fill(255, 0, len);
-    coverEntry(hue, len, a.gen_tick, c.period, c.cover_span, c.cover_dir, (c.palette || []).length);
+    coverEntry(hue, len, flowTickOf(inst), c.period, c.cover_span, c.cover_dir, (c.palette || []).length);
     return;
   }
 
@@ -3350,7 +3351,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.FILL:         fillAnim(m, len, pos, a.params.direction); break;
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
     default:                   genRender(m, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset, inst.lap,
-                                         inst.flashGain); break;
+                                         inst.flashGain, flowTickOf(inst)); break;
   }
 
   /* 跳变：每种颜色先渐亮 / 满亮、再渐暗（stepEnv），把包络乘到 mask 上。
@@ -3367,7 +3368,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
   if (c.type === FW.COLOR.RAINBOW) {
     const levels = Math.max(6, Math.min(255, c.levels | 0 || 30));
     const base = (c.hue_base | 0) & 0xFF;
-    const rot  = c.hue_speed > 0 ? Math.floor(a.gen_tick / c.hue_speed) : 0;
+    const rot  = c.hue_speed > 0 ? Math.floor(flowTickOf(inst) / c.hue_speed) : 0;
     const q0 = Math.floor(256 / levels), r0 = 256 % levels;
     let q = 0, r = 0;
     for (let i = 0; i < len; i++) {
@@ -3387,21 +3388,24 @@ function gradStepOf(c) {
   const v = (c && c.grad_step) | 0;
   return Math.max(GRAD_STEP_MIN, Math.min(GRAD_STEP_MAX, v || GRAD_STEP_MIN));
 }
-function colorUpdate(c, tick) {
+function colorUpdate(c, tick, flowTick) {
   const pal = (c.palette && c.palette.length) ? c.palette : null;
   switch (c.type) {
     case FW.COLOR.SOLID: break;
+    /* 渐变 / 旧双色渐变：**色环流动跟着「快慢档时钟」走**（快档转得快）。
+     * 无状态公式 phase = floor(ft / spectrum_speed) × grad_step，与逐拍累加逐值相同；
+     * 没有 flowTick 时 = tick，老行为 / 老测试一字不差。 */
     case FW.COLOR.SPECTRUM:
-      if (++c.tick_cnt >= c.spectrum_speed) { c.tick_cnt = 0; c.phase = (c.phase + gradStepOf(c)) & 0xFF; }
+    case FW.COLOR.GRADIENT: {                  /* GRADIENT = 旧双色渐变，主/副色差 85 级，老存档还认 */
+      const ft = (flowTick == null) ? ((tick == null) ? c.tick_cnt : tick) : flowTick;
+      const sp = Math.max(1, c.spectrum_speed | 0);
+      c.tick_cnt = ft % sp;
+      c.phase = (Math.floor(ft / sp) * gradStepOf(c)) & 0xFF;
       /* 查效果自己那张渐变表（instApplyPreset 换进去的；没换就是固件彩虹表） */
       c.current   = c.spectrum[c.phase];
       c.secondary = c.spectrum[(c.phase + 85) & 0xFF];   /* 副色只有旧双色渐变用，仍旧一起算好 */
       break;
-    case FW.COLOR.GRADIENT:                    /* 旧双色渐变：主/副色差 85 级，老存档还认 */
-      if (++c.tick_cnt >= c.spectrum_speed) { c.tick_cnt = 0; c.phase = (c.phase + gradStepOf(c)) & 0xFF; }
-      c.current   = c.spectrum[c.phase];
-      c.secondary = c.spectrum[(c.phase + 85) & 0xFF];
-      break;
+    }
     /* 跳变：每 speed 拍换下一个颜色（这儿只改索引）。亮度包络在
      * renderZoneMaskTo / C 的 led_gen_zone_render 里乘到 mask 上。 */
     case FW.COLOR.STEP:
@@ -3422,16 +3426,18 @@ function colorUpdate(c, tick) {
         c.current = pal[idx];
       }
       break;
-    /* 覆盖：条目**按趟轮换** —— 第 r 趟（r = ⌊gen_tick / period⌋）盖的是条目 (r+1) % n，
+    /* 覆盖：条目**按趟轮换** —— 第 r 趟（r = ⌊flow_tick / period⌋）盖的是条目 (r+1) % n，
      * 所以调色板放 3 个以上时每趟换一个样子（2 个 = 老行为：主色 / 副色交替）。
      * 这里只更新 phase / current（列表色块、暂停样本帧要用），真正逐灯取色在
-     * wipeEntryAt —— hue[] 里存的是条目索引，不依赖 c.current。 */
+     * wipeEntryAt —— hue[] 里存的是条目索引，不依赖 c.current。
+     * 趟号用**流动时钟**：快档扫得更快（没有 flowTick 时 = tick，老行为逐值不变）。 */
     case FW.COLOR.WIPE:
       if (!pal) break;
       {
         const per = c.period > 0 ? c.period : 60;
         const t = (tick == null) ? (c.tick_cnt = (c.tick_cnt + 1) & 0xFFFF) : tick;
-        c.phase = Math.floor(t / per) % pal.length;
+        const ft = (flowTick == null) ? t : flowTick;
+        c.phase = Math.floor(ft / per) % pal.length;
         c.current = pal[c.phase];
       }
       break;
@@ -3470,6 +3476,9 @@ function instNew() {
                 铺法看条目本身（palette 首端 / paletteB 末端同色 = 纯色） */
              cover_span: 0, cover_dir: 0 },
     speed_slow: 8, speed_fast: 1, speed_cur: 8, step_cnt: 0,
+    /* 「旋转 / 流动」用的时钟：慢档 1:1 跟 gen_tick，快档按 speed_slow/speed_cur 加速（Q8 累加）。
+       null = 还没跑过 tick —— 测试里手工设 gen_tick 的实例回落到 gen_tick，行为和以前逐值相同。 */
+    flow_tick: null, flow_acc: 0,
     /* 平滑 T（ms，效果级）：慢档时 renderAllSim 按它逐灯爬亮度；0 / 快档 = 直通 */
     smooth: 0,
     /* 往返用：走过接缝的次数取奇偶（0 = 正着走的那几圈 / 1 = 倒着走的那几圈），
@@ -3483,6 +3492,24 @@ function instNew() {
        默认 gain = 255：暂停时（还没走过一拍）编辑台也看得见灯，不是一片黑。 */
     flashT: 0, loudPrev: 0, flashGain: 255,
   };
+}
+
+/* 「旋转 / 流动」时钟：有 flow_tick 就用它（快档跑得快），没有就回落到 gen_tick
+ * （手工拼的实例 / 只设了 gen_tick 的测试走这一支，逐值不变）。 */
+function flowTickOf(inst) {
+  if (inst && inst.flow_tick != null) return inst.flow_tick | 0;
+  return (inst && inst.anim) ? (inst.anim.gen_tick | 0) : 0;
+}
+/* 每拍推进 flow 时钟：inc = 慢档拍数 / 当前拍数（Q8，至少 1），余数留在 flow_acc 里。 */
+function instFlowStep(inst) {
+  if (inst.flow_tick == null) inst.flow_tick = (inst.anim.gen_tick - 1) & 0xFFFF;
+  const slow = inst.speed_slow | 0, cur = Math.max(1, inst.speed_cur | 0);
+  let inc = Math.floor((slow * 256) / cur);
+  if (inc < 1) inc = 1;
+  if (inc > 65535) inc = 65535;
+  inst.flow_acc = (inst.flow_acc | 0) + inc;
+  inst.flow_tick = (inst.flow_tick + (inst.flow_acc >> 8)) & 0xFFFF;
+  inst.flow_acc &= 0xFF;
 }
 
 /* 帧缓冲里「光带现在在哪」—— 单点追逐是**平顶光带**（带内每颗灯一样亮），
@@ -3937,6 +3964,7 @@ function instTick(inst, loud) {
   if (inst.lapPrev < 0 && inst.anim.position.current >= 0) inst.lap ^= 1;
   inst.lapPrev = inst.anim.position.current;
   inst.anim.gen_tick = (inst.anim.gen_tick + 1) & 0xFFFF;
+  instFlowStep(inst);                 /* 旋转 / 流动时钟：慢档 1:1，快档按 speed_slow/speed_cur 加速 */
   /* 音控闪（预置「闪烁」）：闪的时钟不跟 gen_tick 走，跟音量档走 ——
    *   安静（慢档）：flashT 走到「没有音乐时多久闪一次」就绕回 0（预置 250 拍 = 5000 ms）；
    *   有音乐（快档）：周期换成「有音乐时多久闪一次」（预置 25 拍 = 500 ms）——
@@ -3957,7 +3985,7 @@ function instTick(inst, loud) {
     if (inst.flashT >= per) inst.flashT = 0;
   }
   inst.loudPrev = loud ? 1 : 0;
-  colorUpdate(inst.color, inst.anim.gen_tick);
+  colorUpdate(inst.color, inst.anim.gen_tick, flowTickOf(inst));
 }
 
 function simTick(sim, state, applyReverse) {
@@ -4099,6 +4127,8 @@ function instApplyPreset(inst, p) {
   inst.anim.position.target  = 0;
   inst.lap = 0; inst.lapPrev = 0;
   inst.step_cnt = 0;
+  /* 「旋转 / 流动」时钟重置（下次 instTick 从 gen_tick 接上） */
+  inst.flow_tick = null; inst.flow_acc = 0;
   /* 平滑 T（ms）：ring_preset_t 形状的调用方（测试 / 老 API）没这个字段 → 0 = 直通 */
   inst.smooth = effSmooth(p);
   inst.anim.mask.fill(0);
@@ -4450,6 +4480,8 @@ const LED_GEN_IMPL = [
 '    uint16_t    flash_age;    /* @flashf@ */',
 '    uint8_t     loud_prev;',
 '    uint8_t     flash_gain;',
+'    uint16_t    flow_tick;    /* @flowf@ */',
+'    uint16_t    flow_acc;',
 '} led_gen_inst_t;',
 '',
 'static uint8_t        led_gen_zone_mask[ZONE_MAX_LEN];   /* @cmt1@ */',
@@ -4625,8 +4657,8 @@ const LED_GEN_IMPL = [
 '',
 '/* @layersrender@ */',
 'static void led_gen_layers_render(uint8_t *mask, uint8_t *hue, uint8_t len,',
-'                                  const led_gen_effect_t *E, uint16_t tick, int16_t zpos, uint8_t lap,',
-'                                  uint8_t flash)',
+'                                  const led_gen_effect_t *E, uint16_t tick, uint16_t flowTick,',
+'                                  int16_t zpos, uint8_t lap, uint8_t flash)',
 '{',
 '    uint8_t k, gain; const led_gen_layer_t *L;',
 '    int32_t p, rd;',
@@ -4646,7 +4678,7 @@ const LED_GEN_IMPL = [
 '            case LED_GEN_LAYER_SPOT:     led_gen_spot(mask, len, (int16_t)p, L, gain, lap); break;',
 '            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, len, L, tick);               break;',
 '            case LED_GEN_LAYER_FILL:     led_gen_fill(mask, len, L, gain);                  break;',
-'            case LED_GEN_LAYER_GRADIENT: led_gen_gradient(mask, len, L, tick);              break;',
+'            case LED_GEN_LAYER_GRADIENT: led_gen_gradient(mask, len, L, flowTick);         break;',
 '            default: break;',
 '        }',
 '    }',
@@ -4721,8 +4753,8 @@ const LED_GEN_IMPL = [
 '        uint8_t  n = (E->pal_count != 0u) ? E->pal_count : 1u;',
 '        memset(mask, 255, len);',
 '        if (S == 0u || S > (uint16_t)len) S = (uint16_t)len;',
-'        r0 = (uint16_t)((uint32_t)I->anim.gen_tick / per);',
-'        q  = (uint16_t)((uint32_t)I->anim.gen_tick - (uint32_t)r0 * per);',
+'        r0 = (uint16_t)((uint32_t)I->flow_tick / per);',
+'        q  = (uint16_t)((uint32_t)I->flow_tick - (uint32_t)r0 * per);',
 '        for (i = 0; i < len; i++) {',
 '            if ((uint16_t)i >= S) { hue[i] = 0u; continue; }',
 '            pos = (oneway != 0u) ? (uint16_t)i',
@@ -4738,7 +4770,7 @@ const LED_GEN_IMPL = [
 '        return;',
 '    }',
 '    if (E->kind == (uint8_t)LED_GEN_EFF_CUSTOM) {',
-'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, zpos, I->lap, I->flash_gain);',
+'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, I->flow_tick, zpos, I->lap, I->flash_gain);',
 '    } else {',
 '        memset(hue, 0xFF, len);',
 '        switch (E->anim) {',
@@ -4767,7 +4799,7 @@ const LED_GEN_IMPL = [
 '    if (E->ctype == (uint8_t)LED_GEN_COLOR_RAINBOW) {',
 '        uint8_t  levels = (E->levels >= 6u) ? E->levels : 30u;',
 '        uint8_t  q0 = (uint8_t)(256u / levels), r0 = (uint8_t)(256u % levels);',
-'        uint8_t  rot = (E->hue_speed > 0u) ? (uint8_t)(I->anim.gen_tick / E->hue_speed) : 0u;',
+'        uint8_t  rot = (E->hue_speed > 0u) ? (uint8_t)(I->flow_tick / E->hue_speed) : 0u;',
 '        uint16_t q = 0u, r = 0u;',
 '        for (i = 0; i < len; i++) {',
 '            if (hue[i] == 0xFFu) hue[i] = (uint8_t)(E->hue_base + q + rot);',
@@ -4900,6 +4932,15 @@ const LED_GEN_IMPL = [
 '            I->speed_cur = (uint8_t)(((uint16_t)I->speed_cur + st > I->speed_slow)',
 '                                     ? I->speed_slow : ((uint16_t)I->speed_cur + st));',
 '        }',
+'        /* @flowstep@ */',
+'        {',
+'            uint16_t inc = (uint16_t)(((uint16_t)I->speed_slow << 8) /',
+'                                      ((I->speed_cur != 0u) ? I->speed_cur : 1u));',
+'            if (inc == 0u) inc = 1u;',
+'            I->flow_acc  = (uint16_t)(I->flow_acc + inc);',
+'            I->flow_tick = (uint16_t)(I->flow_tick + (I->flow_acc >> 8));',
+'            I->flow_acc &= 0xFFu;',
+'        }',
 '        I->step_cnt++;',
 '        if (I->step_cnt >= I->speed_cur) {',
 '            I->step_cnt = 0;',
@@ -4965,22 +5006,21 @@ const LED_GEN_IMPL = [
 '                I->color.phase.current = idx;',
 '                I->color.current = led_gen_palette[E->pal_first + 2u * (uint16_t)idx];',
 '            } else if (E->ctype == (uint8_t)LED_GEN_COLOR_WIPE) {',
-'                /* wipe: the pass index r = gen_tick / period drives the colour entry;',
+'                /* wipe: the pass index r = flow_tick / period drives the colour entry;',
 '                   pass r lays entry (r+1) % n. Only the phase is needed here - the',
 '                   per-LED colour comes from led_gen_palette[pal_first + 2*entry],',
 '                   i.e. entry first / last colour (see led_gen_render_mode). */',
 '                uint8_t n = (E->pal_count != 0u) ? E->pal_count : 1u;',
-'                uint8_t wi = (uint8_t)((I->anim.gen_tick / ((E->period != 0u) ? E->period : 60u)) % n);',
+'                uint8_t wi = (uint8_t)((I->flow_tick / ((E->period != 0u) ? E->period : 60u)) % n);',
 '                I->color.phase.current = (int16_t)wi;',
 '                I->color.current   = led_gen_palette[E->pal_first + 2u * (uint16_t)wi];',
 '                I->color.secondary = led_gen_palette[E->pal_first + 2u * (uint16_t)wi + 1u];',
 '            } else if (E->ctype <= (uint8_t)COLOR_GRADIENT) {',
 '                /* @gradTick@ */',
-'                if (++I->color.tick_cnt >= I->color.spectrum_speed) {',
-'                    uint8_t gs = (E->grad_step != 0u) ? E->grad_step : 1u;',
-'                    I->color.tick_cnt = 0;',
-'                    I->color.phase.current = (int16_t)((I->color.phase.current + (int16_t)gs) & 0xFF);',
-'                }',
+'                uint8_t gs = (E->grad_step != 0u) ? E->grad_step : 1u;',
+'                uint16_t sp = (I->color.spectrum_speed != 0u) ? I->color.spectrum_speed : 1u;',
+'                I->color.tick_cnt = (uint8_t)(I->flow_tick % sp);',
+'                I->color.phase.current = (int16_t)(((uint32_t)(I->flow_tick / sp) * (uint32_t)gs) & 0xFFu);',
 '                I->color.current   = led_gen_grad[E->grad_first + (uint8_t)I->color.phase.current];',
 '                I->color.secondary = led_gen_grad[E->grad_first + (uint8_t)(I->color.phase.current + 85)];',
 '            }',
@@ -5130,6 +5170,8 @@ const GEN_COMMENTS = {
   bounceq: { zh:'往返：奇数圈倒着走 —— 一个来回 = 两圈（lap 是整圈数的奇偶）', en:'bounce: odd laps run backwards - one round trip = two laps (lap = lap-count parity)' },
   lapf: { zh:'往返：整圈数的奇偶（0 正着走 / 1 倒着走）+ 上一拍位置（用来发现过接缝）', en:'bounce: parity of completed laps (0 forward / 1 backward) + previous position (seam crossing)' },
   flashf: { zh:'音控闪（预置「闪烁」）：距上次闪了几拍 + 上一拍是不是快档 + 这一拍闪的增益', en:'audio flash (the BLINK preset): ticks since the last flash + was the previous frame on the fast stage + this frame flash gain' },
+  flowf: { zh:'「旋转 / 流动」时钟：慢档 1:1 跟 gen_tick，快档按 speed_slow/speed_cur 加速；彩虹旋转 / 渐变旋转 / 渐变配色流动都用它', en:'rotation/flow clock: 1:1 with gen_tick on the slow stage, accelerated by speed_slow/speed_cur on the fast stage; used by rainbow rotation, gradient-layer rotation and gradient colour flow' },
+  flowstep: { zh:'每拍推进流动时钟：inc = speed_slow*256/speed_cur（Q8，至少 1），余数留在 flow_acc；只影响旋转 / 流动，位置推进仍看 speed_cur', en:'advance the flow clock each frame: inc = speed_slow*256/speed_cur (Q8, at least 1), remainder kept in flow_acc; only rotation/flow use it, position stepping still uses speed_cur' },
   flashgain: { zh:'音控闪的增益：亮的那几拍满亮，之后按「最低亮度」反算出的增益（0 = 全灭；level = 255 时增益就是最低亮度本身）', en:'audio flash gain: full brightness for the bright frames, then the gain derived from the lowest brightness (0 = fully dark; with level = 255 the gain equals that brightness)' },
   flashpick: { zh:'音控闪层用实例算好的增益；其余层照旧吃 led_gen_pulse()', en:'the audio flash layer uses the per-instance gain; every other layer keeps led_gen_pulse()' },
   flashstate: { zh:'音控闪的时钟：安静时每 pulse_period 拍闪一次（预置 250 拍 = 5000ms，uint16 最多 65535 拍 ≈ 21.8 分钟）；快档时每 flash_fast 拍闪一次（预置 25 拍 = 500ms，0 = 同安静间隔）；越过阈值那一拍立刻闪一次。灭的时候的亮度由 flash_low / level 反算，所以「最低亮度」填多少，暗下来就亮多少', en:'audio flash clock: one flash every pulse_period frames when quiet (the preset uses 250 = 5000ms; uint16 goes up to 65535 frames = about 21.8 minutes); one flash every flash_fast frames on the fast stage (the preset uses 25 = 500ms, 0 = same as quiet); the threshold crossing flashes right away. The dark frames use a gain derived from flash_low / level, so the lowest brightness is exactly what the tool shows' },
@@ -5149,7 +5191,7 @@ const GEN_COMMENTS = {
   rainbowcalc: { zh:'(i * 256 / levels) 用 q/r 递推，循环里没有除法', en:'(i * 256 / levels) via a q/r recurrence: no division in the loop' },
   solidnoop: { zh:'纯色：current 在 apply_mode 里已经定好，每拍什么都不用做', en:'solid: current is already set in apply_mode, nothing to do per frame' },
   grad:   { zh:'亮度渐变层：沿环斜坡/三角/锯齿，可带起始位与旋转', en:'brightness gradient layer: ramp/triangle/saw around the ring' },
-  gradTick: { zh:'渐变配色：每 N 拍相位 +grad_step 级（步进），查本效果那张色环表（固件内置的 spectrum_tbl 不再参与）', en:'gradient colour: +grad_step levels every N frames, looked up in this effect own ring table (the firmware spectrum_tbl is no longer involved)' },
+  gradTick: { zh:'渐变配色：相位 = flow_tick / 每级拍数 × grad_step —— 用「流动时钟」，快档转得更快（老代码是逐拍累加，慢档两者逐值相同）', en:'gradient colour: phase = flow_tick / ticks-per-level * grad_step - uses the flow clock, so the fast stage flows faster (the old code incremented per frame; identical on the slow stage)' },
 };
 function genImpl(zh) {
   return LED_GEN_IMPL.map(line => line.replace(/@(\w+)@/g, (m, k) => (GEN_COMMENTS[k] ? GEN_COMMENTS[k][zh ? 'zh' : 'en'] : k)));
@@ -5304,7 +5346,7 @@ function exportEffectsC(state, opt) {
     effSmooth: GEN_COMMENTS.effSmooth.zh,
     effLevels: '彩虹: 走完一轮红->红要多少颗灯 (>=6)',
     effHueBase: '彩虹: 色相起点 0..255（覆盖时 = 方向：0 往返 / 1 单向）',
-    effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转',
+    effHueSpeed: '彩虹: 每 N 拍整体转一格, 0 = 不转; 旋转用「流动时钟」: 慢档 1:1, 快档按 speed_slow/speed_cur 加速',
     effPeriod: '呼吸: 一个周期多少拍（= 渐亮×2 + 亮，算出来的）；覆盖: 一趟（扫完覆盖灯数）多少拍',
     effRise: '跳变: 每种颜色点亮用几拍（第一拍 = 255/rise、最后一拍满亮；0 = 硬启亮；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸: 渐亮(=渐暗) 几拍（对称包络）',
     effHold: '跳变: 满亮保持几拍（0 = 不保持；渐亮爬到满亮那一拍也算满亮）；呼吸: 满亮保持几拍（周期 = 渐亮×2 + 亮）',
@@ -5337,7 +5379,7 @@ function exportEffectsC(state, opt) {
     llo: 'TWINKLE/渐变: 亮度下限 / 上限',
     llevel: 'FILL: 最高亮度(整环最亮时有多亮; 音控闪层上 = 亮着的那几拍的亮度)',
     lspans: '渐变: 绕环铺几轮',
-    lrotate: '渐变: 每 N 帧推进一格',
+    lrotate: '渐变: 每 N 帧推进一格（用「流动时钟」: 快档转得更快）',
     lwave: '脉动的形状: TRI 三角(呼吸) / SQUARE 方波(旧闪烁) / SAW 锯齿(渐亮后瞬灭) / FLASH 音控闪(现在的闪烁: 间隔跟着音量档变) —— 界面上不暴露，只由预置给',
     lflags: 'bit0: 方向, bit1: 往返',
     lspacing: 'SPOT: 相邻光点的中心距（按 RING_SIZE 标称，随分区等比缩放）；0 = 按光点数均布',
@@ -5781,6 +5823,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
                simClearShown, simShownOf, smoothShown, effSmooth, smoothStepOf, SMOOTH_MS_MAX, SMOOTH_MS_DEF,
+               flowTickOf, instFlowStep,
                breathEnv, breathPlan, effBreathRise, effBreathHold, effShape, BREATH_PERIOD_MAX,
                stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
                effPalette, effPaletteRaw, palIsGrad, PAL_MAX, PAL_GRAD_LEN,
@@ -8073,7 +8116,7 @@ const LAYER_FIELDS = {
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
     ['起始位','phase',0,255,'渐变从环上哪个位置开始'],
     ['绕环轮数','spans',1,8,'环上铺几个来回'],
-    ['旋转','rotate',0,255,'每多少 ms 推进一格（按 20ms 一拍向上取整）；0 = 不动'],
+    ['旋转','rotate',0,255,'每多少 ms 推进一格（按 20ms 一拍向上取整）；0 = 不动。跟着快慢档：快档转得更快'],
   ],
 };
 /* 只对音控闪层（wave == FLASH，预置「闪烁」）显示的三格 —— 见 renderLayers() */

@@ -154,7 +154,7 @@ console.log('--- A4b) 编号不会撞：老存档里 nextId 落后 / 手改成�
   ok(inst.color.spectrum === gradTable(gradById(st, g2.id)), '实例拿到的是这条效果的色环表');
   ok(rgb(inst.color.spectrum[128]) === '[0,0,255]', '相位 128 = 蓝（自定义顺序生效）');
   inst.anim.gen_tick = 0; inst.color.phase = 0; inst.color.tick_cnt = 0;
-  for (let t = 0; t < 4; t++) colorUpdate(inst.color, t);
+  for (let t = 1; t <= 4; t++) colorUpdate(inst.color, t);
   ok(inst.color.phase === 2 && near(inst.color.current, { r: 251, g: 0, b: 4 }, 4),
      `每 N 拍相位 +1：2 拍后 phase=${inst.color.phase} / 颜色 ${rgb(inst.color.current)}`);
   ok(gradTableFor(st, eff) === inst.color.spectrum, 'gradTableFor() 就是实例里那张表');
@@ -219,7 +219,7 @@ console.log('--- A7) 「步进(级)」：比速度 = 1 还快（每动一次前�
   simApplyEffect(i2, eff, 0, st);
   ok(i2.color.grad_step === 8, '实例拿到效果的步进（effectPreset → instApplyPreset）');
   i2.color.phase = 0; i2.color.tick_cnt = 0;
-  for (let t = 0; t < 4; t++) colorUpdate(i2.color, t);
+  for (let t = 1; t <= 4; t++) colorUpdate(i2.color, t);
   ok(i2.color.phase === 32, `速度 1 + 步进 8：4 拍后 phase=${i2.color.phase}（老行为是 4）`);
   ok(rgb(i2.color.current) === rgb(gradTable(gradById(st, eff.grad))[32]) &&
      rgb(i2.color.secondary) === rgb(gradTable(gradById(st, eff.grad))[(32 + 85) & 0xFF]),
@@ -230,9 +230,10 @@ console.log('--- A7) 「步进(级)」：比速度 = 1 还快（每动一次前�
   const i3 = instNew();
   simApplyEffect(i3, eff, 0, st);
   i3.color.phase = 0; i3.color.tick_cnt = 0;
-  for (let t = 0; t < 4; t++) colorUpdate(i3.color, t);
+  let tk = 0;
+  for (let t = 0; t < 4; t++) colorUpdate(i3.color, ++tk);
   const p4 = i3.color.phase;
-  for (let t = 0; t < 4; t++) colorUpdate(i3.color, t);
+  for (let t = 0; t < 4; t++) colorUpdate(i3.color, ++tk);
   ok(p4 === 8 && i3.color.phase === 16,
      `速度 4 + 步进 8：4 拍后 ${p4}、8 拍后 ${i3.color.phase} 级（一整圈 = 256×4÷8 = 128 拍）`);
   /* 一圈正好回到起点：128 拍 × 8 级 = 1024 = 4 × 256 */
@@ -240,12 +241,12 @@ console.log('--- A7) 「步进(级)」：比速度 = 1 还快（每动一次前�
   const fast = instNew();
   simApplyEffect(fast, Object.assign({}, eff, { speed: 4, grad_step: 8 }), 0, st);
   fast.color.phase = 0; fast.color.tick_cnt = 0;
-  for (let t = 0; t < 128; t++) colorUpdate(fast.color, t);
+  for (let t = 1; t <= 128; t++) colorUpdate(fast.color, t);
   ok(fast.color.phase === 0, `128 拍（速度 4 × 步进 8）正好回到起点：phase=${fast.color.phase}`);
 
   /* 手拼的 color 上下文（没有 grad_step）：仍旧逐拍 +1 —— 老测试 / 老调用方不受影响 */
   const raw = { type: FW.COLOR.SPECTRUM, phase: 0, tick_cnt: 0, spectrum_speed: 1, spectrum: FW.spectrum_tbl };
-  colorUpdate(raw, 0);
+  colorUpdate(raw, 1);
   ok(raw.phase === 1, `没有 grad_step 时逐拍 +1（phase=${raw.phase}）`);
 
   /* 导出：结构体多一列、行里带真实的步进、生成代码按 E->grad_step 前进 */
@@ -260,8 +261,8 @@ console.log('--- A7) 「步进(级)」：比速度 = 1 还快（每动一次前�
      `导出行：槽位 0（渐变，步进 8）=${r3[0][28]}，槽位 1（纯色，存着不用）=${r3[1][28]}`);
   ok(r3[0][27] === 0, 'grad_step 排在 grad_first 之后（grad_first 仍在第 28 列）');
   ok(/uint8_t gs = \(E->grad_step != 0u\) \? E->grad_step : 1u;/.test(hdr3) &&
-     /phase\.current \+ \(int16_t\)gs/.test(hdr3),
-     '生成代码：gs = E->grad_step（0 兜底成 1），相位一次加 gs —— 不是写死 +1');
+     hdr3.indexOf('I->flow_tick / sp') >= 0 && hdr3.indexOf('(uint32_t)gs') >= 0,
+     '生成代码：gs = E->grad_step（0 兜底成 1），相位 = flow_tick / sp × gs —— 用流动时钟，不是写死 +1');
   ok(!/phase\.current \+ 1\) & 0xFF/.test(hdr3), '生成代码里已经没有「写死 +1」的老写法');
 }
 

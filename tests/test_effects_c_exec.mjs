@@ -176,6 +176,15 @@ const SMOOTH = mkFx(16, [{ kind:'fill', level:200, pulse_period:0, pulse_amp:0, 
 SMOOTH.smooth = 60;
 st.modes.list.push({ id:'mS', name:'平滑', latin:'SMOOTH', enabled:true,
                      binds:[{ effect:SMOOTH.id, zones:[] }] });
+/* 旋转 / 流动跟快慢档：彩虹旋转（hue_speed）+ 渐变层旋转（rotate）放在同一条效果里。
+ * 慢档时流动时钟 = gen_tick（逐字节与旧行为相同）；快档 8 倍，下面新加一段真跑。 */
+const SPIN = mkFx(17, [{ kind:'fill', level:120, pulse_period:0, pulse_amp:0, wave:0,
+                         direction:1, bounce:0, spans:0, rotate:0 },
+                       { kind:'gradient', lo:0, hi:255, spans:2, phase:0, wave:0,
+                         direction:1, bounce:0, rotate:3 }]);
+SPIN.color = CORE.FW.COLOR.RAINBOW; SPIN.levels = 30; SPIN.hue_base = 0; SPIN.hue_speed = 3;
+st.modes.list.push({ id:'mT', name:'旋转流动', latin:'FLOW', enabled:true,
+                     binds:[{ effect:SPIN.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -285,6 +294,9 @@ const STAGE_TRACE_TICKS = 60;
  * 一眼看得出「还在爬」；跑到第 3 拍就满 200、与直通看不出差别了。 */
 const SMOOTH_TICKS = 2;
 const SMOOTH_MODE = st.modes.list.findIndex(m => m.id === 'mS');
+/* 旋转/流动：跑 12 拍（第 2 拍采到音量进快档，之后流动时钟 8 倍） */
+const FLOW_TICKS = 12;
+const FLOW_MODE = st.modes.list.findIndex(m => m.id === 'mT');
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -477,6 +489,23 @@ const main = [
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
 
+  /* 旋转 / 流动跟快慢档：同一模式、音量从一开始就大（第 2 拍采到就进快档），
+     每拍都渲染，跑 12 拍 —— 彩虹旋转 / 渐变层旋转 / 渐变配色都走「流动时钟」。
+     与「慢档 12 拍」逐字节对比，必须不同（这一段证明快档确实转得更快）。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_audio = (uint8_t)' + LOUD + 'u;',
+  '    led_gen_apply_mode(&g_ring, ' + FLOW_MODE + ');',
+  '    for (t = 0; t < ' + FLOW_TICKS + '; t++) { led_gen_tick(&g_ring); led_gen_render_mode(&g_ring); }',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+
   '    printf("\\n");',
   '    return 0;',
   '}',
@@ -507,10 +536,10 @@ try {
 }
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 10 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 */
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 11 段附加场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 / 11 旋转流动（快档） */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 10, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 10 段附加场景）`);
+ok(cAll === st.modes.list.length + 11, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 11 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -866,6 +895,22 @@ console.log('--- 每效果平滑 T（只在慢档）---');
   ok(slowPx[0] === px(170), `慢档第 2 拍还在爬坡：${slowPx[0]}/${px(200)}（T = 60ms → 每拍 85 级，第 2 拍 170）`);
   ok(fastPx[0] === px(200), `快档那一拍直通：${fastPx[0]}/${px(200)}（快档不做平滑，省算力）`);
   ok(px(170) < px(200) && cSlow !== cFast, '同样 2 拍，慢档（爬坡）与快档（直通）的帧确实不一样（上面两条不是空断言）');
+}
+
+/* ---------- 4h) 旋转 / 流动跟快慢档：快档 12 拍 C ↔ JS，且与慢档不同 ---------- */
+console.log('--- 旋转 / 流动跟快慢档（flow 时钟）---');
+{
+  const s = JSON.parse(JSON.stringify(st));
+  s.anim.modeId = st.modes.list[FLOW_MODE].id;
+  const fbStr = sim => Array.from({ length: FW.LED_COUNT },
+    (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
+  const simFast = simInit(); simApplyMode(simFast, s);
+  for (let t = 0; t < FLOW_TICKS; t++) { simSetAudioLevel(simFast, LOUD, THR); simTick(simFast, s, false); }
+  const simSlow = simInit(); simApplyMode(simSlow, s); simSetSpeed(simSlow, 'slow');
+  for (let t = 0; t < FLOW_TICKS; t++) simTick(simSlow, s, false);
+  const cRow = (cAux[10] || []).map(px => px.join(',')).join('|');
+  ok(cRow === fbStr(simFast), '旋转 / 流动（快档 12 拍）：C 侧与 JS 逐字节一致');
+  ok(cRow !== fbStr(simSlow), '同样 12 拍，快档的旋转 / 流动与慢档确实不同（流动时钟生效）');
 }
 
 /* 覆盖度自检 */

@@ -1268,6 +1268,61 @@ console.log('--- 音控闪（预置「闪烁」）---');
   ok(fr.length === 3 && fr[1] === 100 && fr[2] > 200,
      `音乐停了之后又回到「自己闪」(${fr.join(', ')} 拍)`);
 }
+/* ============================================================================
+ * 旋转 / 流动跟快慢档（flow 时钟）
+ * ==========================================================================*/
+console.log('--- 旋转 / 流动跟快慢档（flow 时钟）---');
+{
+  const { instNew, instApplyPreset, instFlowStep, flowTickOf, renderZoneMaskTo,
+          genRender, colorUpdate, LAYER } = CORE;
+  const base = { anim: FW.ANIM.STATIC, width: 10, gap: 0, slow: 8, fast: 1, speed: 1,
+                 c1: [255, 0, 0], c2: [0, 0, 0] };
+  const mk = p => { const I = instNew(); instApplyPreset(I, Object.assign({}, base, p)); return I; };
+  const run = (I, n) => {
+    for (let i = 0; i < n; i++) {
+      I.anim.gen_tick = (I.anim.gen_tick + 1) & 0xFFFF;
+      instFlowStep(I);
+    }
+  };
+
+  const slow = mk({}); slow.speed_cur = 8; run(slow, 8);
+  ok(flowTickOf(slow) === 8 && flowTickOf(slow) === slow.anim.gen_tick,
+     '慢档：流动时钟 = gen_tick（1:1，老效果逐拍不变）');
+  const fast = mk({}); fast.speed_cur = 1; run(fast, 2);
+  ok(flowTickOf(fast) === 16 && fast.anim.gen_tick === 2,
+     `快档：2 拍流动时钟 = ${flowTickOf(fast)}（8 倍）`);
+
+  /* 彩虹旋转用流动时钟：同样 2 拍，快档转 8 格、按 gen_tick 只有 1 格 */
+  const R = mk({ color: FW.COLOR.RAINBOW, levels: 30, hue_speed: 2 });
+  R.speed_cur = 1; run(R, 2);
+  const m1 = new Uint8Array(30), h1 = new Uint8Array(30);
+  renderZoneMaskTo(R, m1, h1, 30, 0);
+  const b3 = Math.floor(3 * 256 / 30);
+  ok(h1[3] === ((b3 + 8) & 0xFF) && h1[3] !== ((b3 + 1) & 0xFF),
+     `彩虹旋转跟流动时钟：2 拍（快档）转 ${Math.floor(flowTickOf(R) / 2)} 格（按 gen_tick 只有 1 格）`);
+
+  /* 渐变层的旋转：同一个 tick、不同 flowTick → 结果不同 */
+  const L = [{ kind: LAYER.GRADIENT, en: 1, lo: 0, hi: 255, spans: 1, phase: 0, wave: 0, rotate: 2 }];
+  const g1 = new Uint8Array(8), g2 = new Uint8Array(8);
+  genRender(g1, 8, 0, L, 2, 0, 0, 255, 2);
+  genRender(g2, 8, 0, L, 2, 0, 0, 255, 16);
+  ok(!g1.every((v, i) => v === g2[i]), '渐变层的旋转用 flowTick（快档转得更多）');
+
+  /* 渐变配色的色环流动 */
+  const c = { type: FW.COLOR.SPECTRUM, phase: 0, tick_cnt: 0, spectrum_speed: 1, spectrum: FW.spectrum_tbl };
+  colorUpdate(c, 2, 16);
+  ok(c.phase === 16 && c.tick_cnt === 0, `渐变配色按流动时钟走：2 拍（快档）相位 ${c.phase}`);
+
+  /* 覆盖的趟号：同一 gen_tick、flow 快 → 扫得更远 */
+  const w1 = mk({ color: FW.COLOR.WIPE, period: 10, palette: [[0, 0, 255], [255, 120, 0]] });
+  const w2 = mk({ color: FW.COLOR.WIPE, period: 10, palette: [[0, 0, 255], [255, 120, 0]] });
+  w1.anim.gen_tick = 6; w1.flow_tick = 6;
+  w2.anim.gen_tick = 6; w2.flow_tick = 16;
+  const a1 = new Uint8Array(8), e1 = new Uint8Array(8), a2 = new Uint8Array(8), e2 = new Uint8Array(8);
+  renderZoneMaskTo(w1, a1, e1, 8, 0);
+  renderZoneMaskTo(w2, a2, e2, 8, 0);
+  ok(!e1.every((v, i) => v === e2[i]), '覆盖的趟号用 flowTick（快档扫得更快）');
+}
 
 /* ============================================================================
  * 每效果「平滑 T」（2026-10-28 第十三轮，用户定）
