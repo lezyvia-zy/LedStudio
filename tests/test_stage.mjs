@@ -134,6 +134,8 @@ byId.get('stCompare').onchange({ target: byId.get('stCompare') });
   ok(/if \(stageView && !force\)/.test(html) && /function syncLeftForPane/.test(html) &&
      /if \(stageView && \(e\.key === 'Delete'/.test(html),
      '效果页也挡掉工具键 / 删除 / 方向键，并把左侧「画布工具」禁用（syncLeftForPane）');
+  ok((html.match(/leftTools/g) || []).length >= 5 && /#left \.leftTools/.test(html),
+     '左侧「画布工具」（模式标题 / 4 个工具 / 画布操作提示）在效果页整块收起（leftTools → hide）');
 }
 
 /* ---- 3) 颗数可以自定义 ---- */

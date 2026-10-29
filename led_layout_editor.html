@@ -943,7 +943,7 @@
         <h3 id="hs-stage">效果编辑台（基础排布）</h3>
         <p>效果**和你的真实灯板无关**。在「效果」页时中央画布会切到<b>编辑台</b> —— 一个通用的基础排布：</p>
         <div class="hint">这个中央画布<b>只预览动画</b>：不能选灯 / 挪灯 / 框选 / 画形状 / 放置 / 擦除，滚轮也不缩放 ——
-          画布布局请切到「分区」页（效果页里左侧「画布工具」也是灰的）。</div>
+          画布布局请切到「分区」页（效果页里左侧那排「画布工具」会<b>整块收起</b>）。</div>
         <ul>
           <li><b>直线</b>：颗数可自定义。看追逐的宽度、拖尾、衰减最清楚。</li>
           <li><b>圆环</b>：颗数可自定义。用来看环形效果"绕回来"时的接缝。</li>
@@ -7224,8 +7224,11 @@ function setMode(m, force) {
  * 效果页是动画预览，进去就把它禁用掉（顶栏 / 快捷键 / 画布手势另有守卫）。 */
 function syncLeftForPane() {
   const off = !!stageView;
-  /* 只禁用，不改 data-tip（那是各工具自己的说明，悬浮说明系统读它；也不许用 title，
-     test_help 会把原生 title 框当第二个提示框）；禁用原因由状态栏在按快捷键时说明。 */
+  /* 「画布工具」整块（模式标题 / 四个工具 / 分隔线 / 画布操作提示）在效果页**收起**，
+     不只是灰掉 —— 效果页的中央画布只预览动画，这块跟它没关系。
+     这些元素各自带 leftTools 类（**没有包一层 wrapper**：测试按「#left 的直接子元素」
+     找 data-mode 按钮，包一层就找不到了）。 */
+  document.querySelectorAll('#left .leftTools').forEach(el => el.classList.toggle('hide', off));
   document.querySelectorAll('#left button[data-mode]').forEach(b => { b.disabled = off; });
 }
 function buildLeft() {
@@ -7248,23 +7251,23 @@ function buildLeft() {
   });
   box.appendChild(btns);
 
-  const sep = document.createElement('div'); sep.className = 'sep'; box.appendChild(sep);
+  const sep = document.createElement('div'); sep.className = 'sep leftTools'; box.appendChild(sep);
 
-  const t2 = document.createElement('div'); t2.className = 'secTitle';
+  const t2 = document.createElement('div'); t2.className = 'secTitle leftTools';
   t2.innerHTML = '<span>模式</span>'; box.appendChild(t2);
 
   for (const [m, label, key] of MODES) {
     const b = document.createElement('button');
     b.dataset.mode = m; b.textContent = label; tip(b, '快捷键 ' + key);
-    b.className = 'modeBtn';
+    b.className = 'modeBtn leftTools';
     b.onclick = () => setMode(m);
     box.appendChild(b);
   }
 
-  const sep2 = document.createElement('div'); sep2.className = 'sep'; box.appendChild(sep2);
+  const sep2 = document.createElement('div'); sep2.className = 'sep leftTools'; box.appendChild(sep2);
 
   const help = document.createElement('div');
-  help.className = 'hint';
+  help.className = 'hint leftTools';
   help.innerHTML = '<span class="kbd">右键拖</span>平移画布<br><span class="kbd">滚轮</span>缩放<br>' +
                    '<span class="kbd">0</span>适配 <span class="kbd">1</span>1:1<br>' +
                    '<span class="kbd">空格+拖</span>也可平移';
