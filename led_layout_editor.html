@@ -3042,21 +3042,33 @@ function genFill(mask, len, L, gain) {
 }
 
 /* 亮度渐变层：亮度沿环做三角斜坡（两头暗中间亮），可带起始位与旋转。
- * spans = 绕环铺几轮；phase = 起始位（0..255）；rotate = 每 N 帧推进一格 */
+ * spans = 绕环铺几轮；phase = 起始位（0..255）；rotate = 每 N 帧推进一格。
+ *
+ * **Q8 分数相位（2026-10-29 第二十一轮，用户「渐变旋转卡顿感比较明显」）**：
+ * 旧写法把 `i×spans×256/len` 和 `rot` 都 floor 成整数，24 颗灯的小数部分全是 0 ——
+ * 每个相位步（慢档 3 拍一次）**整条灯同时 +1**，看着就是「一顿一顿」。
+ * 现在 t 保留 1/256 级小数（t8 = t×256），每颗灯的小数部分不同 → +1 落在不同灯上；
+ * 亮度仍是 8 位（v 取整），所以既不改观感亮度、也不改 C/JS 的逐值一致：
+ *   w8 = f(t8)（方波 / 锯齿 / 三角都在 0..65280），v = lo + (hi−lo)×w8 / 65280
+ * 注意 `rot8 = tick×256/rotate` 也是分数：rotate 除不尽时（3 拍一格）每拍只走 5/256 级，
+ * 不再等满 3 拍才跳一格。 */
 function genGradient(mask, len, L, tick) {
   const lo = L.lo, hi = L.hi;
   if (hi <= lo) return;
-  let rot = 0;
-  if (L.rotate > 0) rot = Math.floor(tick / L.rotate);
+  const rot8 = (L.rotate > 0) ? (Math.floor((tick * 256) / L.rotate) & 0xFFFF) : 0;
   const spans = L.spans > 0 ? L.spans : 1;
+  const phase8 = ((L.phase | 0) & 0xFF) * 256;
+  const dr = hi - lo;
   for (let i = 0; i < len; i++) {
-    let t = Math.floor((i * spans * 256) / len) + L.phase + rot;
-    t &= 0xFF;
-    let w;                                   /* 形状默认三角（两头暗中间亮）；方波 / 锯齿只由预置内部用 */
-    if (L.wave === WAVE.SQUARE)      w = t < 128 ? 255 : 0;
-    else if (L.wave === WAVE.SAW)    w = t;
-    else                             w = t < 128 ? (t * 2) : ((255 - t) * 2);
-    const v = lo + Math.floor(((hi - lo) * w) / 255);
+    /* base8 = (i×spans×256/len)×256 拆成「商×256 + 余×256/len」，与 C 的整数运算逐位相同 */
+    const n = i * spans * 256;
+    const base8 = Math.floor(n / len) * 256 + Math.floor(((n % len) * 256) / len);
+    const t8 = (base8 + phase8 + rot8) & 0xFFFF;
+    let w8;                                  /* 形状默认三角；方波 / 锯齿只由预置内部用 */
+    if (L.wave === WAVE.SQUARE)      w8 = t8 < 32768 ? 65280 : 0;
+    else if (L.wave === WAVE.SAW)    w8 = t8;
+    else                             w8 = t8 < 32768 ? (t8 * 2) : (t8 <= 65280 ? (65280 - t8) * 2 : 0);
+    const v = lo + Math.floor((dr * w8) / 65280);
     if (v > mask[i]) mask[i] = v;
   }
 }
@@ -4640,17 +4652,24 @@ const LED_GEN_IMPL = [
 'static void led_gen_gradient(uint8_t *mask, uint8_t len,',
 '                             const led_gen_layer_t *L, uint16_t tick)',
 '{',
-'    uint8_t  i, t, w, spans;',
-'    uint32_t rot, v;',
+'    uint8_t  i, spans;',
+'    uint32_t rot8, phase8, n, q, r, base8, t8, w8, v;',
 '    if (L->hi <= L->lo) return;',
-'    rot   = (L->rotate > 0u) ? (uint32_t)(tick / L->rotate) : 0u;',
-'    spans = (L->spans > 0u) ? L->spans : 1u;',
+'    /* Q8 fractional phase: t8 = t * 256 keeps the sub-level part per LED, so a step',
+'       moves one LED at a time instead of brightening the whole ring at once. */',
+'    rot8   = (L->rotate > 0u) ? ((((uint32_t)tick << 8) / L->rotate) & 0xFFFFu) : 0u;',
+'    spans  = (L->spans > 0u) ? L->spans : 1u;',
+'    phase8 = (uint32_t)L->phase << 8;',
 '    for (i = 0; i < len; i++) {',
-'        t = (uint8_t)((uint8_t)(((uint32_t)i * spans * 256u) / len) + L->phase + rot);',
-'        if (L->wave == (uint8_t)LED_GEN_WAVE_SQUARE)   w = (t < 128u) ? 255u : 0u;',
-'        else if (L->wave == (uint8_t)LED_GEN_WAVE_SAW) w = t;',
-'        else                                           w = (t < 128u) ? (uint8_t)(t * 2u) : (uint8_t)((255u - t) * 2u);',
-'        v = (uint32_t)L->lo + (((uint32_t)(L->hi - L->lo) * w) / 255u);',
+'        n     = (uint32_t)i * spans * 256u;',
+'        q     = n / len; r = n % len;',
+'        base8 = q * 256u + (r * 256u) / len;',
+'        t8    = (base8 + phase8 + rot8) & 0xFFFFu;',
+'        if (L->wave == (uint8_t)LED_GEN_WAVE_SQUARE)   w8 = (t8 < 32768u) ? 65280u : 0u;',
+'        else if (L->wave == (uint8_t)LED_GEN_WAVE_SAW) w8 = t8;',
+'        else                                           w8 = (t8 < 32768u) ? (t8 * 2u)',
+'                                                            : ((t8 <= 65280u) ? ((65280u - t8) * 2u) : 0u);',
+'        v = (uint32_t)L->lo + (((uint32_t)(L->hi - L->lo) * w8) / 65280u);',
 '        if ((uint8_t)v > mask[i]) mask[i] = (uint8_t)v;',
 '    }',
 '}',
@@ -5379,7 +5398,7 @@ function exportEffectsC(state, opt) {
     llo: 'TWINKLE/渐变: 亮度下限 / 上限',
     llevel: 'FILL: 最高亮度(整环最亮时有多亮; 音控闪层上 = 亮着的那几拍的亮度)',
     lspans: '渐变: 绕环铺几轮',
-    lrotate: '渐变: 每 N 帧推进一格（用「流动时钟」: 快档转得更快）',
+    lrotate: '渐变: 每 N 帧推进一格（用「流动时钟」: 快档转得更快；Q8 分数相位: 每拍只挪一小截, 逐灯错开不整条同跳）',
     lwave: '脉动的形状: TRI 三角(呼吸) / SQUARE 方波(旧闪烁) / SAW 锯齿(渐亮后瞬灭) / FLASH 音控闪(现在的闪烁: 间隔跟着音量档变) —— 界面上不暴露，只由预置给',
     lflags: 'bit0: 方向, bit1: 往返',
     lspacing: 'SPOT: 相邻光点的中心距（按 RING_SIZE 标称，随分区等比缩放）；0 = 按光点数均布',
@@ -8116,7 +8135,7 @@ const LAYER_FIELDS = {
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
     ['起始位','phase',0,255,'渐变从环上哪个位置开始'],
     ['绕环轮数','spans',1,8,'环上铺几个来回'],
-    ['旋转','rotate',0,255,'每多少 ms 推进一格（按 20ms 一拍向上取整）；0 = 不动。跟着快慢档：快档转得更快'],
+    ['旋转','rotate',0,255,'每多少 ms 推进一格（按 20ms 一拍向上取整）；0 = 不动。跟着快慢档：快档转得更快；Q8 分数相位，逐灯错开'],
   ],
 };
 /* 只对音控闪层（wave == FLASH，预置「闪烁」）显示的三格 —— 见 renderLayers() */

@@ -316,6 +316,18 @@ console.log('--- 亮度渐变 ---');
   genGradient(c, len, { kind:'gradient', lo:0, hi:255, spans:1, phase:128, wave:WAVE.SAW, rotate:0 }, 0);
   ok(c.some((v, i) => v !== a[i]), '起始位能改变图案');
 }
+/* Q8 分数相位：1 拍只挪 1/3 级，只有一部分灯 +1 —— 旧写法（相位 floor 成整数）
+ * 两帧完全相同（rot 还是 0），所以整条灯只能「3 拍一起跳一格」，看着一顿一顿。 */
+{
+  const len = 24, a = mk(len), b = mk(len);
+  const L = { kind:'gradient', lo:20, hi:255, spans:2, phase:0, wave:WAVE.SAW, rotate:3 };
+  genGradient(a, len, L, 0);
+  genGradient(b, len, L, 1);
+  const ch = [];
+  for (let i = 0; i < len; i++) if (a[i] !== b[i]) ch.push(i);
+  ok(ch.length > 0 && ch.length < len,
+     `Q8 分数相位：1 拍只挪 1/3 级，只有 ${ch.length}/${len} 颗灯 +1（不是整条一起跳）`);
+}
 
 /* ---- 7) 图层不产色：渲染原语一律不碰 hue[]（「本层取色」已退休）---- */
 console.log('--- 图层不产色（颜色全归效果级配色）---');
