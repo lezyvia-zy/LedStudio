@@ -349,6 +349,19 @@ console.log('--- 随机闪（慢档火花 / 快档老样式）---');
 
   const f = mk(len); genTwinkle(f, len, L, 10, 1);
   ok(f.filter(v => v > 0).length > L.tw_max, `快档按密度铺更多灯（${f.filter(v => v > 0).length} 颗 > ${L.tw_max}）`);
+
+  /* 慢档「独立」样式：每颗灯各自随机，同一帧里各灯亮度不同、也会有全灭帧 */
+  const L2 = Object.assign({}, L, { tw_mode: 1 });
+  let diff = false;
+  const counts = new Set();
+  for (let t = 0; t < 120; t++) {
+    const m = mk(len); genTwinkle(m, len, L2, t, 0);
+    const lit = Array.from(m).filter(v => v > 0);
+    counts.add(lit.length);
+    if (lit.length >= 2 && lit.some(v => v !== lit[0])) diff = true;
+  }
+  ok(diff, '独立样式：同一帧亮着的灯亮度各不相同（不是群闪）');
+  ok(counts.size >= 3, `独立样式：亮灯数每帧都在变（${[...counts].join(',')}）`);
 }
 
 /* ---- 7) 图层不产色：渲染原语一律不碰 hue[]（「本层取色」已退休）---- */

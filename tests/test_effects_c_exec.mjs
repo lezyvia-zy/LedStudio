@@ -41,7 +41,7 @@ const B = mkFx(1, [{ kind:'fill', level:255, pulse_period:60, pulse_amp:255, wav
                      cmode:1, hue_base:0, hue_spread:255, hue_speed:2, spans:0, rotate:0 }]);
 const C = mkFx(2, [{ kind:'twinkle', density:60, rate:3, lo:0, hi:255, cmode:1, hue_base:0, hue_spread:255,
                      hue_speed:6, pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0,
-                     tw_max:6, tw_on:2, tw_fade:10 },
+                     tw_max:6, tw_on:2, tw_fade:10, tw_mode:1 },
                    { kind:'spot', count:2, width:8, phase:64, falloff:'tail', pulse_period:0, pulse_amp:0,
                      wave:0, direction:1, bounce:1, cmode:0, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0 },
                    /* F5: 第 3 层是旁路的（en=0）—— 写进 C 表但合成时跳过。

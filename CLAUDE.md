@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、2068 项断言。五类：
+26 个套件、2070 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -216,6 +216,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 61. **渐变色的相位只看「自己的速度 / 真实拍数」，不跟快慢档**（2026-10-29 第三十轮，用户「不管哪个动画模式，渐变色都在跟档变化…一定得按照自有的时间参数变化，无论哪个动画」）：第二十轮把 `colorUpdate` 的 SPECTRUM/GRADIENT 相位接到了 `flow_tick`（快档 8×），于是有鼓点时渐变色加速 —— 用户不要这个。① 现在 SPECTRUM/GRADIENT 用 **`gen_tick`**：`phase = floor(gen_tick / spectrum_speed) × grad_step`（`tick == null` 时才退回逐拍累加，老调用不变）；② C 的 `@gradTick@` 用 `I->anim.gen_tick`（`tick_cnt = gen_tick % sp`）；③ 扫描填充的**头部渐变**（`hm = 3`）同源：`sweepHeadColor` / `led_gen_sweep_colour` 用 `gen_tick`，和常亮段同一相位；④ **彩虹旋转（`hue_speed`）和覆盖扫动仍用 `flow_tick`** —— 用户说「其他颜色要搭配动画再确认」，等点名再改；⑤ 测试：`test_effects_core` 用「tick=2 / flowTick=16 → phase 还是 2」钉住，`test_grad` 的生成代码断言改成 `I->anim.gen_tick / sp`。
 62. **随机闪要按档位分两套画法，慢档参数缺省时必须退回老样式**（2026-10-29 第三十一轮，用户「慢档快亮慢灭、灯少一点；快档保持现在的样式、灯多一点；参数要慢快档亮灭时间 + 最多同时点亮」）：① 渲染器要能看见档位：C 的实例加 `fast_now`（`led_gen_tick` 每拍写 `fast`），JS 的 `inst.fastNow`（`instTick(inst, loud)` 第一句写）——**别用 flow_tick 反推**；② 慢档火花是**无状态**的：`step = max(1, ceil((on+fade)/max))`，从当前 tick 往回数 `max` 个点燃时刻，`hash(ti+1)` 定灯位，`age < on` 给满亮、之后按 `fade` 线性降到 `lo`，逐灯取最大值 —— C/JS 的哈希必须**逐位相同**（`((h>>8) & 0xFF) % len`，别用 `(h>>>8) % len`，漏了 `& 0xFF` 就会和 C 差灯位）；③ 三列新增：`tw_max`（uint8）/`tw_on`、`tw_fade`（uint16 拍，界面按 ms 填，进 `MS_FIELDS` + `MS_TICK_MAX`）→ 图层表 **30 列**；④ **`on+fade == 0`（老工程 / 老预置）时慢档要走回老的 density/rate 画法**（C 用 `goto led_gen_twinkle_legacy;` 落到老代码），否则老工程一进慢档就全黑；⑤ 快档仍是老代码（density/rate/lo..hi），「灯多一点」靠 `density`。⑥ 测试：`test_effects_core` +3、`test_effects_c` 行宽 30、`c_exec` 里 twinkle 模式跑慢档 + 一条「快档 20 拍」附加场景逐字节。
 63. **随机闪的「烟花」= 一发一群同亮同灭；纯随机闪要把用不上的四格收起**（2026-10-29 第三十二轮，用户「没达到烟花式效果…是每颗都随机，还是某几颗一起亮一起渐灭」＋「慢速/快速/平滑/起始位似乎不需要了」）：① 慢档改成**按发（burst）**：`life = tw_on + tw_fade` 拍一发，`b = tick / life`、`age = tick % life`；`hash(b+1)` 定「这一发几颗（1..tw_max）」和灯位种子（`hs ^ ((j+1) * 2246822519)` 再 mix），同一发里所有灯**同一个 v**（一起亮、一起渐灭）；② 因为一发走完才爆下一发，**并发数天然 ≤ tw_max**，不用逐颗计时；③ C 与 JS 必须用同一套 `uint32` 乘法（`hs` 的 `* 2654435761`、`(j+1)*2246822519`）与 `((h>>8)&0xFF) % len`；④ 老工程 `tw_on + tw_fade == 0` → `goto led_gen_twinkle_legacy` 回老样式（别让它全黑）；⑤ UI：`syncFxEdit` 里「所有启用层都是 twinkle」时把 `rowSlow/rowFast/rowSmooth/rowOffset` 设 `display:none`（只隐藏、不动值；切回带光点的模板自动恢复）—— 这四格对随机闪确实无效（不吃位置、快慢档另有 `tw_*`，平滑会把火花抹糊）；⑥ 测试：core 断言「同一发里几颗亮度相同」，fx_presets 断言四行显隐切换。
+64. **「每颗灯独立随机」用哈希周期，不要上逐灯状态机**（2026-10-29 第三十三轮，用户「每颗灯都是独立随机点亮然后熄灭，不和其他灯一起」）：① 零 RAM 做法：每颗灯 `h1 = hash(i+1)` 定自己的周期 `P ≈ (len×life/tw_max)` 并抖 0.75~1.25 倍；`c = (tick + off)/P` 是第几轮，`h2 = hash(i, c)` 定**这一轮**的点火偏移，`age = (tick+off)%P - start`，落在 `[0, life)` 就给包络值；② 这样每颗灯互不影响、也不会「同亮同灭」，`tw_max` 只是**统计平均并发**（要精确卡上限必须逐灯状态机 —— 每分区 len×2~3 字节，RAM 不划算）；③ C 与 JS 的哈希/取模必须逐位一致（`%` 只对非负、`P - life ≥ 1`）；④ 新增 `tw_mode`（0 烟花 / 1 独立，图层表 **31 列**），UI 是「慢档样式」下拉；⑤ 开销：每灯 2 次哈希 + 2 次除法，104 颗 × 50Hz ≈ 5 万次运算/秒级 —— 和快档随机闪同量级，占用 <1% CPU；⑥ 测试：core 断言「同一帧各灯亮度不同」「亮灯数每帧都在变」，c_exec 用独立样式跑慢档 + 快档逐字节。
 
 
 
@@ -237,7 +238,8 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 
 
-工具本体功能完整、2068 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2068 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+
+工具本体功能完整、2070 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2070 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。
