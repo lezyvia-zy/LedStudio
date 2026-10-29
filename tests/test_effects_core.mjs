@@ -1392,6 +1392,17 @@ console.log('--- 扫描填充（单向 / 双向）---');
     ok(m2[I2.swNum] === 255, '头部亮度仍是「头部亮度」那一格');
     ok(CORE.effectColorAt(I2, 5, 24, h2).r === 1 && CORE.effectColorAt(I2, 5, 24, h2).g === 2,
        '其它灯位仍走效果级配色（纯色 c1 = 1,2,3）');
+    /* 没配固定色 → 头部跟配色（预设「单向/双向填充」就是这个状态） */
+    const eff3 = { kind:'custom', color: FW.COLOR.SOLID, c1: [1, 2, 3], slow: 8, fast: 1, speed: 0, moves: false,
+                   layers: [{ kind: 'sweep', en: 1, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
+    const I3 = CORE.instNew();
+    CORE.simApplyEffect(I3, eff3, 0);
+    instTick(I3, false);
+    const m3 = new Uint8Array(24), h3 = new Uint8Array(24);
+    CORE.renderZoneMaskTo(I3, m3, h3, 24, 0);
+    ok(I3.swColor === null, '没配「固定颜色」→ 头部跟配色（swColor = null）');
+    const c3 = CORE.effectColorAt(I3, I3.swNum, 24, h3);
+    ok(c3.r === 1 && c3.g === 2 && c3.b === 3, `跟配色时头部用效果色（${c3.r},${c3.g},${c3.b}）`);
   }
 
   /* 填满 → 清空阶段（固件 CFG_FUNC_RGB_FILL_CLEAR_EN=1），清完再从头开始 */
