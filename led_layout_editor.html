@@ -1033,12 +1033,13 @@
             与 <code>CFG_FUNC_LED_RING_EN</code> 那套无关。</td></tr>
         </table>
 
-        <h4>③ 随机闪（twinkle）—— 与位置无关的随机亮度</h4>
+        <h4>③ 随机闪（twinkle）—— 慢档「快亮慢灭」，快档随机闪</h4>
         <table>
           <tr><th>参数</th><th>作用</th></tr>
-          <tr><td>点亮密度</td><td>大约多少比例的灯同时亮着。数值越大越密。</td></tr>
-          <tr><td>刷新间隔</td><td>每几帧换一批灯。</td></tr>
-          <tr><td>亮度下限/上限</td><td>亮起来的那批灯在什么亮度区间内随机。</td></tr>
+          <tr><td>快档点亮密度 / 快档刷新间隔</td><td>快档（有音乐）时用：大约多少比例的灯同时亮着、每几帧换一批。</td></tr>
+          <tr><td>慢档最多同时点亮</td><td>慢档（安静）时同时在跑的「火花」上限（单位 = 该分区灯数）。慢档灯数用这一格控制，想让慢档更稀疏就调小。</td></tr>
+          <tr><td>慢档亮(ms) / 慢档灭(ms)</td><td>慢档每颗火花的形状：点亮后保持满亮多久，再从满亮渐暗到「亮度下限」多久 —— 也就是「快亮慢灭」。两个都按 20ms 一拍向上取整。</td></tr>
+          <tr><td>亮度下限/上限</td><td>火花的亮度区间（上也用于快档）。</td></tr>
         </table>
 
         <h4>④ 亮度渐变（gradient）—— 沿环的明暗斜坡</h4>
@@ -3013,10 +3014,46 @@ function genSpot(mask, len, pos, L, gain, lap) {
 }
 
 /* 随机闪层：与位置无关，每 rate 帧换一批 */
-function genTwinkle(mask, len, L, tick) {
+/* 随机闪：
+ *   快档 = 老样式（按 density / rate 每 N 拍换一批，亮度在 lo..hi 之间）
+ *   慢档 = 「快亮慢灭」的火花：每隔 step 拍点燃一颗随机灯，立即到 hi，保持 tw_on 拍后
+ *          按 tw_fade 拍渐暗到 lo；同时在跑的火花最多 tw_max 个（step = ceil((on+fade)/max)）。
+ * 慢档是无状态的：tick t 往回数 max 个点燃时刻，逐个算亮度取最大值 —— C 与 JS 同一套整数。 */
+function genTwinkle(mask, len, L, tick, fast) {
+  if (L.hi <= L.lo) return;                    /* C 侧同款护栏：避免负数落到 uint8 上取模后走样 */
+  if (!fast) {                                 /* —— 慢档：快亮慢灭 —— */
+    const maxN = Math.max(1, L.tw_max | 0);
+    const on   = Math.max(0, L.tw_on | 0);
+    const fade = Math.max(0, L.tw_fade | 0);
+    const life = on + fade;
+    if (life > 0) {
+      const step = Math.max(1, Math.ceil(life / maxN));
+      for (let k = 0; k < maxN; k++) {
+        const age = k * step;
+        if (age >= life) break;
+        const ti = (tick | 0) - age;
+        if (ti < 0) break;
+        /* 第 ti 拍点燃在哪颗灯上（哈希与 C 一致：ti+1 避免全零） */
+        let h = Math.imul(ti + 1, 2654435761) >>> 0;
+        h = (h ^ (h >>> 15)) >>> 0;
+        h = Math.imul(h, 2654435761) >>> 0;
+        h = (h ^ (h >>> 13)) >>> 0;
+        const led = ((h >>> 8) & 0xFF) % len;
+        let v;
+        if (age < on) v = L.hi;
+        else {
+          const d = age - on;
+          v = L.hi - Math.floor(((L.hi - L.lo) * (d + 1)) / Math.max(1, fade));
+          if (v < L.lo) v = L.lo;
+        }
+        if (v > mask[led]) mask[led] = v;
+      }
+      return;
+    }
+    /* 没填慢档参数（老工程 / 老预置）→ 慢档沿用老样式，别突然全黑 */
+  }
   const density = L.density;
   if (!density) return;
-  if (L.hi <= L.lo) return;                    /* C 侧同款护栏：避免负数落到 uint8 上取模后走样 */
   const thr   = 255 - density;
   const block = L.rate > 0 ? Math.floor(tick / L.rate) : 0;
   const bmix  = Math.imul(block, 2246822519) >>> 0;
@@ -3180,7 +3217,7 @@ function genRender(mask, len, pos, layers, tick, offset, lap, flash, flowTick, i
                : pulseGain(tick, L.pulse_period | 0, L.pulse_amp | 0, L.wave | 0);
     switch (L.kind) {
       case LAYER.SPOT:     genSpot(mask, len, p, L, gain, lap);  break;
-      case LAYER.TWINKLE:  genTwinkle(mask, len, L, tick);       break;
+      case LAYER.TWINKLE:  genTwinkle(mask, len, L, tick, inst ? inst.fastNow : 1); break;
       case LAYER.FILL:     genFill(mask, len, L, gain);          break;
       case LAYER.GRADIENT: genGradient(mask, len, L, ft);        break;
       case LAYER.SWEEP:    genSweep(mask, len, L, st);           break;
@@ -3585,6 +3622,8 @@ function instNew() {
     flow_tick: null, flow_acc: 0,
     /* 扫描填充的头部渐变（选了色库某条时） */
     swGrad: null,
+    /* 这一拍是不是快档（随机闪慢/快档两套画法要用） */
+    fastNow: 0,
     /* 平滑 T（ms，效果级）：慢档时 renderAllSim 按它逐灯爬亮度；0 / 快档 = 直通 */
     smooth: 0,
     /* 往返用：走过接缝的次数取奇偶（0 = 正着走的那几圈 / 1 = 倒着走的那几圈），
@@ -4073,6 +4112,7 @@ function instAdvances(inst) {
  *        （FFTLevel > LED_FFT_THRESHOLD → 快档），与 C 里 led_gen_tick() 的 fast 同源。
  *        只有音控闪层（wave == FLASH）用它，别的效果一个字都不受影响。 */
 function instTick(inst, loud) {
+  inst.fastNow = loud ? 1 : 0;
   inst.step_cnt++;
   if (inst.step_cnt >= inst.speed_cur) {
     inst.step_cnt = 0;
@@ -4508,6 +4548,9 @@ function layerNums(L) {
     density: L.density | 0, rate: L.rate | 0, lo: L.lo | 0, hi: L.hi | 0,
     /* 扫描填充：初始常亮灯数（每轮回到起点时保留的灯数） */
     lit: Math.max(0, Math.min(255, L.lit | 0)),
+    /* 随机闪：慢档「快亮慢灭」的 最多同时点亮 / 亮 / 灭（后两个存拍，uint16） */
+    tw_max: Math.max(0, Math.min(255, L.tw_max | 0)),
+    tw_on: frame16(L.tw_on), tw_fade: frame16(L.tw_fade),
     level: L.level | 0, spans: L.spans | 0, rotate: L.rotate | 0,
     /* 扫描填充（sweep）的「头部颜色」：只有这一层用；别的层写白（默认） */
     hc_r: hc[0] | 0, hc_g: hc[1] | 0, hc_b: hc[2] | 0, hc_mode: hm,
@@ -4662,6 +4705,7 @@ const LED_GEN_IMPL = [
 '    uint16_t    flow_acc;',
 '    uint8_t     sw_r, sw_g, sw_b, sw_used, sw_mode;   /* @sweepc@ */',
 '    uint16_t    sw_grad_first;',
+'    uint8_t     fast_now;     /* @fastnow@ */',
 '} led_gen_inst_t;',
 '',
 '/* @sweepf@ */',
@@ -4789,13 +4833,43 @@ const LED_GEN_IMPL = [
 '',
 '/* @twk@ */',
 'static void led_gen_twinkle(uint8_t *mask, uint8_t len,',
-'                            const led_gen_layer_t *L, uint16_t tick)',
+'                            const led_gen_layer_t *L, uint16_t tick, uint8_t fast)',
 '{',
 '    uint8_t  i, thr, r, v;',
 '    uint16_t block;',
 '    uint32_t h, bmix;',
-'    if (L->density == 0u) return;',
 '    if (L->hi <= L->lo)   return;',
+'    if (fast == 0u) {',
+'        /* slow stage: quick attack + slow decay, at most tw_max sparks at once */',
+'        uint8_t  maxN = (L->tw_max > 0u) ? L->tw_max : 1u;',
+'        uint16_t on = L->tw_on, fade = L->tw_fade;',
+'        uint32_t life = (uint32_t)on + (uint32_t)fade;',
+'        uint16_t step;',
+'        if (life == 0u) goto led_gen_twinkle_legacy;   /* no slow params: keep the old look */',
+'        step = (uint16_t)(((uint32_t)maxN >= life) ? 1u : ((life + maxN - 1u) / maxN));',
+'        for (r = 0; r < maxN; r++) {',
+'            uint32_t age = (uint32_t)r * step;',
+'            int32_t  ti;',
+'            uint8_t  led;',
+'            if (age >= life) break;',
+'            ti = (int32_t)tick - (int32_t)age;',
+'            if (ti < 0) break;',
+'            h = ((uint32_t)ti + 1u) * 2654435761u;',
+'            h ^= h >> 15; h *= 2654435761u; h ^= h >> 13;',
+'            led = (uint8_t)(((h >> 8) & 0xFFu) % (uint32_t)len);',
+'            if (age < (uint32_t)on) v = L->hi;',
+'            else {',
+'                uint32_t d = age - (uint32_t)on;',
+'                uint32_t span = (uint32_t)(L->hi - L->lo) * (d + 1u);',
+'                v = (uint8_t)((uint32_t)L->hi - (span / ((fade > 0u) ? (uint32_t)fade : 1u)));',
+'                if (v < L->lo) v = L->lo;',
+'            }',
+'            if (v > mask[led]) mask[led] = v;',
+'        }',
+'        return;',
+'    }',
+'led_gen_twinkle_legacy:',
+'    if (L->density == 0u) return;',
 '    thr   = (uint8_t)(255u - L->density);',
 '    block = (L->rate > 0u) ? (uint16_t)(tick / L->rate) : 0u;',
 '    bmix  = (uint32_t)block * 2246822519u;',
@@ -4958,7 +5032,7 @@ const LED_GEN_IMPL = [
 '             : led_gen_pulse(tick, L->pulse_period, L->pulse_amp, L->wave);',
 '        switch (L->kind) {',
 '            case LED_GEN_LAYER_SPOT:     led_gen_spot(mask, len, (int16_t)p, L, gain, lap); break;',
-'            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, len, L, tick);               break;',
+'            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, len, L, tick, I->fast_now);   break;',
 '            case LED_GEN_LAYER_FILL:     led_gen_fill(mask, len, L, gain);                  break;',
 '            case LED_GEN_LAYER_GRADIENT: led_gen_gradient(mask, len, L, flowTick);         break;',
 '            case LED_GEN_LAYER_SWEEP:    led_gen_sweep(mask, len, L, S);                    break;',
@@ -5227,6 +5301,7 @@ const LED_GEN_IMPL = [
 '    fast = (uint8_t)(((led_gen_stage != 0u) && (ring->speed_fast < ring->speed_slow)) ? 1u : 0u);',
 '    for (i = 0; i < led_gen_inst_count; i++) {',
 '        I = &led_gen_inst[i];',
+'        I->fast_now = fast;',
 '        /* @instspeed@ */',
 '        if (fast != 0u) {',
 '            I->speed_cur = I->speed_fast;          /* fast stage: immediate */',
@@ -5698,7 +5773,7 @@ function exportEffectsC(state, opt) {
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
     modeEn: '该模式是否启用',
-    layRow: '每行: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first,lit}（图层不带颜色，取色全在效果级配色里；末尾 hc_* / hc_mode / hg_first / lit 只给扫描填充的头部用）,',
+    layRow: '每行: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first,lit,tw_max,tw_on,tw_fade}（图层不带颜色，取色全在效果级配色里；末尾 hc_* / hc_mode / hg_first / lit / tw_* 只给扫描填充的头部用）,',
     instType: '一个效果实例的运行状态。同一条效果被多个分区引用时共用一个实例 = 相位同步',
     applyMode: '切模式：按绑定表建实例（同一效果只建一次）',
     genTick: '每帧推进一次：所有实例各推进各的',
@@ -5729,6 +5804,10 @@ function exportEffectsC(state, opt) {
   lheadm: '头部取色: 0 = 跟配色(同常亮段), 1 = 固定颜色(用 hc_r/g/b), 2 = 彩虹(按头部位置取环上的色), 3 = 渐变(取当前相位色); 其它层写 0',
   lheadg: '头部渐变用哪条色环: 指向 led_gen_grad[] 的起点; 0xFFFF = 用效果自己那张渐变',
   llit: '扫描填充: 初始常亮灯数(每轮回到起点时保留亮着的灯数, 0 = 从全灭开始)',
+  ltwmax: '随机闪(慢档): 同时点亮的最多灯数(单位 = 该分区灯数; 0 按 1 算)',
+  ltwon: '随机闪(慢档): 点亮后保持满亮的拍数(uint16; 界面按 ms 填)',
+  ltwfade: '随机闪(慢档): 从满亮渐暗到「亮度下限」的拍数(uint16; 界面按 ms 填)',
+  fastnow: '这一拍是不是快档（随机闪慢/快两套画法用）',
     layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
     ringNote2: 'led_ring.h 里原来那句 #define RING_PRESET_COUNT 9 请整句注释掉。',
@@ -5769,7 +5848,7 @@ function exportEffectsC(state, opt) {
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
     modeEn: 'mode enabled',
-    layRow: 'rows: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first,lit} (layers carry no colour: colours come from the effect-level colour mode; the trailing hc_* / hc_mode / hg_first / lit are the sweep head only),',
+    layRow: 'rows: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first,lit,tw_max,tw_on,tw_fade} (layers carry no colour: colours come from the effect-level colour mode; the trailing hc_* / hc_mode / hg_first / lit / tw_* are the sweep head only),',
     instType: 'runtime state of one effect instance. Zones sharing an effect share the instance = synchronised',
     applyMode: 'switch mode: build instances from the bind table (one per distinct effect)',
     genTick: 'called once per frame: advance every instance',
@@ -5800,6 +5879,10 @@ function exportEffectsC(state, opt) {
   lheadm: 'head colour source: 0 = follow the effect colour, 1 = fixed (hc_r/g/b), 2 = rainbow at the head position, 3 = gradient at the current phase; other layers write 0',
   lheadg: 'which colour ring the head gradient uses: start index into led_gen_grad[]; 0xFFFF = the effect own gradient',
   llit: 'sweep: LEDs kept lit at the start of every cycle (0 = start from fully dark)',
+  ltwmax: 'twinkle (slow stage): max LEDs lit at the same time (in that zone LEDs; 0 counts as 1)',
+  ltwon: 'twinkle (slow stage): frames held at full brightness after ignition (uint16; UI in ms)',
+  ltwfade: 'twinkle (slow stage): frames fading from full down to the low level (uint16; UI in ms)',
+  fastnow: 'is this frame on the fast stage (twinkle uses two renderers)',
     layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
     ringNote2: 'The original #define RING_PRESET_COUNT 9 in led_ring.h must be commented out.',
@@ -5886,6 +5969,9 @@ function exportEffectsC(state, opt) {
        '    uint8_t hc_mode;      /* ' + t.lheadm + ' */',
        '    uint16_t hg_first;    /* ' + t.lheadg + ' */',
        '    uint8_t lit;          /* ' + t.llit + ' */',
+       '    uint8_t tw_max;       /* ' + t.ltwmax + ' */',
+       '    uint16_t tw_on;       /* ' + t.ltwon + ' */',
+       '    uint16_t tw_fade;     /* ' + t.ltwfade + ' */',
        '} led_gen_layer_t;',
        '',
        'typedef struct {',
@@ -5934,11 +6020,12 @@ function exportEffectsC(state, opt) {
       push('    { ' + [R.kind, R.en, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
                        R.wave, R.flags, R.spacing, R.flash_fast, R.flash_on, R.flash_low,
-                       R.hc_r, R.hc_g, R.hc_b, R.hc_mode, R.hg_first, R.lit].join(', ') + ' },');
+                       R.hc_r, R.hc_g, R.hc_b, R.hc_mode, R.hg_first, R.lit,
+                       R.tw_max, R.tw_on, R.tw_fade].join(', ') + ' },');
     }
     push('};');
   } else {
-    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xFFFF,0 } };');
+    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xFFFF,0,0,0,0 } };');
   }
   push('');
   push('/* ' + t.palRow + ' */');
@@ -8449,7 +8536,11 @@ const LAYER_FIELDS = {
     ['间距','spacing',0,255,'0 = 按光点数均布（整环 ÷ 点数）。\n> 0 = 相邻两点的中心相隔几颗灯 —— 想让几个点聚在一起跑就调小，想拉开就调大。\n只对光点层有用；间距 × 点数超过环长时，后面的点会绕回来叠在前面的点上。'],
   ],
   twinkle: [
-    ['点亮密度','density',1,255], ['刷新间隔','rate',1,255,'每多少 ms 换一批（按 20ms 一拍向上取整）；越大越慢'],
+    ['快档点亮密度','density',1,255,'快档时同时亮着的灯大约占多少（0..255，越大越密）。'],
+    ['快档刷新间隔','rate',1,255,'快档时每多少 ms 换一批灯（按 20ms 一拍向上取整）；越大越慢。'],
+    ['慢档最多同时点亮','tw_max',1,255,'慢档「快亮慢灭」时，同时最多有几颗火花在跑（单位 = 该分区灯数）。\n想让慢档更稀疏就调小。'],
+    ['慢档亮(ms)','tw_on',0,65535,'慢档：点亮后保持满亮多久（按 20ms 一拍向上取整；0 = 立即开始变暗）。'],
+    ['慢档灭(ms)','tw_fade',0,65535,'慢档：从满亮渐暗到「亮度下限」要多久（按 20ms 一拍向上取整）。'],
     ['亮度下限','lo',0,255], ['亮度上限','hi',0,255],
   ],
   fill: [
@@ -8491,9 +8582,10 @@ const FLASH_ONLY_FIELDS = { flash_low: 1, flash_fast: 1, flash_on: 1 };
 const FLASH_HIDDEN_FIELDS = { pulse_amp: 1 };
 /* 图层卡上「时间」类格子：内部存「拍」（固件一拍 20ms），界面按 ms 显示 / 录入，
  * ms → 拍**一律向上取整**（2026-10-28 用户定）。非时间的格子（光宽 / 密度 / 间距…）不在此列。 */
-const MS_FIELDS = { pulse_period: 1, flash_fast: 1, flash_on: 1, rate: 1, rotate: 1 };
-/* 每格的拍上限：导出结构体里这三列是 uint16（0..65535），其余时间格是 uint8（LAYER_FIELDS 的 255） */
-const MS_TICK_MAX = { pulse_period: FRAME16_MAX, flash_fast: FRAME16_MAX, flash_on: FRAME16_MAX };
+const MS_FIELDS = { pulse_period: 1, flash_fast: 1, flash_on: 1, rate: 1, rotate: 1, tw_on: 1, tw_fade: 1 };
+/* 每格的拍上限：导出结构体里这几列是 uint16（0..65535），其余时间格是 uint8（LAYER_FIELDS 的 255） */
+const MS_TICK_MAX = { pulse_period: FRAME16_MAX, flash_fast: FRAME16_MAX, flash_on: FRAME16_MAX,
+                      tw_on: FRAME16_MAX, tw_fade: FRAME16_MAX };
 const TICK_MS = FW.TICK_MS;      /* 固件节拍（50Hz）：一拍 = 20 ms */
 const FLASH_MS_MAX = FRAME16_MAX * TICK_MS;   /* uint16 帧的上限 → 最多 65535 拍 = 1310700 ms */
 
@@ -9097,10 +9189,12 @@ const FX_PRESETS = [
   { name:'随机闪',          make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
       /* 随机闪的每一格都是硬跳（密度 / 刷新率决定亮灭），平滑会把它抹成一片灰 */
       smooth:0,
-      layers:[ Object.assign(mkLayer('twinkle'), { density:48, rate:4, lo:0, hi:220 }) ] }) },
+      layers:[ Object.assign(mkLayer('twinkle'), { density:48, rate:4, lo:0, hi:220,
+                                                 tw_max:4, tw_on:3, tw_fade:40 }) ] }) },
   { name:'闪 + 底色',       make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('fill'),  { level:60 }),
-               Object.assign(mkLayer('twinkle'), { density:60, rate:3, lo:0, hi:255 }) ] }) },
+               Object.assign(mkLayer('twinkle'), { density:60, rate:3, lo:0, hi:255,
+                                                  tw_max:6, tw_on:3, tw_fade:30 }) ] }) },
   /* ---- 新配色模型（效果级，见 FW.COLOR 3..6） ---- */
   /* 测配色的「底片」：一个满亮填充层 —— 整条常亮，不走位置、不脉动、不铺色相。
    * 套上它再换「配色」下拉，纯色 / 跳变 / 渐变 / 彩虹 / 呼吸 / 覆盖 的差别一眼看完。

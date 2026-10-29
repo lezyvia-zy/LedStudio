@@ -40,7 +40,8 @@ const A = mkFx(0, [{ kind:'spot', count:1, width:10, phase:0, falloff:'cos', pul
 const B = mkFx(1, [{ kind:'fill', level:255, pulse_period:60, pulse_amp:255, wave:0, direction:1, bounce:0,
                      cmode:1, hue_base:0, hue_spread:255, hue_speed:2, spans:0, rotate:0 }]);
 const C = mkFx(2, [{ kind:'twinkle', density:60, rate:3, lo:0, hi:255, cmode:1, hue_base:0, hue_spread:255,
-                     hue_speed:6, pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0 },
+                     hue_speed:6, pulse_period:0, pulse_amp:0, wave:0, direction:1, bounce:0, spans:0, rotate:0,
+                     tw_max:6, tw_on:2, tw_fade:10 },
                    { kind:'spot', count:2, width:8, phase:64, falloff:'tail', pulse_period:0, pulse_amp:0,
                      wave:0, direction:1, bounce:1, cmode:0, hue_base:0, hue_spread:0, hue_speed:0, spans:0, rotate:0 },
                    /* F5: 第 3 层是旁路的（en=0）—— 写进 C 表但合成时跳过。
@@ -322,6 +323,9 @@ const FLOW_MODE = st.modes.list.findIndex(m => m.id === 'mT');
 /* 扫描填充长跑：单向、rotate=1 → 276 步填满，300 拍正好落在清空阶段里 */
 const SWEEP_TICKS = 300;
 const SWEEP_MODE = st.modes.list.findIndex(m => m.id === 'mU');
+/* 随机闪「快档老样式」：同一个含 twinkle 的模式、音量从一开始就大，跑 20 拍 */
+const TWINKLE_TICKS = 20;
+const TWINKLE_MODE = st.modes.list.findIndex(m => m.id === 'mC');
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -547,6 +551,22 @@ const main = [
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
 
+  /* 随机闪快档（老样式）：音量从一开始就大，跑 20 拍后渲染一帧 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_audio = (uint8_t)' + LOUD + 'u;',
+  '    led_gen_apply_mode(&g_ring, ' + TWINKLE_MODE + ');',
+  '    for (t = 0; t < ' + TWINKLE_TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+
   '    printf("\\n");',
   '    return 0;',
   '}',
@@ -577,10 +597,10 @@ try {
 }
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 12 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 / 11 旋转流动（快档） / 12 扫描填充长跑 */
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 13 段附加场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 / 11 旋转流动（快档） / 12 扫描填充长跑 / 13 随机闪快档 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 12, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 12 段附加场景）`);
+ok(cAll === st.modes.list.length + 13, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 13 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -965,6 +985,19 @@ console.log('--- 扫描填充长跑（进清空阶段）---');
     (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
   const cRow = (cAux[11] || []).map(px => px.join(',')).join('|');
   ok(cRow === fbStr, `扫描填充 300 拍（清空阶段）C 侧与 JS 逐字节一致`);
+}
+
+/* ---------- 4j) 随机闪快档（老样式）C ↔ JS ---------- */
+console.log('--- 随机闪快档（老样式）---');
+{
+  const s = JSON.parse(JSON.stringify(st));
+  s.anim.modeId = st.modes.list[TWINKLE_MODE].id;
+  const sim = simInit(); simApplyMode(sim, s);
+  for (let t = 0; t < TWINKLE_TICKS; t++) { simSetAudioLevel(sim, LOUD, THR); simTick(sim, s, false); }
+  const fbStr = Array.from({ length: FW.LED_COUNT },
+    (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
+  const cRow = (cAux[12] || []).map(px => px.join(',')).join('|');
+  ok(cRow === fbStr, '随机闪快档 20 拍：C 侧与 JS 逐字节一致');
 }
 
 /* 覆盖度自检 */

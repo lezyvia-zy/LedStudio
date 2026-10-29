@@ -329,6 +329,25 @@ console.log('--- 亮度渐变 ---');
      `Q8 分数相位：1 拍只挪 1/3 级，只有 ${ch.length}/${len} 颗灯 +1（不是整条一起跳）`);
 }
 
+/* ---- 随机闪：慢档「快亮慢灭」/ 快档老样式 ---- */
+console.log('--- 随机闪（慢档火花 / 快档老样式）---');
+{
+  const len = 24;
+  const L = { kind:'twinkle', density:48, rate:4, lo:0, hi:255, tw_max:3, tw_on:2, tw_fade:8 };
+  let maxLit = 0, sawDecay = false, prev = new Uint8Array(len);
+  for (let t = 0; t < 60; t++) {
+    const m = mk(len); genTwinkle(m, len, L, t, 0);
+    maxLit = Math.max(maxLit, m.filter(v => v > 0).length);
+    for (let i = 0; i < len; i++) if (prev[i] > 0 && m[i] > 0 && m[i] < prev[i]) sawDecay = true;
+    prev = m;
+  }
+  ok(maxLit <= L.tw_max, `慢档同时点亮 ${maxLit} 颗 ≤ 上限 ${L.tw_max}`);
+  ok(sawDecay, '慢档有渐暗：同一颗灯后一拍比前一拍暗（快亮慢灭）');
+
+  const f = mk(len); genTwinkle(f, len, L, 10, 1);
+  ok(f.filter(v => v > 0).length > L.tw_max, `快档按密度铺更多灯（${f.filter(v => v > 0).length} 颗 > ${L.tw_max}）`);
+}
+
 /* ---- 7) 图层不产色：渲染原语一律不碰 hue[]（「本层取色」已退休）---- */
 console.log('--- 图层不产色（颜色全归效果级配色）---');
 {
