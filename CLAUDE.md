@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1990 项断言。五类：
+26 个套件、1995 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -199,12 +199,15 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 48. **音频文件的「播放 / 暂停」是独立的运输条，别和「音乐来了」开关搅在一起**（2026-10-29 第十六轮，用户「我怎么控制音频文件的播放暂停呢？应该在右上角加一个播放信息展示…原来右上角的信息显示改到左下角」）：① `#audioBar` 在**画布右上角**，只在 `audioSrc === 'file'` 且（有 `audioCap` 或有 `audioFile`）时露面；`syncAudioBar()` 统一刷显隐 / ▶⏸ / 时间 / 进度，**状态一变就调**，loop 里只在 file 音源调（别每帧全量刷新）。② 播放条只 `audio.play() / pause()`：**暂停 = 音量 0、灯按慢档走**，**不要顺手把 `A().audio` 关掉**（否则再点播放要重走 `audioOnWith`，还会和「音乐来了」按钮的状态打架）；开关关着时点播放条要**先 `audioOnWith('file')`**（复用已加载文件）再放。③ 进度条 = `#aFileSeek` + `#aFileSeekFill`（宽度百分比），点一下按 `clientX` 折算 `currentTime`；`duration` 在 `onloadedmetadata` / 每帧读一次并用 `isFinite` 保护（测试桩没有真 metadata）。④ `#headInfo` 从 `<header>` 挪到 `#center`（`left:8px; bottom:26px` 半透明），**id 与文字格式不动**（`test_ui` / `test_persist` 断言它）；顶栏因此少一项，窄屏不会把 header 撑成两行（`main` 的 `height:calc(100% - 37px)` 是按一行算的）。⑤ 测试：`test_anim2` H 段 +6（布局 / 播放条露面 / 进度跳转 / 暂停不停开关 / 继续 / 换源收起），桩 `window.Audio` 要带 `duration`、`currentTime`。
 
+49. **效果页的中央画布是「动画预览」，不是布局编辑器**（2026-10-29 第十七轮，用户「在效果页面的画布上为什么会触发画形状等功能？这个页面不能编辑画布，只是一个预览设计动画的地方」）：`stageView`（tab === 'fx'）为真时：① `cv` 的 `pointerdown / pointermove / pointerup / dblclick / wheel` 全部**第一行早退**（别只挡 shape —— 选灯、挪灯、框选、平移、缩放都算编辑）；② 键盘挡掉**删除 / 方向键微调 / Ctrl+A**，空格也不进平移；`V/P/E/S` 走 `setMode()` 守卫（会提示「切到分区页」）；③ 左侧「画布工具」由 `syncLeftForPane()` 禁用 —— **别改 `data-tip`**（悬浮说明系统读它），也**别用 `title`**（`test_help` 会把原生 title 当第二个提示框）；④ `setMode(m, force)` 的第二参只给**内部收尾**（`tab()` 进效果页、`bindProject()` 换项目）用，工具键不许传 force；⑤ 进效果页时自动退回「选择」态、光标恢复默认；⑥ 测试：`test_stage` 数 7 处 `if (stageView) return;` + `setMode` / `syncLeftForPane` 守卫存在，`test_canvas_map` 的 setMode 正则跟着改成 `(m, force)`。
 
 
 
 
 
-工具本体功能完整、1990 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1990 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+
+
+工具本体功能完整、1995 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1995 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

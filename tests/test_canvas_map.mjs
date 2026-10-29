@@ -615,7 +615,7 @@ ok(!/shapePicked/.test(uiSrc),
    '不再有「选过形状就一直画手柄」那套标记（手柄的去留只由编辑态决定）');
 ok(/if \(mode === 'shape'\) \{\s*const hh = handleAnyAt\(wx, wy\);/.test(uiSrc),
    '按下时只认「当前形状」的手柄，而且只在「画形状」编辑态认（别的模式一个手柄都没画）');
-ok(/function setMode\(m\)[\s\S]{0,1200}?render\(\);/.test(uiSrc),
+ok(/function setMode\(m, force\)[\s\S]{0,1600}?render\(\);/.test(uiSrc),
    '切模式当场重画（不会留一屏过期的手柄）');
 ok(/\$\('#shApply'\)[\s\S]{0,200}?classList\.toggle\('pri',/.test(uiSrc),
    '「铺到灯位」的蓝色高亮是按状态算的（有归属分区 + 还没铺过才亮），不是写死的');

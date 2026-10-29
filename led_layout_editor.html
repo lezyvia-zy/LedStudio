@@ -292,7 +292,7 @@
   }
   #audioBar button.on{background:var(--pri-bg); border-color:var(--pri-line)}
   #aFileTime{flex:0 0 auto; color:var(--dim); font-variant-numeric:tabular-nums}
-  #aFileName{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dim)}
+  #aFileName{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dim); cursor:pointer}
   #aFileSeek{
     flex:1 1 100%; height:6px; border-radius:3px; background:var(--line);
     cursor:pointer; position:relative; overflow:hidden;
@@ -446,7 +446,9 @@
     <div id="audioBar" class="hide">
       <button id="aFilePlay" data-tip="播放 / 暂停这个音频文件。&#10;暂停时音量是 0（灯会按慢档走），「音乐来了」开关不用关；再点继续放。">▶</button>
       <span id="aFileTime">0:00 / 0:00</span>
-      <span id="aFileName">—</span>
+      <span id="aFileName" data-tip="点文件名也可以换一个音频文件。">—</span>
+      <button id="aFilePick" data-tip="换一个音频文件（立即替换当前这个；播放中会接着放新文件）。">换</button>
+      <button id="aFileClose" data-tip="关闭音频文件：停止播放、清掉这个文件；再打开「音乐来了」会重新请你选一个。">×</button>
       <div id="aFileSeek" data-tip="点一下跳到这个位置（按文件总时长换算）。"><i id="aFileSeekFill"></i></div>
     </div>
     <div id="headInfo"></div>
@@ -938,6 +940,8 @@
 
         <h3 id="hs-stage">效果编辑台（基础排布）</h3>
         <p>效果**和你的真实灯板无关**。在「效果」页时中央画布会切到<b>编辑台</b> —— 一个通用的基础排布：</p>
+        <div class="hint">这个中央画布<b>只预览动画</b>：不能选灯 / 挪灯 / 框选 / 画形状 / 放置 / 擦除，滚轮也不缩放 ——
+          画布布局请切到「分区」页（效果页里左侧「画布工具」也是灰的）。</div>
         <ul>
           <li><b>直线</b>：颗数可自定义。看追逐的宽度、拖尾、衰减最清楚。</li>
           <li><b>圆环</b>：颗数可自定义。用来看环形效果"绕回来"时的接缝。</li>
@@ -1142,7 +1146,8 @@
           打开这一下会请求授权 —— 「电脑声音」还要共享一个标签页 / 屏幕并勾上<b>「分享音频」</b>；
           <b>音频文件</b>是选一个 mp3 / wav（也可以直接拖到预览条上），<b>零授权、零弹窗、循环播放</b>，
           关掉开关只是暂停（换项目 / 刷新才要重选文件）；加载后<b>画布右上角</b>会出现<b>播放条</b>
-          （▶/⏸、时间、进度 —— 点进度条跳转，暂停只停音乐、灯仍按慢档走，「音乐来了」开关不受影响）。
+          （▶/⏸、时间、进度 —— 点进度条跳转，暂停只停音乐、灯仍按慢档走，「音乐来了」开关不受影响；
+          右边<b>「换」</b>/<b>「×」</b>= 换一个文件 / 关闭这个文件，点文件名也能换）。
           <b>开着的时候换音源会立刻换过去</b>；<b>「电脑声音」的共享会保持住</b>（关掉开关只是不放信号），
           反复开关音乐不会再次弹共享框 —— 换音源 / 换项目 / 停止共享时才断开。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，
           再走同一套 40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
@@ -6888,6 +6893,9 @@ function snapXY(x, y) {
 /* 右键用来平移，必须屏蔽浏览器右键菜单 */
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
+  /* 效果页的中央画布是**动画预览**（编辑台），不参与布局编辑：
+     选灯 / 挪灯 / 画形状 / 放置 / 擦除 / 框选 / 平移 一律不接（2026-10-29 用户实测）。 */
+  if (stageView) return;
   cv.setPointerCapture(e.pointerId);
   const r = cv.getBoundingClientRect();
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
@@ -6961,6 +6969,7 @@ cv.addEventListener('pointerdown', e => {
 });
 
 cv.addEventListener('pointermove', e => {
+  if (stageView) return;                 /* 效果页：预览画布，不接悬停 / 拖拽 */
   const r = cv.getBoundingClientRect();
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
   if (shDraft) { shDragMove(wx, wy); return; }                  /* 画形状：拖框 / 拖手柄 / 挪形状 */
@@ -6989,6 +6998,7 @@ cv.addEventListener('pointermove', e => {
 });
 
 cv.addEventListener('pointerup', e => {
+  if (stageView) return;
   if (shDraft) { shDrop(); return; }
   if (!drag) return;
   if (drag.kind === 'marquee') {
@@ -7018,6 +7028,7 @@ cv.addEventListener('pointercancel', () => { drag = null; cancelShapeDraft(); })
  * **但双击落在灯点上时不算**：那是用户在连点那颗灯（选中 / 微调），
  * 悄悄换成形状编辑态之后，接下来每次点灯都在挪形状 —— 看着就像「点灯有偏差」。 */
 cv.addEventListener('dblclick', e => {
+  if (stageView) return;                 /* 效果页：预览画布，不进形状编辑 */
   if (mode !== 'select' && mode !== 'shape') return;
   const r = cv.getBoundingClientRect();
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
@@ -7029,6 +7040,7 @@ cv.addEventListener('dblclick', e => {
 
 cv.addEventListener('wheel', e => {
   e.preventDefault();
+  if (stageView) return;                 /* 效果页：预览画布，不缩放 */
   const r = cv.getBoundingClientRect();
   const [wx, wy] = s2w(e.clientX - r.left, e.clientY - r.top);
   const f = Math.exp(-e.deltaY * 0.0015);
@@ -7067,10 +7079,19 @@ window.addEventListener('keydown', e => {
     }
     if (mode === 'shape') { shPickStep = 0; setMode('select'); status('已退出形状编辑（Esc）', 'ok'); return; }
   }
-  if (e.code === 'Space') { spaceDown = true; cv.style.cursor = 'grab'; e.preventDefault(); return; }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (stageView) return;                 /* 效果页：预览画布，不做空格平移 */
+    spaceDown = true; cv.style.cursor = 'grab';
+    return;
+  }
   if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
-  if (e.ctrlKey && e.key.toLowerCase() === 'a') { e.preventDefault(); sel = new Set(state.leds.map(l => l.n)); render(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    if (stageView) return;                 /* 效果页：不选灯 */
+    sel = new Set(state.leds.map(l => l.n)); render(); return;
+  }
   if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); saveJson(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); openExport('table'); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); exportPng(); return; }
@@ -7083,6 +7104,8 @@ window.addEventListener('keydown', e => {
   if (e.key === 'g' || e.key === 'G' || e.key === 't' || e.key === 'T') { tab('zones');  return; }
   if (e.key === '0') { fitView(); render(); return; }
   if (e.key === '1') { view.zoom = 1; render(); return; }
+  /* 效果页：删除 / 方向键微调 / 切工具都不许动布局 */
+  if (stageView && (e.key === 'Delete' || e.key === 'Backspace' || e.key.indexOf('Arrow') === 0)) return;
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (sel.size) { snapshot(); state.leds = state.leds.filter(l => !sel.has(l.n)); sel.clear(); afterChange(); }
     return;
@@ -7103,7 +7126,13 @@ window.addEventListener('keyup', e => {
 });
 
 /* ---------- 左侧栏：项目区 + 模式区 ---------- */
-function setMode(m) {
+function setMode(m, force) {
+  /* 效果页的中央画布只预览动画：工具键 / 快捷键都别把人带进画布编辑态。
+   * 内部切页 / 换项目要收干净状态时用 force（tab / bindProject 会传）。 */
+  if (stageView && !force) {
+    status('效果页只预览动画：画布编辑请切到「分区」页', 'warn');
+    return;
+  }
   mode = m;
   document.querySelectorAll('#left button[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
   cv.style.cursor = m === 'select' ? 'default' : 'crosshair';
@@ -7116,6 +7145,14 @@ function setMode(m) {
    * 不重画的话会留下一屏过期的手柄 —— 看得见却抓不住，正是用户实测抱怨的那类坑。
    * boot 早期（项目还没装进 state）没有可画的东西，跳过。 */
   if (state) render();
+}
+/* 左侧那排「画布工具」（选择 / 放置 / 擦除 / 画形状）只在布局页有意义：
+ * 效果页是动画预览，进去就把它禁用掉（顶栏 / 快捷键 / 画布手势另有守卫）。 */
+function syncLeftForPane() {
+  const off = !!stageView;
+  /* 只禁用，不改 data-tip（那是各工具自己的说明，悬浮说明系统读它；也不许用 title，
+     test_help 会把原生 title 框当第二个提示框）；禁用原因由状态栏在按快捷键时说明。 */
+  document.querySelectorAll('#left button[data-mode]').forEach(b => { b.disabled = off; });
 }
 function buildLeft() {
   const box = $('#left');
@@ -7203,6 +7240,11 @@ function tab(name) {
   }
   if (name === 'anim') { simDirty = true; }   /* 在效果页改过效果的话，灯板预览重建 */
   stageView = (name === 'fx');
+  /* 效果页的中央画布是「动画预览」：进去就把画布工具收掉（回到选择态、按钮禁用），
+     出来再放出来 —— 免得在预览页里点到画形状 / 放置 / 擦除（2026-10-29 用户实测）。 */
+  if (stageView && mode !== 'select') setMode('select', true);
+  syncLeftForPane();
+  if (cv) cv.style.cursor = 'default';
   if (state) {
     resizeCanvas(); render();
     /* 编辑台本来在播、刚切回来 → 重新起循环（计时从这一刻算起，别补放切页那段时间） */
@@ -7693,6 +7735,21 @@ function buildAnimPanel() {
       const pct = Math.max(0, Math.min(1, (x - r.left) / Math.max(1, r.width)));
       el.currentTime = pct * el.duration;
       syncAudioBar();
+    };
+  }
+  /* 换文件 / 关闭文件：播放条右边两个小键（点文件名也能换） */
+  const pickAgain = () => { const fin = $('#aFile'); if (fin && fin.click) fin.click(); };
+  const pickBtn = $('#aFilePick'), nameEl = $('#aFileName'), closeBtn = $('#aFileClose');
+  if (pickBtn)  pickBtn.onclick = pickAgain;
+  if (nameEl)   nameEl.onclick = pickAgain;
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      const a = A();
+      audioCapStop();                     /* 停播 + 释放 AudioContext（文件还会 revoke URL） */
+      audioFile = null; filePickPending = false;
+      a.audio = false; a.fft = 0; a.audioName = '';
+      syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+      status('已关闭音频文件（再打开「音乐来了」会请你重新选一个）');
     };
   }
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };
@@ -10489,7 +10546,7 @@ function bindProject() {
   /* 换了项目：别把上一个项目的形状编辑态带过来（现在手柄只在编辑态画，
    * 编辑态跟着项目走才不会有「新项目的形状上冒出一圈手柄」这种怪事） */
   shDraft = null; shPickEnd(); shPickI = -1; shAdding = false;
-  if (mode === 'shape') setMode('select');
+  if (mode === 'shape') setMode('select', true);   /* 换项目 / 预览页也要能收干净（force） */
   editBinding = null;                    /* 别把上一个项目的「微调中」带过来 */
   stagePlaying = false; stageInst = null; stageEffectId = null;
   undoStack.length = 0; redoStack.length = 0;
@@ -11829,7 +11886,7 @@ $('#shPick').onclick = () => {
   if (idx < 0) { status(`「${z.name}」还没有形状 —— 先在画布上给它拖一个（或点「由分区反推」）`, 'warn'); return; }
   /* **不**进「画形状」编辑态：定头尾只是改这一段编号，不碰几何（第 2 条）。
    * 原先在编辑态里的话就退回选择模式 —— 那 8 个手柄也跟着收起来，免得点着头尾却抓到手柄。 */
-  if (mode === 'shape') setMode('select');
+  if (mode === 'shape') setMode('select', true);
   selShape = idx;
   syncShapeEdit();                       /* 面板先换成这个形状，别把上一个形状的参数写进去 */
   const sh = curShape();

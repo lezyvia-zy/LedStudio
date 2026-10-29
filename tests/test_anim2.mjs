@@ -488,6 +488,21 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
     await new Promise(r => realST(r, 70));
     ok(audioEl.paused === false && playBtn.textContent === '⏸',
        '再点播放条：接着放（没有重新选文件）');
+
+    /* 换文件 / 关闭文件 */
+    let pickMore = 0;
+    fileIn.click = () => { pickMore++; };
+    byId.get('aFilePick').onclick();
+    ok(pickMore === 1, '播放条「换」按钮弹出文件选择（点文件名也一样）');
+    byId.get('aFileClose').onclick();
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audio === false && animOf(0).audioName === '' &&
+       audioEl.paused === true && barEl.classList.contains('hide'),
+       '「×」关闭音频文件：停播、清掉文件、播放条收起');
+    aud.onclick();                        /* 关掉以后开关再打开 → 重新请求选文件 */
+    await new Promise(r => realST(r, 70));
+    ok(pickMore === 2 && animOf(0).audio === false,
+       '关闭后再打开「音乐来了」会重新请你选文件（不会沿用已清掉的那个）');
   }
 
   /* 导出物与音源完全无关：板上仍只认 HAL + 参数 */

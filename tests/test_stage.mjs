@@ -126,6 +126,16 @@ byId.get('stCompare').onchange({ target: byId.get('stCompare') });
   ok(/平滑 \d+ms/.test(line), '状态行带平滑 T（50Hz 下改完立刻看得出这个数生效了）');
 }
 
+/* ---- 2c) 效果页的中央画布 = 动画预览：画布手势 / 键盘 / 左侧工具全都不接 ---- */
+{
+  const guards = (html.match(/if \(stageView\) return;/g) || []).length;
+  ok(guards >= 6,
+     `效果页画布手势一律早退（${guards} 处：pointerdown / move / up / dblclick / wheel / 空格 / Ctrl+A）`);
+  ok(/if \(stageView && !force\)/.test(html) && /function syncLeftForPane/.test(html) &&
+     /if \(stageView && \(e\.key === 'Delete'/.test(html),
+     '效果页也挡掉工具键 / 删除 / 方向键，并把左侧「画布工具」禁用（syncLeftForPane）');
+}
+
 /* ---- 3) 颗数可以自定义 ---- */
 byId.get('stRing').value = '60'; byId.get('stRing').oninput({ target: byId.get('stRing') });
 byId.get('stStrip').value = '7';  byId.get('stStrip').oninput({ target: byId.get('stStrip') });
