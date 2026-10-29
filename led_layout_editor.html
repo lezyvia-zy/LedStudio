@@ -3083,14 +3083,16 @@ function sweepLayerOf(layers) {
  * 所以每个分区 / 每条对比长度各存一份（C 的 led_gen_sw[ZONE_MAX]、JS 的 sim.swv[分区] /
  * 编辑台的 stageSwv[长度]）。字段：已填（低端 / 高端）/ 头部 / 头部方向 / 阶段（0 填 1 清）/
  * 清空位置 / 上一步的流动拍。 */
-function sweepStateNew(N) {
-  return { low: 0, high: 0, num: Math.max(0, N - 1), dir: 0, phase: 0, clear: 0, t: 0 };
+function sweepStateNew(N, lit) {
+  const base = Math.max(0, Math.min(N - 1, lit | 0));
+  return { low: base, high: 0, num: Math.max(0, N - 1), dir: 0, phase: 0, clear: 0, t: 0, base };
 }
 function sweepStep(st, L, N) {
   if (!st || !L || N <= 0) return;
-  if (st.phase === 1) {                       /* 清空阶段 */
-    if (st.clear > 0) st.clear--;
-    else { st.phase = 0; st.low = 0; st.high = 0; st.num = N - 1; st.dir = 0; }
+  const base = Math.max(0, Math.min(N - 1, L.lit | 0));   /* 初始常亮：每一轮回到起点时保留的灯数 */
+  if (st.phase === 1) {                       /* 清空阶段（清到「初始常亮」为止） */
+    if (st.clear > base) st.clear--;
+    else { st.phase = 0; st.low = base; st.high = 0; st.num = N - 1; st.dir = 0; }
     return;
   }
   if ((L.wave | 0) === 0) {                   /* 单向 = PixelFill_OneWay */
@@ -3697,12 +3699,12 @@ function simShownOf(sim, zi) {
 }
 /* 扫描填充：每分区一份状态（懒建；分区长度变了就重建） */
 function simClearSweep(sim) { sim.swv = []; }
-function simSwOf(sim, zi, len) {
+function simSwOf(sim, zi, len, lit) {
   if (!Array.isArray(sim.swv)) sim.swv = [];
   const st = sim.swv[zi];
-  if (!st || st.len !== len) {
-    const s = sweepStateNew(len);
-    s.len = len;
+  if (!st || st.len !== len || st.lit !== (lit | 0)) {
+    const s = sweepStateNew(len, lit);
+    s.len = len; s.lit = lit | 0;
     sim.swv[zi] = s;
     return s;
   }
@@ -4126,7 +4128,7 @@ function simTick(sim, state, applyReverse) {
     for (const zi of p.zones) {
       const z = state.zones[zi];
       if (!z || !z.enabled || !z.count) continue;
-      const st = simSwOf(sim, zi, z.count);
+      const st = simSwOf(sim, zi, z.count, SL.lit | 0);
       if (((ft - st.t) & 0xFFFF) >= need) { st.t = ft; sweepStep(st, SL, z.count); }
     }
   }
@@ -4190,7 +4192,7 @@ function renderAllSim(sim, state, applyReverse) {
       if (zpos < 0) zpos += span;
       else if (zpos >= span) zpos -= span;
 
-      const swState = simSwOf(sim, zi, len);
+      const swState = simSwOf(sim, zi, len, (sweepLayerOf(inst.anim.layers) || {}).lit | 0);
       renderZoneMaskTo(inst, a.mask, a.hue, len, zpos, swState);
 
       const rev = applyReverse && zoneReverse(state, z, nominal);
@@ -4499,6 +4501,8 @@ function layerNums(L) {
        flash_low 是**亮度本身**（0 = 全灭），不是衰减量；三个时间都是 uint16 帧（见 frame16）。 */
     flash_fast: frame16(L.flash_fast), flash_on: frame16(L.flash_on), flash_low: L.flash_low | 0,
     density: L.density | 0, rate: L.rate | 0, lo: L.lo | 0, hi: L.hi | 0,
+    /* 扫描填充：初始常亮灯数（每轮回到起点时保留的灯数） */
+    lit: Math.max(0, Math.min(255, L.lit | 0)),
     level: L.level | 0, spans: L.spans | 0, rotate: L.rotate | 0,
     /* 扫描填充（sweep）的「头部颜色」：只有这一层用；别的层写白（默认） */
     hc_r: hc[0] | 0, hc_g: hc[1] | 0, hc_b: hc[2] | 0, hc_mode: hm,
@@ -4843,10 +4847,12 @@ const LED_GEN_IMPL = [
 '/* @sweep@ */',
 'static void led_gen_sweep_step(led_gen_sweep_t *S, const led_gen_layer_t *L, uint8_t N)',
 '{',
+'    uint8_t base;',
 '    if ((S == 0) || (N == 0u)) return;',
+'    base = (L->lit < N) ? L->lit : (uint8_t)(N - 1u);',
 '    if (S->phase != 0u) {',
-'        if (S->clear > 0u) S->clear--;',
-'        else { S->phase = 0u; S->low = 0u; S->high = 0u;',
+'        if (S->clear > base) S->clear--;',
+'        else { S->phase = 0u; S->low = base; S->high = 0u;',
 '               S->num = (uint8_t)(N - 1u); S->dir = 0u; }',
 '        return;',
 '    }',
@@ -5193,6 +5199,9 @@ const LED_GEN_IMPL = [
 '        if (SL == 0) continue;',
 '        {',
 '            led_gen_inst_t *MI = &led_gen_inst[led_gen_zone_inst[z]];',
+'            uint8_t zn = (uint8_t)((z < ring->zone_count) ? ring->zones[z].count : 0u);',
+'            led_gen_sw[z].num = (uint8_t)((zn > 0u) ? (zn - 1u) : 0u);',
+'            led_gen_sw[z].low = (uint8_t)((SL->lit < zn) ? SL->lit : ((zn > 0u) ? (zn - 1u) : 0u));',
 '            MI->sw_used  = 1u;',
 '            MI->sw_mode  = (uint8_t)((SL->hc_mode <= 3u) ? SL->hc_mode : 0u);',
 '            MI->sw_r = SL->hc_r; MI->sw_g = SL->hc_g; MI->sw_b = SL->hc_b;',
@@ -5684,7 +5693,7 @@ function exportEffectsC(state, opt) {
     bindZones: '分区位掩码: bit k = 第 k 个分区',
     modeFirst: '该模式在绑定表里的起点', modeCount: '绑定条数',
     modeEn: '该模式是否启用',
-    layRow: '每行: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first}（图层不带颜色，取色全在效果级配色里；末尾 hc_* / hc_mode / hg_first 只给扫描填充的头部用）,',
+    layRow: '每行: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first,lit}（图层不带颜色，取色全在效果级配色里；末尾 hc_* / hc_mode / hg_first / lit 只给扫描填充的头部用）,',
     instType: '一个效果实例的运行状态。同一条效果被多个分区引用时共用一个实例 = 相位同步',
     applyMode: '切模式：按绑定表建实例（同一效果只建一次）',
     genTick: '每帧推进一次：所有实例各推进各的',
@@ -5714,6 +5723,7 @@ function exportEffectsC(state, opt) {
   lheadc: '扫描填充(sweep)的「头部颜色」(RGB): 只有这一层用, 已填那一段仍跟效果级配色走; 其它层写 255,255,255',
   lheadm: '头部取色: 0 = 跟配色(同常亮段), 1 = 固定颜色(用 hc_r/g/b), 2 = 彩虹(按头部位置取环上的色), 3 = 渐变(取当前相位色); 其它层写 0',
   lheadg: '头部渐变用哪条色环: 指向 led_gen_grad[] 的起点; 0xFFFF = 用效果自己那张渐变',
+  llit: '扫描填充: 初始常亮灯数(每轮回到起点时保留亮着的灯数, 0 = 从全灭开始)',
     layen: '1 = 启用；0 = 旁路（占位保留，合成时跳过该层）',
     ringNote1: '效果条数由本文件说了算。',
     ringNote2: 'led_ring.h 里原来那句 #define RING_PRESET_COUNT 9 请整句注释掉。',
@@ -5754,7 +5764,7 @@ function exportEffectsC(state, opt) {
     bindZones: 'zone bitmask: bit k = zone k',
     modeFirst: 'start index into the bind table', modeCount: 'number of bindings',
     modeEn: 'mode enabled',
-    layRow: 'rows: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first} (layers carry no colour: colours come from the effect-level colour mode; the trailing hc_* / hc_mode / hg_first are the sweep head only),',
+    layRow: 'rows: {kind,en,count,width,phase,falloff,pulse_period,pulse_amp,density,rate,lo,hi,level,spans,rotate,wave,flags,spacing,flash_fast,flash_on,flash_low,hc_r,hc_g,hc_b,hc_mode,hg_first,lit} (layers carry no colour: colours come from the effect-level colour mode; the trailing hc_* / hc_mode / hg_first / lit are the sweep head only),',
     instType: 'runtime state of one effect instance. Zones sharing an effect share the instance = synchronised',
     applyMode: 'switch mode: build instances from the bind table (one per distinct effect)',
     genTick: 'called once per frame: advance every instance',
@@ -5784,6 +5794,7 @@ function exportEffectsC(state, opt) {
   lheadc: 'sweep head colour (RGB): only the sweep layer uses it, the filled run keeps the effect-level colour; other layers write 255,255,255',
   lheadm: 'head colour source: 0 = follow the effect colour, 1 = fixed (hc_r/g/b), 2 = rainbow at the head position, 3 = gradient at the current phase; other layers write 0',
   lheadg: 'which colour ring the head gradient uses: start index into led_gen_grad[]; 0xFFFF = the effect own gradient',
+  llit: 'sweep: LEDs kept lit at the start of every cycle (0 = start from fully dark)',
     layen: '1 = enabled; 0 = bypassed (kept as a placeholder, skipped when compositing)',
     ringNote1: 'the effect/mode count is owned by THIS file.',
     ringNote2: 'The original #define RING_PRESET_COUNT 9 in led_ring.h must be commented out.',
@@ -5869,6 +5880,7 @@ function exportEffectsC(state, opt) {
        '    uint8_t hc_r, hc_g, hc_b;   /* ' + t.lheadc + ' */',
        '    uint8_t hc_mode;      /* ' + t.lheadm + ' */',
        '    uint16_t hg_first;    /* ' + t.lheadg + ' */',
+       '    uint8_t lit;          /* ' + t.llit + ' */',
        '} led_gen_layer_t;',
        '',
        'typedef struct {',
@@ -5917,11 +5929,11 @@ function exportEffectsC(state, opt) {
       push('    { ' + [R.kind, R.en, R.count, R.width, R.phase, R.falloff, R.pulse_period, R.pulse_amp,
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
                        R.wave, R.flags, R.spacing, R.flash_fast, R.flash_on, R.flash_low,
-                       R.hc_r, R.hc_g, R.hc_b, R.hc_mode, R.hg_first].join(', ') + ' },');
+                       R.hc_r, R.hc_g, R.hc_b, R.hc_mode, R.hg_first, R.lit].join(', ') + ' },');
     }
     push('};');
   } else {
-    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xFFFF } };');
+    push('static const led_gen_layer_t led_gen_layers[1] = { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xFFFF,0 } };');
   }
   push('');
   push('/* ' + t.palRow + ' */');
@@ -6906,7 +6918,7 @@ function renderStage() {
     const step = (x1 - x0) / Math.max(1, N - 1);
     const R = stageLedR(step);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
-    const st = stageSwOf(N);
+    const st = stageSwOf(N, (sweepLayerOf(inst.anim.layers) || {}).lit | 0);
     renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), st);
     const shown = stageShownFor(N, mask);
     for (let i = 0; i < N; i++) {
@@ -6921,7 +6933,7 @@ function renderStage() {
   const ring = (N, cx, cy, Rr, label) => {
     const Rl = stageLedR((2 * Math.PI * Rr) / N);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
-    const st = stageSwOf(N);
+    const st = stageSwOf(N, (sweepLayerOf(inst.anim.layers) || {}).lit | 0);
     renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), st);
     const shown = stageShownFor(N, mask);
     for (let i = 0; i < N; i++) {
@@ -8458,6 +8470,8 @@ const LAYER_FIELDS = {
   /* 扫描填充（预置「单向填充 / 双向填充」，移植固件 spim_led.c 的 PixelFill_OneWay / TwoWay）：
    * 方向在图层卡上是一个下拉（0 单向 / 1 双向，存在 wave 里），这里只列数值格。 */
   sweep: [
+    ['初始常亮','lit',0,255,
+     '每一轮回到起点时，常亮区域保持亮着的灯数（0..255，单位 = 该分区自己的灯数）。\n0 = 从全灭开始；填满 → 清空时会清到这一格为止，再从头开始。'],
     ['每步','rotate',0,255,
      '头部每走一步要多少 ms（按 20ms 一拍向上取整，最少 1 拍）；0 也按 1 拍。\n跟着快慢档：快档按 8 倍速走（固件 Ring.Speed 到顶时就是每拍一步）。\n一步 = 头部在环上走一颗灯；走到已填边界时，已填区域长一颗。'],
     ['已填亮度','lo',0,255,
@@ -8508,9 +8522,11 @@ const STAGE_HIST_MAX = 600;                 /* 12 秒（50Hz）—— 够看清�
 let stageShownBufs = new Map();
 /* 扫描填充：编辑台上每个对比长度各一份状态（单位 = 那一行自己的灯数） */
 let stageSwv = new Map();
-function stageSwOf(N) {
+function stageSwOf(N, lit) {
   let st = stageSwv.get(N);
-  if (!st || st.len !== N) { st = sweepStateNew(N); st.len = N; stageSwv.set(N, st); }
+  if (!st || st.len !== N || st.lit !== (lit | 0)) {
+    st = sweepStateNew(N, lit); st.len = N; st.lit = lit | 0; stageSwv.set(N, st);
+  }
   return st;
 }
 let stageHist = [], stageHistBase = 0, stageTicks = 0;
@@ -8542,7 +8558,7 @@ function stageShownSnap(inst) {
   const pos = inst.anim.position.current;
   for (const N of stageLens()) {
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
-    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), stageSwOf(N));
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), stageSwOf(N, (sweepLayerOf(inst.anim.layers) || {}).lit | 0));
     stageShownBufs.set(N, mask);
   }
 }
@@ -8605,7 +8621,7 @@ function stageTickOnce(inst) {
   const pos = inst.anim.position.current;
   const SL = sweepLayerOf(inst.anim.layers);
   for (const N of stageLens()) {
-    const st = stageSwOf(N);
+    const st = stageSwOf(N, (sweepLayerOf(inst.anim.layers) || {}).lit | 0);
     if (SL) {
       const ft = flowTickOf(inst);
       const need = Math.max(1, SL.rotate | 0);

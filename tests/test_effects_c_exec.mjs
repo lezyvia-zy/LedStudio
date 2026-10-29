@@ -191,6 +191,7 @@ const SW1 = mkFx(18, [{ kind:'sweep', en:1, wave:0, rotate:1, lo:120, hi:255,
                         count:0, width:0, phase:0, falloff:'hard', pulse_period:0, pulse_amp:0,
                         density:0, rate:0, spans:0, direction:1, bounce:0 }]);
 SW1.color = CORE.FW.COLOR.SOLID; SW1.c1 = [255,255,255]; SW1.c2 = [0,0,0];
+SW1.layers[0].lit = 2;                  /* 初始常亮 2 颗（C/JS 同一条规则） */
 st.modes.list.push({ id:'mU', name:'单向填充', latin:'FILL_ONE', enabled:true,
                      binds:[{ effect:SW1.id, zones:[] }] });
 const SW2 = mkFx(19, [{ kind:'sweep', en:1, wave:1, rotate:1, lo:120, hi:255,

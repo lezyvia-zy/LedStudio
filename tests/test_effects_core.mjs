@@ -1405,6 +1405,25 @@ console.log('--- 扫描填充（单向 / 双向）---');
     ok(m8.filter(v => v > 0).length === 1, `8 颗：第 1 步也只有头部 1 颗（${m8.join(',')}）`);
   }
 
+  /* 初始常亮：每一轮回到起点时保留的灯数 */
+  {
+    const L3 = mk(0, 1); L3.anim.layers[0].lit = 3;
+    const s3 = sweepStateNew(24, 3);
+    ok(s3.low === 3 && s3.num === 23, `初始常亮 3：起点就亮 3 颗（low=${s3.low}）`);
+    const m0 = shot(L3, s3, 24);
+    ok(m0[0] === 120 && m0[2] === 120 && m0[3] === 0 && m0[23] === 255,
+       '起点：前 3 颗常亮 + 头部在远端');
+    let g = 0;
+    while (s3.phase === 0 && g++ < 5000) tick1(L3, s3, 24);       /* 填满 */
+    ok(s3.phase === 1, '填满后进入清空');
+    g = 0;
+    while (s3.phase === 1 && g++ < 5000) tick1(L3, s3, 24);       /* 清到「初始常亮」为止 */
+    const m1 = shot(L3, s3, 24);
+    ok(s3.phase === 0 && s3.low === 3 && s3.num === 23 &&
+       m1[0] === 120 && m1[2] === 120 && m1[3] === 0,
+       `一圈跑完回到起点：仍保留 3 颗常亮（low=${s3.low}）`);
+  }
+
   /* 头部颜色：只有头部那一颗用图层「头部颜色」，已填段仍走效果级配色 */
   {
     const eff = { kind:'custom', color: FW.COLOR.SOLID, c1: [1, 2, 3], slow: 8, fast: 1, speed: 0, moves: false,
