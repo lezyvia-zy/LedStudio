@@ -103,6 +103,8 @@
   #previewBar button{flex:0 0 auto; font-size:12px}
   /* 「音乐来了」开关：开/关两种文案宽度不同，固定一下，免得整行跟着跳 */
   #previewBar #aAudio{min-width:146px}
+  /* 把音频文件拖到预览条上：给个虚线框提示「松手就听」 */
+  #previewBar.drop{outline:2px dashed var(--accent); outline-offset:-3px}
   .pane{display:none; padding:8px; overflow:auto; flex:1 1 auto; min-height:0}
   .pane.on{display:block}
   /* 效果页的「播放」条：钉在这一页底部（翻多长都看得见、一像素都不动）——
@@ -458,13 +460,15 @@
         <span class="thrBox" data-tip="出快档的「过渡」（ms）：快→慢不再直切，而是用这么久把「每格拍数」从快档爬到慢档 —— 想要「滑行减速」的阻尼感就加大；0 = 直切（加滑移之前的行为）。&#10;落进 20ms 一拍时向上取整算每拍爬多少。随导出写进 C 的 LED_GEN_STAGE_GLIDE_MS。">过渡(ms)<input type="number" id="aGlide" min="0" max="3000" step="10" value="350"></span>
       </div>
       <div class="pr"><span class="lb">音源</span>
-        <select id="aSrc" data-tip="「音乐来了」打开后听什么：**随机** = 每 20ms 造一个音量（底噪 + 随机鼓点 + 余音，演示 / 录屏用）；**麦克风** = 电脑麦克风（外放的音乐也能收到）；**电脑声音** = 共享一个标签页 / 屏幕，共享时勾「分享音频」（Chrome / Edge）。&#10;只在打开「音乐来了」时生效；开着的时候换源会立刻换过去。真声音按 -60dB..0dB 映射到 0..最大值。&#10;**电脑声音的共享会一直保持**（关掉开关只是不放信号），所以反复开关不会重选；换音源 / 换项目 / 停止共享才断开。&#10;**只影响工具预览** —— 导出物不变，板上仍由 led_gen_hal_audio_level() 给音量。">
+        <select id="aSrc" data-tip="「音乐来了」打开后听什么：**随机** = 每 20ms 造一个音量（底噪 + 随机鼓点 + 余音，演示 / 录屏用）；**麦克风** = 电脑麦克风（外放的音乐也能收到）；**电脑声音** = 共享一个标签页 / 屏幕，共享时勾「分享音频」（Chrome / Edge）；**音频文件** = 选一个 mp3 / wav / m4a（也可以直接拖到这条预览条上），零授权、零弹窗、循环播放。&#10;真声音按 -60dB..0dB 映射到 0..最大值；电脑声音的共享会一直保持（关掉开关只是不放信号），反复开关不会重选。&#10;**只影响工具预览** —— 导出物不变，板上仍由 led_gen_hal_audio_level() 给音量。">
           <option value="random">随机</option>
           <option value="mic">麦克风</option>
           <option value="system">电脑声音</option>
+          <option value="file">音频文件</option>
         </select>
-        <button id="aAudio" data-tip="**一个开关**：打开就有信号进来（按左边选的音源），关掉就没有。&#10;随机 = 立刻开始（模拟板上信号，暂停也会跳）；麦克风 / 电脑声音 = 真声音，打开这一下会请求授权 —— 电脑声音还要在共享弹窗里勾「分享音频」。&#10;**电脑声音的共享会保持住**：之后反复开关都不再弹共享框（换音源 / 换项目 / 停止共享才断开）。&#10;开着的时候换音源会立刻换过去；切到手动慢/快档、换项目、停止共享都会自动关掉。">音乐来了</button>
+        <button id="aAudio" data-tip="**一个开关**：打开就有信号进来（按左边选的音源），关掉就没有。&#10;随机 = 立刻开始；麦克风 / 电脑声音 = 真声音（会请求授权，电脑声音要在共享弹窗里勾「分享音频」）；音频文件 = 第一次打开会弹**文件选择**，选完自动开始（之后开关只暂停 / 继续，不再选）。&#10;**电脑声音的共享会保持住**：反复开关不再弹共享框（换音源 / 换项目 / 停止共享才断开）。&#10;开着的时候换音源会立刻换过去；切到手动慢/快档、换项目、停止共享都会自动关掉。">音乐来了</button>
       </div>
+      <input type="file" id="aFile" accept="audio/*" style="display:none">
     </div>
 
     <div class="pane on" data-pane="zones">
@@ -1100,9 +1104,11 @@
           <b>过渡(ms)</b>：出快档**不再直切**——用这么久把「每格拍数」从快档爬到慢档（默认 <b>350ms</b>，约 7 拍，每拍 +1），
           所以快→慢是「滑行减速」而不是「急刹」；填 <b>0 = 直切</b>（加滑移之前的行为）。随导出写进 <code>LED_GEN_STAGE_GLIDE_MS</code>。
           进/出阈值也做了**双阈值**：音量 > 阈值才进快档，要掉到 ≤ 阈值−1 才算安静 —— 在阈值附近抖不会来回切。<br>
-          <b>音源</b>（预览条最下面一行）：<b>随机</b> / <b>麦克风</b> / <b>电脑声音</b> —— 右边<b>「音乐来了」就是一个开关</b>：
+          <b>音源</b>（预览条最下面一行）：<b>随机</b> / <b>麦克风</b> / <b>电脑声音</b> / <b>音频文件</b> —— 右边<b>「音乐来了」就是一个开关</b>：
           打开就有信号（按选中的音源）、关掉就没有。随机立刻开始；麦克风 / 电脑声音是<b>真声音</b>，
-          打开这一下会请求授权 —— 「电脑声音」还要共享一个标签页 / 屏幕并勾上<b>「分享音频」</b>。
+          打开这一下会请求授权 —— 「电脑声音」还要共享一个标签页 / 屏幕并勾上<b>「分享音频」</b>；
+          <b>音频文件</b>是选一个 mp3 / wav（也可以直接拖到预览条上），<b>零授权、零弹窗、循环播放</b>，
+          关掉开关只是暂停（换项目 / 刷新才要重选文件）。
           <b>开着的时候换音源会立刻换过去</b>；<b>「电脑声音」的共享会保持住</b>（关掉开关只是不放信号），
           反复开关音乐不会再次弹共享框 —— 换音源 / 换项目 / 停止共享时才断开。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，
           再走同一套 40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
@@ -2248,8 +2254,9 @@ function defaultAnim() {
             * audio：模拟「音乐来了」—— 播放/暂停都会按 20ms 一拍随机注入音量。 */
            fft: 0, thr: FW.AUDIO_THR_DEF, audioMax: FW.AUDIO_MAX, audio: false,
            /* 预览用的音量来源（只影响工具，不进导出）：random = 随机注入（模拟板上信号）；
-            * mic = 麦克风；system = 电脑声音（共享标签页/屏幕时勾「分享音频」）。 */
-           audioSrc: 'random',
+            * mic = 麦克风；system = 电脑声音（共享标签页/屏幕时勾「分享音频」）；
+            * file = 本地音频文件（零授权，浏览器不允许自动重读 → audioName 只用来显示）。 */
+           audioSrc: 'random', audioName: '',
            /* 音频采样周期 / 快档阻尼（ms，存原值，落进拍按向上取整）：
             *   audioSampleMs = 40（每 2 拍采一次；固件那边 30/40 都行）
             *   stageHoldMs   = 450（→ 460ms / 23 拍：进快档后至少保持这么久 = 阻尼）
@@ -3752,7 +3759,7 @@ function fftMusicLevel(max) {
  * 输入进行量化」）—— 只给**工具预览**用：读时域波形算 RMS，按 dBFS 映射到 0..最大值
  * （-60dB → 0、0dB → 最大值），之后仍走同一条「40ms 采样 + 阈值 + 阻尼」链路。
  * **导出物一点不变**：板上仍然由平台的 led_gen_hal_audio_level() 给音量。 */
-const AUDIO_SRC = ['random', 'mic', 'system'];
+const AUDIO_SRC = ['random', 'mic', 'system', 'file'];
 function audioLevelFromRms(rms, max) {
   const mx = (max == null) ? FW.AUDIO_MAX : audioMaxOf({ audioMax: max });
   const r = +rms;
@@ -5858,8 +5865,9 @@ function A() {
   /* 音量刻度（最大值）：老存档没有 → 出厂 20；2..255 之间夹。
      thr 跟着它夹（阈值不能大于最大值），fft 也按同一个刻度夹。 */
   a.audioMax = audioMaxOf(a);
-  /* 音量来源（只影响预览）：老存档没有 / 手改乱写 → 随机 */
+  /* 音量来源（只影响预览）：老存档没有 / 手改乱写 → 随机；文件名只用来显示（浏览器不许自动重读文件） */
   if (AUDIO_SRC.indexOf(a.audioSrc) < 0) a.audioSrc = 'random';
+  if (typeof a.audioName !== 'string') a.audioName = '';
   /* thr：音乐阈值（0..最大值，老存档没有 → 出厂 4）。夹范围，别让手改 JSON 的怪值把判据弄反；
      这个数会被导出成 C 的 LED_GEN_FFT_THRESHOLD（固件照它判档，不再手改宏）。 */
   a.thr = fftThreshold(a.thr, a.audioMax);
@@ -5961,20 +5969,56 @@ function thrAtClientX(x, max) {
  * 再走和随机音源完全相同的 40ms 采样 + 阈值 + 阻尼链路。
  * 浏览器要求用户手势：点「听…」那一下才启动；换项目 / 切手动档 / 停止共享会自动收摊。 */
 let audioCap = null;
+let audioFile = null;        /* 用户选/拖进来的 File（浏览器不许自动重读，刷新后要重选） */
+let filePickPending = false; /* 「音频文件」打开开关时等文件选择 */
 function audioCapStop() {
   if (!audioCap) return;
-  try { audioCap.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { if (audioCap.stream) audioCap.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  if (audioCap.kind === 'file') {
+    try { if (audioCap.audio) audioCap.audio.pause(); } catch (e) {}
+    try { if (audioCap.url) URL.revokeObjectURL(audioCap.url); } catch (e) {}
+  }
   try { audioCap.ctx.close(); } catch (e) {}
   audioCap = null;
 }
 /* 关掉开关时怎么处理采集：
  *   电脑声音 —— **保持这条共享**（关掉只是不放信号）。浏览器每次 getDisplayMedia 都要重选，
  *     反复开关音乐时别让人每次都点一遍共享框；共享本身在「换音源 / 换项目 / 停止共享」时才释放。
+ *   音频文件 —— **暂停播放、保留文件和 AudioContext**（再打开接着放，不用重选文件）。
  *   麦克风 —— 直接放掉（授权是一次性的，下次 getUserMedia 不会再弹）。 */
 function audioCapHold() {
   if (!audioCap) return;
   if (audioCap.kind === 'system') return;
+  if (audioCap.kind === 'file') {
+    try { if (audioCap.audio) audioCap.audio.pause(); } catch (e) {}
+    return;
+  }
   audioCapStop();
+}
+/* 本地音频文件：<audio loop> → MediaElementSource → analyser → 扬声器（听得见）。
+ * **零授权、零弹窗**；响度仍走 audioLevelFromTimeData() 那套，导出物不受影响。 */
+async function audioFileStart(file) {
+  const AEl = (typeof window !== 'undefined' && window.Audio) ||
+              (typeof Audio !== 'undefined' ? Audio : null);
+  if (!AEl) throw new Error('这个浏览器不支持播放音频');
+  const AC = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
+  if (!AC) throw new Error('这个浏览器不支持 Web Audio');
+  const ctx = new AC();
+  if (ctx.resume) { try { await ctx.resume(); } catch (e) {} }
+  const el = new AEl();
+  el.loop = true;
+  el.preload = 'auto';
+  const url = URL.createObjectURL(file);
+  el.src = url;
+  const node = ctx.createMediaElementSource(el);
+  const anal = ctx.createAnalyser();
+  anal.fftSize = 1024;
+  anal.smoothingTimeConstant = 0.4;
+  node.connect(anal);
+  try { anal.connect(ctx.destination); } catch (e) {}   /* 让用户听得见（分析不受影响） */
+  await el.play();
+  audioCap = { ctx, anal, stream: null, kind: 'file', buf: new Uint8Array(anal.fftSize), audio: el, url };
+  return audioCap;
 }
 function audioCapLevel(max) {
   if (!audioCap) return 0;               /* 没在采音 = 安静（不要偷偷回退成随机） */
@@ -7411,16 +7455,45 @@ function buildAnimPanel() {
       status(`音乐来了：每 20ms 随机注入音量（阈值 ${fftThreshold(a.thr, a.audioMax)}），动画跟着忽快忽慢`);
       return true;
     }
-    /* 电脑声音的共享还留着（关开关只是不放信号）→ 直接接着用，不再弹共享框 */
+    /* 电脑声音的共享还留着 / 音频文件还开着（关开关只是暂停）→ 直接接着用，不再弹框 */
     if (audioCap && audioCap.kind === src) {
       if (audioCap.ctx && audioCap.ctx.resume) { try { audioCap.ctx.resume(); } catch (e) {} }
+      if (audioCap.kind === 'file' && audioCap.audio) { try { await audioCap.audio.play(); } catch (e) {} }
       a.audio = true; a.fft = 0;
       syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
       resetClock();
       startLoop();
       status(src === 'mic' ? '音乐来了：继续听麦克风'
-                           : '音乐来了：继续用刚才的共享（不用再选一次；换音源 / 换项目会断开）');
+        : src === 'file' ? `音乐来了：继续放「${a.audioName || '音频文件'}」（不重新选文件）`
+        : '音乐来了：继续用刚才的共享（不用再选一次；换音源 / 换项目会断开）');
       return true;
+    }
+    /* 本地音频文件：**零授权、零弹窗**。还没选过文件就先弹文件选择，选完自动开始。 */
+    if (src === 'file') {
+      if (!audioFile) {
+        const fin = $('#aFile');
+        filePickPending = true;
+        if (fin && fin.click) fin.click();
+        status(a.audioName
+          ? `选一个音频文件重新加载（上次：${a.audioName}；浏览器不允许自动重读文件）`
+          : '选一个音频文件（mp3 / wav / m4a）—— 选完自动开始，零授权、零弹窗');
+        return false;
+      }
+      try {
+        await audioFileStart(audioFile);
+        a.audioName = audioFile.name;
+        a.audio = true; a.fft = 0;
+        syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
+        resetClock();
+        startLoop();
+        status(`音乐来了：正在放「${a.audioName}」（本地文件，循环播放；只影响预览）`);
+        return true;
+      } catch (err) {
+        audioCapStop();
+        a.audio = false; a.fft = 0;
+        status('没能播放这个音频文件：' + ((err && err.message) || err), 'warn');
+        return false;
+      }
     }
     const btn = $('#aAudio');
     if (btn) btn.disabled = true;
@@ -7457,8 +7530,17 @@ function buildAnimPanel() {
       if (next === prev) { syncAudioBtn(); return; }
       a.audioSrc = next;
       saveStore();
-      /* 共享只在「电脑声音」下保留：换成随机 / 麦克风就断开 */
+      /* 共享只在「电脑声音」下保留：换成随机 / 麦克风 / 文件就断开 */
       if (audioCap && audioCap.kind !== next) audioCapStop();
+      /* 换到「音频文件」但还没选过文件：先把文件选择框弹出来，开关先关着等它 */
+      if (next === 'file' && a.audio && !audioFile) {
+        a.audio = false; a.fft = 0;
+        filePickPending = true;
+        const fin = $('#aFile'); if (fin && fin.click) fin.click();
+        syncAudioBtn(); saveStore();
+        status('音源：音频文件 —— 选一个文件（选完自动开始；也可以直接拖到预览条上）');
+        return;
+      }
       let failed = false;
       if (a.audio) {                     /* 开着换源：立刻换；换不过去退回原选择并停下 */
         audioCapStop(); a.audio = false; a.fft = 0;
@@ -7471,9 +7553,52 @@ function buildAnimPanel() {
       else if (!a.audio) {
         status(a.audioSrc === 'random' ? '音源：随机 —— 打开「音乐来了」就有信号'
           : a.audioSrc === 'mic' ? '音源：麦克风 —— 打开「音乐来了」时请求一次授权'
+          : a.audioSrc === 'file' ? '音源：音频文件 —— 打开「音乐来了」时选文件（也可以直接拖到预览条上）'
           : '音源：电脑声音 —— 打开「音乐来了」时共享一个标签页/屏幕，勾「分享音频」');
       }
     };
+  }
+  /* 本地音频文件：选文件 / 拖到预览条上 → 零授权、零弹窗、循环播放。
+   * 浏览器不允许自动重读文件，所以 audioName 只用来显示，刷新 / 换项目后要重选一次。 */
+  const fileIn = $('#aFile');
+  async function loadAudioFile(f, autoStart) {
+    if (!f) return;
+    const a = A();
+    const start = autoStart || a.audio || filePickPending;
+    audioFile = f;
+    a.audioSrc = 'file';
+    a.audioName = f.name;
+    filePickPending = false;
+    if (a.audio) { a.audio = false; a.fft = 0; audioCapStop(); }
+    syncAudioBtn(); saveStore();
+    if (start) await audioOnWith('file');
+    else status(`音频文件：${f.name} —— 打开「音乐来了」就循环播放`);
+  }
+  if (fileIn) {
+    fileIn.onchange = async () => {
+      const f = fileIn.files && fileIn.files[0];
+      await loadAudioFile(f, false);
+      try { fileIn.value = ''; } catch (e) {}   /* 同一个文件再选一次也要能触发 */
+    };
+  }
+  const bar = $('#previewBar');
+  if (bar && bar.addEventListener) {
+    bar.addEventListener('dragover', e => {
+      if (e && e.preventDefault) e.preventDefault();
+      bar.classList.add('drop');
+    });
+    bar.addEventListener('dragleave', () => bar.classList.remove('drop'));
+    bar.addEventListener('drop', async e => {
+      if (e && e.preventDefault) e.preventDefault();
+      bar.classList.remove('drop');
+      const f = e && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!f) return;
+      if (!/^audio\//.test(f.type || '') && !/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name || '')) {
+        status('拖进来的不是音频文件（支持 mp3 / wav / m4a / ogg / flac）', 'warn');
+        return;
+      }
+      await loadAudioFile(f, true);   /* 拖进来就直接开始听 */
+    });
   }
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };
   $('#aPlay').onclick   = () => { playToggle(!A().playing); saveStore(); };
@@ -10242,6 +10367,7 @@ function bindProject() {
   /* 换项目：上一个项目的真声音采集要停掉（麦克风 / 共享音频），而且采音需要用户手势，
      所以「音源 = 麦克风/电脑声音」的工程打开后是停着的，等用户点一下「听…」。 */
   audioCapStop();
+  audioFile = null; filePickPending = false;   /* 换项目：本地音频文件要重新选（浏览器不许自动重读） */
   if (state.anim.audio && state.anim.audioSrc && state.anim.audioSrc !== 'random') state.anim.audio = false;
   /* 老存档迁移：以前是 anim.preset（FW.presets 的下标），现在是效果 id */
   if (!state.effects) state.effects = defaultEffects();

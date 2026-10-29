@@ -342,11 +342,13 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
       return { getTracks: () => [micTrack], getAudioTracks: () => [micTrack], getVideoTracks: () => [] };
     },
   };
+  let ctxCount = 0;
   globalThis.window.AudioContext = class {
-    constructor() { this.closed = false; }
+    constructor() { this.closed = false; this.destination = {}; ctxCount++; }
     async resume() {}
     createMediaStreamSource() { return { connect() {} }; }
-    createAnalyser() { return { fftSize: 1024, smoothingTimeConstant: 0,
+    createMediaElementSource() { return { connect() {} }; }
+    createAnalyser() { return { fftSize: 1024, smoothingTimeConstant: 0, connect() {},
       getByteTimeDomainData(a) { a.fill(128); } }; }
     close() { this.closed = true; }
   };
@@ -415,9 +417,57 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
   ok(animOf(0).audio === true && stopped > stoppedBefore,
      '换到「随机」：共享才断开（轨道释放），信号不断');
 
+  /* 音频文件：零授权、零弹窗；开关只暂停 / 继续，换项目才要重选 */
+  {
+    const fileIn = byId.get('aFile');
+    let pickClicks = 0;
+    fileIn.click = () => { pickClicks++; };
+    let audioEl = null;
+    globalThis.window.Audio = class {
+      constructor() { audioEl = this; this.paused = true; this.loop = false; this.currentTime = 0; }
+      async play() { this.paused = false; }
+      pause() { this.paused = true; }
+    };
+    srcSel.value = 'file'; srcSel.onchange();
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audioSrc === 'file' && !animOf(0).audio && aud.textContent === '音乐来了',
+       `切到「音频文件」不会自己开（开关仍是「${aud.textContent}」）`);
+    aud.onclick();                    /* 没有文件 → 弹文件选择 */
+    await new Promise(r => realST(r, 70));
+    ok(pickClicks >= 1 && animOf(0).audio === false,
+       `还没选文件时会弹文件选择（${pickClicks} 次）、开关保持关`);
+
+    const theFile = { name: 'song.mp3', type: 'audio/mpeg', size: 1024 };
+    fileIn.files = [theFile];
+    const ctxBefore = ctxCount;
+    await fileIn.onchange();
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audio === true && animOf(0).audioName === 'song.mp3' &&
+       audioEl && audioEl.paused === false && audioEl.loop === true && ctxCount === ctxBefore + 1,
+       `选完文件自动开始：循环播放「${animOf(0).audioName}」，一个 AudioContext（${ctxCount - ctxBefore} 新增）`);
+    aud.onclick();                    /* 关掉 = 暂停播放，文件留着 */
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audio === false && audioEl.paused === true && ctxCount === ctxBefore + 1,
+       '关掉开关只暂停播放（不重建 AudioContext、不重新选文件）');
+    aud.onclick();                    /* 再打开 = 接着放 */
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audio === true && audioEl.paused === false && ctxCount === ctxBefore + 1,
+       '再打开接着放（没有第二次选文件 / 没有新 AudioContext）');
+
+    /* 拖一个文件到预览条上：直接开始听（比点选更快） */
+    const drop = (listeners['previewBar:drop'] || [])[0];
+    ok(typeof drop === 'function', '预览条挂了 drop（音频文件可以直接拖进来）');
+    const dropped = { name: 'drop.wav', type: 'audio/wav', size: 2048 };
+    await drop({ preventDefault() {}, dataTransfer: { files: [dropped] } });
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audio === true && animOf(0).audioName === 'drop.wav' && audioEl.paused === false &&
+       ctxCount === ctxBefore + 2,
+       `拖进来直接开始：正在放「${animOf(0).audioName}」`);
+  }
+
   /* 导出物与音源完全无关：板上仍只认 HAL + 参数 */
   const hdr = CORE2.exportEffectsC(stOf(), { form:'header', comment:'ascii', eol:'lf' });
-  ok(!/audioSrc|getUserMedia|getDisplayMedia|麦克风/.test(hdr),
+  ok(!/audioSrc|audioName|getUserMedia|getDisplayMedia|麦克风/.test(hdr),
      '导出的 C 里没有任何「音源 / 采集」痕迹（音源只是工具预览）');
 
   srcSel.value = 'random'; srcSel.onchange();

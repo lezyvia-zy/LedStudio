@@ -617,7 +617,7 @@ console.log('--- 「音乐来了」的随机音源 ---');
 console.log('--- 真声音 → 0..最大值（预览用）---');
 {
   const { audioLevelFromRms, audioLevelFromTimeData, AUDIO_SRC, audioMaxOf } = CORE;
-  ok(AUDIO_SRC.join(',') === 'random,mic,system', `音源枚举：${AUDIO_SRC.join(' / ')}`);
+  ok(AUDIO_SRC.join(',') === 'random,mic,system,file', `音源枚举：${AUDIO_SRC.join(' / ')}`);
   ok(audioLevelFromRms(0, 20) === 0 && audioLevelFromRms(1, 20) === 20 &&
      audioLevelFromRms(0.5, 20) === 18 && audioLevelFromRms(2, 20) === 20,
      `RMS → 0..20：静音 0、满幅 20、半幅(-6dB) 18、超过 1 也夹到 20`);
