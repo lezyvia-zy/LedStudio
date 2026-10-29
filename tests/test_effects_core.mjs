@@ -1340,7 +1340,8 @@ console.log('--- 旋转 / 流动跟快慢档（flow 时钟）---');
  * ==========================================================================*/
 console.log('--- 扫描填充（单向 / 双向）---');
 {
-  const { instNew, instApplyPreset, instTick, renderZoneMaskTo, LAYER } = CORE;
+  const { instNew, instApplyPreset, instTick, flowTickOf, sweepStateNew, sweepStep,
+          renderZoneMaskTo, effectColorAt, sweepHeadColor, LAYER } = CORE;
   const mk = (wave, rotate) => {
     const I = instNew();
     instApplyPreset(I, { anim: FW.ANIM_COUNT, width: 10, gap: 0, slow: 8, fast: 1,
@@ -1348,35 +1349,61 @@ console.log('--- 扫描填充（单向 / 双向）---');
     I.anim.layers = [{ kind: LAYER.SWEEP, en: 1, wave, rotate, lo: 120, hi: 255 }];
     return I;
   };
-  const shot = (I, len) => {
+  /* 一拍 = instTick + 该分区自己那份状态按 rotate 走一步（与 simTick / C 的 tick 同规则） */
+  const tick1 = (I, st, N) => {
+    instTick(I, false);
+    const L = I.anim.layers[0];
+    const ft = flowTickOf(I);
+    const need = Math.max(1, L.rotate | 0);
+    if (((ft - st.t) & 0xFFFF) >= need) { st.t = ft; sweepStep(st, L, N); }
+  };
+  const shot = (I, st, len) => {
     const m = new Uint8Array(len), h = new Uint8Array(len);
-    renderZoneMaskTo(I, m, h, len, 0);
+    renderZoneMaskTo(I, m, h, len, 0, st);
     return m;
   };
-  const run = (I, n) => { for (let i = 0; i < n; i++) instTick(I, false); };
+  const run = (I, st, n, N) => { for (let i = 0; i < n; i++) tick1(I, st, N); };
 
   /* 单向：头部从远端（N-1）往回走，走到已填边界时已填区域长一颗 */
-  const A = mk(0, 1);
-  instTick(A, false);
-  let mA = shot(A, 24);
-  ok(A.swNum === 22 && A.swLow === 0 && mA[22] === 255 && mA[0] === 0,
-     `单向第 1 步：头部到 ${A.swNum}，还没填（${mA[22]}）`);
-  run(A, 22);                            /* 一共 23 步：头部走到 0 → 已填 +1 */
-  mA = shot(A, 24);
-  ok(A.swLow === 1 && A.swNum === 23 && mA[0] === 120 && mA[23] === 255,
-     `单向 23 步：已填 1 颗（${mA[0]}）、头部回到远端 ${A.swNum}`);
+  const A = mk(0, 1), sA = sweepStateNew(24);
+  tick1(A, sA, 24);
+  let mA = shot(A, sA, 24);
+  ok(sA.num === 22 && sA.low === 0 && mA[22] === 255 && mA[0] === 0,
+     `单向第 1 步：头部到 ${sA.num}，还没填（${mA[22]}）`);
+  run(A, sA, 22, 24);                    /* 一共 23 步：头部走到 0 → 已填 +1 */
+  mA = shot(A, sA, 24);
+  ok(sA.low === 1 && sA.num === 23 && mA[0] === 120 && mA[23] === 255,
+     `单向 23 步：已填 1 颗（${mA[0]}）、头部回到远端 ${sA.num}`);
 
   /* 双向：两端交替长，头部在两端之间来回弹 */
-  const B = mk(1, 1);
-  run(B, 23);
-  let mB = shot(B, 24);
-  ok(B.swLow === 1 && B.swHigh === 0 && B.swDir === 1 && mB[0] === 120,
-     `双向 23 步：低端先长 1 颗（low=${B.swLow} / high=${B.swHigh} / dir=${B.swDir}）`);
-  run(B, 22);                            /* 头部走到高端 → 高端 +1 */
-  mB = shot(B, 24);
-  ok(B.swLow === 1 && B.swHigh === 1 && B.swDir === 0 &&
+  const B = mk(1, 1), sB = sweepStateNew(24);
+  run(B, sB, 23, 24);
+  let mB = shot(B, sB, 24);
+  ok(sB.low === 1 && sB.high === 0 && sB.dir === 1 && mB[0] === 120,
+     `双向 23 步：低端先长 1 颗（low=${sB.low} / high=${sB.high} / dir=${sB.dir}）`);
+  run(B, sB, 22, 24);                    /* 头部走到高端 → 高端 +1 */
+  mB = shot(B, sB, 24);
+  ok(sB.low === 1 && sB.high === 1 && sB.dir === 0 &&
      mB[0] === 120 && mB[23] === 120,
      `双向 45 步：两端各 1 颗（${mB[0]} / ${mB[23]}）`);
+
+  /* 按**分区自己的灯数**一颗一颗走：40 颗的分区每步只长 1 颗（旧版按 1/24 环会一次长 2 颗） */
+  {
+    const E40 = mk(0, 1), s40 = sweepStateNew(40);
+    run(E40, s40, 1, 40);
+    const m1 = shot(E40, s40, 40);
+    ok(s40.num === 38 && m1.filter(v => v > 0).length === 1,
+       `40 颗：第 1 步只亮头部 1 颗（${m1.filter(v => v > 0).length} 颗亮）`);
+    run(E40, s40, 38, 40);               /* 走到 0 → 已填 1 */
+    const m2 = shot(E40, s40, 40);
+    ok(s40.low === 1 && m2[0] === 120 && m2[1] === 0,
+       '40 颗：已填只长 1 颗（第 2 颗还是灭的）');
+    /* 8 颗同理：一步一颗，不会一次亮 3 颗 */
+    const E8 = mk(0, 1), s8 = sweepStateNew(8);
+    run(E8, s8, 1, 8);
+    const m8 = shot(E8, s8, 8);
+    ok(m8.filter(v => v > 0).length === 1, `8 颗：第 1 步也只有头部 1 颗（${m8.join(',')}）`);
+  }
 
   /* 头部颜色：只有头部那一颗用图层「头部颜色」，已填段仍走效果级配色 */
   {
@@ -1384,24 +1411,26 @@ console.log('--- 扫描填充（单向 / 双向）---');
                   layers: [{ kind: 'sweep', en: 1, wave: 0, rotate: 1, lo: 120, hi: 255, hc: [10, 20, 30] }] };
     const I2 = CORE.instNew();
     CORE.simApplyEffect(I2, eff, 0);
-    instTick(I2, false);
+    const s2 = sweepStateNew(24);
+    tick1(I2, s2, 24);
     const m2 = new Uint8Array(24), h2 = new Uint8Array(24);
-    CORE.renderZoneMaskTo(I2, m2, h2, 24, 0);
-    const ch = CORE.effectColorAt(I2, I2.swNum, 24, h2);
+    CORE.renderZoneMaskTo(I2, m2, h2, 24, 0, s2);
+    const ch = effectColorAt(I2, s2.num, 24, h2, s2);
     ok(ch.r === 10 && ch.g === 20 && ch.b === 30, `头部用图层的头部颜色（${ch.r},${ch.g},${ch.b}）`);
-    ok(m2[I2.swNum] === 255, '头部亮度仍是「头部亮度」那一格');
-    ok(CORE.effectColorAt(I2, 5, 24, h2).r === 1 && CORE.effectColorAt(I2, 5, 24, h2).g === 2,
+    ok(m2[s2.num] === 255, '头部亮度仍是「头部亮度」那一格');
+    ok(effectColorAt(I2, 5, 24, h2, s2).r === 1 && effectColorAt(I2, 5, 24, h2, s2).g === 2,
        '其它灯位仍走效果级配色（纯色 c1 = 1,2,3）');
     /* 没配固定色 → 头部跟配色（预设「单向/双向填充」就是这个状态） */
     const eff3 = { kind:'custom', color: FW.COLOR.SOLID, c1: [1, 2, 3], slow: 8, fast: 1, speed: 0, moves: false,
                    layers: [{ kind: 'sweep', en: 1, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
     const I3 = CORE.instNew();
     CORE.simApplyEffect(I3, eff3, 0);
-    instTick(I3, false);
+    const s3 = sweepStateNew(24);
+    tick1(I3, s3, 24);
     const m3 = new Uint8Array(24), h3 = new Uint8Array(24);
-    CORE.renderZoneMaskTo(I3, m3, h3, 24, 0);
-    ok(CORE.sweepHeadColor(I3, I3.swNum, 24) === null, '「跟配色」时头部不覆盖（sweepHeadColor = null）');
-    const c3 = CORE.effectColorAt(I3, I3.swNum, 24, h3);
+    CORE.renderZoneMaskTo(I3, m3, h3, 24, 0, s3);
+    ok(sweepHeadColor(I3, s3.num, 24, s3) === null, '「跟配色」时头部不覆盖（sweepHeadColor = null）');
+    const c3 = effectColorAt(I3, s3.num, 24, h3, s3);
     ok(c3.r === 1 && c3.g === 2 && c3.b === 3, `跟配色时头部用效果色（${c3.r},${c3.g},${c3.b}）`);
 
     /* 头部「彩虹」：按头部在环上的位置取彩虹色（与效果级同一 levels / 起色 / 旋转） */
@@ -1411,13 +1440,14 @@ console.log('--- 扫描填充（单向 / 双向）---');
                      layers: [{ kind: 'sweep', en: 1, hm: 2, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
       const IR = CORE.instNew();
       CORE.simApplyEffect(IR, effR, 0);
-      instTick(IR, false);
+      const sR = sweepStateNew(24);
+      tick1(IR, sR, 24);
       const mR = new Uint8Array(24), hR = new Uint8Array(24);
-      CORE.renderZoneMaskTo(IR, mR, hR, 24, 0);
-      const hue = Math.floor((IR.swNum * 256) / 30) & 0xFF;
-      const cR = CORE.effectColorAt(IR, IR.swNum, 24, hR);
+      CORE.renderZoneMaskTo(IR, mR, hR, 24, 0, sR);
+      const hue = Math.floor((sR.num * 256) / 30) & 0xFF;
+      const cR = effectColorAt(IR, sR.num, 24, hR, sR);
       ok(cR === FW.spectrum_tbl[hue], `头部彩虹：按位置取第 ${hue} 级`);
-      ok(CORE.effectColorAt(IR, 5, 24, hR).r === 0, '头部彩虹不影响常亮段（仍是效果色）');
+      ok(effectColorAt(IR, 5, 24, hR, sR).r === 0, '头部彩虹不影响常亮段（仍是效果色）');
     }
     /* 头部「渐变」：取效果那张渐变环当前相位（与 colorUpdate 同一公式） */
     {
@@ -1426,10 +1456,11 @@ console.log('--- 扫描填充（单向 / 双向）---');
                      layers: [{ kind: 'sweep', en: 1, hm: 3, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
       const IG = CORE.instNew();
       CORE.simApplyEffect(IG, effG, 0);
-      instTick(IG, false);
+      const sG = sweepStateNew(24);
+      tick1(IG, sG, 24);
       const mG = new Uint8Array(24), hG = new Uint8Array(24);
-      CORE.renderZoneMaskTo(IG, mG, hG, 24, 0);
-      const cG = CORE.effectColorAt(IG, IG.swNum, 24, hG);
+      CORE.renderZoneMaskTo(IG, mG, hG, 24, 0, sG);
+      const cG = effectColorAt(IG, sG.num, 24, hG, sG);
       ok(cG === IG.color.spectrum[IG.color.phase] && IG.color.phase === 1,
          `头部渐变：取当前相位 ${IG.color.phase} 的颜色`);
     }
@@ -1442,31 +1473,26 @@ console.log('--- 扫描填充（单向 / 双向）---');
                      layers: [{ kind: 'sweep', en: 1, hm: 3, hg: gid, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
       const IH = CORE.instNew();
       CORE.simApplyEffect(IH, effH, 0, st2);
-      instTick(IH, false);
+      const sH = sweepStateNew(24);
+      tick1(IH, sH, 24);
       const mH = new Uint8Array(24), hH = new Uint8Array(24);
-      CORE.renderZoneMaskTo(IH, mH, hH, 24, 0);
+      CORE.renderZoneMaskTo(IH, mH, hH, 24, 0, sH);
       const tbl = CORE.gradTable(CORE.gradById(st2, gid));
       ok(IH.swGrad === tbl, '头部渐变：实例拿到色库里选的那张表');
-      ok(CORE.effectColorAt(IH, IH.swNum, 24, hH) === tbl[IH.color.phase],
+      ok(effectColorAt(IH, sH.num, 24, hH, sH) === tbl[IH.color.phase],
          '头部渐变：取的是那张表的当前相位色');
     }
   }
 
   /* 填满 → 清空阶段（固件 CFG_FUNC_RGB_FILL_CLEAR_EN=1），清完再从头开始 */
-  const C1 = mk(0, 1);
+  const C1 = mk(0, 1), sC = sweepStateNew(24);
   let guard = 0;
-  while (C1.swPhase === 0 && guard++ < 2000) instTick(C1, false);
-  ok(C1.swPhase === 1 && C1.swClear === 23, `单向填满后进入清空阶段（clear=${C1.swClear}）`);
-  const mC = shot(C1, 24);
+  while (sC.phase === 0 && guard++ < 2000) tick1(C1, sC, 24);
+  ok(sC.phase === 1 && sC.clear === 23, `单向填满后进入清空阶段（clear=${sC.clear}）`);
+  const mC = shot(C1, sC, 24);
   ok(mC[23] === 255 && mC[0] === 120, '清空阶段：头部在最远端，前面仍然亮着');
-  run(C1, 24);                           /* 清到底 → 复位 */
-  ok(C1.swPhase === 0 && C1.swLow === 0 && C1.swNum === 23, '清完复位：从头开始填');
-
-  /* 按 RING_SIZE 比例铺：8 颗的对比条上也能画（头部落在对应灯上） */
-  const D = mk(0, 1);
-  instTick(D, false);
-  const mD = shot(D, 8);
-  ok(mD.filter(v => v === 255).length === 1, `8 颗长度也只有一个头部（${mD.join(',')}）`);
+  run(C1, sC, 24, 24);                   /* 清到底 → 复位 */
+  ok(sC.phase === 0 && sC.low === 0 && sC.num === 23, '清完复位：从头开始填');
 }
 
 

@@ -3044,7 +3044,7 @@ function genFill(mask, len, L, gain) {
 
 /* 头部取色：0 = 跟配色（同常亮段），1 = 固定色，2 = 彩虹（按头部位置取环上的色），3 = 渐变（取当前渐变色）。
  * 彩虹 / 渐变都用**流动时钟**驱动相位 —— 与常亮段同一套速度，快档一起变快。 */
-function sweepHeadColor(inst, i, len) {
+function sweepHeadColor(inst, i, len, st) {
   const SL = sweepLayerOf(inst.anim.layers);
   if (!SL) return null;
   const m = SL.hc_mode | 0;
@@ -3079,42 +3079,49 @@ function sweepLayerOf(layers) {
   for (const L of layers) if (L.en !== 0 && L.kind === LAYER.SWEEP) return L;
   return null;
 }
-function sweepStep(inst, L) {
-  const N = FW.RING_SIZE;
-  if (inst.swPhase === 1) {                   /* 清空阶段 */
-    if (inst.swClear > 0) inst.swClear--;
-    else { inst.swPhase = 0; inst.swLow = 0; inst.swHigh = 0; inst.swNum = N - 1; inst.swDir = 0; }
+/* 扫描填充的状态：**以分区自己的灯数为单位**（一条 40 颗的分区就是 40 步，一颗一颗亮），
+ * 所以每个分区 / 每条对比长度各存一份（C 的 led_gen_sw[ZONE_MAX]、JS 的 sim.swv[分区] /
+ * 编辑台的 stageSwv[长度]）。字段：已填（低端 / 高端）/ 头部 / 头部方向 / 阶段（0 填 1 清）/
+ * 清空位置 / 上一步的流动拍。 */
+function sweepStateNew(N) {
+  return { low: 0, high: 0, num: Math.max(0, N - 1), dir: 0, phase: 0, clear: 0, t: 0 };
+}
+function sweepStep(st, L, N) {
+  if (!st || !L || N <= 0) return;
+  if (st.phase === 1) {                       /* 清空阶段 */
+    if (st.clear > 0) st.clear--;
+    else { st.phase = 0; st.low = 0; st.high = 0; st.num = N - 1; st.dir = 0; }
     return;
   }
   if ((L.wave | 0) === 0) {                   /* 单向 = PixelFill_OneWay */
-    if (inst.swNum > inst.swLow) inst.swNum--;
-    if (inst.swNum === inst.swLow) { inst.swLow++; inst.swNum = N - 1; }
-    if (inst.swLow >= N) { inst.swPhase = 1; inst.swClear = N - 1; }
+    if (st.num > st.low) st.num--;
+    if (st.num === st.low) { st.low++; st.num = N - 1; }
+    if (st.low >= N) { st.phase = 1; st.clear = N - 1; }
   } else {                                    /* 双向 = PixelFill_TwoWay */
-    if (inst.swDir === 0) { if (inst.swNum > inst.swLow) inst.swNum--; }
-    else                  { if (inst.swNum < N - 1 - inst.swHigh) inst.swNum++; }
-    if (inst.swDir === 0 && inst.swNum === inst.swLow) {
-      inst.swLow++; inst.swDir = 1; inst.swNum = inst.swLow;
-    } else if (inst.swDir === 1 && inst.swNum === (N - 1 - inst.swHigh)) {
-      inst.swHigh++; inst.swDir = 0; inst.swNum = N - 1 - inst.swHigh;
+    if (st.dir === 0) { if (st.num > st.low) st.num--; }
+    else              { if (st.num < N - 1 - st.high) st.num++; }
+    if (st.dir === 0 && st.num === st.low) {
+      st.low++; st.dir = 1; st.num = st.low;
+    } else if (st.dir === 1 && st.num === (N - 1 - st.high)) {
+      st.high++; st.dir = 0; st.num = N - 1 - st.high;
     }
-    if (inst.swLow + inst.swHigh >= N) { inst.swPhase = 1; inst.swClear = N - 1; }
+    if (st.low + st.high >= N) { st.phase = 1; st.clear = N - 1; }
   }
 }
-function genSweep(mask, len, L, inst) {
-  const N = FW.RING_SIZE;
-  const sc = v => { const r = Math.floor(((v | 0) * len) / N); return r < 0 ? 0 : (r > len ? len : r); };
+function genSweep(mask, len, L, st) {
+  if (!st) return;
   const lo = L.lo | 0, hi = L.hi | 0;
-  if (inst.swPhase === 1) {                   /* 清空：头部从远端往回走，前面保持亮 */
-    const cl = Math.min(len - 1, sc(inst.swClear));
-    for (let i = 0; i < cl; i++) if (lo > mask[i]) mask[i] = lo;
-    if (hi > mask[cl]) mask[cl] = hi;
+  const cl = v => (v < 0 ? 0 : (v > len - 1 ? len - 1 : v));
+  if (st.phase === 1) {                       /* 清空：头部从远端往回走，前面保持亮 */
+    const c = cl(st.clear);
+    for (let i = 0; i < c; i++) if (lo > mask[i]) mask[i] = lo;
+    if (hi > mask[c]) mask[c] = hi;
     return;
   }
-  const lowN = sc(inst.swLow), highN = sc(inst.swHigh);
+  const lowN = cl(st.low), highN = cl(st.high);
   for (let i = 0; i < lowN; i++) if (lo > mask[i]) mask[i] = lo;
   for (let i = 0; i < highN; i++) { const k = len - 1 - i; if (k >= 0 && lo > mask[k]) mask[k] = lo; }
-  const head = Math.min(len - 1, sc(inst.swNum));
+  const head = cl(st.num);
   if (hi > mask[head]) mask[head] = hi;
 }
 
@@ -3156,7 +3163,7 @@ function genGradient(mask, len, L, tick) {
  * 图层不再自带「本层取色」—— 动画与色彩分离。
  * flash = 音控闪层这一拍该用的增益（0..255）。它由 instTick() 的小状态机算好，
  * 与 C 的 I->flash_gain 同源；只有 wave == FLASH 的层用它，其余层照旧吃 pulseGain。 */
-function genRender(mask, len, pos, layers, tick, offset, lap, flash, flowTick, inst) {
+function genRender(mask, len, pos, layers, tick, offset, lap, flash, flowTick, inst, st) {
   mask.fill(0, 0, len);
   if (!layers || !layers.length) return;
   const ft = (flowTick == null) ? tick : flowTick;   /* 旋转/流动用「快慢档时钟」，其余看 tick */
@@ -3173,7 +3180,7 @@ function genRender(mask, len, pos, layers, tick, offset, lap, flash, flowTick, i
       case LAYER.TWINKLE:  genTwinkle(mask, len, L, tick);       break;
       case LAYER.FILL:     genFill(mask, len, L, gain);          break;
       case LAYER.GRADIENT: genGradient(mask, len, L, ft);        break;
-      case LAYER.SWEEP:    genSweep(mask, len, L, inst);         break;
+      case LAYER.SWEEP:    genSweep(mask, len, L, st);           break;
       default: break;
     }
   }
@@ -3415,7 +3422,7 @@ function wipeEntryAt(c, idx, i, S) {
  *   灯 i 最后是被哪一趟盖上的，就显示那一趟盖的那个条目（纯色条目 = 硬边、渐变条目 = 位置渐变，
  *   见 coverEntry / wipeEntryAt）。所以换趟那一帧是连续的：上一趟那片就是上一趟盖的条目本身。
  * 覆盖模式的判断必须排在「查表」之前。 */
-function renderZoneMaskTo(inst, m, hue, len, pos) {
+function renderZoneMaskTo(inst, m, hue, len, pos, st) {
   const a = inst.anim, c = inst.color;
   hue.fill(0xFF, 0, len);                   /* 默认跟随效果配色；彩虹 / 覆盖在下面自己填 */
 
@@ -3441,7 +3448,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos) {
     case FW.ANIM.FILL:         fillAnim(m, len, pos, a.params.direction); break;
     case FW.ANIM.STATIC:       m.fill(255, 0, len); break;
     default:                   genRender(m, len, pos, a.layers, inst.anim.gen_tick, inst.anim.offset, inst.lap,
-                                         inst.flashGain, flowTickOf(inst), inst); break;
+                                         inst.flashGain, flowTickOf(inst), inst, st); break;
   }
 
   /* 跳变：每种颜色先渐亮 / 满亮、再渐暗（stepEnv），把包络乘到 mask 上。
@@ -3569,8 +3576,7 @@ function instNew() {
     /* 「旋转 / 流动」用的时钟：慢档 1:1 跟 gen_tick，快档按 speed_slow/speed_cur 加速（Q8 累加）。
        null = 还没跑过 tick —— 测试里手工设 gen_tick 的实例回落到 gen_tick，行为和以前逐值相同。 */
     flow_tick: null, flow_acc: 0,
-    /* 扫描填充（预置「单向填充 / 双向填充」）的状态：以 RING_SIZE 为单位 */
-    swLow: 0, swHigh: 0, swNum: 0, swDir: 0, swPhase: 0, swClear: 0, swT: 0,
+    /* 扫描填充的头部渐变（选了色库某条时） */
     swGrad: null,
     /* 平滑 T（ms，效果级）：慢档时 renderAllSim 按它逐灯爬亮度；0 / 快档 = 直通 */
     smooth: 0,
@@ -3657,6 +3663,9 @@ function simInit() {
      * 这一拍真正要显示的亮度，逐拍往 mask 目标爬。与 C 的 led_gen_shown[][] 一一对应；
      * 懒建（第一次渲染时才有），换模式 / 重铺时清空 —— 见 simClearShown()。 */
     shown: [],
+    /* 扫描填充：每个分区一份状态（单位 = 该分区自己的灯数）。
+     * sim.swv[分区下标] = {low,high,num,dir,phase,clear,t}；simClearSweep() 清空。 */
+    swv: [],
   };
 }
 
@@ -3686,6 +3695,19 @@ function simShownOf(sim, zi) {
   if (!sim.shown[zi]) sim.shown[zi] = new Uint8Array(FW.ZONE_MAX_LEN);
   return sim.shown[zi];
 }
+/* 扫描填充：每分区一份状态（懒建；分区长度变了就重建） */
+function simClearSweep(sim) { sim.swv = []; }
+function simSwOf(sim, zi, len) {
+  if (!Array.isArray(sim.swv)) sim.swv = [];
+  const st = sim.swv[zi];
+  if (!st || st.len !== len) {
+    const s = sweepStateNew(len);
+    s.len = len;
+    sim.swv[zi] = s;
+    return s;
+  }
+  return st;
+}
 
 /* 按模式重建整个仿真：每条「分区组→效果」绑定一个实例，同一效果只建一次（所以是同步的） */
 function simApplyMode(sim, state) {
@@ -3714,6 +3736,7 @@ function simApplyMode(sim, state) {
   /* 换模式 = C 侧 led_gen_apply_mode()：采样 / 迟滞状态清掉，别把上一模式的档位带过来 */
   sim.stage = 0; sim.stage_hold = 0; sim.audio_acc = 0; sim.lvl_sample = 0;
   simClearShown(sim);          /* 同理：平滑缓冲也从 0 起爬（C 的 led_gen_shown[][] 清零） */
+  simClearSweep(sim);          /* 扫描填充的分区状态也从头开始（C 的 led_gen_sw[] memset） */
   simApplyStage(sim);
   return plan;
 }
@@ -4062,15 +4085,6 @@ function instTick(inst, loud) {
   inst.lapPrev = inst.anim.position.current;
   inst.anim.gen_tick = (inst.anim.gen_tick + 1) & 0xFFFF;
   instFlowStep(inst);                 /* 旋转 / 流动时钟：慢档 1:1，快档按 speed_slow/speed_cur 加速 */
-  /* 扫描填充：每 rotate 个「流动拍」走一步（快档自动跟着变快） */
-  {
-    const SL = sweepLayerOf(inst.anim.layers);
-    if (SL) {
-      const ft = flowTickOf(inst);
-      const need = Math.max(1, SL.rotate | 0);
-      if (((ft - inst.swT) & 0xFFFF) >= need) { inst.swT = ft; sweepStep(inst, SL); }
-    }
-  }
   /* 音控闪（预置「闪烁」）：闪的时钟不跟 gen_tick 走，跟音量档走 ——
    *   安静（慢档）：flashT 走到「没有音乐时多久闪一次」就绕回 0（预置 250 拍 = 5000 ms）；
    *   有音乐（快档）：周期换成「有音乐时多久闪一次」（预置 25 拍 = 500 ms）——
@@ -4101,6 +4115,21 @@ function simTick(sim, state, applyReverse) {
   /* 「有没有音乐」= ring 级档位的产物（速度档真被切到快档了），与 C 的 fast 同一句判据 */
   const loud = ringIsFast(sim);
   for (const inst of sim.insts) instTick(inst, loud);
+  /* 扫描填充：每个分区按自己的灯数走一步（同一效果的多个分区各走各的） */
+  for (const p of (sim.plan || [])) {
+    const inst = sim.insts[p.inst];
+    if (!inst) continue;
+    const SL = sweepLayerOf(inst.anim.layers);
+    if (!SL) continue;
+    const ft = flowTickOf(inst);
+    const need = Math.max(1, SL.rotate | 0);
+    for (const zi of p.zones) {
+      const z = state.zones[zi];
+      if (!z || !z.enabled || !z.count) continue;
+      const st = simSwOf(sim, zi, z.count);
+      if (((ft - st.t) & 0xFFFF) >= need) { st.t = ft; sweepStep(st, SL, z.count); }
+    }
+  }
   if (sim.power_on) {
     animUpdate(sim.brightness);
     renderAllSim(sim, state, applyReverse);
@@ -4109,17 +4138,16 @@ function simTick(sim, state, applyReverse) {
 
 /* 把整个模式渲染进 fb：逐条绑定，逐分区 */
 /* 某个灯位上这一帧该用什么颜色 */
-function effectColorAt(inst, i, len, hue) {
+function effectColorAt(inst, i, len, hue, st) {
   const a = inst.anim, c = inst.color;
   const hh = hue[i];
   /* 扫描填充：头部那一颗按它自己的取色模式上色（跟配色 / 固定 / 彩虹 / 渐变）；
-     其余灯位照旧走效果级配色。位置与 genSweep 的缩放规则完全一致。 */
-  if (sweepLayerOf(a.layers)) {
-    const u = (inst.swPhase === 1) ? inst.swClear : inst.swNum;
-    let hd = Math.floor(((u | 0) * len) / FW.RING_SIZE);
-    if (hd > len - 1) hd = len - 1;
+     其余灯位照旧走效果级配色。头部位置直接用该分区那一份状态（已按灯数一格一格走）。 */
+  if (st && sweepLayerOf(a.layers)) {
+    const u = (st.phase === 1) ? st.clear : st.num;
+    const hd = Math.max(0, Math.min(len - 1, u | 0));
     if (i === hd) {
-      const hc = sweepHeadColor(inst, i, len);
+      const hc = sweepHeadColor(inst, i, len, st);
       if (hc) return hc;
     }
   }
@@ -4162,7 +4190,8 @@ function renderAllSim(sim, state, applyReverse) {
       if (zpos < 0) zpos += span;
       else if (zpos >= span) zpos -= span;
 
-      renderZoneMask(inst, len, zpos);
+      const swState = simSwOf(sim, zi, len);
+      renderZoneMaskTo(inst, a.mask, a.hue, len, zpos, swState);
 
       const rev = applyReverse && zoneReverse(state, z, nominal);
       const sh = simShownOf(sim, zi);
@@ -4175,7 +4204,7 @@ function renderAllSim(sim, state, applyReverse) {
         const idx  = rev ? (len - 1 - i) : i;
         const phys = z.start + idx;
         if (phys < 0 || phys >= FW.LED_COUNT) continue;
-        const col = effectColorAt(inst, i, len, a.hue);
+        const col = effectColorAt(inst, i, len, a.hue, swState);
         fb[phys * 3 + 0] = (col.r * b * br) >> 16;
         fb[phys * 3 + 1] = (col.g * b * br) >> 16;
         fb[phys * 3 + 2] = (col.b * b * br) >> 16;
@@ -4250,9 +4279,7 @@ function instApplyPreset(inst, p) {
   inst.smooth = effSmooth(p);
   inst.anim.mask.fill(0);
   inst.anim.hue.fill(0xFF);
-  /* 扫描填充：回到「头部在远端、一颗都没填」的起点 */
-  inst.swLow = 0; inst.swHigh = 0; inst.swNum = FW.RING_SIZE - 1;
-  inst.swDir = 0; inst.swPhase = 0; inst.swClear = 0; inst.swT = 0;
+  /* 扫描填充的头部渐变（选了色库某条时） */
   inst.swGrad = null;
 
   /* 色板：新字段优先；老调用方（测试 / ring_preset_t 形状）只有 c1/c2 也照常工作。
@@ -4624,11 +4651,16 @@ const LED_GEN_IMPL = [
 '    uint8_t     flash_gain;',
 '    uint16_t    flow_tick;    /* @flowf@ */',
 '    uint16_t    flow_acc;',
-'    uint8_t     sw_low, sw_high, sw_num, sw_dir, sw_phase, sw_clear;   /* @sweepf@ */',
-'    uint16_t    sw_last;',
 '    uint8_t     sw_r, sw_g, sw_b, sw_used, sw_mode;   /* @sweepc@ */',
 '    uint16_t    sw_grad_first;',
 '} led_gen_inst_t;',
+'',
+'/* @sweepf@ */',
+'typedef struct {',
+'    uint8_t  low, high, num, dir, phase, clear;',
+'    uint16_t last;',
+'} led_gen_sweep_t;',
+'static led_gen_sweep_t led_gen_sw[ZONE_MAX];',
 '',
 'static uint8_t        led_gen_zone_mask[ZONE_MAX_LEN];   /* @cmt1@ */',
 'static uint8_t        led_gen_hue[ZONE_MAX_LEN];         /* @hueArr@ */',
@@ -4809,68 +4841,62 @@ const LED_GEN_IMPL = [
 '}',
 '',
 '/* @sweep@ */',
-'static void led_gen_sweep_step(led_gen_inst_t *I, const led_gen_layer_t *L)',
+'static void led_gen_sweep_step(led_gen_sweep_t *S, const led_gen_layer_t *L, uint8_t N)',
 '{',
-'    uint8_t N = (uint8_t)RING_SIZE;',
-'    if (I->sw_phase != 0u) {',
-'        if (I->sw_clear > 0u) I->sw_clear--;',
-'        else { I->sw_phase = 0u; I->sw_low = 0u; I->sw_high = 0u;',
-'               I->sw_num = (uint8_t)(N - 1u); I->sw_dir = 0u; }',
+'    if ((S == 0) || (N == 0u)) return;',
+'    if (S->phase != 0u) {',
+'        if (S->clear > 0u) S->clear--;',
+'        else { S->phase = 0u; S->low = 0u; S->high = 0u;',
+'               S->num = (uint8_t)(N - 1u); S->dir = 0u; }',
 '        return;',
 '    }',
 '    if (L->wave == 0u) {',
-'        if (I->sw_num > I->sw_low) I->sw_num--;',
-'        if (I->sw_num == I->sw_low) { I->sw_low++; I->sw_num = (uint8_t)(N - 1u); }',
-'        if (I->sw_low >= N) { I->sw_phase = 1u; I->sw_clear = (uint8_t)(N - 1u); }',
+'        if (S->num > S->low) S->num--;',
+'        if (S->num == S->low) { S->low++; S->num = (uint8_t)(N - 1u); }',
+'        if (S->low >= N) { S->phase = 1u; S->clear = (uint8_t)(N - 1u); }',
 '    } else {',
-'        if (I->sw_dir == 0u) { if (I->sw_num > I->sw_low) I->sw_num--; }',
-'        else                 { if (I->sw_num < (uint8_t)(N - 1u - I->sw_high)) I->sw_num++; }',
-'        if ((I->sw_dir == 0u) && (I->sw_num == I->sw_low)) {',
-'            I->sw_low++; I->sw_dir = 1u; I->sw_num = I->sw_low;',
-'        } else if ((I->sw_dir == 1u) && (I->sw_num == (uint8_t)(N - 1u - I->sw_high))) {',
-'            I->sw_high++; I->sw_dir = 0u; I->sw_num = (uint8_t)(N - 1u - I->sw_high);',
+'        if (S->dir == 0u) { if (S->num > S->low) S->num--; }',
+'        else              { if (S->num < (uint8_t)(N - 1u - S->high)) S->num++; }',
+'        if ((S->dir == 0u) && (S->num == S->low)) {',
+'            S->low++; S->dir = 1u; S->num = S->low;',
+'        } else if ((S->dir == 1u) && (S->num == (uint8_t)(N - 1u - S->high))) {',
+'            S->high++; S->dir = 0u; S->num = (uint8_t)(N - 1u - S->high);',
 '        }',
-'        if (((uint16_t)I->sw_low + (uint16_t)I->sw_high) >= (uint16_t)N) {',
-'            I->sw_phase = 1u; I->sw_clear = (uint8_t)(N - 1u);',
+'        if (((uint16_t)S->low + (uint16_t)S->high) >= (uint16_t)N) {',
+'            S->phase = 1u; S->clear = (uint8_t)(N - 1u);',
 '        }',
 '    }',
 '}',
 '',
-'static uint8_t led_gen_sweep_scale(uint8_t v, uint8_t len)',
-'{',
-'    uint16_t r = (uint16_t)(((uint16_t)v * (uint16_t)len) / (uint16_t)RING_SIZE);',
-'    return (uint8_t)((r > len) ? len : r);',
-'}',
-'',
 'static void led_gen_sweep(uint8_t *mask, uint8_t len,',
-'                          const led_gen_layer_t *L, const led_gen_inst_t *I)',
+'                          const led_gen_layer_t *L, const led_gen_sweep_t *S)',
 '{',
 '    uint8_t i, k, lo = L->lo, hi = L->hi, lowN, highN, head, cl;',
-'    if (I->sw_phase != 0u) {',
-'        cl = led_gen_sweep_scale(I->sw_clear, len);',
-'        if (cl >= len) cl = (uint8_t)(len - 1u);',
+'    if (S == 0) return;',
+'    if (S->phase != 0u) {',
+'        cl = (S->clear < len) ? S->clear : (uint8_t)(len - 1u);',
 '        for (i = 0; i < cl; i++) if (lo > mask[i]) mask[i] = lo;',
 '        if (hi > mask[cl]) mask[cl] = hi;',
 '        return;',
 '    }',
-'    lowN  = led_gen_sweep_scale(I->sw_low, len);',
-'    highN = led_gen_sweep_scale(I->sw_high, len);',
+'    lowN  = (S->low  < len) ? S->low  : (uint8_t)(len - 1u);',
+'    highN = (S->high < len) ? S->high : (uint8_t)(len - 1u);',
 '    for (i = 0; i < lowN; i++) if (lo > mask[i]) mask[i] = lo;',
 '    for (i = 0; i < highN; i++) {',
 '        k = (uint8_t)(len - 1u - i);',
 '        if (lo > mask[k]) mask[k] = lo;',
 '    }',
-'    head = led_gen_sweep_scale(I->sw_num, len);',
-'    if (head >= len) head = (uint8_t)(len - 1u);',
+'    head = (S->num < len) ? S->num : (uint8_t)(len - 1u);',
 '    if (hi > mask[head]) mask[head] = hi;',
 '}',
 '',
 '/* is this logical LED the sweep head? (used by the colour stage) */',
-'static uint8_t led_gen_sweep_head(uint8_t i, uint8_t len, const led_gen_inst_t *I)',
+'static uint8_t led_gen_sweep_head(uint8_t i, uint8_t len, const led_gen_sweep_t *S)',
 '{',
-'    uint8_t u = (I->sw_phase != 0u) ? I->sw_clear : I->sw_num;',
-'    uint8_t h = led_gen_sweep_scale(u, len);',
-'    if (h >= len) h = (uint8_t)(len - 1u);',
+'    uint8_t u, h;',
+'    if (S == 0) return 0u;',
+'    u = (S->phase != 0u) ? S->clear : S->num;',
+'    h = (u < len) ? u : (uint8_t)(len - 1u);',
 '    return (i == h) ? 1u : 0u;',
 '}',
 '',
@@ -4903,7 +4929,7 @@ const LED_GEN_IMPL = [
 'static void led_gen_layers_render(uint8_t *mask, uint8_t *hue, uint8_t len,',
 '                                  const led_gen_effect_t *E, uint16_t tick, uint16_t flowTick,',
 '                                  int16_t zpos, uint8_t lap, uint8_t flash,',
-'                                  const led_gen_inst_t *I)',
+'                                  const led_gen_inst_t *I, const led_gen_sweep_t *S)',
 '{',
 '    uint8_t k, gain; const led_gen_layer_t *L;',
 '    int32_t p, rd;',
@@ -4924,7 +4950,7 @@ const LED_GEN_IMPL = [
 '            case LED_GEN_LAYER_TWINKLE:  led_gen_twinkle(mask, len, L, tick);               break;',
 '            case LED_GEN_LAYER_FILL:     led_gen_fill(mask, len, L, gain);                  break;',
 '            case LED_GEN_LAYER_GRADIENT: led_gen_gradient(mask, len, L, flowTick);         break;',
-'            case LED_GEN_LAYER_SWEEP:    led_gen_sweep(mask, len, L, I);                    break;',
+'            case LED_GEN_LAYER_SWEEP:    led_gen_sweep(mask, len, L, S);                    break;',
 '            default: break;',
 '        }',
 '    }',
@@ -4980,7 +5006,7 @@ const LED_GEN_IMPL = [
 '',
 '/* @zonerender@ */',
 'static void led_gen_zone_render(led_gen_inst_t *I, uint8_t len, int16_t zpos,',
-'                                uint8_t *mask, uint8_t *hue)',
+'                                uint8_t *mask, uint8_t *hue, const led_gen_sweep_t *S)',
 '{',
 '    const led_gen_effect_t *E = &led_gen_effects[I->eff];',
 '    uint8_t i;',
@@ -5016,7 +5042,7 @@ const LED_GEN_IMPL = [
 '        return;',
 '    }',
 '    if (E->kind == (uint8_t)LED_GEN_EFF_CUSTOM) {',
-'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, I->flow_tick, zpos, I->lap, I->flash_gain, I);',
+'        led_gen_layers_render(mask, hue, len, E, I->anim.gen_tick, I->flow_tick, zpos, I->lap, I->flash_gain, I, S);',
 '    } else {',
 '        memset(hue, 0xFF, len);',
 '        switch (E->anim) {',
@@ -5104,11 +5130,16 @@ const LED_GEN_IMPL = [
 '    const led_gen_mode_t *M;',
 '    const led_gen_bind_t *B;',
 '    const led_gen_effect_t *E;',
-'    (void)ring;',
 '    if (mode_idx >= LED_GEN_MODE_COUNT) mode_idx = 0u;',
 '    led_gen_cur_mode = mode_idx;',
 '    M = &led_gen_modes[mode_idx];',
 '    memset(led_gen_inst, 0, sizeof(led_gen_inst));',
+'    /* @sweepreset@ */',
+'    memset(led_gen_sw, 0, sizeof(led_gen_sw));',
+'    for (z = 0; z < ZONE_MAX; z++) {',
+'        uint8_t zn = (uint8_t)((z < ring->zone_count) ? ring->zones[z].count : 0u);',
+'        led_gen_sw[z].num = (uint8_t)((zn > 0u) ? (zn - 1u) : 0u);',
+'    }',
 '    /* @smoothreset@ */',
 '    memset(led_gen_shown, 0, sizeof(led_gen_shown));',
 '    for (z = 0; z < ZONE_MAX; z++) led_gen_zone_inst[z] = 0xFFu;',
@@ -5144,30 +5175,30 @@ const LED_GEN_IMPL = [
 '            led_gen_inst[cnt].speed_fast = (E->fast > 0u) ? E->fast : 1u;',
 '            led_gen_inst[cnt].speed_cur  = led_gen_inst[cnt].speed_slow;',
 '            led_gen_inst[cnt].step_cnt   = 0;',
-'            /* @sweepinit@ */',
-'            led_gen_inst[cnt].sw_num = (uint8_t)(RING_SIZE - 1u);',
-'            led_gen_inst[cnt].sw_r = 255u; led_gen_inst[cnt].sw_g = 255u; led_gen_inst[cnt].sw_b = 255u;',
-'            {',
-'                uint8_t k;',
-'                for (k = 0; k < E->layers_count; k++) {',
-'                    const led_gen_layer_t *SL0 = &led_gen_layers[E->layers_first + k];',
-'                    if (SL0->en && (SL0->kind == (uint8_t)LED_GEN_LAYER_SWEEP)) {',
-'                        led_gen_inst[cnt].sw_used = 1u;',
-'                        led_gen_inst[cnt].sw_mode = (uint8_t)((SL0->hc_mode <= 3u) ? SL0->hc_mode : 0u);',
-'                        led_gen_inst[cnt].sw_grad_first = (SL0->hg_first == 0xFFFFu) ? E->grad_first : SL0->hg_first;',
-'                        led_gen_inst[cnt].sw_r = SL0->hc_r;',
-'                        led_gen_inst[cnt].sw_g = SL0->hc_g;',
-'                        led_gen_inst[cnt].sw_b = SL0->hc_b;',
-'                        break;',
-'                    }',
-'                }',
-'            }',
 '            cnt++;',
 '        }',
 '        for (z = 0; z < ZONE_MAX; z++)',
 '            if (B->zone_mask & (uint16_t)(1u << z)) led_gen_zone_inst[z] = j;',
 '    }',
 '    led_gen_inst_count = cnt;',
+'    /* @sweepinit@ */',
+'    for (z = 0; z < ZONE_MAX; z++) {',
+'        const led_gen_effect_t *SE; const led_gen_layer_t *SL = 0; uint8_t kk;',
+'        if (led_gen_zone_inst[z] >= led_gen_inst_count) continue;',
+'        SE = &led_gen_effects[led_gen_inst[led_gen_zone_inst[z]].eff];',
+'        for (kk = 0; kk < SE->layers_count; kk++) {',
+'            const led_gen_layer_t *L2 = &led_gen_layers[SE->layers_first + kk];',
+'            if (L2->en && (L2->kind == (uint8_t)LED_GEN_LAYER_SWEEP)) { SL = L2; break; }',
+'        }',
+'        if (SL == 0) continue;',
+'        {',
+'            led_gen_inst_t *MI = &led_gen_inst[led_gen_zone_inst[z]];',
+'            MI->sw_used  = 1u;',
+'            MI->sw_mode  = (uint8_t)((SL->hc_mode <= 3u) ? SL->hc_mode : 0u);',
+'            MI->sw_r = SL->hc_r; MI->sw_g = SL->hc_g; MI->sw_b = SL->hc_b;',
+'            MI->sw_grad_first = (SL->hg_first == 0xFFFFu) ? SE->grad_first : SL->hg_first;',
+'        }',
+'    }',
 '    /* @audioreset@ */',
 '    led_gen_audio_acc = 0u; led_gen_audio_lvl = 0u; led_gen_stage = 0u; led_gen_stage_hold = 0u;',
 '}',
@@ -5175,7 +5206,7 @@ const LED_GEN_IMPL = [
 '/* @gentick@ */',
 'void led_gen_tick(ring_t *ring)',
 '{',
-'    uint8_t i, fast;',
+'    uint8_t i, fast, z;',
 '    led_gen_inst_t *I;',
 '    /* @syncspeed@ */',
 '    led_gen_audio_step();',
@@ -5206,22 +5237,6 @@ const LED_GEN_IMPL = [
 '            I->flow_acc &= 0xFFu;',
 '        }',
 '        /* @sweepstep@ */',
-'        {',
-'            const led_gen_effect_t *EF = &led_gen_effects[I->eff];',
-'            const led_gen_layer_t *SL = 0;',
-'            uint8_t kk;',
-'            for (kk = 0; kk < EF->layers_count; kk++) {',
-'                const led_gen_layer_t *L2 = &led_gen_layers[EF->layers_first + kk];',
-'                if (L2->en && (L2->kind == (uint8_t)LED_GEN_LAYER_SWEEP)) { SL = L2; break; }',
-'            }',
-'            if (SL != 0) {',
-'                uint16_t need = (SL->rotate != 0u) ? SL->rotate : 1u;',
-'                if ((uint16_t)(I->flow_tick - I->sw_last) >= need) {',
-'                    I->sw_last = I->flow_tick;',
-'                    led_gen_sweep_step(I, SL);',
-'                }',
-'            }',
-'        }',
 '        I->step_cnt++;',
 '        if (I->step_cnt >= I->speed_cur) {',
 '            I->step_cnt = 0;',
@@ -5307,6 +5322,27 @@ const LED_GEN_IMPL = [
 '            }',
 '        }',
 '    }',
+'    /* @sweepstep@ */',
+'    for (z = 0; z < ZONE_MAX; z++) {',
+'        const led_gen_effect_t *EF; const led_gen_layer_t *SL = 0;',
+'        uint8_t kk, len2; uint16_t need;',
+'        if (z >= ring->zone_count) break;',
+'        if (!ring->zone_en[z]) continue;',
+'        if (led_gen_zone_inst[z] >= led_gen_inst_count) continue;',
+'        I = &led_gen_inst[led_gen_zone_inst[z]];',
+'        EF = &led_gen_effects[I->eff];',
+'        for (kk = 0; kk < EF->layers_count; kk++) {',
+'            const led_gen_layer_t *L2 = &led_gen_layers[EF->layers_first + kk];',
+'            if (L2->en && (L2->kind == (uint8_t)LED_GEN_LAYER_SWEEP)) { SL = L2; break; }',
+'        }',
+'        if (SL == 0) continue;',
+'        len2 = ring->zones[z].count; if (len2 == 0u) continue;',
+'        need = (SL->rotate != 0u) ? SL->rotate : 1u;',
+'        if ((uint16_t)(I->flow_tick - led_gen_sw[z].last) >= need) {',
+'            led_gen_sw[z].last = I->flow_tick;',
+'            led_gen_sweep_step(&led_gen_sw[z], SL, len2);',
+'        }',
+'    }',
 '}',
 '',
 '/* @smoothstep@ */',
@@ -5345,7 +5381,7 @@ const LED_GEN_IMPL = [
 '        zpos = (int16_t)(((int32_t)I->anim.position.current * (int32_t)len) / RING_SIZE);',
 '        if (zpos < 0) zpos = (int16_t)(zpos + (int16_t)(len * 256));',
 '        else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 256));',
-'        led_gen_zone_render(I, len, zpos, led_gen_zone_mask, led_gen_hue);',
+'        led_gen_zone_render(I, len, zpos, led_gen_zone_mask, led_gen_hue, &led_gen_sw[z]);',
 '        /* @smoothramp@ */',
 '        if ((fast != 0u) || (E->smooth_ms == 0u)) {',
 '            memcpy(led_gen_shown[z], led_gen_zone_mask, len);',
@@ -5364,7 +5400,7 @@ const LED_GEN_IMPL = [
 '            phys = (uint8_t)(zn->start + i);',
 '            if (phys >= LED_COUNT) continue;',
 '            hh = led_gen_hue[i];',
-'            if (I->sw_used && led_gen_sweep_head(i, len, I) &&',
+'            if (I->sw_used && led_gen_sweep_head(i, len, &led_gen_sw[z]) &&',
 '                led_gen_sweep_colour(i, I, E, &col)) {',
 '                /* head colour applied */ }',
 '            else if (I->color.type == (uint8_t)LED_GEN_COLOR_WIPE) {',
@@ -5456,9 +5492,10 @@ const GEN_COMMENTS = {
   flashf: { zh:'音控闪（预置「闪烁」）：距上次闪了几拍 + 上一拍是不是快档 + 这一拍闪的增益', en:'audio flash (the BLINK preset): ticks since the last flash + was the previous frame on the fast stage + this frame flash gain' },
   flowf: { zh:'「旋转 / 流动」时钟：慢档 1:1 跟 gen_tick，快档按 speed_slow/speed_cur 加速；彩虹旋转 / 渐变旋转 / 渐变配色流动都用它', en:'rotation/flow clock: 1:1 with gen_tick on the slow stage, accelerated by speed_slow/speed_cur on the fast stage; used by rainbow rotation, gradient-layer rotation and gradient colour flow' },
   sweep: { zh:'扫描填充（预置「单向填充 / 双向填充」）：移植 spim_led.c 的 PixelFill_OneWay / PixelFill_TwoWay —— 已填区域逐颗长出来，头部从远端跑回边界，填满后从远端清空再重来；wave 0 = 单向 / 1 = 双向，rotate = 每步几拍，lo = 已填亮度，hi = 头部亮度', en:'sweep fill (the FILL presets): port of spim_led.c PixelFill_OneWay / PixelFill_TwoWay - the filled run grows one LED at a time, the head runs from the far end back to the boundary, and the whole ring is cleared from the far end when full; wave 0 = one-way / 1 = two-way, rotate = ticks per step, lo = filled brightness, hi = head brightness' },
-  sweepf: { zh:'扫描填充的状态（以 RING_SIZE 为单位）：低端已填 / 高端已填 / 头部位置 / 头部方向 / 阶段（0 填 / 1 清）/ 清空位置 / 上一步的流动拍', en:'sweep state (in RING_SIZE units): low filled / high filled / head / head direction / phase (0 fill, 1 clear) / clear position / flow tick of the last step' },
+  sweepf: { zh:'扫描填充的「每分区」状态（单位 = 该分区自己的灯数）：已填低端 / 已填高端 / 头部 / 头部方向 / 阶段（0 填 1 清）/ 清空位置 / 上一步的流动拍', en:'per-zone sweep state (units = that zone LED count): low filled / high filled / head / head direction / phase (0 fill, 1 clear) / clear position / flow tick of the last step' },
+  sweepreset: { zh:'扫描填充的起点：每分区状态清零，头部放到该分区最远端（长度-1）', en:'sweep starting state: every zone state is cleared and the head sits at that zone far end (len-1)' },
   sweepc: { zh:'扫描填充的头部取色：sw_used = 有这一层；sw_mode 0 = 跟配色 / 1 = 固定色(sw_r/g/b) / 2 = 彩虹(按头部位置) / 3 = 渐变(当前相位)；颜色阶段只给头部那颗上色', en:'sweep head colour source: sw_used = such a layer exists; sw_mode 0 = follow the effect colour / 1 = fixed (sw_r/g/b) / 2 = rainbow at the head / 3 = gradient at the current phase; only the head LED is painted by it' },
-  sweepstep: { zh:'每 rotate 个「流动拍」走一步（快档自动更快），只作用在第一个启用的扫描填充层', en:'advance one step every rotate flow ticks (faster on the fast stage); only the first enabled sweep layer drives it' },
+  sweepstep: { zh:'每 rotate 个「流动拍」按**该分区自己的灯数**走一步（快档自动更快）；同一效果的多个分区各走各的', en:'advance one step every rotate flow ticks, one LED at a time of that zone own length (faster on the fast stage); zones sharing an effect step independently' },
   sweepinit: { zh:'扫描填充的起点：头部在远端（RING_SIZE-1），一颗都没填', en:'sweep starting state: head at the far end (RING_SIZE-1), nothing filled yet' },
   flashgain: { zh:'音控闪的增益：亮的那几拍满亮，之后按「最低亮度」反算出的增益（0 = 全灭；level = 255 时增益就是最低亮度本身）', en:'audio flash gain: full brightness for the bright frames, then the gain derived from the lowest brightness (0 = fully dark; with level = 255 the gain equals that brightness)' },
   flashpick: { zh:'音控闪层用实例算好的增益；其余层照旧吃 led_gen_pulse()', en:'the audio flash layer uses the per-instance gain; every other layer keeps led_gen_pulse()' },
@@ -6121,7 +6158,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                genSpot, genTwinkle, genFill, genGradient, genRender, ringSetPosition,
                effectPreset, simApplyEffect,
                simClearShown, simShownOf, smoothShown, effSmooth, smoothStepOf, SMOOTH_MS_MAX, SMOOTH_MS_DEF,
-               flowTickOf, instFlowStep, sweepHeadColor,
+               flowTickOf, instFlowStep, sweepHeadColor, sweepStateNew, sweepStep,
                breathEnv, breathPlan, effBreathRise, effBreathHold, effShape, BREATH_PERIOD_MAX,
                stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
                effPalette, effPaletteRaw, palIsGrad, PAL_MAX, PAL_GRAD_LEN,
@@ -6808,10 +6845,10 @@ function stageZpos(pos, N) {
   return z;
 }
 /* 一个灯位该画成什么颜色（亮度按比例压暗，衰减才看得出来） */
-function stageFill(inst, i, N, hue, mask) {
+function stageFill(inst, i, N, hue, mask, st) {
   const b = mask[i];
   if (!b) return TC.ledOff;
-  const c = effectColorAt(inst, i, N, hue);
+  const c = effectColorAt(inst, i, N, hue, st);
   const k = b / 255;
   return 'rgb(' + Math.round(c.r * k) + ',' + Math.round(c.g * k) + ',' + Math.round(c.b * k) + ')';
 }
@@ -6869,12 +6906,13 @@ function renderStage() {
     const step = (x1 - x0) / Math.max(1, N - 1);
     const R = stageLedR(step);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
-    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    const st = stageSwOf(N);
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), st);
     const shown = stageShownFor(N, mask);
     for (let i = 0; i < N; i++) {
       ctx.beginPath();
       ctx.arc(x0 + step * i, y, R, 0, Math.PI * 2);
-      ctx.fillStyle = stageFill(inst, i, N, hue, shown);
+      ctx.fillStyle = stageFill(inst, i, N, hue, shown, st);
       ctx.fill();
     }
     ctx.fillStyle = TC.label; ctx.textAlign = 'left';
@@ -6883,13 +6921,14 @@ function renderStage() {
   const ring = (N, cx, cy, Rr, label) => {
     const Rl = stageLedR((2 * Math.PI * Rr) / N);
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
-    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    const st = stageSwOf(N);
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), st);
     const shown = stageShownFor(N, mask);
     for (let i = 0; i < N; i++) {
       const th = -Math.PI / 2 + (i / N) * Math.PI * 2;
       ctx.beginPath();
       ctx.arc(cx + Rr * Math.cos(th), cy + Rr * Math.sin(th), Rl, 0, Math.PI * 2);
-      ctx.fillStyle = stageFill(inst, i, N, hue, shown);
+      ctx.fillStyle = stageFill(inst, i, N, hue, shown, st);
       ctx.fill();
     }
     ctx.fillStyle = TC.label; ctx.textAlign = 'center';
@@ -8467,6 +8506,13 @@ let stageMask = null, stageHue = null;
  * STAGE_HIST_MAX 拍的快照；超出窗口再往前就只往前记、退不回窗口之前。 */
 const STAGE_HIST_MAX = 600;                 /* 12 秒（50Hz）—— 够看清任意一段的过渡 */
 let stageShownBufs = new Map();
+/* 扫描填充：编辑台上每个对比长度各一份状态（单位 = 那一行自己的灯数） */
+let stageSwv = new Map();
+function stageSwOf(N) {
+  let st = stageSwv.get(N);
+  if (!st || st.len !== N) { st = sweepStateNew(N); st.len = N; stageSwv.set(N, st); }
+  return st;
+}
 let stageHist = [], stageHistBase = 0, stageTicks = 0;
 /* 编辑台正在画的几个长度（圆环 / 直线 / 对比条去重；同一个 N 只算一次） */
 function stageLens() {
@@ -8491,11 +8537,12 @@ function stageShownFor(N, mask) {
 /* 把 shown 一把拉到当前目标：新建实例 / 归零 / 暂停样本帧之后用（暂停帧 = 目标帧） */
 function stageShownSnap(inst) {
   stageShownBufs = new Map();
+  stageSwv = new Map();
   if (!inst) return;
   const pos = inst.anim.position.current;
   for (const N of stageLens()) {
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
-    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), stageSwOf(N));
     stageShownBufs.set(N, mask);
   }
 }
@@ -8523,10 +8570,15 @@ function stageShownCloneMap() {
   stageShownBufs.forEach((b, N) => m.set(N, b.slice()));
   return m;
 }
+function stageSwCloneMap() {
+  const m = new Map();
+  stageSwv.forEach((s, N) => m.set(N, Object.assign({}, s)));
+  return m;
+}
 function stageFrameSave() {
   if (!stageInst) return;
   if (stageHist.length >= STAGE_HIST_MAX) { stageHist.shift(); stageHistBase++; }
-  stageHist.push({ inst: stageInstClone(stageInst), shown: stageShownCloneMap() });
+  stageHist.push({ inst: stageInstClone(stageInst), shown: stageShownCloneMap(), sw: stageSwCloneMap() });
 }
 function stageFrameRestore(t) {
   const f = stageHist[t - stageHistBase];
@@ -8534,12 +8586,15 @@ function stageFrameRestore(t) {
   stageInst = stageInstClone(f.inst);
   stageShownBufs = new Map();
   f.shown.forEach((b, N) => stageShownBufs.set(N, b.slice()));
+  stageSwv = new Map();
+  if (f.sw) f.sw.forEach((s, N) => stageSwv.set(N, Object.assign({}, s)));
   stageTicks = t;
   return true;
 }
 /* 重开一条时间轴（换效果 / 归零 / 改结构）：第 0 拍 = 现在这一帧 */
 function stageHistReset() {
   stageHist = []; stageHistBase = 0; stageTicks = 0;
+  stageSwv = new Map();                 /* 扫描填充也从头开始 */
   stageFrameSave();
 }
 /* 前进一拍：instTick 一次（固件 ring_tick 一次）+ 每个长度各爬一步平滑 */
@@ -8548,9 +8603,16 @@ function stageTickOnce(inst) {
   const fast = speedWhich() === 'fast';
   instTick(inst, fast);
   const pos = inst.anim.position.current;
+  const SL = sweepLayerOf(inst.anim.layers);
   for (const N of stageLens()) {
+    const st = stageSwOf(N);
+    if (SL) {
+      const ft = flowTickOf(inst);
+      const need = Math.max(1, SL.rotate | 0);
+      if (((ft - st.t) & 0xFFFF) >= need) { st.t = ft; sweepStep(st, SL, N); }
+    }
     const mask = new Uint8Array(N), hue = new Uint8Array(N);
-    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N));
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), st);
     const buf = stageShownBufs.get(N);
     if (!buf || buf.length !== N) { stageShownBufs.set(N, mask); continue; }   /* 新长度：给目标帧 */
     smoothShown(inst, mask, buf, N, fast);

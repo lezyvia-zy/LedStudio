@@ -795,22 +795,32 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
   {
     const inst = CORE.instNew();
     CORE.simApplyEffect(inst, eD, 0);
+    const L = inst.anim.layers[0];
+    const st = CORE.sweepStateNew(24);
+    const step = n => {
+      for (let t = 0; t < n; t++) {
+        CORE.instTick(inst, false);
+        const ft = CORE.flowTickOf(inst);
+        const need = Math.max(1, L.rotate | 0);
+        if (((ft - st.t) & 0xFFFF) >= need) { st.t = ft; CORE.sweepStep(st, L, 24); }
+      }
+    };
     const shot = () => {
       const m = new Uint8Array(24), h = new Uint8Array(24);
-      CORE.renderZoneMaskTo(inst, m, h, 24, 0);
+      CORE.renderZoneMaskTo(inst, m, h, 24, 0, st);
       return { m, h };
     };
     const f0 = shot();
     ok(f0.m.filter(v => v > 0).length === 1 && f0.m[23] === 255,
        `起始只有远端一个头部（${f0.m.join(',') }）`);
-    for (let t = 0; t < 115; t++) CORE.instTick(inst, false);   /* 23 步 = 低端长一颗 */
+    step(115);   /* 23 步 = 低端长一颗（每步 5 拍） */
     const f1 = shot();
-    ok(f1.m[0] === 120 && inst.swLow === 1,
-       `115 拍后低端填了 1 颗（${f1.m[0]}，low=${inst.swLow}）`);
-    for (let t = 0; t < 110; t++) CORE.instTick(inst, false);   /* 再 22 步 = 高端长一颗 */
+    ok(f1.m[0] === 120 && st.low === 1,
+       `115 拍后低端填了 1 颗（${f1.m[0]}，low=${st.low}）`);
+    step(110);   /* 再 22 步 = 高端长一颗 */
     const f2 = shot();
-    ok(f2.m[0] === 120 && f2.m[23] === 120 && inst.swHigh === 1,
-       `两端各填 1 颗（${f2.m[0]} / ${f2.m[23]}，high=${inst.swHigh}）`);
+    ok(f2.m[0] === 120 && f2.m[23] === 120 && st.high === 1,
+       `两端各填 1 颗（${f2.m[0]} / ${f2.m[23]}，high=${st.high}）`);
     ok(new Set(f0.h).size >= 2, `配色仍是彩虹（${new Set(f0.h).size} 种空间色相）`);
   }
   /* 13d-2 「头部取色」：默认跟配色（彩虹 / 渐变按位置）；切到固定颜色才出现色块 */
