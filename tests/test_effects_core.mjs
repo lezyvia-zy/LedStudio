@@ -1433,6 +1433,23 @@ console.log('--- 扫描填充（单向 / 双向）---');
       ok(cG === IG.color.spectrum[IG.color.phase] && IG.color.phase === 1,
          `头部渐变：取当前相位 ${IG.color.phase} 的颜色`);
     }
+    /* 头部渐变也可以从色库里挑一条（不跟效果那张） */
+    {
+      const st2 = CORE.projectFromPreset(CORE.PRESET_SP3122D);
+      const gid = CORE.gradList(st2)[0].id;
+      const effH = { kind:'custom', color: FW.COLOR.SPECTRUM, c1: [0, 0, 0], slow: 8, fast: 1, speed: 1,
+                     grad_step: 1, moves: false,
+                     layers: [{ kind: 'sweep', en: 1, hm: 3, hg: gid, wave: 0, rotate: 1, lo: 120, hi: 255 }] };
+      const IH = CORE.instNew();
+      CORE.simApplyEffect(IH, effH, 0, st2);
+      instTick(IH, false);
+      const mH = new Uint8Array(24), hH = new Uint8Array(24);
+      CORE.renderZoneMaskTo(IH, mH, hH, 24, 0);
+      const tbl = CORE.gradTable(CORE.gradById(st2, gid));
+      ok(IH.swGrad === tbl, '头部渐变：实例拿到色库里选的那张表');
+      ok(CORE.effectColorAt(IH, IH.swNum, 24, hH) === tbl[IH.color.phase],
+         '头部渐变：取的是那张表的当前相位色');
+    }
   }
 
   /* 填满 → 清空阶段（固件 CFG_FUNC_RGB_FILL_CLEAR_EN=1），清完再从头开始 */

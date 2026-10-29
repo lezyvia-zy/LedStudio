@@ -832,6 +832,21 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
       CORE.simApplyEffect(inst0, list0()[bi], 0);
       ok(CORE.sweepHeadColor(inst0, 0, 24) === null, '跟配色时头部不覆盖');
     }
+    if (sels0[1]) { sels0[1].value = '3'; sels0[1].onchange(); }
+    await new Promise(r => setTimeout(r, 700));
+    {
+      const s3 = walk(byId.get('fLayers'), [], 'SELECT');
+      ok(s3.length === 3, `选「渐变」后多一个「头部渐变」下拉（${s3.length} 个下拉）`);
+      const gsel = s3[2];
+      const n0 = gsel ? gsel.children.length : 0;
+      ok(n0 >= 2, `下拉里有「跟效果那张」+ 色库条目（${n0} 项）`);
+      const add = byId.get('fxGradNew');
+      if (add && add.onclick) add.onclick();
+      await new Promise(r => setTimeout(r, 700));
+      const s4 = walk(byId.get('fLayers'), [], 'SELECT');
+      ok(s4[2] && s4[2].children.length === n0 + 1,
+         `新建一条渐变后，头部渐变下拉自动多一项（${s4[2] && s4[2].children.length}）`);
+    }
     if (sels0[1]) { sels0[1].value = '1'; sels0[1].onchange(); }
     await new Promise(r => setTimeout(r, 700));
     const chips = walk(byId.get('fLayers'), [], 'cchip');

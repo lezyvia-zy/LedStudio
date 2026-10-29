@@ -197,6 +197,13 @@ const SW2 = mkFx(19, [{ kind:'sweep', en:1, wave:1, rotate:1, lo:120, hi:255,
                         count:0, width:0, phase:0, falloff:'hard', pulse_period:0, pulse_amp:0,
                         density:0, rate:0, spans:0, direction:1, bounce:0 }]);
 SW2.color = CORE.FW.COLOR.SOLID; SW2.c1 = [255,255,255]; SW2.c2 = [0,0,0];
+/* 双向那条的头部改用「色库里另存的渐变」：把 hg_first 那张额外色环也导出去，C/JS 逐字节比 */
+{
+  const HG = CORE.gradNew(st, st.gradients.list[0]);
+  HG.anchors = [[255, 0, 0], [0, 0, 255]];
+  SW2.layers[0].hm = 3;
+  SW2.layers[0].hg = HG.id;
+}
 st.modes.list.push({ id:'mV', name:'双向填充', latin:'FILL_TWO', enabled:true,
                      binds:[{ effect:SW2.id, zones:[] }] });
 

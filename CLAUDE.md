@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、2049 项断言。五类：
+26 个套件、2054 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -210,6 +210,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 55. **「头部取色」= 一个模式 + 一个颜色，不是两个颜色字段**（2026-10-29 第二十四轮，用户「头部的颜色也想做成渐变色或者彩虹的。其实这两个灯效模式也就渐变和彩虹两种色彩配置」）：① 图层 `sweep` 在 `hc_r/g/b` 之后再追加一列 **`hc_mode`**（0 = 跟配色 / 1 = 固定颜色，`led_gen_layer_t` 25 列）；UI 上是一个「头部取色」下拉，**选「固定颜色」才显示色块**（`renderLayers()` 里用 `hmOf(L)` 判，切换后要重建卡片）。② 「跟配色」不要写成「用 palette[0]」—— 它的意思是**不覆盖**：`inst.swColor = null`（C 的 `sw_fix = 0`），颜色阶段原样落到效果级配色（彩虹按位置取色 / 渐变当前色）；只有 `sw_fix = 1` 才把头部那颗换成 `sw_r/g/b`。③ 老层没有 `hc_mode` 的判法：**配过 `hc` 的算固定色，没配过的算跟配色**（`layerNums` 里 `L.hm != null ? ... : Array.isArray(L.hc) ? 1 : 0`）—— 上一版所有层都没配过，所以它们的头部会从白变成跟配色（用户这轮要的）。④ 预置「单向填充 / 双向填充」保持在 0（彩虹头部）。⑤ 测试：`test_effects_core` +2（`swColor === null`、头部用效果色）、`test_effects_c` 行宽 **25** + `hc_mode`、`test_fx_presets` 13d-2（下拉默认跟配色 / 无色块 → 切固定色 → 色块 + 改色 + 存盘）。
 56. **「头部取色」是四个模式，不是「跟配色 / 固定」两态**（2026-10-29 第二十五轮，用户纠正：「头部和常亮部应该是独立的两种配色方案，各自都有渐变和彩虹以及固定色，两个部分只要变色速度一致」）：① `hc_mode`：0 跟配色 / 1 固定 / **2 彩虹** / **3 渐变**（同一列，图层表仍 25 列）；UI 下拉四项，只有 1 显示色块。② 彩虹头部：`hue = (hue_base + i×256/levels + flow_tick/hue_speed) & 0xFF` → `spectrum_tbl[hue]` —— **跟效果级彩虹同一个式子**（levels / 起色 / 旋转都取 `E->levels / E->hue_base / E->hue_speed`），所以常亮段是彩虹时两边速度天然一致。③ 渐变头部：`phase = (flow_tick / 每级拍数) × grad_step`（与 `colorUpdate` 同一式）→ `led_gen_grad[E->grad_first + phase]`（JS 用 `inst.color.spectrum[phase]`）。④ **别把它做成「palette[0]/[1]」**：用户要的是两套完整配色（每套都能渐变 / 彩虹 / 固定），不是两种颜色。⑤ `layerNums` 里 `hm` 要原样保留 0..3（`Math.max(0, Math.min(3, L.hm|0))`）—— 早期写成 `(L.hm ? 1 : 0)`，2/3 被压成 1，测试里表现为「选了彩虹却出固定白」。⑥ JS/C 都只给头部那一颗上色（`sweepHeadColor` / `led_gen_sweep_colour`），常亮段照旧走效果级配色；两边都用 flow 时钟，快档一起加速。⑦ 测试：`test_effects_core` +3（跟配色不覆盖 / 彩虹 = 第 N 级 / 渐变 = 当前相位）、`test_fx_presets` 13d-2 走新下拉。
 57. **用不上的开关要收起，不是留着让人勾**（2026-10-29 第二十六轮，用户「关于【随位置前进】这个，如果用不上的模式就不要它显示了」）：`#fMoves` 只影响**位置型动画**（光点层吃位置、内建追逐 / 摆动）；填充 / 随机闪 / 亮度渐变 / 扫描填充勾了也不动。做法：那一行的 `<label>` 加 `id="rowMoves"`，`syncFxEdit()` 里 `(e.layers||[]).some(L => L.en !== 0 && L.kind === 'spot')` 为假就 `display:none`（**只隐藏，不动 `e.moves`** —— 套回带光点的模板时值还在）；`on` 为假时整个自定义区本来就隐藏，但表达式要写 `on && ...` 短路，别在 `e` 为空时读 `e.kind`。测试：`test_fx_presets` 拖尾彗星显示 / 双向填充 `display:none`。
+58. **「头部渐变」= 下拉选色库条目，导出时必须带上那张表**（2026-10-29 第二十七轮，用户「直接从色彩配置里面的渐变色库里面选就好了，下拉菜单随着渐变色库的增删而改变」）：① 图层存 `hg`（渐变 id）→ 导出 `hg_first`（`uint16_t`，**图层表 26 列**，`0xFFFF` = 用效果自己那张）；② `modesPlan` 里两条路都要进 `led_gen_grad[]`：效果自己那张照旧由 `gradTableFor` 进，**层的额外那张**在 `rowFromEffect` 里用 `gradFirstOf(gradTable(gradById(state, L.hg)))` 加进去（同内容已被 `gradIdx` 去重，不会重复存 256 行）；③ C 的实例记 `sw_grad_first`（`hg_first == 0xFFFF ? E->grad_first : hg_first`），颜色阶段用 `led_gen_grad[I->sw_grad_first + ph]`；JS 在 `simApplyEffect` 里用 `inst.swGrad = gradTable(gradById(state, hg))`（没给 state 的调用方回落到 `inst.color.spectrum`）；④ UI 下拉的选项来自 `gradList(state)`，色库增删后必须重建图层卡（现有的 `gradNewBlank / gradSaveAs / gradDropCur` 都走 `syncFxEdit()`，那里会 `renderLayers()` —— 别绕过它）；⑤ 相位仍用效果的「速度 / 步进」+ 流动时钟，和常亮段同步。⑥ 测试：`test_effects_core` +2、`test_effects_c` 行宽 26、`test_effects_c_exec` 用另存渐变做额外色环的逐字节、`test_fx_presets` +3（下拉项数随新建自动 +1）。
 
 
 
@@ -225,7 +226,8 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 
 
-工具本体功能完整、2049 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2049 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+
+工具本体功能完整、2054 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2054 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。
