@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1984 项断言。五类：
+26 个套件、1990 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -197,11 +197,14 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 47. **「音源」只是预览；真声音采集要手势 + 授权，导出物不许带它**（2026-10-28 第十五轮，用户「能不能采样电脑的声音来作为信号输入进行量化。但实际导出到 c 文件时候，还是要按照已有的参数来对接」）：① 音源进工程 `state.anim.audioSrc`（`random` / `mic` / `system`），**只进工程、绝不进导出** —— `led_gen_hal_audio_level()` 的契约与 `LED_GEN_*` 参数一个字都没动，`modesPlan()/exportEffectsC()` 也不认识它（`test_anim2` H 段直接断言导出文本里没有 `audioSrc/getUserMedia/getDisplayMedia`）。② 麦克风走 `getUserMedia({audio:true})`；**电脑声音必须走 `getDisplayMedia({video:true,audio:true})`**（Chrome/Edge 只在「共享标签页/屏幕 + 勾『分享音频』」时给音轨，只要 audio 会被拒），没有音轨要明确提示「没勾分享音频」并把 stream 停掉。③ 浏览器要求**用户手势**：只能在打开开关那一下的 click 里 `await` 启动；换项目 / 切手动档 / 停止共享都要 `audioCapStop()`（`track.stop()` + `ctx.close()`），刷新后 `audio=true` 的工程要强制停下等用户再点。④ 量化：`audioLevelFromTimeData()`（128 中心时域 → RMS）→ `audioLevelFromRms()`（dBFS，**-60dB..0dB 映射到 0..最大值**，空 / NaN → 0）；**采集中断时别偷偷回退成随机**（那会看着像还在听）。⑤ `loop()` 里 20ms 一拍取一次音源值，再走原来的 40ms 采样 + 阈值 + 阻尼；编辑台不做迟滞，所以每拍 `stageSetSpeed()` 一次（否则停掉音乐后会卡在快档）。⑥ 测试只能桩 `navigator.mediaDevices` / `window.AudioContext`（真采音得在浏览器里手动验），`test_anim2` H 段就是这套桩。⑦ **开关只有「开 / 关」两态**（同日用户「感觉开启有点繁琐…只保留类似于之前的那个音乐来了开关」）：`#aAudio` 的文案只有 `音乐来了` / `音乐来了：开（点掉停）`，**别把音源写进按钮**（那会变成「先选音源再点听」两步）；`#aSrc` 只决定打开后听什么，换源时若开关是开的就**立刻换过去**（`audioOnWith(next)`），换失败退回原选择并关掉开关。⑧ **电脑声音的共享别在关开关时释放**（同日用户「共享弹窗确实有点烦」）：`audioCapHold()` 只停麦克风，system 那条留着；`audioOnWith()` 见到 `audioCap.kind === src` 就复用（`ctx.resume()` 一下），**不再弹共享框**；只有换音源（`next !== audioCap.kind`）/ 换项目 / 切手动档 / 用户点「停止共享」（`onended`）才 `audioCapStop()`。别为了「关掉就该没有」顺手把 system 也 stop —— 那样每次开关都要重选一遍共享。⑨ **「音频文件」= 零授权音源**（同日用户「有没有更简洁隐蔽的获取电脑声音的途径」）：选文件 / 拖到 `#previewBar` → `audioFileStart(file)`（`<audio loop>` + `createMediaElementSource` + analyser → `ctx.destination`，听得见）；开关关掉只 `pause()`（`audioCapHold`），文件与 AudioContext 留着，再打开 `play()` 接着放；`bindProject()` 里 `audioFile = null`（浏览器不许自动重读文件，`audioName` 只用来显示），所以刷新 / 换项目后第一次打开要重选；`AUDIO_SRC` 要带上 `'file'`，`A()` 归一化它，**导出物里没有 audioSrc / audioName**。测试桩：`window.Audio`（play/pause/loop）+ `AudioContext.createMediaElementSource`。
 
+48. **音频文件的「播放 / 暂停」是独立的运输条，别和「音乐来了」开关搅在一起**（2026-10-29 第十六轮，用户「我怎么控制音频文件的播放暂停呢？应该在右上角加一个播放信息展示…原来右上角的信息显示改到左下角」）：① `#audioBar` 在**画布右上角**，只在 `audioSrc === 'file'` 且（有 `audioCap` 或有 `audioFile`）时露面；`syncAudioBar()` 统一刷显隐 / ▶⏸ / 时间 / 进度，**状态一变就调**，loop 里只在 file 音源调（别每帧全量刷新）。② 播放条只 `audio.play() / pause()`：**暂停 = 音量 0、灯按慢档走**，**不要顺手把 `A().audio` 关掉**（否则再点播放要重走 `audioOnWith`，还会和「音乐来了」按钮的状态打架）；开关关着时点播放条要**先 `audioOnWith('file')`**（复用已加载文件）再放。③ 进度条 = `#aFileSeek` + `#aFileSeekFill`（宽度百分比），点一下按 `clientX` 折算 `currentTime`；`duration` 在 `onloadedmetadata` / 每帧读一次并用 `isFinite` 保护（测试桩没有真 metadata）。④ `#headInfo` 从 `<header>` 挪到 `#center`（`left:8px; bottom:26px` 半透明），**id 与文字格式不动**（`test_ui` / `test_persist` 断言它）；顶栏因此少一项，窄屏不会把 header 撑成两行（`main` 的 `height:calc(100% - 37px)` 是按一行算的）。⑤ 测试：`test_anim2` H 段 +6（布局 / 播放条露面 / 进度跳转 / 暂停不停开关 / 继续 / 换源收起），桩 `window.Audio` 要带 `duration`、`currentTime`。
 
 
 
 
-工具本体功能完整、1984 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1984 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+
+
+工具本体功能完整、1990 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1990 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

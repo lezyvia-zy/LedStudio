@@ -273,6 +273,31 @@
   #status.lv-err{color:var(--err)}
   #status.lv-warn{color:var(--warn)}
   #status.lv-ok{color:var(--ok)}
+  /* 画布左下角：项目名 / 灯数（原来在顶栏右侧；顶栏让给别的控件，也不会把 header 挤到换行） */
+  #headInfo{
+    position:absolute; left:8px; bottom:26px; z-index:3; max-width:60%;
+    padding:2px 6px; border-radius:4px; background:var(--status-bg); color:var(--dim);
+    font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;
+  }
+  /* 画布右上角：音频播放条（只在音源 = 音频文件、且已加载文件时露面） */
+  #audioBar{
+    position:absolute; top:8px; right:8px; z-index:4; width:264px;
+    display:flex; flex-wrap:wrap; align-items:center; gap:5px 8px;
+    padding:6px 8px; border:1px solid var(--line); border-radius:6px;
+    background:var(--status-bg); color:var(--fg); font-size:11.5px;
+  }
+  #audioBar button{
+    flex:0 0 auto; width:26px; height:22px; line-height:1; padding:0;
+    font-size:12px; border-radius:4px;
+  }
+  #audioBar button.on{background:var(--pri-bg); border-color:var(--pri-line)}
+  #aFileTime{flex:0 0 auto; color:var(--dim); font-variant-numeric:tabular-nums}
+  #aFileName{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dim)}
+  #aFileSeek{
+    flex:1 1 100%; height:6px; border-radius:3px; background:var(--line);
+    cursor:pointer; position:relative; overflow:hidden;
+  }
+  #aFileSeekFill{position:absolute; left:0; top:0; bottom:0; width:0; background:var(--accent); border-radius:3px}
   textarea{
     width:100%; height:190px; background:var(--canvas-bg); color:var(--fg); border:1px solid var(--line);
     border-radius:4px; font:12px/1.45 Consolas,"Courier New",monospace; padding:6px; resize:vertical;
@@ -409,7 +434,6 @@
   <label class="row" style="margin:0"><span style="flex:none;color:var(--dim)">格边长</span><input type="number" id="cellSize" data-tip="网格/格子的边长（像素）。只影响编辑手感与新建的灯位。" value="40" min="8" max="200" step="4"></label>
   <span class="sep"></span>
   <button id="btnTheme" data-tip="深色 / 浅色界面切换">◐ 浅色</button>
-  <span id="headInfo" style="margin-left:auto;color:var(--dim)"></span>
   <span id="saveFlag" style="color:var(--ok)"></span>
 </header>
 
@@ -417,6 +441,15 @@
   <div id="left"></div>
   <div id="center">
     <canvas id="cv"></canvas>
+    <!-- 音频播放条（右上角）：本地音频文件的播放 / 暂停 / 进度 / 跳转。
+         只在这个音源选了「音频文件」并已加载时露面；不挡右侧预览条。 -->
+    <div id="audioBar" class="hide">
+      <button id="aFilePlay" data-tip="播放 / 暂停这个音频文件。&#10;暂停时音量是 0（灯会按慢档走），「音乐来了」开关不用关；再点继续放。">▶</button>
+      <span id="aFileTime">0:00 / 0:00</span>
+      <span id="aFileName">—</span>
+      <div id="aFileSeek" data-tip="点一下跳到这个位置（按文件总时长换算）。"><i id="aFileSeekFill"></i></div>
+    </div>
+    <div id="headInfo"></div>
     <div id="status"></div>
   </div>
   <div id="rightSplit" role="separator" aria-orientation="vertical" tabindex="0"
@@ -1108,7 +1141,8 @@
           打开就有信号（按选中的音源）、关掉就没有。随机立刻开始；麦克风 / 电脑声音是<b>真声音</b>，
           打开这一下会请求授权 —— 「电脑声音」还要共享一个标签页 / 屏幕并勾上<b>「分享音频」</b>；
           <b>音频文件</b>是选一个 mp3 / wav（也可以直接拖到预览条上），<b>零授权、零弹窗、循环播放</b>，
-          关掉开关只是暂停（换项目 / 刷新才要重选文件）。
+          关掉开关只是暂停（换项目 / 刷新才要重选文件）；加载后<b>画布右上角</b>会出现<b>播放条</b>
+          （▶/⏸、时间、进度 —— 点进度条跳转，暂停只停音乐、灯仍按慢档走，「音乐来了」开关不受影响）。
           <b>开着的时候换音源会立刻换过去</b>；<b>「电脑声音」的共享会保持住</b>（关掉开关只是不放信号），
           反复开关音乐不会再次弹共享框 —— 换音源 / 换项目 / 停止共享时才断开。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，
           再走同一套 40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
@@ -5950,6 +5984,7 @@ function syncAudioBtn() {
     b.classList.toggle('on', !!a.audio);
     b.disabled = !auto;
   }
+  syncAudioBar();                 /* 右上角播放条：音源 / 文件 / 播放状态一变就刷新 */
 }
 /* 阈值针 / 「阈」格 → 阈值本身。拖针时按指针对应的 x 折算成 0..最大值。 */
 const THR_PAD = 8;                    /* range 两端滑块半径（px） */
@@ -6018,7 +6053,38 @@ async function audioFileStart(file) {
   try { anal.connect(ctx.destination); } catch (e) {}   /* 让用户听得见（分析不受影响） */
   await el.play();
   audioCap = { ctx, anal, stream: null, kind: 'file', buf: new Uint8Array(anal.fftSize), audio: el, url };
+  el.onloadedmetadata = () => syncAudioBar();     /* 时长出来以后刷新进度条 */
+  syncAudioBar();
   return audioCap;
+}
+/* 右上角音频播放条：只在「音源 = 音频文件」且已有文件时露面。
+ * 显示 ▶/⏸ · 当前时间 / 总时长 · 文件名 · 进度条（点一下跳转）。
+ * 它只管**音频文件**的播放（暂停 = 音量 0、灯按慢档走），不动「音乐来了」开关。 */
+function fmtAudioTime(sec) {
+  const s = Math.max(0, Math.floor(+sec || 0));
+  return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+}
+function syncAudioBar() {
+  const bar = $('#audioBar');
+  if (!bar) return;
+  const a = A();
+  const cap = (audioCap && audioCap.kind === 'file') ? audioCap : null;
+  const visible = (a.audioSrc === 'file') && (!!cap || !!audioFile);
+  bar.classList.toggle('hide', !visible);
+  if (!visible) return;
+  const el = cap && cap.audio;
+  const dur = (el && isFinite(el.duration) && el.duration > 0) ? el.duration : 0;
+  const cur = (el && isFinite(el.currentTime)) ? el.currentTime : 0;
+  const nm = $('#aFileName'), tm = $('#aFileTime'), btn = $('#aFilePlay'), fill = $('#aFileSeekFill');
+  if (nm) nm.textContent = a.audioName || (audioFile ? audioFile.name : '（未选文件）');
+  if (tm) tm.textContent = fmtAudioTime(cur) + ' / ' + fmtAudioTime(dur);
+  if (fill) fill.style.width = (dur ? Math.max(0, Math.min(100, (cur / dur) * 100)) : 0).toFixed(1) + '%';
+  if (btn) {
+    const playing = !!(el && !el.paused);
+    btn.textContent = playing ? '⏸' : '▶';
+    btn.classList.toggle('on', playing);
+    btn.disabled = !(cap || audioFile);
+  }
 }
 function audioCapLevel(max) {
   if (!audioCap) return 0;               /* 没在采音 = 安静（不要偷偷回退成随机） */
@@ -7600,6 +7666,35 @@ function buildAnimPanel() {
       await loadAudioFile(f, true);   /* 拖进来就直接开始听 */
     });
   }
+  /* 右上角播放条：只管这个音频文件的播放 / 跳转（暂停 = 音量 0，灯按慢档走），
+     不动「音乐来了」开关；开关关着时点播放会顺手把它打开（复用已加载的文件）。 */
+  const playBtn = $('#aFilePlay');
+  if (playBtn) {
+    playBtn.onclick = async () => {
+      const cap = (audioCap && audioCap.kind === 'file') ? audioCap : null;
+      if (!cap) { await audioOnWith('file'); syncAudioBar(); return; }
+      if (cap.audio.paused) {
+        if (!A().audio) await audioOnWith('file');
+        else { try { await cap.audio.play(); } catch (e) {} }
+      } else {
+        try { cap.audio.pause(); } catch (e) {}
+      }
+      syncAudioBar();
+    };
+  }
+  const seekEl = $('#aFileSeek');
+  if (seekEl) {
+    seekEl.onclick = ev => {
+      const cap = (audioCap && audioCap.kind === 'file') ? audioCap : null;
+      const el = cap && cap.audio;
+      if (!el || !isFinite(el.duration) || el.duration <= 0) return;
+      const r = (seekEl.getBoundingClientRect ? seekEl.getBoundingClientRect() : { left: 0, width: 100 });
+      const x = (ev && ev.clientX != null) ? ev.clientX : 0;
+      const pct = Math.max(0, Math.min(1, (x - r.left) / Math.max(1, r.width)));
+      el.currentTime = pct * el.duration;
+      syncAudioBar();
+    };
+  }
   $('#aRate').onchange  = () => { A().rate = +$('#aRate').value || 1; saveStore(); };
   $('#aPlay').onclick   = () => { playToggle(!A().playing); saveStore(); };
   $('#aStep').onclick   = () => {
@@ -7748,9 +7843,10 @@ function loop(t) {
     const realSrc = (A().audioSrc || 'random') !== 'random';
     while (fftAcc >= 20 && g++ < 50) {
       fftAcc -= 20;
-      /* 音源：随机（模拟）/ 麦克风 / 电脑声音 —— 真声音只影响预览，导出物不变 */
+      /* 音源：随机（模拟）/ 麦克风 / 电脑声音 / 音频文件 —— 真声音只影响预览，导出物不变 */
       A().fft = realSrc ? audioCapLevel(audioMaxOf(A())) : fftMusicLevel(audioMaxOf(A()));
     }
+    if (realSrc && A().audioSrc === 'file') syncAudioBar();   /* 播放条：进度 / 时间跟着走 */
     syncAudioBtn();                      /* 滑杆 / 读数 / 阈值针跟着走 */
   } else fftAcc = 0;
   if (!boardOn && !stageOn) { requestAnimationFrame(loop); return; }   /* 只放音乐：不推进帧 */

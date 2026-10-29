@@ -322,6 +322,10 @@ console.log('--- 音量刻度（最大）/ 阈值上限 ---');
 /* ---- H) 音源：随机 / 麦克风 / 电脑声音（一个开关；只影响预览，导出不变）---- */
 console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
 {
+  const hdrHtml = (html.match(/<header>[\s\S]*?<\/header>/) || [''])[0];
+  ok(!!hdrHtml && hdrHtml.indexOf('headInfo') < 0 &&
+     /<div id="center">[\s\S]*?id="audioBar"[\s\S]*?id="headInfo"/.test(html),
+     '布局：音频播放条在画布右上角、项目信息挪到画布左下角（顶栏不再放它）');
   const CORE2 = new Function(coreSrc + '\n; return CORE;')();
   const srcSel = byId.get('aSrc');
   const stOf = () => JSON.parse(store.get('led_layout_editor.v1')).projects[0].state;
@@ -463,6 +467,27 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
     ok(animOf(0).audio === true && animOf(0).audioName === 'drop.wav' && audioEl.paused === false &&
        ctxCount === ctxBefore + 2,
        `拖进来直接开始：正在放「${animOf(0).audioName}」`);
+
+    /* 右上角播放条：文件名 / 时间 / 进度 / 暂停 / 跳转 */
+    const barEl = byId.get('audioBar'), playBtn = byId.get('aFilePlay'),
+          tmEl = byId.get('aFileTime'), nmEl = byId.get('aFileName'),
+          fillEl = byId.get('aFileSeekFill'), seekEl = byId.get('aFileSeek');
+    ok(!barEl.classList.contains('hide') && nmEl.textContent === 'drop.wav' &&
+       playBtn.textContent === '⏸' && playBtn.classList.contains('on'),
+       `右上角播放条露面并显示正在播：${nmEl.textContent} · ${playBtn.textContent}`);
+    audioEl.duration = 100; audioEl.currentTime = 0;
+    seekEl.onclick({ clientX: 600 });            /* 假 DOM 的条宽 1200 → 50% */
+    ok(audioEl.currentTime === 50 && tmEl.textContent === '0:50 / 1:40' &&
+       fillEl.style.width === '50.0%',
+       `点进度条跳到一半：${tmEl.textContent} · 进度 ${fillEl.style.width}`);
+    playBtn.onclick();
+    await new Promise(r => realST(r, 70));
+    ok(audioEl.paused === true && playBtn.textContent === '▶' && animOf(0).audio === true,
+       '播放条暂停：文件停了但「音乐来了」开关仍是开（再点继续）');
+    playBtn.onclick();
+    await new Promise(r => realST(r, 70));
+    ok(audioEl.paused === false && playBtn.textContent === '⏸',
+       '再点播放条：接着放（没有重新选文件）');
   }
 
   /* 导出物与音源完全无关：板上仍只认 HAL + 参数 */
@@ -472,6 +497,7 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
 
   srcSel.value = 'random'; srcSel.onchange();
   await new Promise(r => realST(r, 70));
+  ok(byId.get('audioBar').classList.contains('hide'), '换走音源后右上角播放条收起');
 }
 
 spd.value = 'slow'; spd.onchange();
