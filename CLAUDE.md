@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、1995 项断言。五类：
+26 个套件、2007 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -201,13 +201,16 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 49. **效果页的中央画布是「动画预览」，不是布局编辑器**（2026-10-29 第十七轮，用户「在效果页面的画布上为什么会触发画形状等功能？这个页面不能编辑画布，只是一个预览设计动画的地方」）：`stageView`（tab === 'fx'）为真时：① `cv` 的 `pointerdown / pointermove / pointerup / dblclick / wheel` 全部**第一行早退**（别只挡 shape —— 选灯、挪灯、框选、平移、缩放都算编辑）；② 键盘挡掉**删除 / 方向键微调 / Ctrl+A**，空格也不进平移；`V/P/E/S` 走 `setMode()` 守卫（会提示「切到分区页」）；③ 左侧「画布工具」由 `syncLeftForPane()` 禁用 —— **别改 `data-tip`**（悬浮说明系统读它），也**别用 `title`**（`test_help` 会把原生 title 当第二个提示框）；④ `setMode(m, force)` 的第二参只给**内部收尾**（`tab()` 进效果页、`bindProject()` 换项目）用，工具键不许传 force；⑤ 进效果页时自动退回「选择」态、光标恢复默认；⑥ 测试：`test_stage` 数 7 处 `if (stageView) return;` + `setMode` / `syncLeftForPane` 守卫存在，`test_canvas_map` 的 setMode 正则跟着改成 `(m, force)`。
 
+50. **电脑侧声音的「响应」= 节拍（低频 + 谱通量）+ 自适应，不是平均响度**（2026-10-29 第十八轮，用户「现在工具获取电脑声音的算法是怎样的？我怎么感觉动态和歌曲的节奏不是很契合」）：① 默认 `audioResp = 'beat'`：`audioBeatOnset()` = 低频 40–160Hz 能量（×0.6）+ **谱通量**（相邻帧正增量，×3.0）→ 0..1；**别再只算 RMS**（约 21ms 平均把鼓点抹平，而且 -60..0dB 映射让正常音乐常年 13~17/20，阈值 4 永远过）。② `audioAdaptiveLevel()`：**噪声门 0.10**（底噪 / 铺底不算节拍，否则拍与拍之间也高位）、**滚动峰值**（`peakDecay 0.998`/拍）但**参考下限 0.35**（只按峰值归一化会在安静开头把底噪放大成满档）、`sqrt` 曲线、**快攻慢放**（`release 0.80`/拍 ≈ 100ms）。③ 状态 `{ peak, env }` 挂**每个采集**（`audioCap`），换响应 / 重开采集要清零；`audioCapLevel()` 按 `A().audioResp` 分 beat / rms（rms = 老行为）。④ UI：预览条「刻度」行加「响应：节拍 / 响度」（`#aResp`，存 `state.anim.audioResp`，手动档跟「阈/最大」一起灰），**只影响预览**；导出 C / HAL / 结构体零改动（板上仍用 HAL 的 FFTLevel + 阈值/阻尼）。⑤ 测试：`test_effects_core` 9e +9（枚举 / 静音 / 低频 vs 中频 / 谱通量 / 稳态不算节拍 / 快攻慢放 / 噪声门 / 中等信号 / 参考下限），`test_anim2` H +3（默认 beat / 切 rms 存盘 / 切回）。
 
 
 
 
 
 
-工具本体功能完整、1995 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 1995 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+
+
+工具本体功能完整、2007 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2007 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

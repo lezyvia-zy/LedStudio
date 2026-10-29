@@ -352,8 +352,9 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
     async resume() {}
     createMediaStreamSource() { return { connect() {} }; }
     createMediaElementSource() { return { connect() {} }; }
-    createAnalyser() { return { fftSize: 1024, smoothingTimeConstant: 0, connect() {},
-      getByteTimeDomainData(a) { a.fill(128); } }; }
+    createAnalyser() { return { fftSize: 1024, frequencyBinCount: 512, smoothingTimeConstant: 0, connect() {},
+      getByteTimeDomainData(a) { a.fill(128); },
+      getByteFrequencyData(a) { a.fill(0); } }; }
     close() { this.closed = true; }
   };
 
@@ -505,9 +506,22 @@ console.log('--- 音源：随机 / 麦克风 / 电脑声音 ---');
        '关闭后再打开「音乐来了」会重新请你选文件（不会沿用已清掉的那个）');
   }
 
+  /* 电脑侧「响应」：节拍 / 响度（只影响预览，导出不变） */
+  {
+    const respSel = byId.get('aResp');
+    ok(!!respSel && respSel.value === 'beat', `响应默认「${respSel && respSel.value}」`);
+    respSel.value = 'rms'; respSel.onchange();
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audioResp === 'rms' && /响度/.test(byId.get('status').textContent),
+       `切成响度并存进存档（audioResp=${animOf(0).audioResp}）`);
+    respSel.value = 'beat'; respSel.onchange();
+    await new Promise(r => realST(r, 70));
+    ok(animOf(0).audioResp === 'beat', '切回节拍');
+  }
+
   /* 导出物与音源完全无关：板上仍只认 HAL + 参数 */
   const hdr = CORE2.exportEffectsC(stOf(), { form:'header', comment:'ascii', eol:'lf' });
-  ok(!/audioSrc|audioName|getUserMedia|getDisplayMedia|麦克风/.test(hdr),
+  ok(!/audioSrc|audioName|audioResp|getUserMedia|getDisplayMedia|麦克风/.test(hdr),
      '导出的 C 里没有任何「音源 / 采集」痕迹（音源只是工具预览）');
 
   srcSel.value = 'random'; srcSel.onchange();

@@ -632,6 +632,41 @@ console.log('--- 真声音 → 0..最大值（预览用）---');
 }
 
 
+/* ---- 9e) 电脑侧「响应」：节拍（低频 + 谱通量）+ 自适应归一化（只影响预览） ---- */
+console.log('--- 电脑侧响应：节拍 / 自适应 ---');
+{
+  const { audioBeatOnset, audioAdaptiveLevel, AUDIO_RESP } = CORE;
+  const N = 512, SR = 48000, FF = 1024;
+  const mk = () => new Uint8Array(N);
+  const silent = mk();
+  ok(AUDIO_RESP.join(',') === 'beat,rms', `响应枚举：${AUDIO_RESP.join(' / ')}`);
+  ok(audioBeatOnset(silent, silent, SR, FF) === 0, '全静音 → 节拍强度 0');
+  const kick = mk(); for (let i = 1; i <= 4; i++) kick[i] = 200;
+  const mid = mk();  for (let i = 20; i <= 23; i++) mid[i] = 200;
+  const sKick = audioBeatOnset(kick, silent, SR, FF), sMid = audioBeatOnset(mid, silent, SR, FF);
+  ok(sKick > 0.4 && sKick > sMid * 3,
+     `低频（底鼓）明显强于中频：${sKick.toFixed(2)} vs ${sMid.toFixed(2)}`);
+  const wide = mk().fill(50);
+  ok(audioBeatOnset(wide, silent, SR, FF) > 0.5, '整段频谱突变（谱通量）也计入强度');
+  ok(audioBeatOnset(wide, wide, SR, FF) < 0.2, '同样的频谱（没有突变）不会一直算「节拍」');
+  {
+    const st = {};
+    const hi = audioAdaptiveLevel(0.8, st, 20);
+    const d1 = audioAdaptiveLevel(0, st, 20);
+    const d2 = audioAdaptiveLevel(0, st, 20);
+    ok(hi >= 18 && d1 < hi && d2 < d1, `包络快攻慢放：${hi} → ${d1} → ${d2}`);
+    const q = {};
+    const quiet = audioAdaptiveLevel(0.05, q, 20);
+    ok(quiet === 0, `底噪（0.05）被噪声门挡掉：${quiet}/20（拍与拍之间不会一直高位）`);
+    const mid2 = {};
+    const moderate = audioAdaptiveLevel(0.2, mid2, 20);
+    ok(moderate > 0 && moderate < 20, `中等信号不会放到满档（绝对下限）：${moderate}/20`);
+    const half = {};
+    ok(audioAdaptiveLevel(0.45, half, 20) === 20, '超过参考下限（0.35）就映射到满档');
+  }
+}
+
+
 /* ---- 10) 效果名自动生成：「模板 / 配色」——name 不再由用户给 ---- */
 console.log('--- 效果名：模板 / 配色 ---');
 {

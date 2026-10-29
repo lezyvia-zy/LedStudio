@@ -96,6 +96,7 @@
   #previewBar .thrPin.off{opacity:.35; cursor:default; pointer-events:none}
   #previewBar .thrBox{flex:0 0 auto; display:flex; align-items:center; gap:2px; font-size:11px; color:var(--dim)}
   #previewBar .thrBox input{width:62px; padding:1px 3px; font-size:11px}
+  #previewBar .thrBox select{width:64px; padding:1px 3px; font-size:11px}
   /* 读数**固定宽度**：音量随机跳时「8 → 慢档」和「17 → 快档」的宽度不一样，auto 宽会把滑杆
      挤得左右动，阈值针（按百分比定位）就跟着抖。固定成 64px 之后针不再动（2026-10-28 用户反馈）。 */
   #previewBar #aFftTxt{flex:0 0 64px; width:64px; font-weight:400; font-size:11px; color:var(--dim);
@@ -488,7 +489,8 @@
       </div>
       <div class="pr"><span class="lb">刻度</span>
         <span class="thrBox" data-tip="音乐音量刻度的**最大值**（固件 mainAppCt.FFTLevel 的上限）：2..255，出厂 20。&#10;随导出写进 C 的 LED_GEN_AUDIO_MAX；阈值不能大于它（把最大值调小，超过的阈值会一起压下来并提示）。&#10;换一块板子、FFTLevel 范围不一样时改这里，别的地方都不用动。">最大<input type="number" id="aMax" min="2" max="255" step="1" value="20"></span>
-        <span class="hint" style="margin:0;font-size:11px">音量 0..最大；阈值不能超过它</span>
+        <span class="thrBox" data-tip="电脑侧声音的**响应**（只影响预览，导出物不变）：&#10;**节拍** = 低频（40–160Hz）+ 频谱突变，跟着鼓点走（默认，推荐）；&#10;**响度** = 平均音量（老行为，比较平、只跟着整体音量走）。&#10;另外会自动按最近几秒的峰值归一化，换歌 / 调音量都不用重设阈值。">响应<select id="aResp"><option value="beat">节拍</option><option value="rms">响度</option></select></span>
+        <span class="hint" style="margin:0;font-size:11px">阈值 ≤ 最大</span>
       </div>
       <div class="pr"><span class="lb">音乐</span>
         <span class="thrBox" data-tip="快档阻尼（ms）：进入快档后**至少保持**这么久才允许回慢档 —— 所以「慢→快」很干脆、「快→慢」有阻尼感。&#10;0 = 不保持（一掉到阈值以下就回慢档）。落进 20ms 一拍时向上取整（450 → 460）。&#10;随导出写进 C 的 LED_GEN_STAGE_HOLD_MS；采样周期固定 40ms（固件那边的计时定死，工具不暴露）。">阻尼(ms)<input type="number" id="aHold" min="0" max="3000" step="10" value="450"></span>
@@ -1151,7 +1153,9 @@
           <b>开着的时候换音源会立刻换过去</b>；<b>「电脑声音」的共享会保持住</b>（关掉开关只是不放信号），
           反复开关音乐不会再次弹共享框 —— 换音源 / 换项目 / 停止共享时才断开。采到的响度按 <b>-60dB..0dB</b> 映射到 <b>0..最大</b>，
           再走同一套 40ms 采样 + 阈值 + 阻尼；<b>导出物一点不变</b> —— 板上仍由 <code>led_gen_hal_audio_level()</code> 给音量，
-          C 里没有「音源」这一项。切到手动档 / 换项目 / 停止共享会自动关掉开关。<br>
+          C 里没有「音源」这一项。切到手动档 / 换项目 / 停止共享会自动关掉开关。
+          电脑侧还能选<b>「响应」</b>（预览条「刻度」那一行）：<b>节拍</b>（默认，低频 + 频谱突变，跟着鼓点）/
+          <b>响度</b>（平均音量，老行为，比较平）—— 只影响预览，导出仍按 HAL 的 FFTLevel。<br>
           「音量」滑杆就是 <code>FFTLevel</code> 本身：拖到阈值以下是慢档，高过阈值是快档 —— 拖一下就能看到
           <b>同一段动画突然变快 / 变慢</b>（在效果页拖，编辑台当场换档，不用先按播放）；打补丁后 <code>ring_tick()</code> 被 <code>led_gen_tick()</code> 取代。<br>
           点<b>「音乐来了」</b>= 模拟板上真的在放音乐：每 20ms（一拍）<b>随机注入</b>一个音量 —— 平时是 0..1 的底噪，
@@ -2296,6 +2300,9 @@ function defaultAnim() {
             * mic = 麦克风；system = 电脑声音（共享标签页/屏幕时勾「分享音频」）；
             * file = 本地音频文件（零授权，浏览器不允许自动重读 → audioName 只用来显示）。 */
            audioSrc: 'random', audioName: '',
+           /* 电脑侧声音的响应方式（只影响预览，不进导出）：beat = 节拍优先（低频 + 谱通量）；
+            * rms = 平均响度（老行为）。 */
+           audioResp: 'beat',
            /* 音频采样周期 / 快档阻尼（ms，存原值，落进拍按向上取整）：
             *   audioSampleMs = 40（每 2 拍采一次；固件那边 30/40 都行）
             *   stageHoldMs   = 450（→ 460ms / 23 拍：进快档后至少保持这么久 = 阻尼）
@@ -3817,6 +3824,52 @@ function audioLevelFromTimeData(data, max) {
     sum += v * v;
   }
   return audioLevelFromRms(Math.sqrt(sum / data.length), max);
+}
+
+
+/* —— 电脑侧「响应」（只影响预览）：beat = 节拍优先（低频 + 谱通量，跟着鼓点）；rms = 平均响度（老行为）。 */
+const AUDIO_RESP = ['beat', 'rms'];
+/* 节拍强度 0..1：低频（40–160Hz）能量 + 谱通量（相邻帧的正增量）。
+ * freq / prev 都是 getByteFrequencyData() 的 0..255；**纯函数**，便于单测。 */
+function audioBeatOnset(freq, prev, sampleRate, fftSize) {
+  if (!freq || !freq.length) return 0;
+  const n = freq.length;
+  const sr = +sampleRate || 48000;
+  const fs = +fftSize || (n * 2);
+  let b0 = Math.floor((40 * fs) / sr), b1 = Math.ceil((160 * fs) / sr);
+  if (b0 < 1) b0 = 1;
+  if (b1 > n - 1) b1 = n - 1;
+  let low = 0, cnt = 0;
+  for (let i = b0; i <= b1; i++) { low += (freq[i] | 0); cnt++; }
+  low = cnt ? (low / cnt) / 255 : 0;
+  let flux = 0;
+  for (let i = 1; i < n; i++) {
+    const d = (freq[i] | 0) - (prev ? (prev[i] | 0) : 0);
+    if (d > 0) flux += d;
+  }
+  flux = flux / (n * 255);
+  const s = 0.6 * low + 3.0 * flux;          /* 低频为主，频谱突变（鼓点）加权 */
+  return s < 0 ? 0 : (s > 1 ? 1 : s);
+}
+/* 自适应归一化 + 快攻慢放包络：st = { peak, env }（每个采集一份，就地更新）。
+ *   peak：慢衰减的滚动峰值（约几秒）—— 把「安静 / 有鼓点」拉到 0..最大值，
+ *         换歌 / 调音量都不用重设阈值；
+ *   env ：起音立刻到、释放按 release（每 20ms 乘一次；0.80 ≈ 100ms 落下去）。 */
+function audioAdaptiveLevel(strength, st, max, opt) {
+  const mx = (max == null) ? FW.AUDIO_MAX : audioMaxOf({ audioMax: max });
+  const o = opt || {};
+  const decay = (o.peakDecay == null) ? 0.998 : o.peakDecay;
+  const release = (o.release == null) ? 0.80 : o.release;
+  /* 噪声门 0.10：底噪 / 铺底不参与「节拍」，否则拍与拍之间也停在高位（阈值就一直过） */
+  let s = Math.max(0, Math.min(1, +strength || 0));
+  s = Math.max(0, (s - 0.10) / 0.90);
+  st.peak = Math.max(s, (st.peak || 0) * decay);
+  /* 绝对下限 0.35：不能只按滚动峰值归一化 —— 安静开头（peak 还很小）会把底噪直接放大成满档 */
+  const ref = Math.max(st.peak, 0.35);
+  let k = Math.min(1, s / ref);
+  k = Math.sqrt(k);                          /* 感知上更线性一点 */
+  st.env = Math.max(k, (st.env || 0) * release);
+  return Math.max(0, Math.min(mx, Math.round(st.env * mx)));
 }
 
 
@@ -5715,6 +5768,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                ringSpeedFromAudio, simSetAudioLevel, fftThreshold,
                audioMaxOf, AUDIO_MAX_MIN, AUDIO_MAX_LIMIT,
                audioLevelFromRms, audioLevelFromTimeData, AUDIO_SRC,
+               audioBeatOnset, audioAdaptiveLevel, AUDIO_RESP,
                fftMusicLevel, fftMusicReset,
                msToTicksUp, audioSampleTicks, stageHoldTicks, stageGlideMs, glideStep,
                simSetSpeedLocked, simApplyStage, simAudioStep,
@@ -5907,6 +5961,7 @@ function A() {
   /* 音量来源（只影响预览）：老存档没有 / 手改乱写 → 随机；文件名只用来显示（浏览器不许自动重读文件） */
   if (AUDIO_SRC.indexOf(a.audioSrc) < 0) a.audioSrc = 'random';
   if (typeof a.audioName !== 'string') a.audioName = '';
+  if (AUDIO_RESP.indexOf(a.audioResp) < 0) a.audioResp = 'beat';
   /* thr：音乐阈值（0..最大值，老存档没有 → 出厂 4）。夹范围，别让手改 JSON 的怪值把判据弄反；
      这个数会被导出成 C 的 LED_GEN_FFT_THRESHOLD（固件照它判档，不再手改宏）。 */
   a.thr = fftThreshold(a.thr, a.audioMax);
@@ -5967,6 +6022,11 @@ function syncAudioBtn() {
   if (mb) {
     if (!focused(mb)) mb.value = mx;
     mb.disabled = !auto;
+  }
+  const rb = $('#aResp');
+  if (rb) {
+    if (!focused(rb)) rb.value = a.audioResp || 'beat';
+    rb.disabled = !auto;
   }
   /* 阻尼 / 过渡：单位写在标签里（「阻尼(ms)」「过渡(ms)」），不再额外跟读数。
      采样周期固定 40ms（固件那边的计时定死），工具里不暴露、只随导出写进 C。 */
@@ -6057,7 +6117,10 @@ async function audioFileStart(file) {
   node.connect(anal);
   try { anal.connect(ctx.destination); } catch (e) {}   /* 让用户听得见（分析不受影响） */
   await el.play();
-  audioCap = { ctx, anal, stream: null, kind: 'file', buf: new Uint8Array(anal.fftSize), audio: el, url };
+  audioCap = { ctx, anal, stream: null, kind: 'file', buf: new Uint8Array(anal.fftSize), audio: el, url,
+               freq: new Uint8Array(anal.frequencyBinCount || 512),
+               prev: new Uint8Array(anal.frequencyBinCount || 512),
+               resp: { peak: 0, env: 0 } };
   el.onloadedmetadata = () => syncAudioBar();     /* 时长出来以后刷新进度条 */
   syncAudioBar();
   return audioCap;
@@ -6094,8 +6157,16 @@ function syncAudioBar() {
 function audioCapLevel(max) {
   if (!audioCap) return 0;               /* 没在采音 = 安静（不要偷偷回退成随机） */
   try {
-    audioCap.anal.getByteTimeDomainData(audioCap.buf);
-    return audioLevelFromTimeData(audioCap.buf, max);
+    if ((A().audioResp || 'beat') === 'rms') {
+      audioCap.anal.getByteTimeDomainData(audioCap.buf);
+      return audioLevelFromTimeData(audioCap.buf, max);
+    }
+    /* 节拍优先：低频能量 + 谱通量 → 自适应归一化 + 快攻慢放（只影响预览） */
+    audioCap.anal.getByteFrequencyData(audioCap.freq);
+    const s = audioBeatOnset(audioCap.freq, audioCap.prev,
+                             audioCap.ctx.sampleRate, audioCap.anal.fftSize);
+    audioCap.prev.set(audioCap.freq);
+    return audioAdaptiveLevel(s, audioCap.resp, max);
   } catch (e) { return 0; }
 }
 async function audioCapStart(kind) {
@@ -6126,7 +6197,10 @@ async function audioCapStart(kind) {
   anal.fftSize = 1024;
   anal.smoothingTimeConstant = 0.4;
   node.connect(anal);
-  audioCap = { ctx, anal, stream, kind, buf: new Uint8Array(anal.fftSize) };
+  audioCap = { ctx, anal, stream, kind, buf: new Uint8Array(anal.fftSize),
+               freq: new Uint8Array(anal.frequencyBinCount || 512),
+               prev: new Uint8Array(anal.frequencyBinCount || 512),
+               resp: { peak: 0, env: 0 } };
   /* 用户点「停止共享」/ 拔掉设备：立刻收摊，别让按钮一直显示「停止听音」 */
   try {
     stream.getTracks().forEach(t => {
@@ -7521,6 +7595,23 @@ function buildAnimPanel() {
       syncAudioBtn(); syncPreviewSpeed(); applyFrame(); saveStore();
     };
     maxIn.onchange = () => { maxIn.value = audioMaxOf(A()); saveStore(); };
+  }
+  /* 电脑侧「响应」（只影响预览）：节拍（低频 + 谱通量）/ 响度（老行为）。
+     换响应就把采集里的自适应状态清零，别拿上一档的峰值来比。 */
+  const respSel = $('#aResp');
+  if (respSel) {
+    respSel.onchange = () => {
+      const a = A();
+      a.audioResp = AUDIO_RESP.indexOf(respSel.value) >= 0 ? respSel.value : 'beat';
+      if (audioCap) {
+        audioCap.resp = { peak: 0, env: 0 };
+        if (audioCap.prev) audioCap.prev.fill(0);
+      }
+      syncAudioBtn(); saveStore();
+      status(a.audioResp === 'beat'
+        ? '响应：节拍（低频 + 频谱突变，跟着鼓点；只影响预览）'
+        : '响应：响度（平均音量，比较平；只影响预览）');
+    };
   }
   /* 快档阻尼（ms）：存原值，实际生效值 = 向上取整到拍（450 → 460），
      离开这一格把框里写成用户填的原值、读数显示实际值；导出时用的是实际值。
