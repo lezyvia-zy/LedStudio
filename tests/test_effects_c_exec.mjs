@@ -185,6 +185,20 @@ const SPIN = mkFx(17, [{ kind:'fill', level:120, pulse_period:0, pulse_amp:0, wa
 SPIN.color = CORE.FW.COLOR.RAINBOW; SPIN.levels = 30; SPIN.hue_base = 0; SPIN.hue_speed = 3;
 st.modes.list.push({ id:'mT', name:'旋转流动', latin:'FLOW', enabled:true,
                      binds:[{ effect:SPIN.id, zones:[] }] });
+/* 扫描填充（移植固件 PixelFill_OneWay / TwoWay）：每拍一步（rotate=1），37 拍能看到
+ * 头部走位 + 填了几颗；两条模式分别走 wave 0 / 1。 */
+const SW1 = mkFx(18, [{ kind:'sweep', en:1, wave:0, rotate:1, lo:120, hi:255,
+                        count:0, width:0, phase:0, falloff:'hard', pulse_period:0, pulse_amp:0,
+                        density:0, rate:0, spans:0, direction:1, bounce:0 }]);
+SW1.color = CORE.FW.COLOR.SOLID; SW1.c1 = [255,255,255]; SW1.c2 = [0,0,0];
+st.modes.list.push({ id:'mU', name:'单向填充', latin:'FILL_ONE', enabled:true,
+                     binds:[{ effect:SW1.id, zones:[] }] });
+const SW2 = mkFx(19, [{ kind:'sweep', en:1, wave:1, rotate:1, lo:120, hi:255,
+                        count:0, width:0, phase:0, falloff:'hard', pulse_period:0, pulse_amp:0,
+                        density:0, rate:0, spans:0, direction:1, bounce:0 }]);
+SW2.color = CORE.FW.COLOR.SOLID; SW2.c1 = [255,255,255]; SW2.c2 = [0,0,0];
+st.modes.list.push({ id:'mV', name:'双向填充', latin:'FILL_TWO', enabled:true,
+                     binds:[{ effect:SW2.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -297,6 +311,9 @@ const SMOOTH_MODE = st.modes.list.findIndex(m => m.id === 'mS');
 /* 旋转/流动：跑 12 拍（第 2 拍采到音量进快档，之后流动时钟 8 倍） */
 const FLOW_TICKS = 12;
 const FLOW_MODE = st.modes.list.findIndex(m => m.id === 'mT');
+/* 扫描填充长跑：单向、rotate=1 → 276 步填满，300 拍正好落在清空阶段里 */
+const SWEEP_TICKS = 300;
+const SWEEP_MODE = st.modes.list.findIndex(m => m.id === 'mU');
 const main = [
   '#include <stdio.h>',
   '#include <stdint.h>',
@@ -506,6 +523,22 @@ const main = [
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
 
+  /* 扫描填充长跑（单向、rotate=1）：300 拍 = 填满 276 步 + 清空 24 步 —— 覆盖清空阶段 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_audio = 0u;',
+  '    led_gen_apply_mode(&g_ring, ' + SWEEP_MODE + ');',
+  '    for (t = 0; t < ' + SWEEP_TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+
   '    printf("\\n");',
   '    return 0;',
   '}',
@@ -536,10 +569,10 @@ try {
 }
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 11 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 / 11 旋转流动（快档） */
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 12 段附加场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 全程慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 / 11 旋转流动（快档） / 12 扫描填充长跑 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 11, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 11 段附加场景）`);
+ok(cAll === st.modes.list.length + 12, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 12 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -911,6 +944,19 @@ console.log('--- 旋转 / 流动跟快慢档（flow 时钟）---');
   const cRow = (cAux[10] || []).map(px => px.join(',')).join('|');
   ok(cRow === fbStr(simFast), '旋转 / 流动（快档 12 拍）：C 侧与 JS 逐字节一致');
   ok(cRow !== fbStr(simSlow), '同样 12 拍，快档的旋转 / 流动与慢档确实不同（流动时钟生效）');
+}
+
+/* ---------- 4i) 扫描填充长跑：300 拍（进清空阶段）C ↔ JS ---------- */
+console.log('--- 扫描填充长跑（进清空阶段）---');
+{
+  const s = JSON.parse(JSON.stringify(st));
+  s.anim.modeId = st.modes.list[SWEEP_MODE].id;
+  const sim = simInit(); simApplyMode(sim, s); simSetSpeed(sim, 'slow');
+  for (let t = 0; t < SWEEP_TICKS; t++) simTick(sim, s, false);
+  const fbStr = Array.from({ length: FW.LED_COUNT },
+    (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
+  const cRow = (cAux[11] || []).map(px => px.join(',')).join('|');
+  ok(cRow === fbStr, `扫描填充 300 拍（清空阶段）C 侧与 JS 逐字节一致`);
 }
 
 /* 覆盖度自检 */

@@ -1335,6 +1335,66 @@ console.log('--- 旋转 / 流动跟快慢档（flow 时钟）---');
   renderZoneMaskTo(w2, a2, e2, 8, 0);
   ok(!e1.every((v, i) => v === e2[i]), '覆盖的趟号用 flowTick（快档扫得更快）');
 }
+/* ============================================================================
+ * 扫描填充（预置「单向填充 / 双向填充」，移植固件 PixelFill_OneWay / TwoWay）
+ * ==========================================================================*/
+console.log('--- 扫描填充（单向 / 双向）---');
+{
+  const { instNew, instApplyPreset, instTick, renderZoneMaskTo, LAYER } = CORE;
+  const mk = (wave, rotate) => {
+    const I = instNew();
+    instApplyPreset(I, { anim: FW.ANIM_COUNT, width: 10, gap: 0, slow: 8, fast: 1,
+                         speed: 0, c1: [255, 255, 255], c2: [0, 0, 0] });
+    I.anim.layers = [{ kind: LAYER.SWEEP, en: 1, wave, rotate, lo: 120, hi: 255 }];
+    return I;
+  };
+  const shot = (I, len) => {
+    const m = new Uint8Array(len), h = new Uint8Array(len);
+    renderZoneMaskTo(I, m, h, len, 0);
+    return m;
+  };
+  const run = (I, n) => { for (let i = 0; i < n; i++) instTick(I, false); };
+
+  /* 单向：头部从远端（N-1）往回走，走到已填边界时已填区域长一颗 */
+  const A = mk(0, 1);
+  instTick(A, false);
+  let mA = shot(A, 24);
+  ok(A.swNum === 22 && A.swLow === 0 && mA[22] === 255 && mA[0] === 0,
+     `单向第 1 步：头部到 ${A.swNum}，还没填（${mA[22]}）`);
+  run(A, 22);                            /* 一共 23 步：头部走到 0 → 已填 +1 */
+  mA = shot(A, 24);
+  ok(A.swLow === 1 && A.swNum === 23 && mA[0] === 120 && mA[23] === 255,
+     `单向 23 步：已填 1 颗（${mA[0]}）、头部回到远端 ${A.swNum}`);
+
+  /* 双向：两端交替长，头部在两端之间来回弹 */
+  const B = mk(1, 1);
+  run(B, 23);
+  let mB = shot(B, 24);
+  ok(B.swLow === 1 && B.swHigh === 0 && B.swDir === 1 && mB[0] === 120,
+     `双向 23 步：低端先长 1 颗（low=${B.swLow} / high=${B.swHigh} / dir=${B.swDir}）`);
+  run(B, 22);                            /* 头部走到高端 → 高端 +1 */
+  mB = shot(B, 24);
+  ok(B.swLow === 1 && B.swHigh === 1 && B.swDir === 0 &&
+     mB[0] === 120 && mB[23] === 120,
+     `双向 45 步：两端各 1 颗（${mB[0]} / ${mB[23]}）`);
+
+  /* 填满 → 清空阶段（固件 CFG_FUNC_RGB_FILL_CLEAR_EN=1），清完再从头开始 */
+  const C1 = mk(0, 1);
+  let guard = 0;
+  while (C1.swPhase === 0 && guard++ < 2000) instTick(C1, false);
+  ok(C1.swPhase === 1 && C1.swClear === 23, `单向填满后进入清空阶段（clear=${C1.swClear}）`);
+  const mC = shot(C1, 24);
+  ok(mC[23] === 255 && mC[0] === 120, '清空阶段：头部在最远端，前面仍然亮着');
+  run(C1, 24);                           /* 清到底 → 复位 */
+  ok(C1.swPhase === 0 && C1.swLow === 0 && C1.swNum === 23, '清完复位：从头开始填');
+
+  /* 按 RING_SIZE 比例铺：8 颗的对比条上也能画（头部落在对应灯上） */
+  const D = mk(0, 1);
+  instTick(D, false);
+  const mD = shot(D, 8);
+  ok(mD.filter(v => v === 255).length === 1, `8 颗长度也只有一个头部（${mD.join(',')}）`);
+}
+
 
 /* ============================================================================
  * 每效果「平滑 T」（2026-10-28 第十三轮，用户定）

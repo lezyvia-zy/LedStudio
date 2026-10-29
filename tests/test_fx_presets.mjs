@@ -778,26 +778,36 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
      'Ctrl+Z 撤回套用之前的图层（效果页也有撤销快照了）');
   ok(pick.value === '拖尾彗星', `撤销后下拉也跟着回到「${pick.value}」`);
 
-  /* 13d 「双向填充」：以前是两层满亮 fill（第二层永远被遮住）+ moves 却不动 */
+  /* 13d 「双向填充」：改成移植固件 PixelFill_TwoWay 的「扫描填充」层
+     （旧写法是两层 fill/gradient，只是两波明暗在转，不是填充） */
   pick.value = '双向填充'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   const eD = list0()[bi];
-  ok(eD.moves === false, `不再标「随位置前进」（moves=${eD.moves}，fill 不吃位置）`);
-  ok(eD.layers.map(l => l.kind).join('+') === 'fill+gradient',
-     `两层都看得见：${eD.layers.map(l => l.kind + '/' + l.level).join('+')}`);
+  ok(eD.moves === false, `不标「随位置前进」（moves=${eD.moves}，填充由层自己走）`);
+  ok(eD.layers.map(l => l.kind).join('+') === 'sweep',
+     `一条扫描填充层：${eD.layers.map(l => l.kind).join('+')}`);
+  ok(eD.layers[0].wave === 1 && eD.layers[0].rotate === 5,
+     `双向 + 每步 5 拍（wave=${eD.layers[0].wave} / rotate=${eD.layers[0].rotate}）`);
   {
     const inst = CORE.instNew();
     CORE.simApplyEffect(inst, eD, 0);
-    const shot = (len, tick) => {
-      inst.anim.gen_tick = tick;
-      const m = new Uint8Array(len), h = new Uint8Array(len);
-      CORE.renderZoneMaskTo(inst, m, h, len, 0);
+    const shot = () => {
+      const m = new Uint8Array(24), h = new Uint8Array(24);
+      CORE.renderZoneMaskTo(inst, m, h, 24, 0);
       return { m, h };
     };
-    const f0 = shot(24, 0), f40 = shot(24, 40);
-    ok(f0.m.some((v, i) => v !== f40.m[i]), '推 40 拍后亮度变了（不是静止的纯色常亮）');
-    ok(new Set(f0.h).size >= 6 && f0.m.every(v => v > 0),
-       `整环都有亮度、${new Set(f0.h).size} 种空间色相`);
+    const f0 = shot();
+    ok(f0.m.filter(v => v > 0).length === 1 && f0.m[23] === 255,
+       `起始只有远端一个头部（${f0.m.join(',') }）`);
+    for (let t = 0; t < 115; t++) CORE.instTick(inst, false);   /* 23 步 = 低端长一颗 */
+    const f1 = shot();
+    ok(f1.m[0] === 120 && inst.swLow === 1,
+       `115 拍后低端填了 1 颗（${f1.m[0]}，low=${inst.swLow}）`);
+    for (let t = 0; t < 110; t++) CORE.instTick(inst, false);   /* 再 22 步 = 高端长一颗 */
+    const f2 = shot();
+    ok(f2.m[0] === 120 && f2.m[23] === 120 && inst.swHigh === 1,
+       `两端各填 1 颗（${f2.m[0]} / ${f2.m[23]}，high=${inst.swHigh}）`);
+    ok(new Set(f0.h).size >= 2, `配色仍是彩虹（${new Set(f0.h).size} 种空间色相）`);
   }
 
   /* 13e 下拉停在占位时点「套用」：什么都不动（说明里报一句） */

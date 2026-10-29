@@ -52,7 +52,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 核心概念**三层**：**分区**（物理灯号一段）→ **效果**（图案做法，素材库，与分区无关）→ **模式**（「哪个分区跑哪个效果」的分配，顺序 = 固件 LEDMode）。多个分区引用同一效果 = **共享相位（真同步）**；绑定可用「覆盖参数」拿一份独立副本（`resolveEffect` / `bindKey`）。
 
-渲染 = 图层逐灯位**取最大值**（`spot` 光点 / `fill` 填充 / `twinkle` 随机闪 / `gradient` 渐变）；图层可**旁路**（`en=0` 仍写进 C 表、预览与固件都跳过，全旁路报 `V37`）。
+渲染 = 图层逐灯位**取最大值**（`spot` 光点 / `fill` 填充 / `twinkle` 随机闪 / `gradient` 渐变 / `sweep` 扫描填充）；图层可**旁路**（`en=0` 仍写进 C 表、预览与固件都跳过，全旁路报 `V37`）。
 
 **等比缩放**：`zpos = pos × len / RING_SIZE`（宽度同缩）→ 同一效果在各分区**张角相同、点亮颗数不同**（光宽 10：8→1、24→9、40→15、104→37）。调宽度务必开「多长度对比」。
 
@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、2017 项断言。五类：
+26 个套件、2029 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -205,6 +205,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 51. **旋转 / 流动必须走「flow 时钟」，不能直接读 `gen_tick`**（2026-10-29 第二十轮，用户「环绕彩虹始终匀速转动；凡是旋转、流动的动画都要配合音乐有快慢」）：快慢档只改 `speed_cur`（位置推进），`gen_tick` 是**真实拍数**，所以彩虹旋转（`hue_speed`）、渐变层旋转（`rotate`）、渐变配色相位（`spectrum_speed`）、覆盖趟号都会永远匀速。① 实例新增 `flow_tick / flow_acc`（C 的 `led_gen_inst_t` + JS 实例；**Q8 累加**：每拍 `inc = speed_slow×256/speed_cur`，至少 1 → 慢档 1:1、快档 `slow/fast` 倍，出快档滑移时随 `speed_cur` 平滑过渡）；C 在 `led_gen_tick` 的 **speed 同步之后、`step_cnt++` 之前**推进，JS 在 `instTick` 的 `gen_tick++` 之后调 `instFlowStep()`。② 用它的地方：`renderZoneMaskTo` 彩虹 `rot`、`genRender(..., flowTick)` → `genGradient`、`colorUpdate(c, tick, flowTick)` 的 **SPECTRUM / GRADIENT / WIPE**、`coverEntry` 的趟号；C 对应 `led_gen_zone_render` 的 `rot` / wipe、`led_gen_layers_render(..., flowTick, ...)`、`led_gen_tick` 的渐变 / 覆盖。③ **不要动** 呼吸 / 跳变 / 随机闪 / 音控闪（「节奏 / 闪」类；音控闪已经靠 `fast` 标志跟档）。④ 兼容：JS 的 `flow_tick` 初始 `null`，`flowTickOf()` 回落到 `gen_tick`（测试手工设 `gen_tick` 的实例逐值不变）；C 从 0 起、慢档恒等于 `gen_tick`。⑤ `colorUpdate` 的 SPECTRUM/GRADIENT 改成了**无状态** `phase = floor(ft / spectrum_speed) × grad_step`（与老逐拍累加在慢档逐值相同）；**tick 0 是初始帧**，测试里循环要从 1 起（`test_grad` 已改）。⑥ 测试：`test_effects_core` +7、`test_effects_c_exec` 新模式 `mT`「旋转流动」（快档 12 拍 C↔JS 逐字节 + 与慢档不同）。
 52. **渐变层相位必须是 Q8 分数，不能 floor 成整数**（2026-10-29 第二十一轮，用户「渐变旋转卡顿感比较明显，旋转衔接不够顺畅」）：旧 `genGradient` 把 `i×spans×256/len` 和 `rot` 都取整，24 颗灯的小数部分**全是 0** —— 慢档 `rotate=3` 时每 3 拍**整条灯同时 +1**、中间两帧完全不动（看着一顿一顿，实测 `20 39 58 78 98 117` 一起变 `21 40 ...`）。① 现在 `t8 = t×256`：`base8 = (n/len)×256 + ((n%len)×256)/len`（拆商余，**避免 i×spans×65536 溢出 32 位**，C 用 `uint32_t`），`rot8 = tick×256/rotate` 也是分数；② 亮度仍 8 位：`v = lo + (hi−lo)×w8 / 65280`，`w8`：方波 `t8<32768?65280:0` / 锯齿 `t8` / 三角 `t8<32768?2t8:(t8≤65280?2(65280−t8):0)`（**三角的末端要钳 0**，否则 `65280−t8` 会变负数）；③ C 的 `led_gen_gradient` 必须同一套整数公式（`test_effects_c_exec` 的渐变模式 C↔JS 逐字节）；④ 观感：慢档每拍约 1/3 的灯 +1（8/24），不再整条同跳；**锯齿的硬边跨灯时仍会跳一下**（那是形状，不是 bug），要完全无跳就把预置 `wave` 改成三角；⑤ `test_effects_core` +1 守着「t=0 与 t=1 只有部分灯变化」（旧写法两帧完全相同）。
+53. **固件的「填充」是状态机，不是渐变**（2026-10-29 第二十二轮，用户「双向填充现在的动画不对，可以参考固件里的 PixelFill_OneWay / PixelFill_TwoWay」）：旧预置是 `fill + gradient`（两波明暗在转），和固件 `spim_led.c` 的 PixelFill 完全不是一回事。① 固件语义（`CFG_FUNC_RGB_FILL_CLEAR_EN=1`）：已填区域 `[0, FillLimit)` 逐颗长出来；**头部**从远端 `FillTotal-1` 一路走到已填边界，到一步就 `FillLimit++` 并回远端；双向（`PixelFill_TwoWay`）两端交替长、头部在两端之间来回弹；填满后进**清空阶段**（头部从远端往回走、走过的熄灭），清完复位；慢档每 3 拍（单向）/ 5 拍（双向）一步，快档每拍一步。② 工具实现：新图层 **`sweep`**（`LAYER.SWEEP=4` / `LED_GEN_LAYER_SWEEP`，**枚举只能追加**），`wave` 0 单向 / 1 双向、`rotate` 每步拍数、`lo` 已填亮度、`hi` 头部亮度；状态在**实例**上（`sw_low/sw_high/sw_num/sw_dir/sw_phase/sw_clear/sw_last` —— **别叫 `*_t`**，`test_gen_independence` 会把 `sw_t` 当成平台类型；`led_gen_apply_mode` 的 memset 之后必须补 `sw_num = RING_SIZE-1`，否则 C 从 0 起、JS 从 23 起永远差一帧）。③ 进度按 **RING_SIZE** 存、渲染时按 `len` 缩放（`zoneScaled` 同款 floor），否则 8 / 24 / 40 颗的对比条会各算各的；步进用 `flow_tick` 差（快档自动 8 倍），不用 `gen_tick`。④ 两色：固件的 In/Out 是**两种颜色**，工具里只能用「已填亮度 / 头部亮度」两档亮度表达（图层不写 hue —— 动画与颜色分离）。⑤ 预置「单向填充」`wave 0 / rotate 3`、「双向填充」`wave 1 / rotate 5`，都 `smooth:0`。⑥ 测试：`test_effects_core` +6、`test_effects_c_exec` 两模式 + 300 拍长跑逐字节、`test_fx_presets` 13d 重写。
 
 
 
@@ -215,7 +216,8 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 
 
-工具本体功能完整、2017 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2017 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+
+工具本体功能完整、2029 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2029 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。
