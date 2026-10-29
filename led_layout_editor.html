@@ -715,7 +715,7 @@
       <fieldset id="fxCustom">
         <legend>图层（自定义动效）</legend>
         <div id="fLayers"></div>
-        <label class="row ck"><span>随位置前进</span><input type="checkbox" id="fMoves" data-tip="勾上 = 这个效果随时间自己跑（追逐、摆动）。&#10;不勾 = 位置不动（呼吸、靠色相旋转的彩虹）。" checked></label>
+        <label class="row ck" id="rowMoves"><span>随位置前进</span><input type="checkbox" id="fMoves" data-tip="勾上 = 这个效果随时间自己跑（追逐、摆动）。&#10;不勾 = 位置不动（呼吸、靠色相旋转的彩虹）。&#10;**只有含「光点」层的效果才需要它**：填充 / 随机闪 / 亮度渐变 / 扫描填充都不吃位置，这一行会自动收起。" checked></label>
         <div class="hint">一条效果 = 预置带来的一到几层，每层可改形状参数（逐点取最大值叠加）。<b>「+ 加图层」暂时收起</b>：先调好预置，自定义叠加留到以后。</div>
       </fieldset>
 
@@ -1086,7 +1086,8 @@
           <tr><td>慢速(ms) / 快速(ms)</td><td>每走一格要多少 ms（越大越慢；按 20ms 一拍、一律向上取整，填 30 会变成 40）。播放时用「快速」看效果，实际产品里会按音量自动切换。</td></tr>
           <tr><td>平滑(ms)</td><td><b>每个效果各一份</b>：亮度变化时按这个时间慢慢爬过去（逐灯爬坡，不是整条一起渐变）。<b>只在慢速档生效</b>，快档直通（省算力）。0 = 关（硬切，老工程 / 内建行就是这个）；新效果 / 套预置默认 <b>60ms</b>（每拍 85 级、约 3 拍走满）；越大越柔，上限 1000ms。随机闪那类「一格一格跳」的效果显式给 0，抹平了就看不见闪。<br>效果页的编辑台也吃这个参数：<b>按播放</b>才看得到过渡（暂停时画的是目标帧，形状 / 亮度原样，不然会误以为没生效）。</td></tr>
           <tr><td><b>起始位</b></td><td>把整个动画沿环挪一段。想让光点从某个位置出发时用它。</td></tr>
-          <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。</td></tr>
+          <tr><td>随位置前进</td><td>勾上 = 这个效果会随时间自己跑（追逐、摆动）；不勾 = 位置不动。<br>
+            只有含<b>光点层</b>的效果才用得上：填充 / 随机闪 / 亮度渐变 / 扫描填充都不吃位置，这一行会<b>自动收起</b>。</td></tr>
         </table>
 
         <h3 id="hs-mode">模式页怎么用</h3>
@@ -9885,6 +9886,16 @@ function syncFxEdit() {
   ids.forEach(id => { const el = $('#' + id); if (el) el.disabled = !on; });
   $('#fxBuiltin').style.display = (on && e.kind !== 'custom') ? '' : 'none';
   $('#fxCustom').style.display  = (on && e.kind === 'custom') ? '' : 'none';
+  /* 「随位置前进」只对**光点层**有意义（填充 / 随机闪 / 亮度渐变 / 扫描填充都不吃位置）——
+   * 用不上就整行收起，别给人一个勾了也没反应的开关。 */
+  {
+    const rm = $('#rowMoves');
+    if (rm) {
+      const use = on && e.kind === 'custom' &&
+                  (e.layers || []).some(L => L.en !== 0 && L.kind === 'spot');
+      rm.style.display = use ? '' : 'none';
+    }
+  }
   if (!on) { $('#fKind').textContent = '—'; syncStagePlayBtn(); return; }
 
   normalizeEffect(e);

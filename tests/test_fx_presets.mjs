@@ -759,6 +759,8 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
   pick.value = '拖尾彗星'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   ok(list0()[bi].tpl === '拖尾彗星', `套用后效果记住模板名（tpl=${list0()[bi].tpl}）`);
+  ok(byId.get('rowMoves').style.display !== 'none',
+     '含光点层的效果显示「随位置前进」');
   ok(pick.value === '拖尾彗星', `下拉显示当前效果的模板名（「${pick.value}」）`);
   rowAt(0);
   ok(pick.value === (list0()[0].kind === 'custom' && list0()[0].tpl || ''),
@@ -784,6 +786,8 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
   await new Promise(r => setTimeout(r, 700));
   const eD = list0()[bi];
   ok(eD.moves === false, `不标「随位置前进」（moves=${eD.moves}，填充由层自己走）`);
+  ok(byId.get('rowMoves').style.display === 'none',
+     '扫描填充层用不上「随位置前进」→ 整行收起');
   ok(eD.layers.map(l => l.kind).join('+') === 'sweep',
      `一条扫描填充层：${eD.layers.map(l => l.kind).join('+')}`);
   ok(eD.layers[0].wave === 1 && eD.layers[0].rotate === 5,
