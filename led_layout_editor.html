@@ -1061,7 +1061,7 @@
           图层照常跑形状，颜色自己按位置落（「绕环彩虹 / 彩虹光点 / 呼吸彩虹」几个预置就是这么做的）。</p>
         <div class="hint">以前的「本层取色（空间色相）」已经退休 —— 打开老工程时，带它的效果会
           自动迁成效果级「彩虹」配色，图层里的色相起点 / 跨度 / 旋转顺手清掉。
-          「波形」也不在图层卡上了：脉动固定三角（呼吸），要「一亮一灭 / 渐暗后跳回」请用配色<b>「跳变」</b>。
+          「波形」也不在图层卡上了：脉动默认三角，要「呼吸」那种对称平滑的起伏就用预置<b>「呼吸彩虹」</b>（同一套呼吸包络 + 彩虹配色），要「一亮一灭 / 渐暗后跳回」请用配色<b>「跳变」</b>。
           预置<b>「多彩跳变」</b>套的就是它 —— 套完配色下拉自己变成「跳变」，
           渐亮 / 亮 / 变暗 / 停留与调色板都在「色彩配置」那一块，和手动选「跳变」完全一样（没有第二套旋钮）。</div>
 
@@ -2886,7 +2886,7 @@ const LAYER = { SPOT:0, TWINKLE:1, FILL:2, GRADIENT:3, SWEEP:4 };
  * **界面上不再暴露**（用户 2026-10-26：「波形这个选项多余」）—— 它是模板的
  * 形状参数，由预置（呼吸 / 闪烁 / 跳变）内部定，不是日常要调的旋钮；
  * 颜色与「时间上的亮度包络」另归效果级「色彩配置」管。 */
-const WAVE  = { TRI:0, SQUARE:1, SAW:2, FLASH:3 };
+const WAVE  = { TRI:0, SQUARE:1, SAW:2, FLASH:3, BREATH:4 };
 
 /* ---- 音控闪（预置「闪烁」）------------------------------------------------
  * **参照固件老 SPI RGB 灯功能**（`CFG_FUNC_SPI_RGB_EN` → `spim_led.c` 的
@@ -2939,9 +2939,18 @@ function flashPlanOf(layers) {
 }
 
 /* 脉动包络。period=0 表示不脉动。返回 0..255 的增益。
- * tick=0 时增益为满（255）—— 效果一上来就是亮的，不会先黑一段。 */
+ * tick=0 时增益为满（255）—— 效果一上来就是亮的，不会先黑一段。
+ * wave = BREATH（2026-10-30）：走**呼吸**那条包络（对称 + 平滑曲线、最暗那拍不落全黑），
+ * 颜色照旧归效果级配色 —— 「呼吸彩虹」= 这个包络 + 彩虹配色。 */
 function pulseGain(tick, period, amp, wave) {
   if (!period) return 255;
+  if (wave === WAVE.BREATH) {
+    const rise = Math.max(1, Math.floor(period / 2));
+    /* +1：与渲染时的 gen_tick 同步（第一帧就是 1），最暗那一拍落在 1/255 而不是 0 ——
+     * 留一个全黑帧在 50Hz 下就是「闪一下」。 */
+    const g = breathEnv(tick + 1, period, rise);
+    return 255 - Math.floor(((255 - g) * amp) / 255);
+  }
   const ph = tick % period;
   const t  = Math.floor((ph * 256) / period);   /* 0..255 */
   let w;
@@ -4262,11 +4271,19 @@ function effectColorAt(inst, i, len, hue, st) {
   }
   /* 覆盖模式先判：hue[] 是调色板条目索引（不是 tint / 哨兵），按条目 + 灯位取色 */
   if (c.type === FW.COLOR.WIPE) return wipeEntryAt(c, hh, i, wipeSpan(c, len));
-  /* 渐变层的「第二段渐变」：奇数段（第 2、4…段）整段改用色库里另一条渐变，
-   * 取当前相位色；没选就是 null → 两段同色（跟效果「色彩配置」）。 */
+  /* 渐变层的「第二段渐变」：奇数段（第 2、4…段）整段改用色库里另一条渐变 ——
+   * **沿段铺开**（段内位置映射到色环 0..255，再叠加效果自己的相位），所以那一段看起来
+   * 是一条完整的渐变带，不会只是「某个单色」（默认渐变从红起，跟纯红配色撞色，看不出差别）。
+   * 没选就是 null → 两段同色（跟效果「色彩配置」）。 */
   if (inst.grad2 && (inst.g2Spans | 0) >= 2) {
-    const seg = Math.floor((i * (inst.g2Spans | 0)) / len);
-    if (seg & 1) return inst.grad2[(c.phase | 0) & 0xFF];
+    const spans = inst.g2Spans | 0;
+    const seg = Math.floor((i * spans) / len);
+    if (seg & 1) {
+      const segLen = Math.max(1, Math.floor(len / spans));
+      const li = i - seg * segLen;
+      const idx = (((c.phase | 0) + Math.floor((li * 256) / segLen)) & 0xFF);
+      return inst.grad2[idx];
+    }
   }
   if (hh !== 0xFF) return FW.spectrum_tbl[hh];
   if (a.type === FW.ANIM.CHASE_DUAL && c.type === FW.COLOR.GRADIENT)
@@ -4808,10 +4825,18 @@ const LED_GEN_IMPL = [
 'static uint8_t        led_gen_cur_mode;',
 '',
 '/* @pulse@ */',
+'static uint8_t led_gen_breath(uint16_t tick, uint16_t period, uint8_t rise);   /* defined below */',
 'static uint8_t led_gen_pulse(uint16_t tick, uint16_t period, uint8_t amp, uint8_t wave)',
 '{',
 '    uint16_t ph; uint32_t t, w;',
 '    if (period == 0u) return 255u;',
+'    /* breath wave: symmetric smoothstep envelope (never fully dark), same curve as the',
+'       BREATH colour mode - colour still comes from the effect colour mode. */',
+'    if (wave == (uint8_t)LED_GEN_WAVE_BREATH) {',
+'        uint8_t r2 = (uint8_t)((period > 1u) ? (period / 2u) : 1u);',
+'        uint8_t g2 = led_gen_breath((uint16_t)(tick + 1u), period, r2);',
+'        return (uint8_t)(255u - (((uint32_t)(255u - g2) * amp) / 255u));',
+'    }',
 '    ph = (uint16_t)(tick % period);',
 '    t  = ((uint32_t)ph * 256u) / (uint32_t)period;',
 '    if (wave == (uint8_t)LED_GEN_WAVE_SQUARE)   w = (t < 128u) ? 255u : 0u;',
@@ -5664,9 +5689,16 @@ const LED_GEN_IMPL = [
 '            }',
 '            else if ((I->g2_first != 0xFFFFu) && (I->g2_spans >= 2u) &&',
 '                     ((((uint32_t)i * (uint32_t)I->g2_spans) / (uint32_t)len) & 1u)) {',
-'                /* gradient layer, second segment: whole odd segment uses the other ring',
-'                   at the current gradient phase (0xFFFF = not chosen -> effect colour). */',
-'                col = led_gen_grad[I->g2_first + (uint8_t)I->color.phase.current];',
+'                /* gradient layer, second segment: the whole odd segment is painted with',
+'                   the other ring swept across the segment (positional), so it reads as a',
+'                   gradient band rather than a single colour (0xFFFF = not chosen). */',
+'                uint8_t  sp2 = I->g2_spans;',
+'                uint8_t  sl2 = (uint8_t)(len / sp2);',
+'                uint8_t  sg2 = (uint8_t)(((uint32_t)i * sp2) / (uint32_t)len);',
+'                uint8_t  li2 = (uint8_t)(i - sg2 * sl2);',
+'                uint8_t  gi2 = (uint8_t)((uint8_t)I->color.phase.current +',
+'                                (uint8_t)(((uint32_t)li2 * 256u) / (sl2 ? sl2 : 1u)));',
+'                col = led_gen_grad[I->g2_first + gi2];',
 '            }',
 '            else if (hh != 0xFFu) col = spectrum_tbl[hh];',
 '            else if (I->anim.type == ANIM_CHASE_DUAL && I->color.type == COLOR_GRADIENT)',
@@ -6094,7 +6126,7 @@ function exportEffectsC(state, opt) {
 
   /* ---------- 类型 ---------- */
   push('typedef enum { LED_GEN_FALL_COS=0, LED_GEN_FALL_LINEAR, LED_GEN_FALL_HARD, LED_GEN_FALL_TAIL } led_gen_fall_t;',
-       'typedef enum { LED_GEN_WAVE_TRI=0, LED_GEN_WAVE_SQUARE, LED_GEN_WAVE_SAW, LED_GEN_WAVE_FLASH } led_gen_wave_t;',
+       'typedef enum { LED_GEN_WAVE_TRI=0, LED_GEN_WAVE_SQUARE, LED_GEN_WAVE_SAW, LED_GEN_WAVE_FLASH, LED_GEN_WAVE_BREATH } led_gen_wave_t;',
        'typedef enum { LED_GEN_LAYER_SPOT=0, LED_GEN_LAYER_TWINKLE, LED_GEN_LAYER_FILL, LED_GEN_LAYER_GRADIENT, LED_GEN_LAYER_SWEEP } led_gen_layer_kind_t;',
        'typedef enum { LED_GEN_EFF_BUILTIN=0, LED_GEN_EFF_CUSTOM } led_gen_eff_kind_t;',
        '/* ' + t.newColors + ' */',
@@ -9187,7 +9219,7 @@ function renderLayers() {
       const opts2 = [['', '（跟效果那张 / 两段同色）']].concat(gl2.map(g => [g.id, g.name]));
       row.appendChild(layerRow('第二段渐变', selInput(opts2,
         () => L.hg2 || '', v => { L.hg2 = v; fxLive(); },
-        '只在「绕环轮数」≥ 2 时有用：第 2、4…段整段换成色库里另一条渐变的颜色（取当前相位），第 1、3…段仍跟下方「色彩配置」。&#10;留空 = 两段同色（这就是「同色」的做法：全交给色彩配置）。&#10;只改颜色，不动亮度斜坡与转速；效果配色选「渐变」时，两段各自在自己的色环上走 —— 这就是「两段不同颜色」。')));
+        '只在「绕环轮数」≥ 2 时有用：第 2、4…段的整段换成色库里另一条渐变的颜色，<b>沿这一段铺开</b>（段内位置对应色环的不同级），第 1、3…段仍跟下方「色彩配置」。&#10;留空 = 两段同色（这就是「同色」的做法：全交给色彩配置）。&#10;只改颜色，不动亮度斜坡与转速；效果配色选「渐变」时，两段各自在自己的色环上走 —— 这就是「两段不同颜色」。')));
     }
 
     if (L.kind === 'twinkle') {
@@ -9372,12 +9404,14 @@ const FX_PRESETS = [
   { name:'双向填充',        make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
       smooth:0, levels:30, hue_base:0, hue_speed:0,
       layers:[ Object.assign(mkLayer('sweep'), { wave:1, rotate:5, lo:120, hi:255 }) ] }) },
-  /* 呼吸彩虹：三角脉动，dip 不落全黑（pulse_amp 250 → 最暗 ≈5/255）。
-   * 原来 255 时最低那一拍正好是 0：50Hz 下 20ms 全黑，看着是「完全熄灭前闪一下」
-   * （2026-10-30 用户反馈）—— 留一点点底光就不是「闪」了。 */
+  /* 呼吸彩虹 = **呼吸包络 + 彩虹配色**（2026-10-30 用户：「可以借鉴呼吸效果，只是颜色改为
+   * 彩虹色环」）：填充层用 wave = BREATH（对称平滑曲线、最暗 ≈255/(周期/2+1) 不落全黑），
+   * 颜色由效果级「彩虹」铺（每颗灯一个色相、hue_speed 控制旋转）。
+   * 周期 90 拍 = 1.8 秒，与配色「呼吸」的出厂手感一致。 */
   { name:'呼吸彩虹',        make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
       levels:30, hue_base:0, hue_speed:4,
-      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:60, pulse_amp:250 }) ] }) },
+      layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:90, pulse_amp:255,
+                                                 wave:4 }) ] }) },
   { name:'随机闪',          make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
       /* 随机闪的每一格都是硬跳（密度 / 刷新率决定亮灭），平滑会把它抹成一片灰 */
       smooth:0,

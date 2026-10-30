@@ -664,21 +664,28 @@ console.log('--- 新配色（效果级）---');
     (function walk(n) { (n.children || []).forEach(c => {
       if (c.tagName === 'INPUT' && c.type === 'number') nums.push(c);
       walk(c); }); })(box);
-    ok(nums.length === 3 && nums[1].value === '1200' && String(nums[1].step) === '20',
-       `图层「脉动周期」60 拍 → ${nums[1].value}ms（${nums.map(n => n.value).join('/')}）`);
+    ok(nums.length === 3 && nums[1].value === '1800' && String(nums[1].step) === '20',
+       `图层「脉动周期」90 拍（呼吸的出厂周期）→ ${nums[1].value}ms（${nums.map(n => n.value).join('/')}）`);
     nums[1].value = '30'; nums[1].oninput();
     await new Promise(r => setTimeout(r, 700));
     nums[1].onchange();
     ok(fxListOf(0)[0].layers[0].pulse_period === 2 &&
        nums[1].value === '40',
        `图层填 30ms → 2 拍，框里回显 ${nums[1].value}ms`);
-    /* 2026-10-30：三角脉动最低那一拍不许是 0（50Hz 下 20ms 全黑 = 「熄灭前闪一下」）。
-     * 预置把 pulse_amp 从 255 收到 250 → 最低 ≈5/255，看不出黑帧。 */
-    const amp = fxListOf(0)[0].layers[0].pulse_amp | 0;
-    let mn = 255;
-    for (let t = 0; t < 60; t++) mn = Math.min(mn, CORE.pulseGain(t, 60, amp, 0));
-    ok(amp === 250 && mn > 0 && mn <= 8,
-       `呼吸彩虹：最低亮度 ${mn}/255（pulse_amp = ${amp}）—— 不落全黑，熄灭处不闪`);
+    /* 2026-10-30（第三十九轮）：呼吸彩虹改用**呼吸包络**（wave = 4）：对称平滑曲线、
+     * 最暗那一拍 ≈255/(周期/2+1) 不落全黑 —— 与配色「呼吸」用的是同一条曲线。 */
+    const lay = fxListOf(0)[0].layers[0];
+    let mn = 255, mx = 0;
+    for (let t = 0; t < 90; t++) {
+      const g = CORE.pulseGain(t, 90, lay.pulse_amp | 0, 4);
+      if (g < mn) mn = g;
+      if (g > mx) mx = g;
+    }
+    ok(lay.wave === 4 && lay.pulse_amp === 255 && mn > 0 && mn <= 8 && mx === 255,
+       `呼吸彩虹：wave=呼吸 / 最暗 ${mn} / 最亮 ${mx}（不落全黑，熄灭处不闪）`);
+    ok(CORE.pulseGain(0, 90, 255, 4) <= 8 &&
+       CORE.pulseGain(1, 90, 255, 4) - CORE.pulseGain(0, 90, 255, 4) <= 3,
+       `呼吸彩虹：起步 ${CORE.pulseGain(0, 90, 255, 4)} → ${CORE.pulseGain(1, 90, 255, 4)}（平滑，不是一格一格跳）`);
     /* 整条效果级（没有光点层）：慢速 / 快速 / 平滑 / 起始位 四行收起 */
     ok(['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
          .every(id => byId.get(id).style.display === 'none'),

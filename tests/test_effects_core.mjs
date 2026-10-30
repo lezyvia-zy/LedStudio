@@ -353,8 +353,11 @@ console.log('--- 亮度渐变 ---');
   const hue = new Uint8Array(24).fill(0xFF);
   const c0 = CORE.effectColorAt(I, 0, 24, hue);
   const c1 = CORE.effectColorAt(I, 12, 24, hue);
+  const c2 = CORE.effectColorAt(I, 18, 24, hue);
   ok(c0.r === 9 && c1.r === 10,
-     `第二段渐变：第 1 段跟效果配色（${c0.r}）、第 2 段用另一条色环的当前相位色（${c1.r}）`);
+     `第二段渐变：第 1 段跟效果配色（${c0.r}）、第 2 段从另一条色环的当前相位色起（${c1.r}）`);
+  ok(c2.r === 138,
+     `第二段渐变沿段铺开：段内第 6 颗取到色环 ${c2.r}（相位 10 + 6/12 圈 = 138）—— 是一整条渐变带，不是一个单色`);
   I.grad2 = null; I.g2Spans = 0;
   ok(CORE.effectColorAt(I, 12, 24, hue).r === 9, '没选第二段渐变 → 两段同色（都用效果色彩配置）');
 }
@@ -977,6 +980,21 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
     S0.color.tick_cnt = 29;
     const m0 = render(S0, 12, 0).m;
     ok(m0[0] > 0 && m0[0] < 40, `step_fast = 0：快档仍乘包络（${m0[0]}/255）`);
+  }
+
+  /* 呼吸包络当脉动形状（2026-10-30「呼吸彩虹」= 呼吸包络 + 彩虹配色）：
+   * 对称、平滑、最暗那一拍 ≥1（不落全黑，所以熄灭处不会「闪一下」）。 */
+  {
+    const g = t => pulseGain(t, 90, 255, WAVE.BREATH);
+    let mn = 255, mx = 0;
+    for (let t = 0; t < 90; t++) { if (g(t) < mn) mn = g(t); if (g(t) > mx) mx = g(t); }
+    ok(mn >= 1 && mn <= 8 && mx === 255, `呼吸脉动：最暗 ${mn} / 最亮 ${mx}（不落全黑）`);
+    ok(Math.abs(g(1) - g(0)) <= 3 && g(45) === 255,
+       `呼吸脉动：起手平滑（${g(0)} → ${g(1)}），半个周期处满亮（${g(45)}）`);
+    let up = true, down = true;
+    for (let k = 1; k <= 44; k++) if (g(k) < g(k - 1)) up = false;
+    for (let k = 46; k < 90; k++) if (g(k) > g(k - 1)) down = false;
+    ok(up && down, `呼吸脉动：先单调升到顶点（45 拍满亮）、再单调降下来 —— 对称的「呼吸」形状`);
   }
 
   /* 呼吸：对称包络（渐亮 = 渐暗）+ 平滑曲线，一个周期一种颜色；首尾都**不落全黑** */
