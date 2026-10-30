@@ -810,6 +810,27 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
   ok(['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
        .every(id => byId.get(id).style.display === 'none'),
      '纯随机闪效果：慢速 / 快速 / 平滑 / 起始位 四行收起');
+  /* 13b-3 配色「跳变 / 呼吸」（多彩跳变 / 多彩呼吸）同样是整条效果级、时序都在配色那一排 → 也收起 */
+  pick.value = '多彩跳变'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
+       .every(id => byId.get(id).style.display === 'none'),
+     '多彩跳变（配色「跳变」+ 满亮填充）：四行收起');
+  pick.value = '多彩呼吸'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  ok(['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
+       .every(id => byId.get(id).style.display === 'none'),
+     '多彩呼吸（配色「呼吸」+ 满亮填充）：四行收起');
+  /* 但「光点层 + 跳变配色」仍然用得上位置 / 速度 → 留着（别一刀切按配色隐藏） */
+  pick.value = '拖尾彗星'; click('fxPresetApply');
+  await new Promise(r => setTimeout(r, 700));
+  byId.get('fColor').value = String(CORE.FW.COLOR.STEP);
+  byId.get('fColor').onchange({ target: byId.get('fColor') });
+  await new Promise(r => setTimeout(r, 700));
+  ok(list0()[bi].color === CORE.FW.COLOR.STEP &&
+     ['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
+       .every(id => byId.get(id).style.display !== 'none'),
+     '带光点层 + 跳变配色：四行仍然显示（位置 / 速度还起作用）');
   pick.value = '拖尾彗星'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   ok(byId.get('rowSlow').style.display !== 'none', '换回带光点的模板后四行恢复');

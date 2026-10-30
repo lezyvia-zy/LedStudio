@@ -10213,14 +10213,20 @@ function syncFxEdit() {
   if (!on) { $('#fKind').textContent = '—'; syncStagePlayBtn(); return; }
 
   normalizeEffect(e);
-  /* 纯「随机闪」效果：慢速 / 快速 / 平滑 / 起始位 这四格都用不上（随机闪不吃位置，
-   * 慢/快档已经各有自己的一套参数），整行收起 */
+  /* 慢速 / 快速 / 平滑 / 起始位 这四格只看「图案要不要自己沿环走」：
+   *   · 纯随机闪：不吃位置，慢/快档已各有自己的一套参数 → 收起；
+   *   · 配色「跳变 / 呼吸」（多彩跳变 / 多彩呼吸）：整条效果级、时序全在配色那一排
+   *     （停留 / 渐亮 / 亮 / 变暗、周期 / 快拍）→ 也收起；
+   *   但效果里**还有光点层**时（比如「拖尾彗星」配「跳变」），位置 / 速度仍然有用 → 留着。 */
   {
     const ls = (e.layers || []).filter(L => L.en !== 0);
     const pureTw = e.kind === 'custom' && ls.length > 0 && ls.every(L => L.kind === 'twinkle');
+    const wholeStrip = (e.color | 0) === FW.COLOR.STEP || (e.color | 0) === FW.COLOR.BREATH;
+    const hasSpot = ls.some(L => L.kind === 'spot');
+    const hide = pureTw || (e.kind === 'custom' && wholeStrip && !hasSpot);
     ['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset'].forEach(id => {
       const el = $('#' + id);
-      if (el) el.style.display = pureTw ? 'none' : '';
+      if (el) el.style.display = hide ? 'none' : '';
     });
   }
   $('#fMode').textContent = selFx + '（共 ' + fxList().length + ' 条）';
