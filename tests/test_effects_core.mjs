@@ -997,6 +997,30 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
     ok(up && down, `呼吸脉动：先单调升到顶点（45 拍满亮）、再单调降下来 —— 对称的「呼吸」形状`);
   }
 
+  /* 老存档里的「呼吸彩虹」自动迁移成呼吸包络（三角 → 呼吸），只动这一种形态且幂等 */
+  {
+    const old = { kind:'custom', tpl:'呼吸彩虹', color: 4,
+                  layers:[{ kind:'fill', en:1, level:255, pulse_period:60, pulse_amp:250, wave:0 }] };
+    CORE.normalizeEffect(old);
+    ok(old.layers[0].wave === 4 && old.layers[0].pulse_period === 90 && old.layers[0].pulse_amp === 255,
+       `老「呼吸彩虹」迁成呼吸包络（wave ${old.layers[0].wave} / ${old.layers[0].pulse_period} 拍 / amp ${old.layers[0].pulse_amp}）`);
+    const again = JSON.parse(JSON.stringify(old));
+    CORE.normalizeEffect(again);
+    ok(JSON.stringify(again.layers) === JSON.stringify(old.layers), '迁移幂等（再跑一次一个字段都不变）');
+    const other = { kind:'custom', tpl:'拖尾彗星', color: 0,
+                    layers:[{ kind:'fill', en:1, level:255, pulse_period:20, pulse_amp:255, wave:0 }] };
+    CORE.normalizeEffect(other);
+    ok(other.layers[0].wave === 0 && other.layers[0].pulse_period === 20,
+       '别的模板的三角脉动一个字段都不碰');
+  }
+  /* 呼吸包络的「不落全黑」对老存档的 周期/2 也要成立（45 拍渐亮时 smoothstep 会取整成 0，
+   * 靠下限 255/(r+1) 兜住）—— 这是「接近熄灭时闪一下」的根子 */
+  {
+    let mn = 255;
+    for (let t = 0; t < 90; t++) mn = Math.min(mn, CORE.breathEnv(t, 90, 45));
+    ok(mn >= 1, `呼吸（老存档 渐亮=周期/2=45）：最暗 ${mn}/255 —— 不落全黑`);
+  }
+
   /* 呼吸：对称包络（渐亮 = 渐暗）+ 平滑曲线，一个周期一种颜色；首尾都**不落全黑** */
   const bp12 = breathPlan({ color: FW.COLOR.BREATH, period: 12 });
   ok(bp12.rise === 6 && bp12.hold === 0 && bp12.fade === 6 && bp12.period === 12,

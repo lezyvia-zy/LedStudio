@@ -2656,6 +2656,18 @@ function normalizeEffect(e) {
   e.smooth = effSmooth(e);
   /* 跳变的快拍（拍；0 = 关）：老存档没有这一项 → 0，快档照旧走「停留 + 包络」 */
   e.step_fast = effStepFast(e);
+  /* 2026-10-30（第三十九轮）：老存档里的「呼吸彩虹」还是三角脉动（wave 0 / 60 拍 / amp 250+）。
+   * 三角在快灭那一拍是「V 形一跳」（实测 …9 → 5 → 8…），看着就是「接近熄灭时闪一下」；
+   * 一次性迁成呼吸包络（wave 4 / 90 拍 / amp 255，与配色「呼吸」同一条曲线）。
+   * 只动「模板是呼吸彩虹、层还是三角脉动」的效果，别的效果一个字段都不碰；迁移后幂等。 */
+  if (e.kind === 'custom' && e.tpl === '呼吸彩虹' && Array.isArray(e.layers)) {
+    for (const L of e.layers) {
+      if (L && L.kind === 'fill' && (L.wave | 0) === 0 &&
+          (L.pulse_period | 0) > 0 && (L.pulse_amp | 0) >= 240) {
+        L.wave = 4; L.pulse_period = 90; L.pulse_amp = 255;
+      }
+    }
+  }
   return e;
 }
 
