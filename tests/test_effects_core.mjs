@@ -341,25 +341,25 @@ console.log('--- 亮度渐变 ---');
      `反向旋转：最亮端按「灯号 +1」走（t0 在 ${iMax(a)}、转 1 级后到 ${iMax(b)}）—— 亮头领跑、暗尾在后面`);
   ok(b[23] === 244 && b[0] === 255, `反向旋转：整条比上一拍低 1 级、亮头在 0（${b[0]}/${b[23]}）`);
 }
-/* 「第二段渐变」（2026-10-30）：渐变层铺 2 段以上时，第 2、4…段的整段改用色库另一条渐变的
- * 当前相位色；没选（grad2 = null）= 两段同色，全跟效果「色彩配置」。 */
+/* 「两段渐变」（2026-10-30）：渐变层铺 2 段以上时，第 1、3…段用「第一段渐变」、
+ * 第 2、4…段用「第二段渐变」—— 两段颜色完全独立；某段没选就跟效果「色彩配置」。 */
 {
   const I = CORE.instNew();
   I.color.type = CORE.FW.COLOR.SPECTRUM;
   I.color.current = { r: 9, g: 9, b: 9 };
   I.color.phase = 10;
+  I.grad1 = Array.from({ length: 256 }, (_, k) => ({ r: 0, g: k, b: 0 }));
   I.grad2 = Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }));
   I.g2Spans = 2;
   const hue = new Uint8Array(24).fill(0xFF);
-  const c0 = CORE.effectColorAt(I, 0, 24, hue);
-  const c1 = CORE.effectColorAt(I, 12, 24, hue);
-  const c2 = CORE.effectColorAt(I, 18, 24, hue);
-  ok(c0.r === 9 && c1.r === 10,
-     `第二段渐变：第 1 段跟效果配色（${c0.r}）、第 2 段从另一条色环的当前相位色起（${c1.r}）`);
-  ok(c2.r === 138,
-     `第二段渐变沿段铺开：段内第 6 颗取到色环 ${c2.r}（相位 10 + 6/12 圈 = 138）—— 是一整条渐变带，不是一个单色`);
-  I.grad2 = null; I.g2Spans = 0;
-  ok(CORE.effectColorAt(I, 12, 24, hue).r === 9, '没选第二段渐变 → 两段同色（都用效果色彩配置）');
+  const a0 = CORE.effectColorAt(I, 0, 24, hue);     /* 第 1 段起点 → 第一段渐变第 10 级 */
+  const b0 = CORE.effectColorAt(I, 12, 24, hue);    /* 第 2 段起点 → 第二段渐变第 10 级 */
+  const a6 = CORE.effectColorAt(I, 6, 24, hue);     /* 第 1 段中段（+128 级） */
+  ok(a0.g === 10 && b0.r === 10 && a6.g === 138,
+     `两段各用各的色环：第 1 段 ${a0.r},${a0.g},${a0.b} / 第 2 段 ${b0.r},${b0.g},${b0.b} / 段中 ${a6.g}`);
+  I.grad1 = null;                                   /* 第 1 段没选 → 跟效果配色 */
+  ok(CORE.effectColorAt(I, 0, 24, hue).r === 9 && CORE.effectColorAt(I, 12, 24, hue).r === 10,
+     '只设了第二段：第 1 段仍跟效果色彩配置');
 }
 
 /* ---- 随机闪：慢档「快亮慢灭」/ 快档老样式 ---- */

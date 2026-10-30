@@ -218,11 +218,11 @@ else if (zpos >= (int16_t)(len * 256)) zpos = (int16_t)(zpos - (int16_t)(len * 2
 > 每几拍换下一个颜色、包络整个取消；0 = 关，快档照旧走 `spectrum_speed` + 包络）。同样只是生成物
 > 自己的常量表字段，**不碰任何平台符号**（账本仍是 27），固件侧只要重新覆盖 `led_effects_gen.h`。
 >
-> 2026-10-30 起：`led_gen_layer_t` **末尾又多一列** `uint16_t hg2_first`（渐变层「第二段渐变」=
-> 第 2、4…段整段改用 `led_gen_grad[]` 里另一条色环、**沿段铺开**的当前相位；0xFFFF = 没选，两段同色）。
-> 同时 `led_gen_gradient()` 的旋转方向取负（**亮头领跑、暗尾在后**），`led_gen_wave_t` 多了
-> `LED_GEN_WAVE_BREATH`（呼吸包络当脉动形状，对称平滑、最暗不落全黑）。都是生成物自己的表 / 枚举，
-> **账本仍是 27**；固件侧重新覆盖 `led_effects_gen.h` 即可。
+> 2026-10-30 起：`led_gen_layer_t` **末尾又多两列** `uint16_t hg2_first` / `uint16_t hg1_first`
+> （渐变层第 2、4…段 / 第 1、3…段各用 `led_gen_grad[]` 里哪条色环、**沿段铺开**；0xFFFF = 该段跟效果配色）
+> → 图层表 **33 列**。同时 `led_gen_gradient()` 的旋转方向取负（**亮头领跑、暗尾在后**），
+> `led_gen_wave_t` 多了 `LED_GEN_WAVE_BREATH`（呼吸包络当脉动形状，对称平滑、最暗不落全黑）。都是生成物
+> 自己的表 / 枚举，**账本仍是 27**；固件侧重新覆盖 `led_effects_gen.h` 即可。
 
 | 类别 | 符号 | 为什么会用到 |
 |---|---|---|

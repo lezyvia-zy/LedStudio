@@ -975,7 +975,7 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
     ok(hcC && hcC.r === 0 && hcC.g === 255, '实例拿到新的固定头部颜色');
   }
 
-  /* 13d-2 渐变层：「第二段渐变」下拉 + 预置「渐变旋转」（方向反转 / 快档 16 倍） */
+  /* 13d-2 渐变层：两段各自的「第一段渐变 / 第二段渐变」下拉 + 预置「渐变旋转」（方向反转 / 快档 16 倍） */
   {
     pick.value = '渐变旋转'; click('fxPresetApply');
     await new Promise(r => setTimeout(r, 700));
@@ -984,18 +984,20 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
        `渐变旋转：慢速 ${eG.slow} / 快速 ${eG.fast}（快档 ${eG.slow / eG.fast} 倍），铺 ${eG.layers[0].spans} 段`);
     const walkSel = (n, out) => { (n.children || []).forEach(c => {
       if (c.tagName === 'SELECT') out.push(c); walkSel(c, out); }); return out; };
-    const gsel = walkSel(byId.get('fLayers'), [])[0];
-    ok(!!gsel && gsel.children.length >= 2,
-       `渐变层有「第二段渐变」下拉（${gsel && gsel.children.length} 项：留空 + 色库条目）`);
-    ok(gsel && gsel.children[0] && String(gsel.children[0].value) === '',
-       '默认留空 = 两段同色（都用下方色彩配置）');
-    if (gsel && gsel.children[1]) { gsel.value = gsel.children[1].value; gsel.onchange(); }
+    const sels = walkSel(byId.get('fLayers'), []);
+    ok(sels.length === 2 && sels[0].children.length >= 2 && sels[1].children.length >= 2,
+       `渐变层有两个下拉：第一段 / 第二段渐变（${sels.length} 个，各 ${sels[0] && sels[0].children.length} / ${sels[1] && sels[1].children.length} 项）`);
+    ok(sels[0] && String(sels[0].children[0].value) === '' && sels[1] && String(sels[1].children[0].value) === '',
+       '两个都默认留空 = 两段都用下方色彩配置（同色）');
+    if (sels[0] && sels[0].children[1]) { sels[0].value = sels[0].children[1].value; sels[0].onchange(); }
     await new Promise(r => setTimeout(r, 700));
-    ok(!!list0()[bi].layers[0].hg2,
-       `选了一条色库渐变 → 图层记下 hg2=${list0()[bi].layers[0].hg2}`);
+    if (sels[1] && sels[1].children[1]) { sels[1].value = sels[1].children[1].value; sels[1].onchange(); }
+    await new Promise(r => setTimeout(r, 700));
+    ok(!!list0()[bi].layers[0].hg1 && !!list0()[bi].layers[0].hg2,
+       `两段各选了一条 → 图层记下 hg1=${list0()[bi].layers[0].hg1} / hg2=${list0()[bi].layers[0].hg2}`);
     const instG = CORE.instNew(); CORE.simApplyEffect(instG, list0()[bi], 0);
-    ok(!!instG.grad2 && instG.g2Spans === 2,
-       '实例拿到第二段色环 + 段数（预览与导出 C 同源）');
+    ok(!!instG.grad1 && !!instG.grad2 && instG.g2Spans === 2,
+       '实例拿到两段的色环 + 段数（预览与导出 C 同源）');
   }
 
   /* 13e 下拉停在占位时点「套用」：什么都不动（说明里报一句） */

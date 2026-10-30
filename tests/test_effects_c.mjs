@@ -78,8 +78,8 @@ ok(!/hue_spread|hue_speed|cmode|LED_GEN_CMODE/.test(lay) && !/LED_GEN_CMODE/.tes
    '图层行里没有 hue_spread / hue_speed / cmode（取色归效果级配色）');
 /* F5: 字段顺序 kind, en, count, ...（en 紧跟 kind），末尾是 wave, flags, spacing, flash_fast, flash_on, flash_low, hc_r, hc_g, hc_b */
 const layRows = (lay.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
-ok(layRows.length === 1 && layRows[0].length === 32 && layRows[0][0] === 2 && layRows[0][1] === 1,
-   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 32 个 / 2 / 1）`);
+ok(layRows.length === 1 && layRows[0].length === 33 && layRows[0][0] === 2 && layRows[0][1] === 1,
+   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 33 个 / 2 / 1）`);
 ok(/uint8_t spacing;\s+\/\* SPOT: centre distance/.test(h2),
    '结构体末尾多了 spacing（光点间距，0 = 按 count 均布）');
 ok(/uint16_t pulse_period;/.test(h2),
@@ -105,10 +105,12 @@ ok(layRows[0][21] === 255 && layRows[0][22] === 255 && layRows[0][23] === 255 &&
      `效果行 ${e0c.length} 列，倒数第 2 列 smooth_ms = 内建 ${e0c[29]} / 新效果 ${e3c[29]}（老工程直通、新效果出厂 60）`);
   ok(e0c[30] === 0 && e3c[30] === 0,
      `末尾新列 step_fast（跳变快拍）= ${e0c[30]} / ${e3c[30]}（内建 / 新效果缺省 0 = 关）`);
-  ok(layRows[0][31] === 0xFFFF,
-     `图层行第 32 列 hg2_first（第二段渐变）= ${layRows[0][31]}（0xFFFF = 没选，两段同色）`);
-  ok(/uint16_t hg2_first;/.test(h2) && h2.indexOf('uint16_t hg2_first;') > h2.indexOf('uint8_t tw_mode;'),
-     '结构体末尾追加 uint16_t hg2_first（渐变层「第二段渐变」用哪条色环）');
+  ok(layRows[0][31] === 0xFFFF && layRows[0][32] === 0xFFFF,
+     `图层行第 32/33 列 hg2_first / hg1_first = ${layRows[0][31]} / ${layRows[0][32]}（0xFFFF = 没选，该段跟色彩配置）`);
+  ok(/uint16_t hg2_first;/.test(h2) && /uint16_t hg1_first;/.test(h2) &&
+     h2.indexOf('uint16_t hg1_first;') > h2.indexOf('uint16_t hg2_first;') &&
+     h2.indexOf('uint16_t hg2_first;') > h2.indexOf('uint8_t tw_mode;'),
+     '结构体末尾追加 uint16_t hg2_first / hg1_first（渐变层两段各用哪条色环）');
   ok(h2.indexOf('uint16_t smooth_ms;') > h2.indexOf('uint8_t grad_step;') &&
      /uint16_t smooth_ms;\s+\/\* per-effect smoothing time in ms/.test(h2),
      '结构体里 smooth_ms 排在 grad_step 之后，注释说明「只在慢档 / 0 = 关」');
@@ -217,8 +219,8 @@ console.log('--- F5) 图层「启用」：旁路的层照样写进表里，只�
   const l5 = h5.slice(h5.indexOf('static const led_gen_layer_t'),
                       h5.indexOf('};', h5.indexOf('static const led_gen_layer_t')));
   const r5 = (l5.match(/^    \{[^}]*\},/gm) || []).map(numsOf);
-  ok(r5.length === 2 && r5.every(r => r.length === 32) && r5[0][1] === 0 && r5[1][1] === 1,
-     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 32）`);
+  ok(r5.length === 2 && r5.every(r => r.length === 33) && r5[0][1] === 0 && r5[1][1] === 1,
+     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 33）`);
   ok(r5[0][0] === 2 && r5[1][0] === 2, '两层都还是填充图层（kind=2），表行数不因旁路而变');
   const zh5 = exportEffectsC(st3, { form:'header', comment:'zh', eol:'lf' });
   ok(/被旁路的层/.test(zh5), '中文注释模式下那条 continue 的说明是中文（ASCII 模式走英文，见上面整体检查）');
