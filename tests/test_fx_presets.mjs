@@ -96,8 +96,10 @@ ok(((byId.get('fxTbl') || {}).children || []).length === 9, '动效列表渲染�
 const pp = byId.get('fxPresetPick');
 ok((pp.children || []).length >= 10, `预置模板有 ${(pp.children || []).length} 个`);
 const names = (pp.children || []).map(o => o.value);
-['单点追逐','拖尾彗星','摆动(往返)','呼吸','闪烁','跳变(渐暗后跳回)','绕环彩虹(旋转)','沿环渐变','双向填充','随机闪','七彩跳变']
+['单点追逐','拖尾彗星','摆动(往返)','呼吸','闪烁','跳变(渐暗后跳回)','绕环彩虹(旋转)','沿环渐变','双向填充','随机闪']
   .forEach(n => ok(names.indexOf(n) >= 0, `预置里有「${n}」`));
+/* 2026-10-29 第三十五轮：「七彩跳变」「多色呼吸」并进同类模板（只差调色板 / 包络），不再单列 */
+['七彩跳变','多色呼吸'].forEach(n => ok(names.indexOf(n) < 0, `预置里已经没有「${n}」（并入同类模板）`));
 
 /* ---- 3) 套用「绕环彩虹(旋转)」---- */
 byId.get('fxTbl').children[0].onclick();          // 选中槽位 0
@@ -330,11 +332,11 @@ console.log('--- 新配色（效果级）---');
   ok(!show('rowPal') && show('rowSpeed'), '渐变：不要调色板（走自己的色环），只留速度');
   ok(byId.get('fSpeed').readOnly === false, '渐变时「速度」又能手填了（只读只属于跳变）');
 
-  pick.value = '多色呼吸'; click('fxPresetApply');
+  pick.value = '呼吸'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   const eB = fxListOf(0)[0];
   ok(eB.color === CORE.FW.COLOR.BREATH && eB.period === 90 && eB.palette.length === 3,
-     `呼吸预置：period=${eB.period} / ${eB.palette.length} 色（出厂手感 渐亮 40 + 亮 10）`);
+     `呼吸预置：period=${eB.period} / ${eB.palette.length} 色（出厂手感 渐亮 40 + 亮 10，3 色轮换）`);
   ok(show('rowPeriod') && show('rowPal') && !show('rowSpeed'), '呼吸：周期 + 调色板');
   ok(palN() === 3 && show('fxPalAdd') && show('fxPalDel'),
      `呼吸：3 种颜色都画出来，加减还留着（${palN()} 色）`);
@@ -358,7 +360,7 @@ console.log('--- 新配色（效果级）---');
     ok(eB2.b_hold === 10 && eB2.rise === eB.rise && eB2.hold === eB.hold,
        `呼吸的数存在 b_rise / b_hold 上（${eB2.b_rise} / ${eB2.b_hold}），跳变的 rise/hold 没动（${eB2.rise} / ${eB2.hold}）`);
   }
-  pick.value = '多色呼吸'; click('fxPresetApply');
+  pick.value = '呼吸'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   {
     const eB3 = fxListOf(0)[0];
@@ -394,10 +396,10 @@ console.log('--- 新配色（效果级）---');
        `预置「呼吸」带出厂手感：周期 ${eP.period} / 渐亮(=变暗) ${eP.b_rise} / 亮 ${eP.b_hold}`);
     ok(eP.layers.length === 1 && eP.layers[0].kind === 'fill' && !(eP.layers[0].pulse_amp | 0),
        '预置「呼吸」的图层只是满亮填充层（亮度起伏归色彩配置，不脉动）');
-    ok(eP.palette.length === 1 && eP.palette.every(c => (c[0] | c[1] | c[2])),
-       `预置「呼吸」的调色板只有 1 个真颜色、没有纯黑：${JSON.stringify(eP.palette)}`);
-    ok(palN() === 1 && !show('rowSpeed') && show('rowPeriod'),
-       `界面上：1 个色块 / 周期行在 / 速度行收起（${palN()} 个色块）`);
+    ok(eP.palette.length === 3 && eP.palette.every(c => (c[0] | c[1] | c[2])),
+       `预置「呼吸」的调色板是 3 个真颜色（红/绿/蓝）、没有纯黑：${JSON.stringify(eP.palette)}`);
+    ok(palN() === 3 && !show('rowSpeed') && show('rowPeriod'),
+       `界面上：3 个色块 / 周期行在 / 速度行收起（${palN()} 个色块）`);
   }
   /* 套用「单点追逐」这种只写了 c1 的预置：调色板不再凭空补一个纯黑第二色 */
   pick.value = '单点追逐'; click('fxPresetApply');
@@ -554,15 +556,9 @@ console.log('--- 新配色（效果级）---');
      palCells()[nGrad].children.length === 2,
      '切回覆盖：胶囊与「+渐变」都回来（跳变里没被压成纯色）');
 
-  pick.value = '七彩跳变'; click('fxPresetApply');
-  await new Promise(r => setTimeout(r, 700));
-  const eS = fxListOf(0)[0];
-  ok(eS.color === CORE.FW.COLOR.STEP && eS.speed === 20 && eS.rise === 4 &&
-     eS.hold === 8 && eS.fade === 8,
-     `七彩跳变预置：停留 ${eS.speed} / 渐亮 ${eS.rise} / 亮 ${eS.hold} / 暗 ${eS.fade}（开箱就有渐亮，换色处不抖）`);
-  ok(show('rowSpeed') && show('rowHold') && show('rowFade') && show('rowRise') &&
-     byId.get('fRise').value === '80' && byId.get('fHold').value === '160' && byId.get('fFade').value === '160',
-     `七彩跳变：四个数都填进输入框（${byId.get('fSpeed').value}/${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value} ms）`);
+  /* 2026-10-29 第三十五轮：「七彩跳变」不再单列（= 跳变 + 6 色 + 更柔和的包络），
+   * 它的「开箱就有渐亮」改成下面手动把 渐亮/亮/变暗 调成 4/8/8 来验证 —— 覆盖不变、模板少一条。 */
+
 
   /* 「跳变(渐暗后跳回)」= **配色「跳变」**（2026-10-27 用户：「色彩配置里面我们已经添加了跳变这个配置，
    * 这两者应该是一回事。选择动画跳变，即颜色也默认切换为跳变，同时调参接口也都是用同一套」）。
@@ -571,16 +567,37 @@ console.log('--- 新配色（效果级）---');
   pick.value = '跳变(渐暗后跳回)'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   const eJ = fxListOf(0)[0];
-  ok(eJ.color === CORE.FW.COLOR.STEP && eJ.palette.length === 3 &&
+  ok(eJ.color === CORE.FW.COLOR.STEP && eJ.palette.length === 6 &&
      eJ.rise === 0 && eJ.hold === 0 && eJ.fade === 30 && eJ.speed === 30,
-     `「跳变(渐暗后跳回)」套完 = 配色跳变（color ${eJ.color} / 3 色 / 渐亮 ${eJ.rise} 亮 ${eJ.hold} 暗 ${eJ.fade} → 停留 ${eJ.speed}）`);
+     `「跳变(渐暗后跳回)」套完 = 配色跳变（color ${eJ.color} / 6 色 / 渐亮 ${eJ.rise} 亮 ${eJ.hold} 暗 ${eJ.fade} → 停留 ${eJ.speed}）`);
   ok(!(eJ.layers[0].pulse_period | 0) && !(eJ.layers[0].pulse_amp | 0),
      `图层不再靠填充层锯齿脉动（pulse_period ${eJ.layers[0].pulse_period} / pulse_amp ${eJ.layers[0].pulse_amp} / wave ${eJ.layers[0].wave}）`);
   ok(col.value === String(CORE.FW.COLOR.STEP) && show('rowHold') && show('rowFade') && show('rowRise') &&
      byId.get('fSpeedLab').textContent === '停留(ms)' &&
      byId.get('fFade').value === '600' && byId.get('fSpeed').value === '600',
      `色彩配置自己切到「跳变」、旋钮也在同一排（${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value} → 停留 ${byId.get('fSpeed').value}）`);
-  ok(palN() === 3, `调色板 = 预置给的 3 色（${palN()} 个色块，想单色就删到 1 个）`);
+  ok(palN() === 6, `调色板 = 预置给的 6 色（${palN()} 个色块，想单色就删到 1 个）`);
+
+  /* 原先「七彩跳变」的柔和包络：现在就在这条模板上把 渐亮 / 亮 / 变暗 调成 4 / 8 / 8，
+   * 四格都跟着变（停留 = 20 拍 = 400 ms），验完复原成预置的 0 / 0 / 30。 */
+  {
+    const rI = byId.get('fRise'), hI = byId.get('fHold'), fI = byId.get('fFade');
+    rI.value = '80'; rI.oninput({ target: rI });
+    hI.value = '160'; hI.oninput({ target: hI });
+    fI.value = '160'; fI.oninput({ target: fI });
+    await new Promise(r => setTimeout(r, 700));
+    const eS = fxListOf(0)[0];
+    ok(eS.rise === 4 && eS.hold === 8 && eS.fade === 8 && eS.speed === 20,
+       `柔和包络（原「七彩跳变」那套）= 渐亮 4 / 亮 8 / 暗 8 → 停留 ${eS.speed} 拍`);
+    ok(byId.get('fSpeed').value === '400' && byId.get('fRise').value === '80' &&
+       byId.get('fHold').value === '160' && byId.get('fFade').value === '160',
+       `四个数都填进输入框（${byId.get('fSpeed').value}/${byId.get('fRise').value}/${byId.get('fHold').value}/${byId.get('fFade').value} ms）`);
+    rI.value = '0'; rI.oninput({ target: rI });
+    hI.value = '0'; hI.oninput({ target: hI });
+    fI.value = '600'; fI.oninput({ target: fI });
+    await new Promise(r => setTimeout(r, 700));
+    ok(fxListOf(0)[0].speed === 30, `复原成预置的 0 / 0 / 30（停留 ${fxListOf(0)[0].speed} 拍）`);
+  }
 
   /* ---- 时间类格子按 ms 显示（2026-10-28 第二轮）：填 ms、内部存拍、**一律向上取整** ---- */
   console.log('--- 时间类格子：显示 ms / 内部存拍 ---');
@@ -650,7 +667,7 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
 
   /* 11a 呼吸：tick 0 的包络是 0（整条全黑），暂停时必须拨到顶点 */
   fills.length = 0;
-  pick.value = '多色呼吸'; click('fxPresetApply');
+  pick.value = '呼吸'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   ok(has(p => p[0] > 200 && p[1] < 40 && p[2] < 40),
      `呼吸暂停时画出第 1 色（不是全黑）：${JSON.stringify(pixels().slice(-3))}`);
@@ -672,7 +689,7 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
 
   /* 11d 跳变：tick 0 只有 255/渐亮（没拨到顶点就看不出颜色），暂停时必须拨到包络顶点 */
   fills.length = 0;
-  pick.value = '七彩跳变'; click('fxPresetApply');
+  pick.value = '跳变(渐暗后跳回)'; click('fxPresetApply');
   await new Promise(r => setTimeout(r, 700));
   ok(has(p => p[0] + p[1] + p[2] > 150),
      `跳变暂停时停在包络顶点、颜色看得见（不是全黑）：${JSON.stringify(pixels().slice(-3))}`);
@@ -686,8 +703,8 @@ console.log('--- 暂停样本帧（改了配色立刻看得见）---');
     hI.value = '0'; hI.oninput({ target: hI });
     await new Promise(r => setTimeout(r, 700));
     const e = fxListOf(0)[0];
-    ok(e.rise === 4 && e.hold === 0 && e.speed === 12,
-       `只有渐亮：停留 = 渐亮 + 亮 + 暗 = ${e.rise} + ${e.hold} + ${e.fade} = ${e.speed}`);
+    ok(e.rise === 4 && e.hold === 0 && e.speed === 34,
+       `只有渐亮：停留 = 渐亮 + 亮 + 暗 = ${e.rise} + ${e.hold} + ${e.fade} = ${e.speed}（这条模板的暗 = 30 拍）`);
     ok(has(p => p[0] + p[1] + p[2] > 150),
        `渐亮 4 / 亮 0 的暂停帧停在爬满那一拍（不是 tick 0 的全黑）：${JSON.stringify(pixels().slice(-3))}`);
   }
