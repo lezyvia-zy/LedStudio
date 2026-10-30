@@ -742,8 +742,8 @@ console.log('--- 效果名：模板 / 配色 ---');
      `新建：tpl=${nc.tpl} / name=${nc.name}`);
 
   /* 只换模板名 → 名字跟着换，图层一个字段都不动 */
-  const nc2 = Object.assign({}, nc, { tpl: '呼吸' });
-  ok(fxEffectName(nc2) === '呼吸/' + FW.COLOR_NAME[nc.color] && nc2.layers === nc.layers,
+  const nc2 = Object.assign({}, nc, { tpl: '多彩呼吸' });
+  ok(fxEffectName(nc2) === '多彩呼吸/' + FW.COLOR_NAME[nc.color] && nc2.layers === nc.layers,
      `只换模板名 → ${fxEffectName(nc2)}（图层没被碰）`);
 
   /* 名字只进注释：ASCII 注释走 latin 别名（自动名是中文，不进 C 数据、也不落进 GBK 乱码区） */
@@ -761,7 +761,7 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
 {
   const { instNew, instApplyPreset, renderZoneMaskTo, effectColorAt,
           breathEnv, breathPlan, effBreathRise, effBreathHold,
-          stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
+          stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade, effStepFast,
           colorUpdate, effPalette, effLevels, effPeriod, effectPreset } = CORE;
   const base = { anim: FW.ANIM.STATIC, width: 10, gap: 0, slow: 8, fast: 1, speed: 1,
                  c1: [255, 0, 0], c2: [0, 0, 0] };
@@ -909,6 +909,45 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   const rOn3 = render(S9, 10, 0);
   ok(rOn0.m[0] > 0 && rOn0.m[0] < rOn1.m[0] && rOn1.m[0] < 255 && rOn3.m.every(v => v === 255),
      `跳变：渐亮第 0/1/3 拍 = ${rOn0.m[0]}/${rOn1.m[0]}/${rOn3.m[0]}（连续爬亮，第 0 拍不再白黑一下）`);
+
+  /* 快拍（2026-10-29 第三十六轮，用户「音乐信号大于阈值时取消渐灭，在几种色彩之前快速切换，
+   * 切换速度要可调」）：快档 + step_fast > 0 → 换色周期改用 step_fast、包络整个取消（满亮硬切）。 */
+  {
+    ok(effStepFast({}) === 0 && effStepFast({ step_fast: 4 }) === 4 && effStepFast({ step_fast: 999 }) === 255,
+       `快拍缺省 = 0（老存档 / 新效果快档照旧走包络）；显式值照走并封顶 255（${effStepFast({ step_fast: 999 })}）`);
+    const Sc = mkInst({ color: FW.COLOR.STEP, speed: 30, rise: 0, hold: 0, fade: 30, step_fast: 2,
+                        palette: [[255, 0, 0], [0, 255, 0], [0, 0, 255]] });
+    ok(Sc.color.spectrum_speed === 30 && Sc.color.step_fast === 2,
+       `快拍进实例：停留 ${Sc.color.spectrum_speed} 拍 / 快拍 ${Sc.color.step_fast} 拍`);
+    /* 慢档：30 拍才换色（快拍不生效） */
+    Sc.color.tick_cnt = 0; Sc.color.phase = 0;
+    for (let t = 1; t <= 3; t++) colorUpdate(Sc.color, t, null, 0);
+    ok(Sc.color.phase === 0, `慢档 3 拍还在第 1 色（要等满 30 拍）：phase=${Sc.color.phase}`);
+    Sc.color.tick_cnt = 29;
+    colorUpdate(Sc.color, 30, null, 0);
+    ok(Sc.color.phase === 1, `慢档第 30 拍才换到第 2 色（phase=${Sc.color.phase}）`);
+    /* 快档：每 step_fast = 2 拍换一次 */
+    Sc.color.tick_cnt = 0; Sc.color.phase = 0;
+    for (let t = 1; t <= 2; t++) colorUpdate(Sc.color, t, null, 1);
+    ok(Sc.color.phase === 1, `快档 2 拍就换色（快拍周期生效，phase=${Sc.color.phase}）`);
+    /* 包络：慢档照旧渐灭；快档整条满亮（渐灭被取消） */
+    Sc.color.tick_cnt = 29; Sc.fastNow = 0;
+    const slowM = render(Sc, 12, 0).m;
+    Sc.color.tick_cnt = 1;  Sc.fastNow = 1;
+    const fastM = render(Sc, 12, 0).m;
+    ok(slowM[0] > 0 && slowM[0] < 40, `慢档第 29 拍已经暗下去（${slowM[0]}/255，包络还在）`);
+    ok(fastM.every(v => v === 255), `快档取消渐灭：整条满亮硬切（${fastM[0]}/255）`);
+    Sc.fastNow = 0;
+    /* step_fast = 0 → 快档也照旧走「停留 + 包络」（老工程观感不变） */
+    const S0 = mkInst({ color: FW.COLOR.STEP, speed: 30, rise: 0, hold: 0, fade: 30, step_fast: 0,
+                        palette: [[255, 0, 0], [0, 255, 0]] });
+    S0.color.tick_cnt = 0; S0.fastNow = 1;
+    for (let t = 1; t <= 3; t++) colorUpdate(S0.color, t, null, 1);
+    ok(S0.color.phase === 0, `step_fast = 0：快档也等满 30 拍才换色（phase=${S0.color.phase}）`);
+    S0.color.tick_cnt = 29;
+    const m0 = render(S0, 12, 0).m;
+    ok(m0[0] > 0 && m0[0] < 40, `step_fast = 0：快档仍乘包络（${m0[0]}/255）`);
+  }
 
   /* 呼吸：对称包络（渐亮 = 渐暗）+ 平滑曲线，一个周期一种颜色；首尾都**不落全黑** */
   const bp12 = breathPlan({ color: FW.COLOR.BREATH, period: 12 });

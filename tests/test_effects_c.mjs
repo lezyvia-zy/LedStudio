@@ -97,15 +97,20 @@ ok(layRows[0][21] === 255 && layRows[0][22] === 255 && layRows[0][23] === 255 &&
    layRows[0][24] === 0 && layRows[0][25] === 0xFFFF && layRows[0][26] === 0 &&
    layRows[0][27] === 0 && layRows[0][28] === 0 && layRows[0][29] === 0 && layRows[0][30] === 0,
    `普通图层：头部白 / 跟配色 / 跟随效果渐变 / 初始常亮 0 / 随机闪慢档参数 0（含样式）`);
-/* 每效果平滑 T：效果行**末尾**追加第 30 列 smooth_ms；前面的列一列不动 */
+/* 每效果平滑 T：效果行**末尾**追加 smooth_ms；2026-10-29 第三十六轮再加第 31 列 step_fast（跳变的快拍） */
 {
   const e0c = numsOf(effRows[0]);                 /* hdr：默认 9 条内建 → 0 */
   const e3c = numsOf(e3row);                      /* h2：第 3 条是 newCustomEffect → 60 */
-  ok(e0c.length === 30 && e0c[29] === 0 && e3c.length === 30 && e3c[29] === 60,
-     `效果行 ${e0c.length} 列，末尾 smooth_ms = 内建 ${e0c[29]} / 新效果 ${e3c[29]}（老工程直通、新效果出厂 60）`);
+  ok(e0c.length === 31 && e0c[29] === 0 && e3c.length === 31 && e3c[29] === 60,
+     `效果行 ${e0c.length} 列，倒数第 2 列 smooth_ms = 内建 ${e0c[29]} / 新效果 ${e3c[29]}（老工程直通、新效果出厂 60）`);
+  ok(e0c[30] === 0 && e3c[30] === 0,
+     `末尾新列 step_fast（跳变快拍）= ${e0c[30]} / ${e3c[30]}（内建 / 新效果缺省 0 = 关）`);
   ok(h2.indexOf('uint16_t smooth_ms;') > h2.indexOf('uint8_t grad_step;') &&
      /uint16_t smooth_ms;\s+\/\* per-effect smoothing time in ms/.test(h2),
-     '结构体末尾是 uint16_t smooth_ms（排在 grad_step 之后），注释说明「只在慢档 / 0 = 关」');
+     '结构体里 smooth_ms 排在 grad_step 之后，注释说明「只在慢档 / 0 = 关」');
+  ok(h2.indexOf('uint8_t step_fast;') > h2.indexOf('uint16_t smooth_ms;') &&
+     /uint8_t step_fast;\s+\/\* step fast beat/.test(h2),
+     '结构体末尾追加 uint8_t step_fast（跳变快拍：快档取消渐灭、每 N 拍换色；0 = 关）');
   ok(/led_gen_smooth_step\(E->smooth_ms\)/.test(h2) &&
      /memcpy\(led_gen_shown\[z\], led_gen_zone_mask, len\)/.test(h2) &&
      /memset\(led_gen_shown, 0, sizeof\(led_gen_shown\)\)/.test(h2),

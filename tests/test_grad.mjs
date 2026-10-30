@@ -178,7 +178,7 @@ console.log('--- A6) 导出 C：每个效果指到自己那块 256 行色环 ---
   const effBlk = hdr.slice(hdr.indexOf('static const led_gen_effect_t'));
   const effRows = (effBlk.slice(0, effBlk.indexOf('};')).match(/^    \{.*\},/gm) || [])
                     .map(s => s.replace(/\/\*.*$/, '').replace(/[{},\s]/g, ' ').trim().split(/\s+/).map(Number));
-  ok(effRows[0].length === 30, `效果行 30 列（末尾 grad_first + grad_step + smooth_ms）：${effRows[0].length}`);
+  ok(effRows[0].length === 31, `效果行 31 列（末尾 grad_first + grad_step + smooth_ms + step_fast）：${effRows[0].length}`);
   /* 槽位 0 用渐变-2（起始色蓝），先进表 → 它那块在第 0 段；其余渐变 / 旧双色渐变用渐变-1 → 第 256 段；
      纯色等不用表的配色一律 0 */
   const f0 = effRows[0][27];
@@ -582,11 +582,11 @@ install(); boot(); await sleep(700);
   const rows = (gt.slice(0, gt.indexOf('};')).match(/^    \{ \d+, \d+, \d+ \},/gm) || []);
   ok(rows.length === 512, `导出 2 块色环 = 512 行（实际 ${rows.length}）`);
   const eb = hdr.slice(hdr.indexOf('static const led_gen_effect_t'));
-  /* 行末三列是 grad_first / grad_step / smooth_ms（2026-10-23 起，第十三轮末尾又加了平滑），
-     这里取倒数第 3 列 = grad_first */
+  /* 行末四列是 grad_first / grad_step / smooth_ms / step_fast（第三十六轮末尾又加了快拍），
+     这里取倒数第 4 列 = grad_first */
   const effRows = (eb.slice(0, eb.indexOf('};')).match(/^    \{.*\},/gm) || [])
     .map(s => { const a = s.replace(/\/\*.*$/, '').replace(/[{},\s]/g, ' ').trim().split(/\s+/);
-                return +a[a.length - 3]; });
+                return +a[a.length - 4]; });
   ok(effRows.some(v => v === 0) && effRows.some(v => v === 256),
      `效果行分别指向 0 / 256 两块表（${[...new Set(effRows)].join(',')}）`);
 }

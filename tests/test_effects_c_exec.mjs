@@ -208,6 +208,17 @@ SW2.color = CORE.FW.COLOR.SOLID; SW2.c1 = [255,255,255]; SW2.c2 = [0,0,0];
 }
 st.modes.list.push({ id:'mV', name:'双向填充', latin:'FILL_TWO', enabled:true,
                      binds:[{ effect:SW2.id, zones:[] }] });
+/* 快拍（2026-10-29 第三十六轮「多彩跳变」）：配色「跳变」+ step_fast = 2 拍。
+ * 快档（音量过阈值）时包络整个取消、每 2 拍硬切一色；慢档仍是「停留 30 拍 + 包络」。
+ * 下面两段都跑 5 拍：快档第 2 / 4 拍各换一色（收尾在第 3 色、整条满亮），
+ * 慢档 5 拍还没换色、按包络压到 ≈206。 */
+const BEAT = mkFx(20, [Object.assign({}, LAYER_FILL)]);
+BEAT.color = CORE.FW.COLOR.STEP;
+BEAT.speed = 30; BEAT.rise = 0; BEAT.hold = 0; BEAT.fade = 30; BEAT.step_fast = 2;
+BEAT.palette = [[255, 0, 0], [0, 255, 0], [0, 0, 255]];
+BEAT.c1 = [255, 0, 0]; BEAT.c2 = [0, 0, 0];
+st.modes.list.push({ id:'mW', name:'快拍', latin:'STEP_FAST', enabled:true,
+                     binds:[{ effect:BEAT.id, zones:[] }] });
 
 /* ---------- 2) 桩 led_ring.h ---------- */
 const dir = path.join('tests', '.build', 'exec');
@@ -317,6 +328,9 @@ const STAGE_TRACE_TICKS = 60;
  * 一眼看得出「还在爬」；跑到第 3 拍就满 200、与直通看不出差别了。 */
 const SMOOTH_TICKS = 2;
 const SMOOTH_MODE = st.modes.list.findIndex(m => m.id === 'mS');
+/* 快拍：跑 5 拍（快档第 2 / 4 拍各换一色 → 收尾第 3 色；慢档 5 拍还没换色） */
+const BEAT_TICKS = 5;
+const BEAT_MODE = st.modes.list.findIndex(m => m.id === 'mW');
 /* 旋转/流动：跑 12 拍（第 2 拍采到音量进快档，之后流动时钟 8 倍） */
 const FLOW_TICKS = 12;
 const FLOW_MODE = st.modes.list.findIndex(m => m.id === 'mT');
@@ -567,6 +581,38 @@ const main = [
   '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
   '    printf("|");',
 
+  /* 快拍（快档）：音量从一开始就大 → 第 2 拍起进快档，之后每 step_fast = 2 拍硬切一色、
+     包络整个取消。跑 5 拍收在第 3 色（蓝）且整条满亮。 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_audio = (uint8_t)' + LOUD + 'u;',
+  '    led_gen_apply_mode(&g_ring, ' + BEAT_MODE + ');',
+  '    for (t = 0; t < ' + BEAT_TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+  /* 快拍（慢档对照）：同样 5 拍、全程安静 —— 还没到换色点（30 拍），亮度按包络降下来 */
+  '    memset(&g_ring, 0, sizeof(g_ring));',
+  '    memcpy(g_ring.zones, Z, sizeof(Z));',
+  '    g_ring.zone_count = 5;',
+  '    for (i = 0; i < ZONE_MAX; i++) g_ring.zone_en[i] = true;',
+  '    g_ring.brightness.current = 256;',
+  '    g_ring.speed_slow = 8;',
+  '    g_ring.speed_fast = 1;',
+  '    g_audio = 0u;',
+  '    led_gen_apply_mode(&g_ring, ' + BEAT_MODE + ');',
+  '    for (t = 0; t < ' + BEAT_TICKS + '; t++) led_gen_tick(&g_ring);',
+  '    led_gen_render_mode(&g_ring);',
+  '    for (i = 0; i < LED_COUNT; i++)',
+  '        printf("%u,%u,%u ", (unsigned)g_ring.fb[i][0], (unsigned)g_ring.fb[i][1], (unsigned)g_ring.fb[i][2]);',
+  '    printf("|");',
+
   '    printf("\\n");',
   '    return 0;',
   '}',
@@ -597,10 +643,10 @@ try {
 }
 const cModes = out.trim().split('|').filter(s => s.trim().length)
   .map(s => s.trim().split(/\s+/).map(trip => trip.split(',').map(Number)));
-const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 13 段附加场景 */
-const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 / 11 旋转流动（快档） / 12 扫描填充长跑 / 13 随机闪快档 */
+const cAll = cModes.length;            /* C 侧输出段数 = 模式数 + 15 段附加场景 */
+const cAux = cModes.slice(st.modes.list.length);   /* 1 音量档 / 2 慢档对照 / 3 往返长跑 / 4 音控闪 / 5 音控闪对照 / 6 长间隔闪 / 7 阈值下沿 / 8 迟滞追踪 / 9 平滑慢档 / 10 平滑快档 / 11 旋转流动（快档） / 12 扫描填充长跑 / 13 随机闪快档 / 14 快拍快档 / 15 快拍慢档 */
 cModes.length = st.modes.list.length;  /* 原地裁短成"模式段"，后面按模式逐个比对 */
-ok(cAll === st.modes.list.length + 13, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 13 段附加场景）`);
+ok(cAll === st.modes.list.length + 15, `C 侧输出 ${cAll} 段（${st.modes.list.length} 个模式 + 15 段附加场景）`);
 
 /* ---------- 4) JS 侧算同样的东西 ---------- */
 let bad = 0, firstBad = null;
@@ -998,6 +1044,35 @@ console.log('--- 随机闪快档（老样式）---');
     (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
   const cRow = (cAux[12] || []).map(px => px.join(',')).join('|');
   ok(cRow === fbStr, '随机闪快档 20 拍：C 侧与 JS 逐字节一致');
+}
+
+/* ---------- 4k) 多彩跳变的快拍：快档硬切 / 慢档包络（5 拍，C ↔ JS） ---------- */
+console.log('--- 多彩跳变的快拍（快档硬切 / 慢档包络）---');
+{
+  const s = JSON.parse(JSON.stringify(st));
+  s.anim.modeId = st.modes.list[BEAT_MODE].id;
+  const fbStr = sim => Array.from({ length: FW.LED_COUNT },
+    (_, i) => sim.fb[i * 3] + ',' + sim.fb[i * 3 + 1] + ',' + sim.fb[i * 3 + 2]).join('|');
+  const runJs = loud => {
+    const sim = simInit(); simApplyMode(sim, s);
+    for (let t = 0; t < BEAT_TICKS; t++) {
+      simSetAudioLevel(sim, loud ? LOUD : 0, THR);
+      simTick(sim, s, false);
+    }
+    return fbStr(sim);
+  };
+  const jsFast = runJs(true), jsSlow = runJs(false);
+  const cFast = (cAux[13] || []).map(px => px.join(',')).join('|');
+  const cSlow = (cAux[14] || []).map(px => px.join(',')).join('|');
+  ok(cFast === jsFast, '快拍（快档 5 拍）：C 侧与 JS 逐字节一致');
+  ok(cSlow === jsSlow, '快拍（慢档 5 拍）：C 侧与 JS 逐字节一致');
+  ok(cFast !== cSlow, '同样 5 拍：快档每 2 拍硬切一色，慢档还没换色（两者必须不同）');
+  const fpx = (cAux[13] || [])[0] || [0, 0, 0];
+  const spx = (cAux[14] || [])[0] || [0, 0, 0];
+  ok(fpx[0] === 0 && fpx[1] === 0 && fpx[2] >= 250,
+     `快档第 5 拍 = 第 3 色（蓝 ${fpx.join(',')}）且整条满亮 —— 渐灭被取消（硬切）`);
+  ok(spx[0] > 0 && spx[0] < 230,
+     `慢档同样 5 拍仍是第 1 色（红 ${spx.join(',')}），亮度按包络降下来了`);
 }
 
 /* 覆盖度自检 */

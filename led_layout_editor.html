@@ -774,6 +774,7 @@
         <label class="row" id="rowRise"><span id="fRiseLab">渐亮(ms)</span><input type="number" id="fRise" min="0" max="5100" step="20" data-tip="跳变：每种颜色点亮用多少 ms（按 20ms 一拍、向上取整）—— 越大，点亮越柔和。&#10;第 1 拍就已经是 255 / 渐亮、最后一拍正好满亮 —— 换色前灯已经暗到看不见，所以这里不用、也不许补全黑帧（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」）。&#10;0 = 硬启亮：一拍照跳到满亮（老存档 / 老预置就是这个）。&#10;填完「停留」会自动 = 渐亮 + 亮 + 变暗。"></label>
         <label class="row" id="rowHold"><span id="fHoldLab">亮(ms)</span><input type="number" id="fHold" min="0" max="5100" step="20" data-tip="跳变：渐亮到满亮之后保持多少 ms（按 20ms 一拍向上取整）。&#10;0 = 不保持满亮，爬满立刻开始变暗。&#10;填完「停留」会自动 = 渐亮 + 亮 + 变暗。"></label>
         <label class="row" id="rowFade"><span>变暗(ms)</span><input type="number" id="fFade" min="0" max="5100" step="20" data-tip="跳变：满亮之后用多少 ms 匀速暗下去 —— 数值越大，变暗越慢；0 = 满亮完立刻换色。&#10;最后一拍停在 ≈255/(变暗拍数+1)，不完全黑：全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」。&#10;「停留」= 渐亮 + 亮 + 变暗，填完自动算好；三个加起来最多 255 拍（停留是 8 位数，≈5.1 秒）。"></label>
+        <label class="row" id="rowStepFast"><span>快拍(ms)</span><input type="number" id="fStepFast" min="0" max="5100" step="20" data-tip="跳变专用：音乐信号大于阈值（快档）时**取消渐灭**，每多少 ms 直接切到下一个颜色 —— 数值越小，颜色切得越急。&#10;慢档不受影响：安静时仍按「停留 + 渐亮 / 亮 / 变暗」慢慢来，一有鼓点就变成硬切的快拍。&#10;0 = 关（快档也照旧走「停留 + 包络」）。&#10;填的 ms 向上取整到 20ms 整拍。"></label>
         <label class="row" id="rowLevels"><span>彩虹级数</span><input type="number" id="fLevels" min="6" max="255" data-tip="走完一轮 红→黄→绿→青→蓝→紫→红 要多少颗灯。&#10;30 = 30 颗的圆环正好一整圈；填成分区灯数就是每个分区一整圈；最小 6。"></label>
         <label class="row" id="rowHueBase"><span>色相起点</span><input type="number" id="fHueBase" min="0" max="255" data-tip="彩虹从哪个色相开始：0 = 红，85 = 绿，170 = 蓝。"></label>
         <label class="row" id="rowHueSpeed"><span>彩虹旋转</span><input type="number" id="fHueSpeed" min="0" max="5100" step="20" data-tip="每多少 ms 整体转一格（按 20ms 一拍向上取整）；0 = 不动。跟着快慢档：快档转得更快（最多 8 倍）。"></label>
@@ -1013,9 +1014,9 @@
           <tr><td>最高亮度</td><td>整环最亮时有多亮（出厂 255）。音控闪层上它就是闪「亮」的那几拍有多亮 —— 跟<b>最低亮度</b>配对，两格填的都是<b>亮度本身</b>（数值越大越亮）。</td></tr>
           <tr><td>脉动周期/深度</td><td>让整环亮度周期性起伏（三角包络：满亮 → 暗 → 满亮）。<br>
             <b>要「呼吸」请用配色「呼吸」</b>（平滑曲线 + 一个周期换一种颜色，见下面那张表的「配色」一行）——
-            预置<b>「呼吸」</b>套的就是它，两条路各走一半只会让人分不清哪个才算数。<br>
+            预置<b>「多彩呼吸」</b>套的就是它，两条路各走一半只会让人分不清哪个才算数。<br>
             这里留下三角脉动是给「呼吸彩虹」那条预置用的（它要的是一亮一灭那种硬包络）；
-            <b>「跳变」的包络归配色「跳变」管</b>——预置<b>「跳变(渐暗后跳回)」</b>套完，配色下拉自己变成「跳变」，
+            <b>「跳变」的包络归配色「跳变」管</b>——预置<b>「多彩跳变」</b>套完，配色下拉自己变成「跳变」，
             节奏就填在下面「色彩配置」的「渐亮 / 亮 / 变暗(拍)」那三行（同一个旋钮只有一份）。</td></tr>
           <tr><td>闪烁（预置「闪烁」= 音控闪）</td><td>套了预置<b>「闪烁」</b>的那一层，填充层的几格名字和单位都换了，一共 5 个数：<br>
             <b>最高亮度</b>（= 整环亮度，出厂 255）、<b>最低亮度</b>（闪完「灭」的那几拍亮到什么程度，
@@ -1060,7 +1061,7 @@
         <div class="hint">以前的「本层取色（空间色相）」已经退休 —— 打开老工程时，带它的效果会
           自动迁成效果级「彩虹」配色，图层里的色相起点 / 跨度 / 旋转顺手清掉。
           「波形」也不在图层卡上了：脉动固定三角（呼吸），要「一亮一灭 / 渐暗后跳回」请用配色<b>「跳变」</b>。
-          预置<b>「跳变(渐暗后跳回)」</b>套的就是它 —— 套完配色下拉自己变成「跳变」，
+          预置<b>「多彩跳变」</b>套的就是它 —— 套完配色下拉自己变成「跳变」，
           渐亮 / 亮 / 变暗 / 停留与调色板都在「色彩配置」那一块，和手动选「跳变」完全一样（没有第二套旋钮）。</div>
 
         <h4>效果级参数（都在页面最下面的「色彩配置」里）</h4>
@@ -1068,10 +1069,10 @@
           <tr><th>参数</th><th>作用</th></tr>
           <tr><td><b>配色</b></td><td>
             <b>纯色</b>：整条固定用调色板第 1 个颜色。<br>
-            <b>跳变</b>：调色板里几种颜色轮着来。每种颜色先用「渐亮(拍)」<b>匀速爬到满亮</b>（第一拍就是 255 / 渐亮、最后一拍正好满亮；0 = 一拍照跳，硬启亮），再在「亮(拍)」里<b>保持满亮</b>，然后用「变暗(拍)」<b>匀速暗下去</b>：最后一拍停在 ≈255/(变暗+1)，暗到看不见但<b>不是全黑</b>（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」），就在这一拍换下一种 —— 接缝看不出来。「停留(拍)」= 渐亮 + 亮 + 变暗，填那三行时<b>自动算好</b>，不用手填（上限 255 拍）。<b>预置「跳变(渐暗后跳回)」用的就是这一套</b>（套完这里就是「跳变」，配色下拉自己切过来）：出厂 = 6 色 + 渐亮 0 / 亮 0 / 暗 30（硬启亮、长渐暗，暗到看不见那拍换色）；想点亮和变暗都柔和一点就把「渐亮 / 变暗」调大（例如 4 / 8 / 8），想单色就把调色板删到 1 个。<br>
+            <b>跳变</b>：调色板里几种颜色轮着来。每种颜色先用「渐亮(拍)」<b>匀速爬到满亮</b>（第一拍就是 255 / 渐亮、最后一拍正好满亮；0 = 一拍照跳，硬启亮），再在「亮(拍)」里<b>保持满亮</b>，然后用「变暗(拍)」<b>匀速暗下去</b>：最后一拍停在 ≈255/(变暗+1)，暗到看不见但<b>不是全黑</b>（全黑一帧在 50Hz 下就是一次闪，换色处会「抖一下」），就在这一拍换下一种 —— 接缝看不出来。「停留(拍)」= 渐亮 + 亮 + 变暗，填那三行时<b>自动算好</b>，不用手填（上限 255 拍）。<b>预置「多彩跳变」用的就是这一套</b>（套完这里就是「跳变」，配色下拉自己切过来）：出厂 = 6 色 + 渐亮 0 / 亮 0 / 暗 30（硬启亮、长渐暗，暗到看不见那拍换色）；想点亮和变暗都柔和一点就把「渐亮 / 变暗」调大（例如 4 / 8 / 8），想单色就把调色板删到 1 个。<b>快拍</b>（下一格）：音乐信号大于阈值（快档）时<b>取消渐灭</b>、按那一格的周期直接切色，安静时又回到「停留 + 包络」；0 = 关。<br>
             <b>渐变</b>：整条同色，随时间在一条<b>颜色环</b>上平滑循环（默认顺序 红→黄→绿→青→蓝→紫→红），快慢由「速度」和「步进」两个数一起定：「速度」= 几拍动一次（<b>1..16</b>，从跳变切过来时会自动收进 4 —— 20 秒一圈，想更慢再往上调）、「步进」= 一次在环上前进几级（一整圈 = 256 × 速度 ÷ 步进 拍）。这条环是<b>你自己存的一套渐变</b>（「渐变-1 / 渐变-2…」）：<b>起始色</b> = 相位 0 是哪个颜色（等于把整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色按先后排好，相邻两个之间由算法等长补过渡 —— 只要定几个颜色的大致方向就行。改「起始色 / 顺序」动的是<b>库里那一条</b>（用它的效果一起变）；想再来一条，用「<b>新建</b>」（从零开始：默认顺序 + 起点红，跟库里别的都不搭界）或「<b>另存为</b>」（在这条的基础上复制一份微调），原条都一点不动；再在模式页给某条绑定打开「覆盖参数」、用那张卡上的「渐变」下拉换成另一条。<br>
             <b>彩虹</b>：沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）；<b>级数</b> = 走完一轮红→红要多少颗灯（30 颗的圆环填 30，40 颗的顶环填 40）。<br>
-            <b>呼吸</b>：<b>暗→亮→暗</b>算一个周期，一个周期换一种颜色（颜色来自调色板）。骨骼就是跳变那套包络，只是<b>渐亮和渐暗一样长</b>、而且走<b>平滑曲线</b>（起步慢、中段快、到顶自然减速）：只填「渐亮=变暗(拍)」和「亮(拍)」两行，「周期(拍)」= 渐亮 × 2 + 亮 <b>自动算好</b>。出厂手感是 40 / 10（1.8 秒一个来回）；20 拍以下会看出一格一格的台阶。同样<b>不落全黑</b> —— 最暗那一拍停在 ≈255/(渐亮+1)，换色就在那儿发生，接缝看不出「抖一下」。<b>预置「呼吸」用的就是这一套</b>（套完这里就是「呼吸」），所以它就是「呼吸」唯一的定义；调色板里别放<b>纯黑</b>条目 —— 那一个周期整条全灭，看着完全像动画停了（打开老工程时那个占位的纯黑第 2 色会被自动去掉）。<br>
+            <b>呼吸</b>：<b>暗→亮→暗</b>算一个周期，一个周期换一种颜色（颜色来自调色板）。骨骼就是跳变那套包络，只是<b>渐亮和渐暗一样长</b>、而且走<b>平滑曲线</b>（起步慢、中段快、到顶自然减速）：只填「渐亮=变暗(拍)」和「亮(拍)」两行，「周期(拍)」= 渐亮 × 2 + 亮 <b>自动算好</b>。出厂手感是 40 / 10（1.8 秒一个来回）；20 拍以下会看出一格一格的台阶。同样<b>不落全黑</b> —— 最暗那一拍停在 ≈255/(渐亮+1)，换色就在那儿发生，接缝看不出「抖一下」。<b>预置「多彩呼吸」用的就是这一套</b>（套完这里就是「呼吸」），所以它就是「呼吸」唯一的定义；调色板里别放<b>纯黑</b>条目 —— 那一个周期整条全灭，看着完全像动画停了（打开老工程时那个占位的纯黑第 2 色会被自动去掉）。<br>
             <b>覆盖</b>：<b>连环扫</b> —— 第 2 个<b>条目</b>从一头把第 1 个盖过去，盖满之后换下一个条目接着盖（<b>不会</b>整条跳回底色）。<b>覆盖方向</b>：<b>往返</b> = 盖满就从另一头盖回来，来回交替；<b>单向</b> = 每趟都从同一头重新推过去（像跑马灯从头刷）。一趟多少拍看「<b>速度(拍/趟)</b>」，越小越快。<b>覆盖灯数</b> = 这一趟最多扫过多少颗灯（0 = 整条分区；40 颗的顶环填 16，就只有前面 16 颗在动，后面的灯一直是初始底色）—— 这就是「覆盖等级」。<b>扫过去是一整块还是渐变，看调色板里那个条目</b>：纯色条目 = 一整块颜色（硬边）；<b>[A→B]</b> 条目 = 沿灯位铺 A → B 的位置渐变（「<b>+渐变</b>」加一个，胶囊左右两半分别选两端的颜色；取色面板底部随时能把一个条目改成纯色、或再改回渐变）。两种条目可以混在一个调色板里，于是同一个模式里有的趟是硬边、有的趟是渐变。
           </td></tr>
           <tr><td>对照看配色</td><td>套预置<b>「全点亮(测配色)」</b>：一个满亮填充层，不走位置、不脉动、不铺色相 —— 整条常亮，在这里换「配色」就能直接看出六种配色的差别。</td></tr>
@@ -1193,9 +1194,9 @@
         <h3 id="hs-recipes">常见做法</h3>
         <table>
           <tr><th>想要</th><th>怎么配</th><th>去做</th></tr>
-          <tr><td>呼吸灯</td><td>效果页「模板」里直接套<b>呼吸</b>（= 静态 + 配色<b>「呼吸」</b>；暗→亮→暗，出厂 渐亮 40 / 亮 10 ≈ 1.8 秒一个来回）。想让每个周期换一种颜色，就在调色板里加减颜色 —— 出厂就是 3 色（红 / 绿 / 蓝），每 1.8 秒的一个周期换一色；想单色就删到 1 个，想更多色就用「+」加。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「呼吸」再点套用。">效果页</button></td></tr>
+          <tr><td>呼吸灯</td><td>效果页「模板」里直接套<b>多彩呼吸</b>（= 静态 + 配色<b>「呼吸」</b>；暗→亮→暗，出厂 渐亮 40 / 亮 10 ≈ 1.8 秒一个来回）。想让每个周期换一种颜色，就在调色板里加减颜色 —— 出厂就是 3 色（红 / 绿 / 蓝），每 1.8 秒的一个周期换一色；想单色就删到 1 个，想更多色就用「+」加。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「多彩呼吸」再点套用。">效果页</button></td></tr>
           <tr><td>闪烁</td><td>效果页「模板」里直接套<b>闪烁</b> = <b>音控闪</b>：没有音乐（或音乐信号小）时<b>每 5 秒闪一次</b>；有音乐（<code>FFTLevel</code> 大于预览条上的<b>阈值</b>，默认 4）时<b>间隔变短、每 500 ms 闪一次</b>；一直很吵就一直按这个节奏闪。五个数都在图层卡上，时间按 <b>ms</b> 直接填：<b>最高亮度</b>（255）、<b>最低亮度</b>（0 = 全灭，填的是亮度本身）、<b>没音乐时闪的间隔(ms)</b>（5000）、<b>有音乐间隔(ms)</b>（500）、<b>亮的时间(ms)</b>（200）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「闪烁」再点套用；想换间隔 / 亮度就在图层卡上改那五个数字（时间按 ms 填）。">效果页</button></td></tr>
-          <tr><td>跳变（几种颜色轮着亮）</td><td>效果页「模板」里直接套<b>跳变(渐暗后跳回)</b>（= 静态 + 配色<b>「跳变」</b>，和手动把配色选成「跳变」完全同一套旋钮）：一色满亮 → 匀速暗下去 → 暗到看不见那一拍换下一色，出厂 6 色 / 渐亮 0 / 亮 0 / 变暗 30（600 ms）。颜色个数就在调色板里加减（删到 1 个 = 单色渐暗后跳回）；想点亮和变暗都柔和一点，把「渐亮 / 变暗」调大（例如 4 / 8 / 8）。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「跳变(渐暗后跳回)」再点套用；节奏与颜色在页面最下面的「色彩配置」里改。">效果页</button></td></tr>
+          <tr><td>跳变（几种颜色轮着亮）</td><td>效果页「模板」里直接套<b>多彩跳变</b>（= 静态 + 配色<b>「跳变」</b>，和手动把配色选成「跳变」完全同一套旋钮）：一色满亮 → 匀速暗下去 → 暗到看不见那一拍换下一色，出厂 6 色 / 渐亮 0 / 亮 0 / 变暗 30（600 ms）。颜色个数就在调色板里加减（删到 1 个 = 单色渐暗后跳回）；想点亮和变暗都柔和一点，把「渐亮 / 变暗」调大（例如 4 / 8 / 8）。<b>「快拍(ms)」</b>：音乐信号大于阈值时取消渐灭、按这个周期直接切色（出厂 80 ms），安静时又回到慢包络 —— 想更快就填小、想关掉填 0。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在「模板」下拉里选「多彩跳变」再点套用；节奏 / 颜色 / 快拍在页面最下面的「色彩配置」里改。">效果页</button></td></tr>
           <tr><td>彗星拖尾</td><td>一个<b>光点</b>层，衰减曲线选<b>单边拖尾</b>，光宽调大一点。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>摆动</td><td>一个光点层，往返选<b>走到头折返</b>。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在图层卡里按左边「怎么配」那列调。">效果页</button></td></tr>
           <tr><td>绕环彩虹</td><td>一个填充层，<b>配色选「彩虹」</b>（级数填成分区灯数）；想让彩虹转起来，再调「彩虹旋转」。</td><td><button class="help-go" data-go="fx" data-tip="跳到效果页，在页面最下面的「色彩配置」里选配色。">效果页</button></td></tr>
@@ -2652,6 +2653,8 @@ function normalizeEffect(e) {
    * （观感与上一版逐字节相同）；新效果 / 套预置的 60 在 newCustomEffect / applyPreset 里给。 */
   if (e.smooth == null) e.smooth = 0;
   e.smooth = effSmooth(e);
+  /* 跳变的快拍（拍；0 = 关）：老存档没有这一项 → 0，快档照旧走「停留 + 包络」 */
+  e.step_fast = effStepFast(e);
   return e;
 }
 
@@ -2693,6 +2696,8 @@ function newCustomEffect(slot, name) {
     slow: 8, fast: 1, speed: 0, moves: true,
     /* 平滑 T（ms）：新效果出厂 60 ≈ 每拍 85 级、约 3 拍走满；0 = 关（老工程 / 内建行） */
     smooth: SMOOTH_MS_DEF,
+    /* 跳变的快拍（拍；0 = 关）：套「多彩跳变」预置才给值 */
+    step_fast: 0,
     layers: [{ kind: 'spot', count: 1, width: 8, phase: 0, falloff: 'cos',
                pulse_period: 0, pulse_amp: 0, direction: 1 }],
   };
@@ -3373,6 +3378,14 @@ function effStepFade(e) {
   if (e && e.fade != null) return Math.max(0, Math.min(255, e.fade | 0));
   return Math.max(0, d - effStepRise(e) - effStepHold(e));
 }
+/* 跳变的「快拍」（2026-10-29 第三十六轮，用户「音乐信号大于阈值时，就取消渐灭的过程，
+ * 让其在几种色彩之前快速切换。切换速度要可调」）：
+ *   快档（FFTLevel > 阈值）且 step_fast > 0 时，包络整个取消（满亮硬切）、
+ *   每 step_fast 拍换下一个颜色；0 = 关（快档也照旧按「停留 + 包络」走）。
+ * 慢档永远走「停留 + 渐亮 / 亮 / 变暗」，与从前逐值相同。 */
+function effStepFast(e) {
+  return Math.max(0, Math.min(255, (e && (e.step_fast | 0)) | 0));
+}
 /* 跳变的「停留(拍)」不是独立参数：它就是 渐亮 + 亮 + 变暗 拼成的整个周期（界面填那三行时自动填回去）。
  * 8 位字段封顶 255 —— 三段加起来更长时按 255 播，多出来的拍在渲染时被夹掉（stepClamp 兜底）。 */
 function stepSpeedOf(e) {
@@ -3526,7 +3539,7 @@ function renderZoneMaskTo(inst, m, hue, len, pos, st) {
    * 换色那一瞬灯已经暗到看不见、但**不是全黑** —— 这就是「不抖」的全部秘密：
    * 留一个全黑帧的话，50Hz 下就是一次 20ms 的闪，换色处会看着「抖一下」。只乘亮度，不动 hue。
    * (m × (env+1)) >> 8：env=255 时严丝合缝等于原值，env=0 时全灭。 */
-  if (c.type === FW.COLOR.STEP) {
+  if (c.type === FW.COLOR.STEP && !(inst.fastNow && (c.step_fast | 0) > 0)) {
     const env = stepEnv(c.tick_cnt, c.spectrum_speed, c.step_rise, c.step_hold, c.step_fade) + 1;
     for (let i = 0; i < len; i++) m[i] = (m[i] * env) >> 8;
   }
@@ -3556,7 +3569,7 @@ function gradStepOf(c) {
   const v = (c && c.grad_step) | 0;
   return Math.max(GRAD_STEP_MIN, Math.min(GRAD_STEP_MAX, v || GRAD_STEP_MIN));
 }
-function colorUpdate(c, tick, flowTick) {
+function colorUpdate(c, tick, flowTick, fast) {
   const pal = (c.palette && c.palette.length) ? c.palette : null;
   switch (c.type) {
     case FW.COLOR.SOLID: break;
@@ -3579,15 +3592,19 @@ function colorUpdate(c, tick, flowTick) {
       break;
     }
     /* 跳变：每 speed 拍换下一个颜色（这儿只改索引）。亮度包络在
-     * renderZoneMaskTo / C 的 led_gen_zone_render 里乘到 mask 上。 */
-    case FW.COLOR.STEP:
+     * renderZoneMaskTo / C 的 led_gen_zone_render 里乘到 mask 上。
+     * 快拍（fast + step_fast > 0）：换色周期改用 step_fast，包络整个取消（硬切）——
+     * 用户原话「音乐信号大于阈值时，就取消渐灭的过程，让其在几种色彩之前快速切换」。 */
+    case FW.COLOR.STEP: {
       if (!pal) break;
-      if (++c.tick_cnt >= c.spectrum_speed) {
+      const per = ((fast | 0) && (c.step_fast | 0) > 0) ? (c.step_fast | 0) : c.spectrum_speed;
+      if (++c.tick_cnt >= per) {
         c.tick_cnt = 0;
         c.phase = (c.phase + 1) % pal.length;
         c.current = pal[c.phase];
       }
       break;
+    }
     /* 呼吸：每 period 拍换下一个颜色；亮度包络在 renderZoneMaskTo 里算。 */
     case FW.COLOR.BREATH:
       if (!pal) break;
@@ -3640,6 +3657,8 @@ function instNew() {
              secondary: { r: 0, g: 0, b: 0 }, phase: 0, tick_cnt: 0, spectrum_speed: 1,
              grad_step: 1,
              step_rise: 0, step_hold: 1, step_fade: 0,
+             /* 跳变的「快拍」：快档每几拍换一色（0 = 关；包络在快档整个取消） */
+             step_fast: 0,
              /* 渐变 / 旧双色渐变查的那张 256 级表：默认固件彩虹表，套效果时换成效果选中的渐变 */
              spectrum: FW.spectrum_tbl,
              palette: [{ r: 255, g: 0, b: 0 }], paletteB: [{ r: 255, g: 0, b: 0 }],
@@ -4121,6 +4140,8 @@ function effectPreset(eff, idx, state) {
     palette: palRaw, levels: effLevels(eff),
     hue_base: eff.hue_base | 0, hue_speed: eff.hue_speed | 0,
     period: sh.period, rise: sh.rise, hold: sh.hold, fade: sh.fade,
+    /* 跳变的快拍（拍；0 = 关）：快档取消包络、每 step_fast 拍换一色 */
+    step_fast: effStepFast(eff),
     /* 覆盖：参与覆盖的灯数（0 = 整条）+ 方向（0 往返 / 1 单向）；铺法看条目本身
        （纯色 = 硬边 / 两端渐变 = 位置渐变），cover_mode / cover_group 已退休 */
     cover_span: effCoverSpan(eff), cover_dir: effCoverDir(eff),
@@ -4183,7 +4204,7 @@ function instTick(inst, loud) {
     if (inst.flashT >= per) inst.flashT = 0;
   }
   inst.loudPrev = loud ? 1 : 0;
-  colorUpdate(inst.color, inst.anim.gen_tick, flowTickOf(inst));
+  colorUpdate(inst.color, inst.anim.gen_tick, flowTickOf(inst), inst.fastNow);
 }
 
 function simTick(sim, state, applyReverse) {
@@ -4397,6 +4418,8 @@ function instApplyPreset(inst, p) {
     inst.color.step_rise = sc[0];
     inst.color.step_hold = sc[1];
     inst.color.step_fade = sc[2];
+    /* 跳变的「快拍」：快档每几拍换一色（0 = 关，快档也走「停留 + 包络」） */
+    inst.color.step_fast = effStepFast(p);
   }
   /* 渐变 / 旧双色渐变查哪张表：效果选中的那条渐变（没给就用固件彩虹表） */
   inst.color.spectrum = (p && p.gradTable) || FW.spectrum_tbl;
@@ -4648,6 +4671,8 @@ function modesPlan(state) {
                    hue_speed: e.hue_speed | 0,
                    /* 包络：跳变三段 + 停留；呼吸 = 渐亮/亮/渐亮 + 周期（周期自己算） */
                    period: sh.period, rise: sh.rise, hold: sh.hold, fade: sh.fade,
+                   /* 跳变的快拍（拍）：快档取消包络、每 step_fast 拍换一色（0 = 关） */
+                   step_fast: effStepFast(e),
                    /* 平滑 T（ms）：只在慢档生效；0 = 直通（老工程 / 内建行） */
                    smooth: effSmooth(e),
                    name: name || e.name, latin: e.latin || '' };
@@ -5214,7 +5239,10 @@ const LED_GEN_IMPL = [
 '        }',
 '    }',
 '    /* @stepfade@ */',
-'    if (E->ctype == (uint8_t)LED_GEN_COLOR_STEP) {',
+'    /* fast beat: on the fast stage with step_fast set, skip the whole envelope',
+'       (hard cut at full brightness; the switch period becomes step_fast in led_gen_tick). */',
+'    if ((E->ctype == (uint8_t)LED_GEN_COLOR_STEP) &&',
+'        !((I->fast_now != 0u) && (E->step_fast != 0u))) {',
 '        uint16_t env = (uint16_t)led_gen_step_env(I->color.tick_cnt, I->color.spectrum_speed,',
 '                                                     E->step_rise, E->step_hold, E->step_fade) + 1u;',
 '        for (i = 0; i < len; i++) mask[i] = (uint8_t)(((uint16_t)mask[i] * env) >> 8);',
@@ -5447,7 +5475,11 @@ const LED_GEN_IMPL = [
 '            if (E->ctype == (uint8_t)COLOR_SOLID) {',
 '                /* @solidnoop@ */',
 '            } else if (E->ctype == (uint8_t)LED_GEN_COLOR_STEP) {',
-'                if (++I->color.tick_cnt >= I->color.spectrum_speed) {',
+'                /* fast beat: on the fast stage with step_fast set, use it as the switch period */',
+'                uint16_t sf = (uint16_t)E->step_fast;',
+'                uint16_t per = ((I->fast_now != 0u) && (sf != 0u)) ? sf : I->color.spectrum_speed;',
+'                if (per == 0u) per = 1u;',
+'                if (++I->color.tick_cnt >= per) {',
 '                    uint8_t n = (E->pal_count != 0u) ? E->pal_count : 1u;',
 '                    I->color.tick_cnt = 0;',
 '                    I->color.phase.current = (int16_t)((I->color.phase.current + 1) % n);',
@@ -5638,6 +5670,7 @@ const GEN_COMMENTS = {
   cmt4: { zh:'同一个效果只建一次实例 —— 这就是「同步」的由来', en:'one instance per distinct effect - this is what makes shared zones synchronised' },
   shownarr: { zh:'每效果「平滑 T」的逐分区亮度缓冲：这一拍真正显示的值，逐拍往 mask 目标爬（只在慢档用，换模式清零）', en:'per-zone brightness buffer for the per-effect smoothing: what is really shown this frame, ramped towards the mask target (slow stage only; cleared on mode change)' },
   effSmooth: { zh:'每效果平滑 T（ms）：慢档时逐灯把亮度往 mask 目标爬；快档或 0 = 直通并同步缓冲（切档不残留）', en:'per-effect smoothing time in ms: on the slow stage each LED brightness ramps towards the mask target; fast stage or 0 = pass through and sync the buffer (no residue when the stage changes)' },
+  effStepFast: { zh:'跳变的快拍（拍）：快档（音量过阈值）时取消渐灭、每 step_fast 拍换下一个颜色；0 = 关（快档照旧走「停留 + 包络」）。慢档永远走「停留 + 渐亮 / 亮 / 变暗」', en:'step fast beat (ticks): on the fast stage (level above the threshold) the fade is skipped and the colour switches every step_fast ticks; 0 = off (the fast stage keeps dwell + envelope). The slow stage always uses dwell + rise/hold/fade' },
   smoothstep: { zh:'平滑步长：每拍最多变 ceil(255 × LED_GEN_TICK_MS / smooth_ms) 级，夹 1..255；0 = 一拍照满（直通）', en:'smoothing step: at most ceil(255 * LED_GEN_TICK_MS / smooth_ms) levels per frame, clamped to 1..255; 0 = jump to the target at once (pass through)' },
   smoothgate: { zh:'平滑只在慢档做：快档直通（省算力）—— 判据与 led_gen_tick() 里那个 fast 同源', en:'smoothing only runs on the slow stage; the fast stage passes through (saves cycles) - same predicate as fast in led_gen_tick()' },
   smoothramp: { zh:'逐灯亮度斜坡：shown 往这一拍的目标爬一步，剩下不足一步就吸附；快档 / smooth = 0 时直通并同步 shown', en:'per-LED brightness ramp: shown moves one step towards this frame target, snapping when the remainder fits; pass through and sync shown on the fast stage / when smooth = 0' },
@@ -5833,6 +5866,7 @@ function exportEffectsC(state, opt) {
     effRise: '跳变: 每种颜色点亮用几拍（第一拍 = 255/rise、最后一拍满亮；0 = 硬启亮；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸: 渐亮(=渐暗) 几拍（对称包络）',
     effHold: '跳变: 满亮保持几拍（0 = 不保持；渐亮爬到满亮那一拍也算满亮）；呼吸: 满亮保持几拍（周期 = 渐亮×2 + 亮）',
     effFade: '跳变: 满亮之后用几拍暗下去（越大越慢；最后一拍 ≈255/(fade+1)、不落 0，换色处不闪；渐亮 + 亮 + 变暗 = spectrum_speed）；呼吸不用它（生成代码里 = step_rise）',
+    effStepFast: GEN_COMMENTS.effStepFast.zh,
     newColors: '新配色模式（0..2 沿用固件的 COLOR_* 枚举；3..6 由生成代码处理）',
     audioCfg: '音乐音量刻度 / 阈值 / 采样周期 / 快档阻尼：音量来自 led_gen_hal_audio_level()（0..LED_GEN_AUDIO_MAX，工具里可调、出厂 20），每 LED_GEN_AUDIO_SAMPLE_MS 采一次，超过阈值立刻进快档并至少保持 LED_GEN_STAGE_HOLD_MS。阈值不能大于最大值（工具里会夹）。工具里调完直接导出，固件不用再改宏',
     palRow: '色板: 每个条目两行 {r,g,b} = 首端 / 末端（纯色条目两行相同）；效果行用 pal_first/pal_count 指进来，条目 k = pal_first + 2k',
@@ -5909,6 +5943,7 @@ function exportEffectsC(state, opt) {
     effRise: 'step: ticks to go from black to full brightness (0 = hard on; rise + hold + fade = spectrum_speed); breath: rise (= fade) ticks, symmetric envelope',
     effHold: 'step: ticks held at full brightness (0 = no hold; the tick that reaches full counts too); breath: ticks held, cycle = rise*2 + hold',
     effFade: 'step: ticks to dim from full (larger = slower; the last tick sits at about 255/(fade+1), never 0 - no dark frame at the colour switch; rise + hold + fade = spectrum_speed); breath: not used (equals step_rise)',
+    effStepFast: GEN_COMMENTS.effStepFast.en,
     newColors: 'new colour modes (0..2 reuse the firmware COLOR_* enum; 3..6 are handled here)',
     audioCfg: 'audio scale / threshold / sample period / fast-stage damping: the level comes from led_gen_hal_audio_level() (0..LED_GEN_AUDIO_MAX, adjustable in the tool, factory 20), sampled every LED_GEN_AUDIO_SAMPLE_MS; a sample above the threshold enters the fast stage at once and holds it for at least LED_GEN_STAGE_HOLD_MS. The threshold can never exceed the maximum (clamped in the tool). Tuned in the tool and exported - no macro to edit on the firmware side',
     palRow: 'palette rows: two {r,g,b} per entry = first / last colour (a solid entry repeats itself), referenced by pal_first/pal_count; entry k = pal_first + 2k',
@@ -6070,6 +6105,7 @@ function exportEffectsC(state, opt) {
        '    uint16_t grad_first;    /* ' + t.effGrad + ' */',
        '    uint8_t grad_step;      /* ' + t.effGradStep + ' */',
        '    uint16_t smooth_ms;     /* ' + t.effSmooth + ' */',
+       '    uint8_t step_fast;      /* ' + t.effStepFast + ' */',
        '} led_gen_effect_t;',
        '',
        'typedef struct { uint8_t effect; uint16_t zone_mask; } led_gen_bind_t;  /* ' + t.bindt + ' */',
@@ -6129,7 +6165,8 @@ function exportEffectsC(state, opt) {
                      e.c2r, e.c2g, e.c2b, e.speed, e.slow, e.fast,
                      e.first, e.count, e.offset, e.moves,
                      e.pal_first, e.pal_count, e.levels, e.hue_base, e.hue_speed, e.period,
-                     e.rise, e.hold, e.fade, e.grad_first, e.grad_step, e.smooth].join(', ') +
+                     e.rise, e.hold, e.fade, e.grad_first, e.grad_step, e.smooth,
+                     e.step_fast].join(', ') +
          ' },   /* ' + i + ' ' + nm(e) + ' */');
   });
   push('};', '');
@@ -6335,7 +6372,7 @@ const CORE = { FW, GEN, SHAPE, deriveZoneDir, zoneReverse, validate, nearestDist
                simClearShown, simShownOf, smoothShown, effSmooth, smoothStepOf, SMOOTH_MS_MAX, SMOOTH_MS_DEF,
                flowTickOf, instFlowStep, sweepHeadColor, sweepStateNew, sweepStep,
                breathEnv, breathPlan, effBreathRise, effBreathHold, effShape, BREATH_PERIOD_MAX,
-               stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade,
+               stepEnv, stepClamp, stepSpeedOf, effStepRise, effStepHold, effStepFade, effStepFast,
                effPalette, effPaletteRaw, palIsGrad, PAL_MAX, PAL_GRAD_LEN,
                effLevels, effPeriod, effCoverSpan, effCoverDir, COVER_SPAN_MAX,
                normalizeEffect,
@@ -9201,7 +9238,7 @@ const FX_PRESETS = [
       layers:[ Object.assign(mkLayer('spot'),  { count:1, width:12, falloff:'tail' }) ] }) },
   { name:'摆动(往返)',      make: () => ({ moves:true, color:0, c1:[255,120,0], slow:12, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('spot'),  { count:1, width:8, falloff:'cos', bounce:1 }) ] }) },
-  /* 「呼吸」= **配色「呼吸」**（不再是「静态 + 填充层三角脉动」那一套）。
+  /* 「多彩呼吸」= **配色「呼吸」**（不再是「静态 + 填充层三角脉动」那一套）。
    * 理由：亮度包络归「色彩配置」管（动画只管形状），两套各走一路会让用户面对
    * 「动画里的呼吸」和「色彩配置里的呼吸」两个互不相干的旋钮（2026-10-27 用户问
    * 「是一回事吗？如果是的话，切到呼吸时色彩配置没跟着变」）。现在套完这条，
@@ -9209,7 +9246,7 @@ const FX_PRESETS = [
    * 「闪烁 / 跳变 / 呼吸彩虹」三条预置（它们要的是「一亮一灭 / 渐暗后跳回」那种方波）。
    * 调色板给 3 色（红/绿/蓝）：每 1.8 秒一个周期换一色（2026-10-29 第三十五轮把
    * 「多色呼吸」并进来 —— 单色只是把调色板删到 1 个，不必再留一条模板）。 */
-  { name:'呼吸',            make: () => ({ moves:false, color:5, c1:[255,0,0], slow:8, fast:1, speed:0,
+  { name:'多彩呼吸',        make: () => ({ moves:false, color:5, c1:[255,0,0], slow:8, fast:1, speed:0,
       period:90, b_rise:40, b_hold:10, palette:[[255,0,0],[0,255,0],[0,0,255]],
       layers:[ Object.assign(mkLayer('fill'), { level:255 }) ] }) },
   /* 「闪烁」= **音控闪**（2026-10-27 用户两次描述后的定稿）：
@@ -9225,7 +9262,7 @@ const FX_PRESETS = [
   { name:'闪烁',            make: () => ({ moves:false, color:0, c1:[255,255,255], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('fill'),  { level:255, pulse_period:250, wave:3,
                                                  flash_fast:25, flash_on:10, flash_low:0 }) ] }) },
-  /* 「跳变(渐暗后跳回)」= **配色「跳变」**（2026-10-27 用户：「我现在在测试跳变这个动画模板。在色彩配置里面
+  /* 「多彩跳变」= **配色「跳变」**（2026-10-27 用户：「我现在在测试跳变这个动画模板。在色彩配置里面
    * 我们已经添加了跳变这个配置，这两者应该是一回事。选择动画跳变，即颜色也默认切换为跳变，同时调参接口
    * 也都是用同一套」）—— 和「呼吸」同一条道理（F18 / 坑 40）：**亮度包络与换色都归色彩配置，图层只管形状**。
    * 所以不再用「填充层锯齿脉动（wave:2 / pulse_period:30）+ 配色渐变」那一套 —— 那是第二份实现：
@@ -9236,9 +9273,11 @@ const FX_PRESETS = [
    *   现在是 ≈255/(30+1)，**故意不落全黑** —— 全黑一帧在 50Hz 下就是一次闪）。
    * 调色板给 6 色（红/黄/绿/青/蓝/紫）：一色一色往下暗、一圈 6 色。
    * 2026-10-29 第三十五轮把「七彩跳变」并进来 —— 想「点亮和变暗都柔和」就把
-   * 「渐亮 / 变暗」调大（例如 4 / 8 / 8），不必再留那条只有包络不同的模板。 */
-  { name:'跳变(渐暗后跳回)', make: () => ({ moves:false, color:3, c1:[255,0,0], slow:8, fast:1, speed:30,
-      rise:0, hold:0, fade:30,
+   * 「渐亮 / 变暗」调大（例如 4 / 8 / 8），不必再留那条只有包络不同的模板。
+   * 2026-10-29 第三十六轮加「快拍」：step_fast = 4 拍（80 ms）—— 音乐过阈值（快档）时
+   * 取消渐灭、每 80 ms 硬切下一个颜色；安静时仍按上面的慢包络走（用户：「快拍」）。 */
+  { name:'多彩跳变',        make: () => ({ moves:false, color:3, c1:[255,0,0], slow:8, fast:1, speed:30,
+      rise:0, hold:0, fade:30, step_fast:4,
       palette:[[255,0,0],[255,255,0],[0,255,0],[0,255,255],[0,0,255],[255,0,255]],
       layers:[ Object.assign(mkLayer('fill'),  { level:255 }) ] }) },
   { name:'绕环彩虹(旋转)',  make: () => ({ moves:false, color:4, c1:[255,0,0], slow:8, fast:1, speed:0,
@@ -9322,6 +9361,8 @@ function applyPreset(name) {
   e.rise = (made.rise != null) ? (made.rise | 0) : effStepRise(made);
   e.hold = (made.hold != null) ? (made.hold | 0) : effStepHold(made);
   e.fade = (made.fade != null) ? (made.fade | 0) : effStepFade(made);
+  /* 跳变的快拍：模板没写就落 0 = 关（不重置的话，上一条效果留下的大数会带过来） */
+  e.step_fast = (made.step_fast != null) ? effStepFast(made) : 0;
   /* 呼吸：模板没写 b_rise / b_hold 就按它的 period 摊成老三角波（period/2 + 0）——
    * 不重置的话，上一条效果留下的 b_rise 会把模板的 period 覆掉（套了「呼吸」却不是 90 拍） */
   if ((e.color | 0) === FW.COLOR.BREATH) {
@@ -10004,7 +10045,7 @@ function fxTip0(id) {
 /* 按配色模式显示/隐藏参数行，并把「速度」那一格的标题换成该模式的说法 */
 function syncFxColorRows(e) {
   /* 先把这几行的原始提示缓存下来（下面可能临时换成呼吸的说法） */
-  ['fRise', 'fHold', 'fFade', 'fPeriod', 'fSpeed'].forEach(fxTip0);
+  ['fRise', 'fHold', 'fFade', 'fStepFast', 'fPeriod', 'fSpeed'].forEach(fxTip0);
   const mode = e ? (e.color | 0) : FW.COLOR.SOLID;
   const show = (id, on) => { const el = $('#' + id); if (el) el.style.display = on ? '' : 'none'; };
   const uses = (mode === FW.COLOR.SOLID || mode === FW.COLOR.STEP ||
@@ -10043,6 +10084,8 @@ function syncFxColorRows(e) {
   show('rowRise', isStepColor || isBreathColor);
   show('rowHold', isStepColor || isBreathColor);
   show('rowFade', isStepColor);
+  /* 快拍：只有跳变用得上（快档取消渐灭、快速换色） */
+  show('rowStepFast', isStepColor);
   /* 覆盖：覆盖灯数（等级）+ 方向；铺法（纯色 / 位置渐变）看调色板条目本身 */
   show('rowCoverDir', isWipeColor);
   show('rowCoverSpan', isWipeColor);
@@ -10150,7 +10193,7 @@ function syncFxEdit() {
   const e = editTarget();
   const on = !!e;
   /* 名称不在这一串里 —— 它只读（自动生成），不用跟着禁用 / 启用 */
-  const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSmooth','fSpeed','fGradStep','fRise','fHold','fFade',
+  const ids = ['fLatin','fEn','fColor','fSlow','fFast','fSmooth','fSpeed','fGradStep','fRise','fHold','fFade','fStepFast',
                'fLevels','fHueBase','fHueSpeed','fPeriod','fGrad','fCoverDir','fCoverSpan',
                'fxGradNew','fxGradSave','fxGradDrop','fxGradAdd','fxGradSub',
                'fAnim','fWidth','fGap','fMoves','fOffset','fxPresetApply','fxPresetPick'];
@@ -10212,6 +10255,7 @@ function syncFxEdit() {
   /* 时间类：盒子里写 ms（内部存拍）。max/step 按拍上限换算，离开框时回显实际值 */
   msBox('fSlow', 255, 1); msBox('fFast', 255, 1);
   msBox('fRise', 255, 0); msBox('fHold', 255, 0); msBox('fFade', 255, 0);
+  msBox('fStepFast', 255, 0);
   msBox('fHueSpeed', 255, 0);
   msBox('fPeriod', BREATH_PERIOD_MAX, 2);
   msBox('fSpeed', 255, 0);
@@ -10224,6 +10268,7 @@ function syncFxEdit() {
   $('#fRise').value = fxMsOf(bs ? bs.rise : e.rise);
   $('#fHold').value = fxMsOf(bs ? bs.hold : e.hold);
   $('#fFade').value = fxMsOf(e.fade);
+  $('#fStepFast').value = fxMsOf(effStepFast(e));
   $('#fCoverDir').value = e.cover_dir;
   $('#fCoverSpan').value = e.cover_span;
   $('#fOffset').value = e.offset | 0;
@@ -10560,6 +10605,12 @@ function buildFxPanel() {
     x.fade = Math.min(255, fxTicksOf(+e.target.value, 0));
     stepSyncSpeed(x); fxLive();
   });
+  /* 快拍：快档（音乐过阈值）取消渐灭、每几拍换一色；0 = 关（快档也走「停留 + 包络」） */
+  bind('fStepFast', e => {
+    const x = editTarget(); if (!x) return;
+    x.step_fast = Math.min(255, fxTicksOf(+e.target.value, 0));
+    fxLive();
+  });
   bind('fLevels', e => {
     const x = editTarget(); if (!x) return;
     x.levels = Math.max(6, Math.min(255, +e.target.value || 30));
@@ -10574,7 +10625,7 @@ function buildFxPanel() {
     fxLive();
   });
   /* 时间类格子都是「显示 ms、存拍」：离开框时按模型回显实际生效的 ms（填 30 → 40） */
-  ['fSlow','fFast','fSmooth','fRise','fHold','fFade','fHueSpeed','fPeriod','fSpeed'].forEach(id => {
+  ['fSlow','fFast','fSmooth','fRise','fHold','fFade','fStepFast','fHueSpeed','fPeriod','fSpeed'].forEach(id => {
     const el = $('#' + id);
     if (el) el.onchange = () => { if (editTarget()) syncFxEdit(); };
   });

@@ -149,8 +149,13 @@ const out = byId.get('xOut').value;
 const eb = out.slice(out.indexOf('static const led_gen_effect_t'));
 ok(/^    \{ 1, /m.test((eb.match(/^    \{.*\},/gm) || [])[0] || ''), '效果表第 0 行被标成自定义（kind=1）');
 ok(/0 CUSTOM0_CUSTOM|0 .*CUSTOM/.test(out) || out.includes('custom'), 'g_presets 行的注释标了自定义');
-ok(/^    \{ 1, 0, 0, 0, 1, 255, 0, 0, 0, 0, 0, \d+, 8, 1, 0, 3, 0, 1, 0, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+, \d+ \},/m.test(eb),
-   '效果行记录了 layers_count=3: ' + ((eb.match(/^    \{ 1,.*/m) || ['(没找到)'])[0]));
+{
+  /* 2026-10-29 第三十六轮：效果行末尾又多了 step_fast → 31 列，这里按数值逐列断 */
+  const row0 = (eb.match(/^    \{ 1,.*/m) || [''])[0];
+  const n = row0.replace(/\/\*.*$/, '').replace(/[{},\s]/g, ' ').trim().split(/\s+/).map(Number);
+  ok(n.length === 31 && n[0] === 1 && n[15] === 3 && n[12] === 8 && n[13] === 1,
+     '效果行记录了 layers_count=3（31 列）: ' + row0);
+}
 
 ok(/^    \{ 0, 1, 5, 20, /m.test(out), `图层表第一行 = kind=0(光点), en=1, count=5, width=20: ${(out.match(/^    \{ 0, 1, 5, 20,.*/m) || ['(没找到)'])[0]}`);
 ok(byId.get('xWarn').innerHTML.includes('一次性补丁'), '导出时提示要打固件补丁');
