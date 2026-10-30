@@ -10372,7 +10372,7 @@ function syncFxEdit() {
   renderPalette(e);
   $('#fLevels').value = e.levels;
   $('#fHueBase').value = e.hue_base;
-  $('#fHueSpeed').value = e.hue_speed;
+  $('#fHueSpeed').value = fxMsOf(e.hue_speed);     /* 彩虹旋转：格子里是 ms（内部存拍） */
   /* 呼吸的两行是它自己的字段（b_rise / b_hold），周期由它们算出来（只读）；
    * 跳变照旧用 rise / hold / fade（停留 = 三段之和） */
   const isBreathFx = (e.color | 0) === FW.COLOR.BREATH;

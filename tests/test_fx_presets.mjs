@@ -112,6 +112,17 @@ ok(e0.layers.length === 1 && e0.layers[0].kind === 'fill', `图层: ${e0.layers.
 ok(e0.color === CORE.FW.COLOR.RAINBOW, `配色 = 效果级「彩虹」（${e0.color}）：图层不再自带空间色相`);
 ok(e0.levels >= 6, `级数 = ${e0.levels}（走完一轮红→红要多少颗灯）`);
 ok(e0.hue_speed > 0, `彩虹旋转 = ${e0.hue_speed}（每 N 帧转一格）`);
+/* 彩虹旋转这一格按 ms 显示（内部存拍）：hue_speed = 2 拍 → 格子写 40ms */
+ok(byId.get('fHueSpeed').value === String(e0.hue_speed * 20),
+   `「彩虹旋转」按 ms 显示：${e0.hue_speed} 拍 → ${byId.get('fHueSpeed').value}ms`);
+{
+  const hs = byId.get('fHueSpeed');
+  hs.value = '200'; hs.oninput({ target: hs });
+  await new Promise(r => setTimeout(r, 700));
+  ok(fxListOf(0)[0].hue_speed === 10, `填 200ms → 存 ${fxListOf(0)[0].hue_speed} 拍`);
+  hs.onchange();
+  ok(hs.value === '200', `离开格子回显 ${hs.value}ms（不是拍数）`);
+}
 ok(!('cmode' in e0.layers[0]) && !('hue_spread' in e0.layers[0]),
    '图层里没有 cmode / hue_*（「本层取色」已退休）');
 
