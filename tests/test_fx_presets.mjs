@@ -672,6 +672,17 @@ console.log('--- 新配色（效果级）---');
     ok(fxListOf(0)[0].layers[0].pulse_period === 2 &&
        nums[1].value === '40',
        `图层填 30ms → 2 拍，框里回显 ${nums[1].value}ms`);
+    /* 2026-10-30：三角脉动最低那一拍不许是 0（50Hz 下 20ms 全黑 = 「熄灭前闪一下」）。
+     * 预置把 pulse_amp 从 255 收到 250 → 最低 ≈5/255，看不出黑帧。 */
+    const amp = fxListOf(0)[0].layers[0].pulse_amp | 0;
+    let mn = 255;
+    for (let t = 0; t < 60; t++) mn = Math.min(mn, CORE.pulseGain(t, 60, amp, 0));
+    ok(amp === 250 && mn > 0 && mn <= 8,
+       `呼吸彩虹：最低亮度 ${mn}/255（pulse_amp = ${amp}）—— 不落全黑，熄灭处不闪`);
+    /* 整条效果级（没有光点层）：慢速 / 快速 / 平滑 / 起始位 四行收起 */
+    ok(['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
+         .every(id => byId.get(id).style.display === 'none'),
+       '呼吸彩虹（整条效果级）：慢速 / 快速 / 平滑 / 起始位 四行收起');
   }
 }
 

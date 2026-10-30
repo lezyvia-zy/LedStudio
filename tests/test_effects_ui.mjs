@@ -268,6 +268,9 @@ ok(projState(0).anim.effectId === e0d.id, '重开后选中的还是同一个效�
   click('fxDel');
   await new Promise(r => realST(r, 70));
   ok(fxListOf(0).length === 8, `确认后删掉 1 条（剩 ${fxListOf(0).length} 条）`);
+  /* 2026-10-30：删掉中间那条之后槽位要自动重排成 0..7 连号（以前会留下空号） */
+  ok(fxListOf(0).map(e => e.slot).join() === '0,1,2,3,4,5,6,7',
+     `删掉中间那条后槽位自动重排：${fxListOf(0).map(e => e.slot).join()}`);
   ok(/已删除效果/.test(byId.get('status').textContent),
      `状态栏给了反馈: "${byId.get('status').textContent.slice(0, 40)}"`);
   ok(/lv-warn/.test(byId.get('status').className), '被人引用的效果被删掉时提示是 warn 级（要留意，不是普通提示）');
