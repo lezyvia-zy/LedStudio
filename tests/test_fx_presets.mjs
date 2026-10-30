@@ -957,6 +957,29 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
     ok(hcC && hcC.r === 0 && hcC.g === 255, '实例拿到新的固定头部颜色');
   }
 
+  /* 13d-2 渐变层：「第二段渐变」下拉 + 预置「渐变旋转」（方向反转 / 快档 16 倍） */
+  {
+    pick.value = '渐变旋转'; click('fxPresetApply');
+    await new Promise(r => setTimeout(r, 700));
+    const eG = list0()[bi];
+    ok(eG.layers[0].kind === 'gradient' && eG.slow === 16 && eG.fast === 1,
+       `渐变旋转：慢速 ${eG.slow} / 快速 ${eG.fast}（快档 ${eG.slow / eG.fast} 倍），铺 ${eG.layers[0].spans} 段`);
+    const walkSel = (n, out) => { (n.children || []).forEach(c => {
+      if (c.tagName === 'SELECT') out.push(c); walkSel(c, out); }); return out; };
+    const gsel = walkSel(byId.get('fLayers'), [])[0];
+    ok(!!gsel && gsel.children.length >= 2,
+       `渐变层有「第二段渐变」下拉（${gsel && gsel.children.length} 项：留空 + 色库条目）`);
+    ok(gsel && gsel.children[0] && String(gsel.children[0].value) === '',
+       '默认留空 = 两段同色（都用下方色彩配置）');
+    if (gsel && gsel.children[1]) { gsel.value = gsel.children[1].value; gsel.onchange(); }
+    await new Promise(r => setTimeout(r, 700));
+    ok(!!list0()[bi].layers[0].hg2,
+       `选了一条色库渐变 → 图层记下 hg2=${list0()[bi].layers[0].hg2}`);
+    const instG = CORE.instNew(); CORE.simApplyEffect(instG, list0()[bi], 0);
+    ok(!!instG.grad2 && instG.g2Spans === 2,
+       '实例拿到第二段色环 + 段数（预览与导出 C 同源）');
+  }
+
   /* 13e 下拉停在占位时点「套用」：什么都不动（说明里报一句） */
   const beforeEmpty = JSON.stringify(list0()[bi].layers);
   pick.value = ''; click('fxPresetApply');

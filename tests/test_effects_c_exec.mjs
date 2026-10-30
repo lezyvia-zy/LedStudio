@@ -184,6 +184,13 @@ const SPIN = mkFx(17, [{ kind:'fill', level:120, pulse_period:0, pulse_amp:0, wa
                        { kind:'gradient', lo:0, hi:255, spans:2, phase:0, wave:0,
                          direction:1, bounce:0, rotate:3 }]);
 SPIN.color = CORE.FW.COLOR.RAINBOW; SPIN.levels = 30; SPIN.hue_base = 0; SPIN.hue_speed = 3;
+/* 第二段渐变（2026-10-30）：渐变层铺 2 段时，第 2、4…段整段改用色库里另一条渐变 —— 
+ * 这里给它挂一条「绿→品红」，同一段顺便把 C 侧的 g2 取色分支也真跑一遍。 */
+{
+  const G2 = CORE.gradNew(st, st.gradients.list[0]);
+  G2.anchors = [[0, 255, 0], [255, 0, 255]];
+  SPIN.layers[1].hg2 = G2.id;
+}
 st.modes.list.push({ id:'mT', name:'旋转流动', latin:'FLOW', enabled:true,
                      binds:[{ effect:SPIN.id, zones:[] }] });
 /* 扫描填充（移植固件 PixelFill_OneWay / TwoWay）：每拍一步（rotate=1），37 拍能看到

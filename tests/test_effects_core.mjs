@@ -328,6 +328,36 @@ console.log('--- 亮度渐变 ---');
   ok(ch.length > 0 && ch.length < len,
      `Q8 分数相位：1 拍只挪 1/3 级，只有 ${ch.length}/${len} 颗灯 +1（不是整条一起跳）`);
 }
+/* 旋转方向（2026-10-30 用户：「把现在的旋转方向反过来，让最亮的在前，然后依次减弱亮度」）：
+ * rot8 取负 → 图案按「灯号 +1」走：最亮那一端领跑，身后（灯号更小的那边）依次变暗。
+ * 实测 len=24 / spans=1 / rotate=4：t0 最亮在 23，转 1 级后最亮在 0、整条低 1 级。 */
+{
+  const len = 24, a = mk(len), b = mk(len);
+  const L = { kind:'gradient', lo:0, hi:255, spans:1, phase:0, wave:WAVE.SAW, rotate:4 };
+  genGradient(a, len, L, 0);
+  genGradient(b, len, L, 4);
+  const iMax = m => { let p = 0; for (let i = 1; i < m.length; i++) if (m[i] > m[p]) p = i; return p; };
+  ok(iMax(a) === 23 && iMax(b) === 0,
+     `反向旋转：最亮端按「灯号 +1」走（t0 在 ${iMax(a)}、转 1 级后到 ${iMax(b)}）—— 亮头领跑、暗尾在后面`);
+  ok(b[23] === 244 && b[0] === 255, `反向旋转：整条比上一拍低 1 级、亮头在 0（${b[0]}/${b[23]}）`);
+}
+/* 「第二段渐变」（2026-10-30）：渐变层铺 2 段以上时，第 2、4…段的整段改用色库另一条渐变的
+ * 当前相位色；没选（grad2 = null）= 两段同色，全跟效果「色彩配置」。 */
+{
+  const I = CORE.instNew();
+  I.color.type = CORE.FW.COLOR.SPECTRUM;
+  I.color.current = { r: 9, g: 9, b: 9 };
+  I.color.phase = 10;
+  I.grad2 = Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }));
+  I.g2Spans = 2;
+  const hue = new Uint8Array(24).fill(0xFF);
+  const c0 = CORE.effectColorAt(I, 0, 24, hue);
+  const c1 = CORE.effectColorAt(I, 12, 24, hue);
+  ok(c0.r === 9 && c1.r === 10,
+     `第二段渐变：第 1 段跟效果配色（${c0.r}）、第 2 段用另一条色环的当前相位色（${c1.r}）`);
+  I.grad2 = null; I.g2Spans = 0;
+  ok(CORE.effectColorAt(I, 12, 24, hue).r === 9, '没选第二段渐变 → 两段同色（都用效果色彩配置）');
+}
 
 /* ---- 随机闪：慢档「快亮慢灭」/ 快档老样式 ---- */
 console.log('--- 随机闪（慢档火花 / 快档老样式）---');

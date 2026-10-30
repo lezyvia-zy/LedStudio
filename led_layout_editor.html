@@ -1049,7 +1049,8 @@
           <tr><td>亮度下限/上限</td><td>斜坡两端的亮度。</td></tr>
           <tr><td>起始位</td><td>斜坡从环上哪个位置开始。想让暗处对着某个方向时调它。</td></tr>
           <tr><td>绕环轮数</td><td>一圈里有几个明暗来回。</td></tr>
-          <tr><td>旋转</td><td>每 N 帧把斜坡推进一格；0 = 不动。</td></tr>
+          <tr><td>旋转</td><td>每 N 帧把斜坡推进一格；0 = 不动。方向固定是「最亮那头领跑」，身后依次变暗（锯齿的亮边在前）。跟着快慢档：快档按「慢速 ÷ 快速」的倍率转得更快。</td></tr>
+          <tr><td>第二段渐变</td><td>「绕环轮数」≥ 2 时才有用：第 2、4…段整段改用<b>色库里另一条渐变</b>的颜色（取当前相位），第 1、3…段仍跟下方「色彩配置」。<b>留空 = 两段同色</b>（都用色彩配置）。只改颜色，不动亮度斜坡与转速 —— 两段同相位变色，速度一致。</td></tr>
         </table>
 
         <h4>颜色从哪来：只从「色彩配置」来</h4>
@@ -3215,7 +3216,9 @@ function genSweep(mask, len, L, st) {
 function genGradient(mask, len, L, tick) {
   const lo = L.lo, hi = L.hi;
   if (hi <= lo) return;
-  const rot8 = (L.rotate > 0) ? (Math.floor((tick * 256) / L.rotate) & 0xFFFF) : 0;
+  /* 旋转方向（2026-10-30 用户点名）：反向转 —— 让**最亮的那一端领跑**，往后依次渐暗。
+   * rot8 取负 = 图案往另一头走（锯齿的亮头在前、暗尾拖在后面）。 */
+  const rot8 = (L.rotate > 0) ? ((0x10000 - Math.floor((tick * 256) / L.rotate)) & 0xFFFF) : 0;
   const spans = L.spans > 0 ? L.spans : 1;
   const phase8 = ((L.phase | 0) & 0xFF) * 256;
   const dr = hi - lo;
@@ -3672,6 +3675,8 @@ function instNew() {
     flow_tick: null, flow_acc: 0,
     /* 扫描填充的头部渐变（选了色库某条时） */
     swGrad: null,
+    /* 渐变层的「第二段渐变」（奇数段用它取色）+ 该层的段数；null = 两段同色 */
+    grad2: null, g2Spans: 0,
     /* 这一拍是不是快档（随机闪慢/快档两套画法要用） */
     fastNow: 0,
     /* 平滑 T（ms，效果级）：慢档时 renderAllSim 按它逐灯爬亮度；0 / 快档 = 直通 */
@@ -3775,10 +3780,15 @@ function simApplyEffect(inst, eff, idx, state) {
     /* 头部渐变（若选了色库某条）：把那张色环装进实例；没选就跟着效果自己那张 */
     const SL0 = (eff.layers || []).find(L => L.en !== 0 && L.kind === 'sweep' && L.hg);
     inst.swGrad = SL0 ? gradTable(gradById(state, SL0.hg)) : null;
+    /* 渐变层的「第二段渐变」（奇数段用它取色）：没选就是 null = 两段同色 */
+    const GL0 = (eff.layers || []).find(L => L.en !== 0 && L.kind === 'gradient' && L.hg2);
+    inst.grad2 = GL0 ? gradTable(gradById(state, GL0.hg2)) : null;
+    inst.g2Spans = GL0 ? Math.max(1, Math.min(8, GL0.spans | 0 || 1)) : 0;
   } else {
     inst.anim.layers = [];
     inst.anim.moves = false;
     inst.swGrad = null;
+    inst.grad2 = null; inst.g2Spans = 0;
   }
   inst.anim.offset  = (eff.kind === 'custom') ? (eff.offset | 0) : 0;
   inst.anim.gen_tick = 0;
@@ -4252,6 +4262,12 @@ function effectColorAt(inst, i, len, hue, st) {
   }
   /* 覆盖模式先判：hue[] 是调色板条目索引（不是 tint / 哨兵），按条目 + 灯位取色 */
   if (c.type === FW.COLOR.WIPE) return wipeEntryAt(c, hh, i, wipeSpan(c, len));
+  /* 渐变层的「第二段渐变」：奇数段（第 2、4…段）整段改用色库里另一条渐变，
+   * 取当前相位色；没选就是 null → 两段同色（跟效果「色彩配置」）。 */
+  if (inst.grad2 && (inst.g2Spans | 0) >= 2) {
+    const seg = Math.floor((i * (inst.g2Spans | 0)) / len);
+    if (seg & 1) return inst.grad2[(c.phase | 0) & 0xFF];
+  }
   if (hh !== 0xFF) return FW.spectrum_tbl[hh];
   if (a.type === FW.ANIM.CHASE_DUAL && c.type === FW.COLOR.GRADIENT)
     return (i >= len / 2) ? c.secondary : c.current;
@@ -4612,6 +4628,8 @@ function layerNums(L) {
     hc_r: hc[0] | 0, hc_g: hc[1] | 0, hc_b: hc[2] | 0, hc_mode: hm,
     /* 头部渐变指向哪个色环：0xFFFF = 用效果自己那张（由 modesPlan 换成真实下标） */
     hg_first: 0xFFFF,
+    /* 渐变层的「第二段渐变」：0xFFFF = 没选（两段同色，跟效果色彩配置） */
+    hg2_first: 0xFFFF,
     direction: dir, bounce: bn,
     flags: dir | (bn << 1),
   };
@@ -4689,6 +4707,11 @@ function modesPlan(state) {
         const g = gradById(state, L.hg);
         row.hg_first = gradFirstOf(gradTable(g));
       }
+      /* 渐变层的「第二段渐变」：选了色库某条也把那张色环带上（同内容去重） */
+      if (L.kind === 'gradient' && L.hg2) {
+        const g2 = gradById(state, L.hg2);
+        row.hg2_first = gradFirstOf(gradTable(g2));
+      }
       layerRows0.push(row);
     }
     return Object.assign(base, { kind: 1, anim: 0,
@@ -4763,6 +4786,8 @@ const LED_GEN_IMPL = [
 '    uint16_t    flow_acc;',
 '    uint8_t     sw_r, sw_g, sw_b, sw_used, sw_mode;   /* @sweepc@ */',
 '    uint16_t    sw_grad_first;',
+'    uint16_t    g2_first;     /* @grad2c@ */',
+'    uint8_t     g2_spans;',
 '    uint8_t     fast_now;     /* @fastnow@ */',
 '} led_gen_inst_t;',
 '',
@@ -4999,7 +5024,7 @@ const LED_GEN_IMPL = [
 '    if (L->hi <= L->lo) return;',
 '    /* Q8 fractional phase: t8 = t * 256 keeps the sub-level part per LED, so a step',
 '       moves one LED at a time instead of brightening the whole ring at once. */',
-'    rot8   = (L->rotate > 0u) ? ((((uint32_t)tick << 8) / L->rotate) & 0xFFFFu) : 0u;',
+'    rot8   = (L->rotate > 0u) ? ((0x10000u - ((((uint32_t)tick << 8) / L->rotate) & 0xFFFFu)) & 0xFFFFu) : 0u;',
 '    spans  = (L->spans > 0u) ? L->spans : 1u;',
 '    phase8 = (uint32_t)L->phase << 8;',
 '    for (i = 0; i < len; i++) {',
@@ -5352,6 +5377,8 @@ const LED_GEN_IMPL = [
 '            led_gen_inst[cnt].color.spectrum_speed = (E->spectrum_speed > 0u) ? E->spectrum_speed : 1u;',
 '            led_gen_inst[cnt].color.phase.current = 0;',
 '            led_gen_inst[cnt].color.tick_cnt = 0;',
+'            led_gen_inst[cnt].g2_first = 0xFFFFu;',
+'            led_gen_inst[cnt].g2_spans = 0u;',
 '            led_gen_inst[cnt].speed_slow = (E->slow > 0u) ? E->slow : 1u;',
 '            led_gen_inst[cnt].speed_fast = (E->fast > 0u) ? E->fast : 1u;',
 '            led_gen_inst[cnt].speed_cur  = led_gen_inst[cnt].speed_slow;',
@@ -5382,6 +5409,24 @@ const LED_GEN_IMPL = [
 '            MI->sw_r = SL->hc_r; MI->sw_g = SL->hc_g; MI->sw_b = SL->hc_b;',
 '            MI->sw_grad_first = (SL->hg_first == 0xFFFFu) ? SE->grad_first : SL->hg_first;',
 '        }',
+'    }',
+'    /* @grad2init@ */',
+'    /* second gradient segment: find the gradient layer that carries hg2_first in the',
+'       layer table and copy its ring start / span count into the instance',
+'       (none found = both segments share the effect colour). */',
+'    for (z = 0; z < ZONE_MAX; z++) {',
+'        const led_gen_effect_t *GE; const led_gen_layer_t *GL2 = 0; uint8_t kk;',
+'        if (led_gen_zone_inst[z] >= led_gen_inst_count) continue;',
+'        GE = &led_gen_effects[led_gen_inst[led_gen_zone_inst[z]].eff];',
+'        for (kk = 0; kk < GE->layers_count; kk++) {',
+'            const led_gen_layer_t *L2 = &led_gen_layers[GE->layers_first + kk];',
+'            if (L2->en && (L2->kind == (uint8_t)LED_GEN_LAYER_GRADIENT) &&',
+'                (L2->hg2_first != 0xFFFFu)) { GL2 = L2; break; }',
+'        }',
+'        if (GL2 == 0) continue;',
+'        led_gen_inst[led_gen_zone_inst[z]].g2_first = GL2->hg2_first;',
+'        led_gen_inst[led_gen_zone_inst[z]].g2_spans =',
+'            (uint8_t)((GL2->spans > 0u) ? GL2->spans : 1u);',
 '    }',
 '    /* @audioreset@ */',
 '    led_gen_audio_acc = 0u; led_gen_audio_lvl = 0u; led_gen_stage = 0u; led_gen_stage_hold = 0u;',
@@ -5617,6 +5662,12 @@ const LED_GEN_IMPL = [
 '                    col.b = (uint8_t)((int32_t)pa->b + ((db * (int32_t)tt) >> 8));',
 '                }',
 '            }',
+'            else if ((I->g2_first != 0xFFFFu) && (I->g2_spans >= 2u) &&',
+'                     ((((uint32_t)i * (uint32_t)I->g2_spans) / (uint32_t)len) & 1u)) {',
+'                /* gradient layer, second segment: whole odd segment uses the other ring',
+'                   at the current gradient phase (0xFFFF = not chosen -> effect colour). */',
+'                col = led_gen_grad[I->g2_first + (uint8_t)I->color.phase.current];',
+'            }',
 '            else if (hh != 0xFFu) col = spectrum_tbl[hh];',
 '            else if (I->anim.type == ANIM_CHASE_DUAL && I->color.type == COLOR_GRADIENT)',
 '                col = (i >= len / 2u) ? I->color.secondary : I->color.current;',
@@ -5687,6 +5738,8 @@ const GEN_COMMENTS = {
   sweepc: { zh:'扫描填充的头部取色：sw_used = 有这一层；sw_mode 0 = 跟配色 / 1 = 固定色(sw_r/g/b) / 2 = 彩虹(按头部位置) / 3 = 渐变(当前相位)；颜色阶段只给头部那颗上色', en:'sweep head colour source: sw_used = such a layer exists; sw_mode 0 = follow the effect colour / 1 = fixed (sw_r/g/b) / 2 = rainbow at the head / 3 = gradient at the current phase; only the head LED is painted by it' },
   sweepstep: { zh:'每 rotate 个「流动拍」按**该分区自己的灯数**走一步（快档自动更快）；同一效果的多个分区各走各的', en:'advance one step every rotate flow ticks, one LED at a time of that zone own length (faster on the fast stage); zones sharing an effect step independently' },
   sweepinit: { zh:'扫描填充的起点：头部在远端（RING_SIZE-1），一颗都没填', en:'sweep starting state: head at the far end (RING_SIZE-1), nothing filled yet' },
+  grad2c: { zh:'渐变层的「第二段渐变」：g2_first 指向 led_gen_grad[]（0xFFFF = 没选）；g2_spans = 那一层的段数，奇数段（第 2、4…段）整段改用这条色环的当前相位色；apply_mode 里按图层表回填', en:'second gradient segment of a gradient layer: g2_first points into led_gen_grad[] (0xFFFF = not chosen); g2_spans = that layer segment count; odd segments (2nd, 4th, ...) use this ring at the current phase; filled in from the layer table by apply_mode' },
+  grad2init: { zh:'第二段渐变：从图层表里找带 hg2_first 的渐变层，把色环起点与段数装进实例（找不到 = 两段同色）', en:'second segment gradient: find the gradient layer carrying hg2_first in the layer table and copy its ring start / span count into the instance (none = both segments share the effect colour)' },
   flashgain: { zh:'音控闪的增益：亮的那几拍满亮，之后按「最低亮度」反算出的增益（0 = 全灭；level = 255 时增益就是最低亮度本身）', en:'audio flash gain: full brightness for the bright frames, then the gain derived from the lowest brightness (0 = fully dark; with level = 255 the gain equals that brightness)' },
   flashpick: { zh:'音控闪层用实例算好的增益；其余层照旧吃 led_gen_pulse()', en:'the audio flash layer uses the per-instance gain; every other layer keeps led_gen_pulse()' },
   flashstate: { zh:'音控闪的时钟：安静时每 pulse_period 拍闪一次（预置 250 拍 = 5000ms，uint16 最多 65535 拍 ≈ 21.8 分钟）；快档时每 flash_fast 拍闪一次（预置 25 拍 = 500ms，0 = 同安静间隔）；越过阈值那一拍立刻闪一次。灭的时候的亮度由 flash_low / level 反算，所以「最低亮度」填多少，暗下来就亮多少', en:'audio flash clock: one flash every pulse_period frames when quiet (the preset uses 250 = 5000ms; uint16 goes up to 65535 frames = about 21.8 minutes); one flash every flash_fast frames on the fast stage (the preset uses 25 = 500ms, 0 = same as quiet); the threshold crossing flashes right away. The dark frames use a gain derived from flash_low / level, so the lowest brightness is exactly what the tool shows' },
@@ -5905,6 +5958,7 @@ function exportEffectsC(state, opt) {
   lheadc: '扫描填充(sweep)的「头部颜色」(RGB): 只有这一层用, 已填那一段仍跟效果级配色走; 其它层写 255,255,255',
   lheadm: '头部取色: 0 = 跟配色(同常亮段), 1 = 固定颜色(用 hc_r/g/b), 2 = 彩虹(按头部位置取环上的色), 3 = 渐变(取当前相位色); 其它层写 0',
   lheadg: '头部渐变用哪条色环: 指向 led_gen_grad[] 的起点; 0xFFFF = 用效果自己那张渐变',
+  lgrad2: '渐变层「第二段渐变」用哪条色环: 指向 led_gen_grad[] 的起点; 0xFFFF = 没选（第 2、4…段与效果色彩配置同色）',
   llit: '扫描填充: 初始常亮灯数(每轮回到起点时保留亮着的灯数, 0 = 从全灭开始)',
   ltwmax: '随机闪(慢档): 每一发烟花最多同时点亮几颗(每发随机 1..这个数, 一起渐灭)',
   ltwon: '随机闪(慢档): 每发烟花保持满亮的拍数(uint16; 界面按 ms 填)',
@@ -5982,6 +6036,7 @@ function exportEffectsC(state, opt) {
   lheadc: 'sweep head colour (RGB): only the sweep layer uses it, the filled run keeps the effect-level colour; other layers write 255,255,255',
   lheadm: 'head colour source: 0 = follow the effect colour, 1 = fixed (hc_r/g/b), 2 = rainbow at the head position, 3 = gradient at the current phase; other layers write 0',
   lheadg: 'which colour ring the head gradient uses: start index into led_gen_grad[]; 0xFFFF = the effect own gradient',
+  lgrad2: 'which colour ring the second gradient segment uses: start index into led_gen_grad[]; 0xFFFF = not chosen (segments 2, 4, ... share the effect colour)',
   llit: 'sweep: LEDs kept lit at the start of every cycle (0 = start from fully dark)',
   ltwmax: 'twinkle (slow stage): max LEDs in one burst (each burst lights 1..this, fading together)',
   ltwon: 'twinkle (slow stage): frames each burst stays at full brightness (uint16; UI in ms)',
@@ -6078,6 +6133,7 @@ function exportEffectsC(state, opt) {
        '    uint16_t tw_on;       /* ' + t.ltwon + ' */',
        '    uint16_t tw_fade;     /* ' + t.ltwfade + ' */',
        '    uint8_t tw_mode;      /* ' + t.ltwmode + ' */',
+       '    uint16_t hg2_first;   /* ' + t.lgrad2 + ' */',
        '} led_gen_layer_t;',
        '',
        'typedef struct {',
@@ -6128,7 +6184,7 @@ function exportEffectsC(state, opt) {
                        R.density, R.rate, R.lo, R.hi, R.level, R.spans, R.rotate,
                        R.wave, R.flags, R.spacing, R.flash_fast, R.flash_on, R.flash_low,
                        R.hc_r, R.hc_g, R.hc_b, R.hc_mode, R.hg_first, R.lit,
-                       R.tw_max, R.tw_on, R.tw_fade, R.tw_mode].join(', ') + ' },');
+                       R.tw_max, R.tw_on, R.tw_fade, R.tw_mode, R.hg2_first].join(', ') + ' },');
     }
     push('};');
   } else {
@@ -9124,6 +9180,16 @@ function renderLayers() {
         '绕圈：一直朝一个方向追。\n走到头折返：一路走到环的最后一颗灯（绕满一整圈）才掉头，再照原路走回来 —— 一个来回 = 两圈（摆动 / 钟摆效果就是这么做的）。\n配合「起始位」可以把掉头的位置挪到环上任意一处。')));
     }
 
+    if (L.kind === 'gradient') {
+      /* 第二段渐变：铺 2 段以上时，第 2、4…段整段改用色库里另一条渐变（取当前相位）；
+         留空 = 两段同色（都用下方「色彩配置」）。只影响颜色，不动亮度斜坡与转速。 */
+      const gl2 = gradList(state);
+      const opts2 = [['', '（跟效果那张 / 两段同色）']].concat(gl2.map(g => [g.id, g.name]));
+      row.appendChild(layerRow('第二段渐变', selInput(opts2,
+        () => L.hg2 || '', v => { L.hg2 = v; fxLive(); },
+        '只在「绕环轮数」≥ 2 时有用：第 2、4…段整段换成色库里另一条渐变的颜色（取当前相位），第 1、3…段仍跟下方「色彩配置」。&#10;留空 = 两段同色（这就是「同色」的做法：全交给色彩配置）。&#10;只改颜色，不动亮度斜坡与转速；效果配色选「渐变」时，两段各自在自己的色环上走 —— 这就是「两段不同颜色」。')));
+    }
+
     if (L.kind === 'twinkle') {
       row.appendChild(layerRow('慢档样式', selInput([['0','烟花（几颗一起亮 / 一起灭）'], ['1','独立（每颗灯各自闪）']],
         () => String(L.tw_mode | 0), v => { L.tw_mode = +v; fxLive(); },
@@ -9288,7 +9354,12 @@ const FX_PRESETS = [
       layers:[ Object.assign(mkLayer('spot'),  { count:1, width:14, falloff:'cos' }) ] }) },
   { name:'沿环渐变',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('gradient'), { lo:0, hi:255, spans:1, phase:0, wave:0, rotate:0 }) ] }) },
-  { name:'渐变旋转',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:8, fast:1, speed:0,
+  /* 「渐变旋转」：锯齿渐变 + 旋转。2026-10-30 用户定：
+   *   ① 旋转方向**反过来**（genGradient 里 rot8 取负）—— 最亮的一端领跑、往后渐暗；
+   *   ② 快拍更猛：流动时钟的倍率 = 慢速 ÷ 快速，这里把「慢速」放到 16 拍（320ms）
+   *      → 快档 16 倍（慢档仍是 1:1，转速不变；这两格在这类整条效果上只管倍率）；
+   *   ③ 想两段不同颜色：图层卡「第二段渐变」挑一条色库渐变（留空 = 两段同色）。 */
+  { name:'渐变旋转',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:16, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('gradient'), { lo:20, hi:255, spans:2, phase:0, wave:2, rotate:3 }) ] }) },
   /* 「单向填充 / 双向填充」：移植固件 spim_led.c 的 PixelFill_OneWay / PixelFill_TwoWay ——
    * 已填区域逐颗长出来、头部从远端跑回边界、填满后从远端清空再重来。
