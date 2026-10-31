@@ -984,6 +984,10 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
        `渐变旋转：慢速 ${eG.slow} / 快速 ${eG.fast}（快档 ${eG.slow / eG.fast} 倍），铺 ${eG.layers[0].spans} 段`);
     const walkSel = (n, out) => { (n.children || []).forEach(c => {
       if (c.tagName === 'SELECT') out.push(c); walkSel(c, out); }); return out; };
+    /* 会转的渐变层：慢速 / 快速 / 平滑 / 起始位 这四格必须留着（快档倍率 = 慢速 ÷ 快速） */
+    ok(['rowSlow', 'rowFast', 'rowSmooth', 'rowOffset']
+         .every(id => byId.get(id).style.display !== 'none'),
+       '渐变旋转（rotate > 0）：慢速 / 快速 / 平滑 / 起始位 四行仍然显示');
     const sels = walkSel(byId.get('fLayers'), []);
     ok(sels.length === 2 && sels[0].children.length >= 2 && sels[1].children.length >= 2,
        `渐变层有两个下拉：第一段 / 第二段渐变（${sels.length} 个，各 ${sels[0] && sels[0].children.length} / ${sels[1] && sels[1].children.length} 项）`);
