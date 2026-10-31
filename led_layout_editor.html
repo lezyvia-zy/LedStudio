@@ -3235,22 +3235,27 @@ function genSweep(mask, len, L, st) {
  *   w8 = f(t8)（方波 / 锯齿 / 三角都在 0..65280），v = lo + (hi−lo)×w8 / 65280
  * 注意 `rot8 = tick×256/rotate` 也是分数：rotate 除不尽时（3 拍一格）每拍只走 5/256 级，
  * 不再等满 3 拍才跳一格。 */
-/* 渐变层「第 k 段用哪条色环」：hgs[k] = 渐变色库 id，'' = 同色（跟下方「色彩配置」）。
- * 老存档只有 hg1 / hg2（两段）→ 读的时候自动并成 hgs；段数变了就裁/补到 spans 个。 */
+/* 「第 k 段 / 第 k 点用哪条色环」：`hgs[k]` = 渐变色库 id，'' = 同色（跟下方「色彩配置」）。
+ * 渐变层按 `spans` 段、光点层按 `count` 个点；老存档只有 hg1 / hg2（两段）→ 自动并成 hgs；
+ * 段数 / 点数变了就裁/补。 */
 function layerHgs(L) {
-  if (!L || L.kind !== 'gradient') return [];
+  if (!L) return [];
+  const isGrad = L.kind === 'gradient', isSpot = L.kind === 'spot';
+  if (!isGrad && !isSpot) return [];
   if (!Array.isArray(L.hgs)) {
     L.hgs = [L.hg1 || '', L.hg2 || ''];
     delete L.hg1; delete L.hg2;
   }
-  const n = Math.max(1, Math.min(8, L.spans | 0 || 1));
+  const want = isGrad ? (L.spans | 0 || 1) : (L.count | 0 || 1);
+  const n = Math.max(1, Math.min(8, want));
   while (L.hgs.length < n) L.hgs.push('');
   if (L.hgs.length > 8) L.hgs.length = 8;
   return L.hgs;
 }
 function genGradient(mask, len, L, tick) {
   const lo = L.lo, hi = L.hi;
-  if (hi <= lo) return;
+  if (hi < lo) return;                       /* hi == lo 也画：整条同一个亮度（「多彩旋转」用） */
+  if (hi === lo) { for (let i = 0; i < len; i++) if (lo > mask[i]) mask[i] = lo; return; }
   /* 旋转（2026-10-30 第四十七轮）：`rotate` 是「每几拍推进 1 级」，`rspd` 是「每拍推进几级」
    * （1..16）。一拍最多 1 级时，一颗灯的相位步长（spans×65536/len ≈ 13~21 级）要十几拍才挪
    * 一颗 —— 看着既慢又顿；倍率就是给这档加速用的。 */
@@ -3714,7 +3719,7 @@ function instNew() {
     /* 扫描填充的头部渐变（选了色库某条时） */
     swGrad: null,
     /* 渐变层的「每段用哪条色环」（最多 8 段）+ 段数 / 旋转 / 倍率 / 起始位；null = 该段同色（跟效果配色） */
-    gRings: [], g2Spans: 0, gRot: 0, gSpd: 1, gPh: 0,
+    gRings: [], g2Spans: 0, gRot: 0, gSpd: 1, gPh: 0, gSpot: -1,
     /* 这一拍是不是快档（随机闪慢/快档两套画法要用） */
     fastNow: 0,
     /* 平滑 T（ms，效果级）：慢档时 renderAllSim 按它逐灯爬亮度；0 / 快档 = 直通 */
@@ -3818,10 +3823,13 @@ function simApplyEffect(inst, eff, idx, state) {
     /* 头部渐变（若选了色库某条）：把那张色环装进实例；没选就跟着效果自己那张 */
     const SL0 = (eff.layers || []).find(L => L.en !== 0 && L.kind === 'sweep' && L.hg);
     inst.swGrad = SL0 ? gradTable(gradById(state, SL0.hg)) : null;
-    /* 渐变层的「每段用哪条色环」：最多 8 段，'' = 同色 */
+    /* 渐变层的「每段用哪条色环」/ 光点层的「每点用哪条色环」：最多 8 个，'' = 同色 */
     const GL0 = (eff.layers || []).find(L => L.en !== 0 && L.kind === 'gradient');
+    const SP0 = (eff.layers || []).findIndex(L => L.en !== 0 && L.kind === 'spot' &&
+                                               (L.hg1 || L.hg2 || (Array.isArray(L.hgs) && L.hgs.some(Boolean))));
     inst.g2Spans = GL0 ? Math.max(1, Math.min(8, GL0.spans | 0 || 1)) : 0;
     inst.gRings = [];
+    inst.gSpot = -1;
     if (GL0) {
       const hs = layerHgs(GL0);
       for (let k = 0; k < inst.g2Spans; k++) {
@@ -3830,6 +3838,15 @@ function simApplyEffect(inst, eff, idx, state) {
       inst.gRot = Math.max(0, Math.min(255, GL0.rotate | 0));
       inst.gSpd = Math.max(1, Math.min(16, GL0.rspd | 0 || 1));
       inst.gPh  = (GL0.phase | 0) & 0xFF;
+    } else if (SP0 >= 0) {
+      const SL = eff.layers[SP0];
+      const hs = layerHgs(SL);
+      const np = Math.max(1, Math.min(8, SL.count | 0 || 1));
+      for (let k = 0; k < np; k++) {
+        inst.gRings.push(hs[k] ? gradTable(gradById(state, hs[k])) : null);
+      }
+      inst.gSpot = SP0;
+      inst.gRot = 0; inst.gSpd = 1; inst.gPh = 0;
     } else {
       inst.gRot = 0; inst.gSpd = 1; inst.gPh = 0;
     }
@@ -4296,7 +4313,7 @@ function simTick(sim, state, applyReverse) {
 
 /* 把整个模式渲染进 fb：逐条绑定，逐分区 */
 /* 某个灯位上这一帧该用什么颜色 */
-function effectColorAt(inst, i, len, hue, st) {
+function effectColorAt(inst, i, len, hue, st, zpos) {
   const a = inst.anim, c = inst.color;
   const hh = hue[i];
   /* 扫描填充：头部那一颗按它自己的取色模式上色（跟配色 / 固定 / 彩虹 / 渐变）；
@@ -4307,6 +4324,29 @@ function effectColorAt(inst, i, len, hue, st) {
     if (i === hd) {
       const hc = sweepHeadColor(inst, i, len, st);
       if (hc) return hc;
+    }
+  }
+  /* 光点层的「第 N 点」配色：按光点在环上的位置分（光点走到哪、那个颜色走到哪）。
+   * 几何与 genSpot 同一套：step / phOff / dir / bounce / lap。 */
+  if (inst.gSpot >= 0 && inst.gRings && inst.gRings.length) {
+    const L = (inst.anim.layers || [])[inst.gSpot];
+    if (L) {
+      const count = Math.max(1, L.count | 0);
+      const rd = len * 256;
+      const step = (L.spacing > 0) ? Math.max(1, zoneScaled(L.spacing, len, 0)) * 256
+                                   : Math.floor(rd / count);
+      const dir = L.direction ? 1 : -1;
+      const phOff = (L.phase | 0) * len;
+      let zz = (zpos | 0) + ((inst.anim.offset | 0) * len);
+      zz %= rd; if (zz < 0) zz += rd;
+      const q = L.bounce ? bouncePos(zz + (inst.lap ? rd : 0), rd) : zz;
+      const p0 = dir > 0 ? q : rd - q;
+      let d = (i * 256 - phOff) - p0;
+      d = ((d % rd) + rd) % rd;
+      let s = Math.round(d / step) % count;
+      if (s < 0) s += count;
+      const tbl = inst.gRings[s];
+      if (tbl) return tbl[(c.phase | 0) & 0xFF];
     }
   }
   /* 覆盖模式先判：hue[] 是调色板条目索引（不是 tint / 哨兵），按条目 + 灯位取色 */
@@ -4376,7 +4416,7 @@ function renderAllSim(sim, state, applyReverse) {
         const idx  = rev ? (len - 1 - i) : i;
         const phys = z.start + idx;
         if (phys < 0 || phys >= FW.LED_COUNT) continue;
-        const col = effectColorAt(inst, i, len, a.hue, swState);
+        const col = effectColorAt(inst, i, len, a.hue, swState, zpos);
         fb[phys * 3 + 0] = (col.r * b * br) >> 16;
         fb[phys * 3 + 1] = (col.g * b * br) >> 16;
         fb[phys * 3 + 2] = (col.b * b * br) >> 16;
@@ -4767,7 +4807,7 @@ function modesPlan(state) {
         row.hg_first = gradFirstOf(gradTable(g));
       }
       /* 渐变层的「每段用哪条色环」：hgs[k] 选了色库某条就把那张色环带上（同内容去重） */
-      if (L.kind === 'gradient') {
+      if (L.kind === 'gradient' || L.kind === 'spot') {
         const hs = layerHgs(L);
         row.hg_ring = row.hg_ring.map((_, k) => {
           const id = hs[k];
@@ -4851,6 +4891,7 @@ const LED_GEN_IMPL = [
 '    uint16_t    sw_grad_first;',
 '    uint16_t    g_ring[8];    /* @grad2c@ */',
 '    uint8_t     g2_spans;',
+'    uint8_t     g_spot;       /* spot layer index with per-spot rings, 0xFF = none */',
 '    uint8_t     g_rot;',
 '    uint8_t     g_spd;',
 '    uint8_t     g_ph;',
@@ -5095,7 +5136,12 @@ const LED_GEN_IMPL = [
 '{',
 '    uint8_t  i, spans;',
 '    uint32_t rot8, phase8, n, q, r, base8, t8, w8, v;',
-'    if (L->hi <= L->lo) return;',
+'    if (L->hi < L->lo) return;',
+'    /* hi == lo: flat ring at that brightness (used by the multi-colour rotating ring) */',
+'    if (L->hi == L->lo) {',
+'        for (i = 0; i < len; i++) if (L->lo > mask[i]) mask[i] = L->lo;',
+'        return;',
+'    }',
 '    /* Q8 fractional phase: t8 = t * 256 keeps the sub-level part per LED, so a step',
 '       moves one LED at a time instead of brightening the whole ring at once. */',
 '    rot8   = (L->rotate > 0u) ? ((0x10000u - (((((uint32_t)tick * 256u) *',
@@ -5453,6 +5499,7 @@ const LED_GEN_IMPL = [
 '            led_gen_inst[cnt].color.phase.current = 0;',
 '            led_gen_inst[cnt].color.tick_cnt = 0;',
 '            led_gen_inst[cnt].g2_spans = 0u;',
+'            led_gen_inst[cnt].g_spot = 0xFFu;',
 '            memset(led_gen_inst[cnt].g_ring, 0xFF, sizeof(led_gen_inst[cnt].g_ring));',
 '            led_gen_inst[cnt].g_rot = 0u;',
 '            led_gen_inst[cnt].g_spd = 1u;',
@@ -5494,21 +5541,35 @@ const LED_GEN_IMPL = [
 '       (none found = both segments share the effect colour). */',
 '    for (z = 0; z < ZONE_MAX; z++) {',
 '        const led_gen_effect_t *GE; const led_gen_layer_t *GL2 = 0; uint8_t kk;',
+'        uint8_t kkSpot = 0xFFu;',
 '        if (led_gen_zone_inst[z] >= led_gen_inst_count) continue;',
 '        GE = &led_gen_effects[led_gen_inst[led_gen_zone_inst[z]].eff];',
 '        for (kk = 0; kk < GE->layers_count; kk++) {',
 '            const led_gen_layer_t *L2 = &led_gen_layers[GE->layers_first + kk];',
-'            if (L2->en && (L2->kind == (uint8_t)LED_GEN_LAYER_GRADIENT)) { GL2 = L2; break; }',
+'            if (!L2->en) continue;',
+'            if (L2->kind == (uint8_t)LED_GEN_LAYER_GRADIENT) { GL2 = L2; break; }',
+'            if ((kkSpot == 0xFFu) && (L2->kind == (uint8_t)LED_GEN_LAYER_SPOT) &&',
+'                ((L2->hg_ring[0] != 0xFFFFu) || (L2->hg_ring[1] != 0xFFFFu) ||',
+'                 (L2->hg_ring[2] != 0xFFFFu) || (L2->hg_ring[3] != 0xFFFFu) ||',
+'                 (L2->hg_ring[4] != 0xFFFFu) || (L2->hg_ring[5] != 0xFFFFu) ||',
+'                 (L2->hg_ring[6] != 0xFFFFu) || (L2->hg_ring[7] != 0xFFFFu))) kkSpot = kk;',
 '        }',
-'        if (GL2 == 0) continue;',
-'        memcpy(led_gen_inst[led_gen_zone_inst[z]].g_ring, GL2->hg_ring,',
-'               sizeof(led_gen_inst[led_gen_zone_inst[z]].g_ring));',
-'        led_gen_inst[led_gen_zone_inst[z]].g2_spans =',
-'            (uint8_t)((GL2->spans > 0u) ? GL2->spans : 1u);',
-'        led_gen_inst[led_gen_zone_inst[z]].g_rot = GL2->rotate;',
-'        led_gen_inst[led_gen_zone_inst[z]].g_spd =',
-'            (uint8_t)((GL2->rspd > 0u) ? ((GL2->rspd > 16u) ? 16u : GL2->rspd) : 1u);',
-'        led_gen_inst[led_gen_zone_inst[z]].g_ph = GL2->phase;',
+'        if ((GL2 == 0) && (kkSpot == 0xFFu)) continue;',
+'        if (GL2 != 0) {',
+'            memcpy(led_gen_inst[led_gen_zone_inst[z]].g_ring, GL2->hg_ring,',
+'                   sizeof(led_gen_inst[led_gen_zone_inst[z]].g_ring));',
+'            led_gen_inst[led_gen_zone_inst[z]].g2_spans =',
+'                (uint8_t)((GL2->spans > 0u) ? GL2->spans : 1u);',
+'            led_gen_inst[led_gen_zone_inst[z]].g_rot = GL2->rotate;',
+'            led_gen_inst[led_gen_zone_inst[z]].g_spd =',
+'                (uint8_t)((GL2->rspd > 0u) ? ((GL2->rspd > 16u) ? 16u : GL2->rspd) : 1u);',
+'            led_gen_inst[led_gen_zone_inst[z]].g_ph = GL2->phase;',
+'        } else {',
+'            const led_gen_layer_t *SP2 = &led_gen_layers[GE->layers_first + kkSpot];',
+'            memcpy(led_gen_inst[led_gen_zone_inst[z]].g_ring, SP2->hg_ring,',
+'                   sizeof(led_gen_inst[led_gen_zone_inst[z]].g_ring));',
+'            led_gen_inst[led_gen_zone_inst[z]].g_spot = kkSpot;',
+'        }',
 '    }',
 '    /* @audioreset@ */',
 '    led_gen_audio_acc = 0u; led_gen_audio_lvl = 0u; led_gen_stage = 0u; led_gen_stage_hold = 0u;',
@@ -5742,6 +5803,35 @@ const LED_GEN_IMPL = [
 '                    col.r = (uint8_t)((int32_t)pa->r + ((dr * (int32_t)tt) >> 8));',
 '                    col.g = (uint8_t)((int32_t)pa->g + ((dg * (int32_t)tt) >> 8));',
 '                    col.b = (uint8_t)((int32_t)pa->b + ((db * (int32_t)tt) >> 8));',
+'                }',
+'            }',
+'            else if (I->g_spot != 0xFFu) {',
+'                /* spot layer with per-spot rings: which spot is nearest to this LED',
+'                   (same geometry as led_gen_spot), then that spot ring at the effect phase. */',
+'                const led_gen_layer_t *S2 = &led_gen_layers[E->layers_first + I->g_spot];',
+'                uint8_t  cnt2 = (S2->count != 0u) ? S2->count : 1u;',
+'                int32_t  rd2  = (int32_t)len * 256;',
+'                int32_t  st2  = (S2->spacing > 0u)',
+'                    ? (int32_t)(led_gen_scaled(S2->spacing, len, 0u) * 256) : (rd2 / (int32_t)cnt2);',
+'                int32_t  zz2  = (int32_t)zpos + (int32_t)E->offset * (int32_t)len;',
+'                int32_t  dd2, s2;',
+'                uint16_t ring2;',
+'                zz2 %= rd2; if (zz2 < 0) zz2 += rd2;',
+'                if ((S2->flags & 2u) != 0u) {',
+'                    int32_t t2 = zz2 + ((I->lap != 0u) ? rd2 : 0);',
+'                    t2 %= (2 * rd2); if (t2 < 0) t2 += 2 * rd2;',
+'                    zz2 = (t2 < rd2) ? t2 : (2 * rd2 - t2);',
+'                }',
+'                if ((S2->flags & 1u) == 0u) zz2 = rd2 - zz2;',
+'                dd2 = (int32_t)i * 256 - (int32_t)S2->phase * (int32_t)len - zz2;',
+'                dd2 %= rd2; if (dd2 < 0) dd2 += rd2;',
+'                s2 = (dd2 + st2 / 2) / st2;',
+'                s2 %= (int32_t)cnt2;',
+'                ring2 = I->g_ring[(uint8_t)s2];',
+'                if (ring2 != 0xFFFFu) {',
+'                    col = led_gen_grad[ring2 + (uint8_t)I->color.phase.current];',
+'                } else {',
+'                    col = (hh != 0xFFu) ? spectrum_tbl[hh] : I->color.current;',
 '                }',
 '            }',
 '            else if (I->g2_spans >= 2u) {',
@@ -7224,7 +7314,7 @@ function stageZpos(pos, N) {
 function stageFill(inst, i, N, hue, mask, st) {
   const b = mask[i];
   if (!b) return TC.ledOff;
-  const c = effectColorAt(inst, i, N, hue, st);
+  const c = effectColorAt(inst, i, N, hue, st, stageZpos(inst.anim.position.current, N));
   const k = b / 255;
   return 'rgb(' + Math.round(c.r * k) + ',' + Math.round(c.g * k) + ',' + Math.round(c.b * k) + ')';
 }
@@ -9289,6 +9379,20 @@ function renderLayers() {
         '绕圈：一直朝一个方向追。\n走到头折返：一路走到环的最后一颗灯（绕满一整圈）才掉头，再照原路走回来 —— 一个来回 = 两圈（摆动 / 钟摆效果就是这么做的）。\n配合「起始位」可以把掉头的位置挪到环上任意一处。')));
     }
 
+    if (L.kind === 'spot') {
+      /* 每个光点一个配色下拉：光点数是几就出几个 —— 第 1 点 … 第 N 点（「同色」= 跟色彩配置）。
+         颜色跟着光点一起走（按光点在环上的位置分点，均布时就是一点一色）。 */
+      const gl3 = gradList(state);
+      const opts3 = [['', '同色']].concat(gl3.map(g => [g.id, g.name]));
+      const hs3 = layerHgs(L);
+      const np = Math.max(1, Math.min(8, L.count | 0 || 1));
+      for (let k = 0; k < np; k++) {
+        row.appendChild(layerRow('第' + (k + 1) + '点', selInput(opts3,
+          () => hs3[k] || '', v => { hs3[k] = v; fxLive(); },
+          '第 ' + (k + 1) + ' 个光点用哪条渐变：<b>同色</b> = 跟下方「色彩配置」当前的设置。&#10;颜色按光点在环上的位置分（光点走到哪、那个颜色走到哪）；光点数改成几个，这里就出几个下拉。')));
+      }
+    }
+
     if (L.kind === 'gradient') {
       /* 每段一个配色下拉：段数（「绕环轮数」）是几就出几个 —— 第 1 段 … 第 N 段。
          每个都从渐变色库挑一条（「同色」= 跟下方「色彩配置」）。颜色跟着光带一起转。 */
@@ -9474,6 +9578,10 @@ const FX_PRESETS = [
    *   ③ 想两段不同颜色：图层卡「第二段渐变」挑一条色库渐变（留空 = 两段同色）。 */
   { name:'渐变旋转',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:16, fast:1, speed:0,
       layers:[ Object.assign(mkLayer('gradient'), { lo:20, hi:255, spans:2, phase:0, wave:2, rotate:3, rspd:8 }) ] }) },
+  /* 「多彩旋转」：亮度**不渐低**（lo = hi = 255 → 整条恒亮），颜色按「第 N 段」分色并跟着转。
+     默认两段都「同色」，套完给第 2 段挑一条渐变就能看到两色在转。 */
+  { name:'多彩旋转',        make: () => ({ moves:false, color:0, c1:[255,0,0], slow:16, fast:1, speed:0,
+      layers:[ Object.assign(mkLayer('gradient'), { lo:255, hi:255, spans:2, phase:0, wave:0, rotate:3, rspd:8 }) ] }) },
   /* 「单向填充 / 双向填充」：移植固件 spim_led.c 的 PixelFill_OneWay / PixelFill_TwoWay ——
    * 已填区域逐颗长出来、头部从远端跑回边界、填满后从远端清空再重来。
    * 慢档每步 3 拍（单向）/ 5 拍（双向），快档按流动时钟 8 倍速（≈ 每拍一步）；

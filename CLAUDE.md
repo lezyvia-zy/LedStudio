@@ -76,7 +76,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 ## 测试怎么组织的
 
-26 个套件、2125 项断言。五类：
+26 个套件、2133 项断言。五类：
 
 | 类型 | 代表 | 验什么 |
 |---|---|---|
@@ -228,6 +228,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 70. **渐变层每段一个配色：按段数生成下拉（最多 8 段），选「同色」= 跟下方色彩配置**（2026-10-30 第四十二 → 四十五轮，用户依次要求：两段各自配色 → 每段整体一色 → 颜色跟着光带走 → 段数增加时配色项也要增加、把「第*段渐变」改叫「第*段」、「跟效果那张」改叫「同色」）：① 图层存 `hgs[]`（渐变色库 id，`''` = 同色），`layerHgs(L)` 负责把老存档的 `hg1/hg2` 并成数组并按 `spans` 补齐（**这个函数在 core 里**，导出 / 实例 / UI 三处都用；放 UI 会让只加载 core 的环境里 `simApplyEffect` 报 undefined）；② 导出：图层行末尾是**一个数组字段** `uint16_t hg_ring[8]`（行文本写成内层 `{ a, b, ... }`，测试里按数值拍平会多 8 个数 → 图层行 39 个数值）；`modesPlan` 把每段选的色库渐变写进 `led_gen_grad[]`（同内容去重）并回填起点，`0xFFFF` = 同色；③ 判段必须在**图案坐标**里算（`u = b8 + phase·256 − k`，`k` 由 `flow_tick / rotate` 来），`seg % spans` 选 `hg_ring[seg]` —— 颜色分界才会跟着移动的光带走（按固定灯位判段 = 左右半边钉死，用户已否掉）；④ 每段整体取 `grad[phase]`，**不是**沿段铺开（那是段内逐灯渐变，也被否掉）；⑤ C 实例放 `uint16_t g_ring[8]`（`apply_mode` 里 `memcpy` 自图层行；实例创建时 `memset(..., 0xFF, ...)` 就是全 0xFFFF），另存 `g2_spans / g_rot / g_ph`；⑥ 界面：`spans` 改了就 `renderLayers()` 重新生成下拉（第 1 段 … 第 N 段）；老存档 `hg1/hg2` 自动迁移。
 71. **渐变旋转的速度上限是「一拍 1 级」—— 要更快得加「倍率」，不是只调「旋转」**（2026-10-30 第四十七轮，用户「步进帧测：一颗灯到下一颗约 16 帧，不够顺滑、速度慢」）：① 旋转量 `rot8` 的单位是 t8（256 = 一级），`rotate` 只能把速度往慢里调（∝1/rotate）；② 一颗灯的相位步长 = `spans×65536÷灯数`（24 颗 spans2 ≈ 5461 ≈ 21 级，40 颗 ≈ 13 级）→ 即使 `rotate = 1`（20 ms），也要 13~21 拍才挪一颗灯，`spans` 越大越慢；③ 解法是新增图层字段 **`rspd`（1..16）**，转速 = `rspd ÷ rotate` 级/拍；三处必须同时乘：JS `genGradient` 的 `rot8`、`effectColorAt` 里判段的 `k`、C 的 `led_gen_gradient` 与颜色阶段（公式 `(tick×256×rspd)÷rotate`，32 位安全）；④ 别忘了导出新列（图层行 40 个数值）与 `apply_mode` 里把 `rspd` 抄进实例 `g_spd`；⑤ 预置「渐变旋转」用 `rotate 3 + rspd 8`（40 颗 ≈ 5 拍/颗、≈96 ms），老工程缺省 1 = 原速。
+72. **没有位置的元素也可以“分段配色”：渐变层按段、光点层按点，共用一列 `hg_ring[8]`**（2026-10-30 第四十八轮，用户「再做一个亮度不渐低、始终一个亮度的旋转圆环，起名多彩旋转；给双点 / 多点追逐加多组色彩」）：① `layerHgs(L)` 按 `kind` 选数量（gradient → `spans`，spot → `count`），两者共用导出字段 `uint16_t hg_ring[8]`（不用再加列）；② 光点分点必须用与 `genSpot` **同一套几何**（`step`（spacing>0 用 zoneScaled，否则 rd/count）、`phOff = phase*len`、`flags&1` 方向、`flags&2` 往返、`lap`、`zpos + offset*len`），偏一个量就会“颜色错一颗”；③ `effectColorAt` 多了第 6 个参数 `zpos`（渲染与编辑台都必须传，编辑台用 `stageZpos(inst.anim.position.current, N)`）；④ “恒亮”靠 `lo == hi` 的渐变层（原来 `hi <= lo` 直接返回、整条不亮），JS/C 两边都要改成“填满 `lo`”；⑤ 测试里光点卡的下拉数会多出 N 个（形状 3 个 + 点配色 count 个），旧断言要跟着改。
 
 
 
@@ -258,7 +259,7 @@ python tools/extract_fw_tables.py --sdk ../LED_Optimize/MVsB1_BT_Audio_SDK_v0.3.
 
 
 
-工具本体功能完整、2125 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2125 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
+工具本体功能完整、2133 项断言全绿（`node tests/run_all.mjs` 实测 26 套件 / 2133 项 / 0 FAIL）。逐模块优化的体检报告在 [docs/module-audit.md](docs/module-audit.md)（**索引**：怎么用 + 目录；正文按模块分在 `docs/audit/` 下 12 份，一页 = 一份 —— 可优化点、优先级批次、验收清单）—— 批 0/1/3/4、5-A、6-A、7-A/B、7-C、7-D、7-D-2、7-D-3、7-D-4、7-D-5、7-D-6、7-D-7、7-D-8、7-D-9、**批 11（分区顺序上移/下移 + 数字框能删干净重填）**、批 2 的分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）、**模式页三条（M2 预览模式 / M3 绑定全选全不选 / M5 按分区拆开下放到每条绑定）** 与**效果页播放条两轮（4f07af8 / 6f3129）+ 第三轮（F9 二刷）**、**界面通用 H10（勾选框方块紧贴功能文字）**、**效果页配色内核（6 种配色 / 调色板 / 呼吸 / 覆盖）** 均已落地（历史见 [docs/CHANGELOG.md](docs/CHANGELOG.md)）。已知待办：
 
 1. **抽公共测试驾具**：20 个套件各自抄了一份假 DOM（`install()` / `mkEl()` / `querySelector` 桩），改一处要改 20 处。应抽成 `tests/_harness.mjs`（注意 `ctxDraw` 是可变全局，抽取时用 getter/setter 包装）。
 2. **`_fxui_body*.js` 的构建脚本**没搬过来 —— 有 6 个套件是从 `test_split.mjs` 前缀 + 各自 body 拼出来的。现在它们是完整独立文件 ✓ 能直接跑，但改公共部分时要留意重复。

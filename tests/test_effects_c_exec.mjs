@@ -193,6 +193,9 @@ SPIN.color = CORE.FW.COLOR.RAINBOW; SPIN.levels = 30; SPIN.hue_base = 0; SPIN.hu
   const G1 = CORE.gradNew(st, st.gradients.list[0]);
   G1.anchors = [[255, 255, 0], [0, 128, 255]];
   SPIN.layers[1].hg1 = G1.id;          /* 两段各一条色环：第 1 段 G1 / 第 2 段 G2 */
+  /* 光点层也来一组：A 是两个光点，各挂一条色环（按位置分点 → C 的 g_spot 分支真跑） */
+  A.layers[0].count = 2;
+  A.layers[0].hgs = [G1.id, G2.id];
 }
 st.modes.list.push({ id:'mT', name:'旋转流动', latin:'FLOW', enabled:true,
                      binds:[{ effect:SPIN.id, zones:[] }] });

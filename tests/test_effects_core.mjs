@@ -1046,6 +1046,38 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(idxOf(m40b) !== idxOf(m40a), `倍率 8：40 颗灯 6 拍内就换了一颗最亮（${idxOf(m40a)} → ${idxOf(m40b)}）`);
 }
 
+/* 「多彩旋转」= 亮度不渐低 + 分段颜色：lo = hi 时渐变层输出恒定亮度（原来 hi <= lo 直接返回、整条不亮） */
+{
+  const m = mk(12);
+  genGradient(m, 12, { kind:'gradient', lo:255, hi:255, spans:2, phase:0, wave:0, rotate:3, rspd:8 }, 0);
+  ok(m.every(v => v === 255), '亮度不渐低：lo = hi = 255 → 整条恒亮（「多彩旋转」的底）');
+  const m2 = mk(12);
+  genGradient(m2, 12, { kind:'gradient', lo:120, hi:120, spans:2, phase:0, wave:0, rotate:3, rspd:8 }, 5);
+  ok(m2.every(v => v === 120), 'lo = hi = 120 → 整条恒亮 120（换亮度也行）');
+}
+
+/* 光点层的「第 N 点」配色：每个光点各一条色环，颜色跟着光点走（按位置分点） */
+{
+  const I = CORE.instNew();
+  I.color.type = CORE.FW.COLOR.SPECTRUM;
+  I.color.current = { r: 9, g: 9, b: 9 };
+  I.color.phase = 10;
+  I.anim.offset = 0;
+  I.anim.layers = [CORE.layerNums({ kind:'spot', en:1, count:2, width:4, phase:0, falloff:'hard',
+                                    spacing:0, direction:1, bounce:0 })];
+  I.gSpot = 0;
+  I.gRings = [Array.from({ length: 256 }, (_, k) => ({ r: 0, g: k, b: 0 })),
+              Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }))];
+  const hue = new Uint8Array(24).fill(0xFF);
+  const s0 = CORE.effectColorAt(I, 0, 24, hue, undefined, 0);
+  const s1 = CORE.effectColorAt(I, 12, 24, hue, undefined, 0);
+  ok(s0.g === 10 && s1.r === 10,
+     `两个光点各用各的色环：第 1 点 ${s0.r},${s0.g},${s0.b} / 第 2 点 ${s1.r},${s1.g},${s1.b}`);
+  I.gRings = [null, Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }))];
+  ok(CORE.effectColorAt(I, 0, 24, hue, undefined, 0).r === 9,
+     '第 1 点选「同色」→ 跟效果色彩配置');
+}
+
 /* 「第 k 段用哪条色环」：hgs 按段数补齐 / 老存档 hg1+hg2 自动并成数组 */
   {
     const L1 = { kind:'gradient', spans:3, hgs:['g1'] };

@@ -1004,6 +1004,27 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
        '实例拿到两段的色环 + 段数（预览与导出 C 同源）');
   }
 
+  /* 13d-3 光点层「第 N 点」配色 + 预置「多彩旋转」 */
+  {
+    const walkS = (n, out) => { (n.children || []).forEach(c => {
+      if (c.tagName === 'SELECT') out.push(c); walkS(c, out); }); return out; };
+    pick.value = '双点追逐'; click('fxPresetApply');
+    await new Promise(r => setTimeout(r, 700));
+    const selsP = walkS(byId.get('fLayers'), []);
+    ok(selsP.length === 5, `双点追逐：3 个形状下拉 + 2 个「第 N 点」（${selsP.length}）`);
+    const pSels = selsP.slice(-2);
+    ok(String(pSels[0].children[0].value) === '' && pSels[0].children[0].textContent === '同色',
+       '每个点默认「同色」');
+    if (pSels[1] && pSels[1].children[1]) { pSels[1].value = pSels[1].children[1].value; pSels[1].onchange(); }
+    await new Promise(r => setTimeout(r, 700));
+    const hsP = list0()[bi].layers[0].hgs || [];
+    ok(!!hsP[1], `第 2 点记下色环 ${hsP[1]}`);
+    pick.value = '多彩旋转'; click('fxPresetApply');
+    await new Promise(r => setTimeout(r, 700));
+    const eMR = list0()[bi];
+    ok(eMR.layers[0].lo === 255 && eMR.layers[0].hi === 255 && eMR.layers[0].rspd === 8,
+       `多彩旋转：亮度恒定（lo=hi=${eMR.layers[0].lo}）+ 倍率 ${eMR.layers[0].rspd}`);
+  }
   /* 13e 下拉停在占位时点「套用」：什么都不动（说明里报一句） */
   const beforeEmpty = JSON.stringify(list0()[bi].layers);
   pick.value = ''; click('fxPresetApply');
@@ -1037,7 +1058,7 @@ console.log('--- 单点追逐（第一个逐个优化的模板）---');
     if (c.tagName === 'SELECT') sel.push(c);
     if (c.tagName === 'INPUT' && c.type === 'number') num.push(c);
     walk(c); }); })(box);
-  ok(sel.length === 3, `光点层只剩 3 个下拉（衰减 / 方向 / 往返），实际 ${sel.length}`);
+  ok(sel.length === 4, `光点层 3 个形状下拉 + 1 个点配色（衰减 / 方向 / 往返 / 第 1 点），实际 ${sel.length}`);
   ok(num.length === 3, `数字框 3 个（光点数 / 光宽 / 间距），实际 ${num.length}`);
   /* 加层按钮收起后「删空就加不回来」：只剩一层时 × 必须禁用（delLayer 也有兜底） */
   {
