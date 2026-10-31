@@ -360,6 +360,12 @@ console.log('--- 亮度渐变 ---');
   I.grad1 = null;                                   /* 第 1 段没选 → 跟效果配色 */
   ok(CORE.effectColorAt(I, 0, 24, hue).r === 9 && CORE.effectColorAt(I, 12, 24, hue).r === 10,
      '只设了第二段：第 1 段仍跟效果色彩配置');
+  /* 颜色分界跟着「旋转」一起走：转满一整段后，同一颗灯的段号翻面（换用另一条色环） */
+  I.grad1 = Array.from({ length: 256 }, (_, k) => ({ r: 0, g: k, b: 0 }));
+  I.gRot = 4; I.flow_tick = 1024;                   /* k = 1024×256/4 = 65536 = 正好一段 */
+  const post = CORE.effectColorAt(I, 0, 24, hue);
+  ok(post.r === 10, `转满一段后第 1 颗灯改用第二段色环（rgb ${post.r},${post.g},${post.b}）—— 颜色跟着光带走`);
+  I.gRot = 0; I.flow_tick = null;
 }
 
 /* ---- 随机闪：慢档「快亮慢灭」/ 快档老样式 ---- */
