@@ -188,15 +188,22 @@ await new Promise(r => realST(r, 70));
 {
   /* 先关掉对比（上一节把它开着），不然画的是板子分区长度 */
   byId.get('stCompare').checked = false; byId.get('stCompare').onchange({ target: byId.get('stCompare') });
-  byId.get('stRing').value = '6'; byId.get('stRing').oninput({ target: byId.get('stRing') });
+  byId.get('stRing').value = '10'; byId.get('stRing').oninput({ target: byId.get('stRing') });
   await new Promise(r => realST(r, 70));
   texts.length = 0;
   click3('fxZero');                 /* 触发一次重画 */
   await new Promise(r => realST(r, 30));
-  ok(texts.some(t => /6 颗 横/.test(t)) && texts.some(t => /6 颗 竖/.test(t)),
-     `少于 10 颗：画了一横一竖（${texts.filter(t => /颗/.test(t)).join(' | ')}）`);
+  ok(texts.some(t => /10 颗 横/.test(t)) && texts.some(t => /10 颗 竖/.test(t)),
+     `≤ 10 颗：画了一横一竖（${texts.filter(t => /颗/.test(t)).join(' | ')}）`);
   ok(!texts.some(t => /颗圆环/.test(t)) && !texts.some(t => /颗直线/.test(t)),
-     '少于 10 颗：不再画圆环，底部那条直线也收起');
+     '≤ 10 颗：不再画圆环，底部那条直线也收起');
+  /* 边界：11 颗又回到圆环 + 底部直线 */
+  byId.get('stRing').value = '11'; byId.get('stRing').oninput({ target: byId.get('stRing') });
+  await new Promise(r => realST(r, 70));
+  texts.length = 0;
+  click3('fxZero');
+  await new Promise(r => realST(r, 30));
+  ok(texts.some(t => /11 颗圆环/.test(t)), `11 颗又回到圆环（${texts.filter(t => /颗/.test(t)).join(' | ')}）`);
   byId.get('stRing').value = '24'; byId.get('stRing').oninput({ target: byId.get('stRing') });
   byId.get('stStrip').value = '7'; byId.get('stStrip').oninput({ target: byId.get('stStrip') });
   byId.get('stCompare').checked = true; byId.get('stCompare').onchange({ target: byId.get('stCompare') });  /* 恢复对比（后面的重开断言要用） */
