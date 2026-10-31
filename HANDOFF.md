@@ -5,7 +5,7 @@
 > 本文由 Claude Code 在 v1.0 提交（`9209a17`）时整理，描述的是当时的代码状态；后续变更见 [docs/CHANGELOG.md](docs/CHANGELOG.md)。
 
 <!-- auto:handoff-head -->
-> **最新交接（2026-10-31）**：代码顶端 = `c7bf244`（本行刷新时）；全量 `node tests/run_all.mjs` = **26 套件 / 2123 项 / 0 FAIL**。本行由 `node tools/docsync.mjs stats --write` 刷新，别手改。
+> **最新交接（2026-10-31）**：代码顶端 = `5a12026`（本行刷新时）；全量 `node tests/run_all.mjs` = **26 套件 / 2123 项 / 0 FAIL**。本行由 `node tools/docsync.mjs stats --write` 刷新，别手改。
 <!-- /auto -->
 > **近五轮**：摘要**不在这里重复**（手写摘要会和实现 / 行号一起漂）—— 见 [docs/CHANGELOG.md](docs/CHANGELOG.md) 最新五条。
 > **接着做**：① 「**在灯板上看**」等**模式模块**完成后按新语义回来做（用户显式挂起）；② 逐动画优化（用户每轮点名一条）：**「单点追逐」已过一遍**（F11/F12 动画与色彩分离），**「多点追逐」已加「间距」`spacing` + 快慢档接上 `FFTLevel`**（F13 / F14 ✓2026-10-26，顺带把 `A2`（看出当前档位）做掉）；下一条动画待用户点名；③ 批 2 剩下的那几站（动画 `A1`（快捷键）→ 校验 `C2 / C4 / C5` → 导出 `E3 / E4 / E5`）—— 批 2 里分区三条（Z2 / Z3 / Z4 ✓5135e3c）、效果页两条（F1 / F2 ✓894515f）与**模式页三条（M2 / M3 / M5：预览模式 / 全选全不选 / 按条拆分）**已落地；**界面通用的 H10（勾选框方块贴文字 ✓f2c52c5）** 也顺手修了；也可以改做批 5-C 画布直编，开工前与用户确认一句。批次表与条目细节见 [docs/audit/priority.md](docs/audit/priority.md)（§11 优先级总表）与 [docs/audit/checklist.md](docs/audit/checklist.md)（§12 验收清单），索引在 [docs/module-audit.md](docs/module-audit.md)。
