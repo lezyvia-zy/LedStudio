@@ -99,6 +99,11 @@ const tabBtn = t => (byId.get('tabCache') || []).find(b => b.dataset.tab === t);
 const playTxt = () => (byId.get('fxPlayBtnTxt') || {}).textContent;
 /* 内存里的值（不必等存盘）*/
 const stageRingInMemory = () => +byId.get('stRing').value;
+/* 当前正在编辑的那条效果（颗粒数按效果存：e.ringN / e.stripN） */
+const editEff = () => {
+  const st = projState(0);
+  return (st.effects.list || []).find(e => e.id === st.anim.effectId) || {};
+};
 
 /* ---- 1) 控件在效果页 ---- */
 ['stStrip','stRing','stCompare'].forEach(id => ok(!!byId.get(id), `编辑台控件 ${id} 存在`));
@@ -142,13 +147,61 @@ byId.get('stCompare').onchange({ target: byId.get('stCompare') });
 byId.get('stRing').value = '60'; byId.get('stRing').oninput({ target: byId.get('stRing') });
 byId.get('stStrip').value = '7';  byId.get('stStrip').oninput({ target: byId.get('stStrip') });
 await new Promise(r => realST(r, 70));
-ok(projState(0).stage.ringN === 60 && projState(0).stage.stripN === 7,
-   `自定义颗数生效：圆环 ${projState(0).stage.ringN} / 直线 ${projState(0).stage.stripN}`);
+ok(editEff().ringN === 60 && editEff().stripN === 7,
+   `自定义颗数写进这条效果：圆环 ${editEff().ringN} / 直线 ${editEff().stripN}（工程级旧字段不再被改）`);
+const editedId = projState(0).anim.effectId;   /* 重开后按 id 去找那条效果 */
 byId.get('stRing').value = '500'; byId.get('stRing').oninput({ target: byId.get('stRing') });
 byId.get('stRing').onchange({ target: byId.get('stRing') });
-ok(byId.get('stRing').value === '200', `输入 500 被夹到 200，且输入框回写显示 ${byId.get('stRing').value}`);
+ok(byId.get('stRing').value === '500', `上限放宽到 512：输入 500 不再被夹，回写 ${byId.get('stRing').value}`);
+byId.get('stRing').value = '600'; byId.get('stRing').oninput({ target: byId.get('stRing') });
+byId.get('stRing').onchange({ target: byId.get('stRing') });
+ok(byId.get('stRing').value === '512', `超过 512 才夹：输入 600 → ${byId.get('stRing').value}`);
 byId.get('stRing').value = '24'; byId.get('stRing').oninput({ target: byId.get('stRing') });
 await new Promise(r => realST(r, 70));
+
+/* ---- 3b) 每条效果各存一份颗数：切过去再切回来互不影响 ---- */
+{
+  const tbl = byId.get('fxTbl');
+  tbl.children[0].onclick();
+  byId.get('stRing').value = '60'; byId.get('stRing').oninput({ target: byId.get('stRing') });
+  byId.get('stStrip').value = '7'; byId.get('stStrip').oninput({ target: byId.get('stStrip') });
+  await new Promise(r => realST(r, 70));
+  const id1 = projState(0).anim.effectId;
+  tbl.children[1].onclick();
+  await new Promise(r => realST(r, 70));
+  ok(+byId.get('stRing').value === 24 && +byId.get('stStrip').value === 24,
+     `切到第 2 条：颗数还是它自己的默认（${byId.get('stRing').value}/${byId.get('stStrip').value}）`);
+  byId.get('stRing').value = '12'; byId.get('stRing').oninput({ target: byId.get('stRing') });
+  byId.get('stStrip').value = '5'; byId.get('stStrip').oninput({ target: byId.get('stStrip') });
+  await new Promise(r => realST(r, 70));
+  const id2 = projState(0).anim.effectId;
+  tbl.children[0].onclick();
+  await new Promise(r => realST(r, 70));
+  ok(+byId.get('stRing').value === 60 && +byId.get('stStrip').value === 7,
+     `切回第 1 条：它自己的 60/7 还在（${byId.get('stRing').value}/${byId.get('stStrip').value}）`);
+  const L2 = projState(0).effects.list;
+  ok((L2.find(e => e.id === id1) || {}).ringN === 60 && (L2.find(e => e.id === id2) || {}).ringN === 12,
+     '两条效果各记着自己的颗数（互不影响）');
+}
+
+/* ---- 3c) 圆环颗数 < 10：不画圆环，改画一横一竖（都用圆环颗数），底部直线也收起 ---- */
+{
+  /* 先关掉对比（上一节把它开着），不然画的是板子分区长度 */
+  byId.get('stCompare').checked = false; byId.get('stCompare').onchange({ target: byId.get('stCompare') });
+  byId.get('stRing').value = '6'; byId.get('stRing').oninput({ target: byId.get('stRing') });
+  await new Promise(r => realST(r, 70));
+  texts.length = 0;
+  click3('fxZero');                 /* 触发一次重画 */
+  await new Promise(r => realST(r, 30));
+  ok(texts.some(t => /6 颗 横/.test(t)) && texts.some(t => /6 颗 竖/.test(t)),
+     `少于 10 颗：画了一横一竖（${texts.filter(t => /颗/.test(t)).join(' | ')}）`);
+  ok(!texts.some(t => /颗圆环/.test(t)) && !texts.some(t => /颗直线/.test(t)),
+     '少于 10 颗：不再画圆环，底部那条直线也收起');
+  byId.get('stRing').value = '24'; byId.get('stRing').oninput({ target: byId.get('stRing') });
+  byId.get('stStrip').value = '7'; byId.get('stStrip').oninput({ target: byId.get('stStrip') });
+  byId.get('stCompare').checked = true; byId.get('stCompare').onchange({ target: byId.get('stCompare') });  /* 恢复对比（后面的重开断言要用） */
+  await new Promise(r => realST(r, 70));
+}
 
 /* ---- 4) 核心语义：等比缩放（同一个效果在不同长度上张角相同） ---- */
 {
@@ -209,8 +262,9 @@ await new Promise(r => realST(r, 70));
 
 /* ---- 8) 重开后编辑台设置还在 ---- */
 install(); boot(); await new Promise(r => realST(r, 70));
-ok(projState(0).stage.ringN === 24 && projState(0).stage.stripN === 7,
-   `重开后编辑台设置还在（圆环 ${projState(0).stage.ringN} / 直线 ${projState(0).stage.stripN}）`);
+const eAfter = (projState(0).effects.list || []).find(e => e.id === editedId) || {};
+ok(eAfter.ringN === 24 && eAfter.stripN === 7,
+   `重开后这条效果的颗数还在（圆环 ${eAfter.ringN} / 直线 ${eAfter.stripN}）`);
 ok(projState(0).stage.compare === true, '对比开关也记得住');
 
 /* ---- 9) F1) 「多长度对比」画的是你板子上真实的几条长度（去重后最多 3 条），标签写实际分区名 ---- */

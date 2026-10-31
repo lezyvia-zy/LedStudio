@@ -699,8 +699,8 @@
 
       <fieldset>
         <legend>编辑台（基础排布）</legend>
-        <label class="row"><span>直线颗数</span><input type="number" id="stStrip" min="2" max="200" data-tip="基础排布里那条直线有多少颗灯。看追逐的宽度、拖尾、衰减最清楚。"></label>
-        <label class="row"><span>圆环颗数</span><input type="number" id="stRing" min="3" max="200" data-tip="基础排布里那个圆环有多少颗灯。用来看环形效果绕回来时的接缝。"></label>
+        <label class="row"><span>直线颗数</span><input type="number" id="stStrip" min="2" max="512" data-tip="**这条效果自己的**基础排布：那条直线有多少颗灯（2..512）。看追逐的宽度、拖尾、衰减最清楚。&#10;每条效果各存一份，切效果不会互相影响；老工程沿用原来的工程级数值。"></label>
+        <label class="row"><span>圆环颗数</span><input type="number" id="stRing" min="3" max="512" data-tip="**这条效果自己的**基础排布：那个圆环有多少颗灯（3..512）。用来看环形效果绕回来时的接缝。&#10;**少于 10 颗时不再画圆环**：改画一横一竖两条（都用这个颗数、居中），底部那条直线也一并收起。&#10;每条效果各存一份，切效果不会互相影响。"></label>
         <label class="row ck"><span>多长度对比</span><input type="checkbox" id="stCompare" data-tip="在中央画布上同时画几条直线做对比：取你板子上真实的分区长度（去重后最多 3 条 —— 最短 / 中间 / 最长），板上一段分区都没有时回落到 8 / 24 / 40 —— 调光宽时用，避免在一种长度上调好了、到别的长度上走样。"></label>
         <div class="hint">编辑台只用一个<b>基础排布</b>（直线 + 圆环）看效果本身，与真实灯板无关；在这一页中央画布就归它。</div>
       </fieldset>
@@ -946,9 +946,11 @@
         <div class="hint">这个中央画布<b>只预览动画</b>：不能选灯 / 挪灯 / 框选 / 画形状 / 放置 / 擦除，滚轮也不缩放 ——
           画布布局请切到「分区」页（效果页里左侧那排「画布工具」会<b>整块收起</b>）。</div>
         <ul>
-          <li><b>直线</b>：颗数可自定义。看追逐的宽度、拖尾、衰减最清楚。</li>
-          <li><b>圆环</b>：颗数可自定义。用来看环形效果"绕回来"时的接缝。</li>
-          <li><b>多长度对比</b>：同时画几条 —— 取你板子上真实的分区长度（去重后最多 3 条：最短 / 中间 / 最长），板上一段分区都没有时才回落到 8 / 24 / 40。</li>
+          <li><b>直线</b>：颗数可自定义（2..512）。看追逐的宽度、拖尾、衰减最清楚。</li>
+          <li><b>圆环</b>：颗数可自定义（3..512）。用来看环形效果"绕回来"时的接缝。</li>
+          <li><b>颗数是「每条效果各一份」</b>：在效果页改这两格，只改<b>当前这条效果</b>；切到别的效果会显示它自己的数值，互不影响。老工程里这两格原来是全工程共用的，打开后每条效果都沿用当时的数值（不用迁移）。</li>
+          <li><b>圆环颗数少于 10</b>：环太挤，画布上<b>不再画圆环</b>，改画<b>一横一竖两条</b>（都用这个颗数、居中），底部那条直线也一并收起。</li>
+          <li><b>多长度对比</b>：同时画几条 —— 取你板子上真实的分区长度（去重后最多 3 条：最短 / 中间 / 最长），板上一段分区都没有时才回落到 8 / 24 / 40。<b>对比开关和播放倍率仍是全工程共用</b>（对比看的是板子本身）。</li>
         </ul>
         <div class="hint">效果页<b>底部的播放条</b>（钉在这一页底部不动；按钮上只有图标，鼠标悬停看说明）
           就地控制这个编辑台 —— <b>最左边那格方块 = 归零</b>（回到起始相位），中间三格是
@@ -2734,7 +2736,9 @@ function emptyProject() {
     view: { zoom: 1, panX: 0, panY: 0, grid: GEN.CELL, snap: true },
     canvas: { width: 640, height: 1600, background: null },
     anim: defaultAnim(),
-    stage: { ringN: 24, stripN: 24, compare: false },   /* 效果编辑台的基础排布 */
+    /* 效果编辑台的基础排布：**默认值 / 老工程兜底** —— 每条效果自己的颗数存在 e.ringN / e.stripN
+     （没设过的沿用这里的值）；compare / rate 仍是全工程共用 */
+  stage: { ringN: 24, stripN: 24, compare: false },
     effects: defaultEffects(),
     gradients: defaultGradients(),                     /* 渐变色库：默认一条「渐变-1」= 红→黄→绿→青→蓝→紫 */
     modes: emptyModes(),
@@ -7401,15 +7405,33 @@ function renderStage() {
     ctx.fillText(label, cx, cy - Rr - 20);
   };
 
+  const col = (N, x, y0, y1, label) => {
+    const step = (y1 - y0) / Math.max(1, N - 1);
+    const R = stageLedR(step);
+    const mask = new Uint8Array(N), hue = new Uint8Array(N);
+    const stt = stageSwOf(N, (sweepLayerOf(inst.anim.layers) || {}).lit | 0);
+    renderZoneMaskTo(inst, mask, hue, N, stageZpos(pos, N), stt);
+    const shown = stageShownFor(N, mask);
+    for (let i = 0; i < N; i++) {
+      ctx.beginPath();
+      ctx.arc(x, y0 + step * i, R, 0, Math.PI * 2);
+      ctx.fillStyle = stageFill(inst, i, N, hue, shown, stt);
+      ctx.fill();
+    }
+    ctx.fillStyle = TC.label; ctx.textAlign = 'center';
+    ctx.fillText(label, x, y0 - R - 13);
+  };
+
   /* 标题：说明这是基础排布，不是真实灯板；第二行给运行状态（调 speed 参数时得看得见现在跑到哪） */
   ctx.textAlign = 'left'; ctx.fillStyle = TC.label;
   ctx.font = '13px "Microsoft YaHei",sans-serif';
   ctx.fillText('效果编辑台 · ' + e.name, 24, 24);
   ctx.font = '12px "Microsoft YaHei",sans-serif';
   /* 第几颗：stageZpos 的单位是 1/256 颗，除下来才是颗号（不然会显示「位置 512/24 颗」这种） */
-  const zIdx = Math.round(stageZpos(pos, st.ringN) / 256) % st.ringN;
+  const rN = effRingN(e), sN = effStripN(e);
+  const zIdx = Math.round(stageZpos(pos, rN) / 256) % rN;
   ctx.fillText((stagePlaying ? '播放中' : '已暂停') +
-    ` · 位置 ${zIdx}/${st.ringN} 颗` +
+    ` · 位置 ${zIdx}/${rN} 颗` +
     ` · ${inst.speed_cur} 拍走 1 格（快档 ${inst.speed_fast} / 慢档 ${inst.speed_slow}）` +
     (effSmooth(e) ? ` · 平滑 ${effSmooth(e)}ms（快档直通）` : ' · 平滑 0ms（直通）') +
     (A().speed === 'auto'
@@ -7431,10 +7453,15 @@ function renderStage() {
                                  : top + usable * 0.45;
       row(r.n, 60, W - 60, y, r.label);
     });
+  } else if (stageSmall(e)) {
+    /* 圆环颗数 < 10：环太挤，改画一横一竖两条（都用圆环颗数、居中），底部那条直线收起 */
+    const cy = top + (H - top) * 0.42;
+    row(rN, 60, W - 60, cy, rN + ' 颗 横');
+    col(rN, W / 2, top + 24, H - 40, rN + ' 颗 竖');
   } else {
-    ring(st.ringN, W / 2, top + Math.min(H * 0.30, W * 0.22), Math.min(W * 0.30, H * 0.20),
-         st.ringN + ' 颗圆环');
-    row(st.stripN, 60, W - 60, H - 64, st.stripN + ' 颗直线');
+    ring(rN, W / 2, top + Math.min(H * 0.30, W * 0.22), Math.min(W * 0.30, H * 0.20),
+         rN + ' 颗圆环');
+    row(sN, 60, W - 60, H - 64, sN + ' 颗直线');
   }
 }
 
@@ -8990,12 +9017,30 @@ function stageSwOf(N, lit) {
   return st;
 }
 let stageHist = [], stageHistBase = 0, stageTicks = 0;
+/* 编辑台颗数的上限（2026-10-30 第四十九轮：从 200 放宽到 512，方便看长条的分区） */
+const STAGE_N_MAX = 512;
+/* 每条效果自己一份颗数（`e.ringN / e.stripN`）；没设过的效果沿用工程里的老全局值
+ * （`state.stage.ringN/stripN`）—— 老工程零迁移，之后各改各的，互不影响。
+ * 「多长度对比」和播放「倍率」仍是工程级（对比取的是板子真实分区长度）。 */
+function effRingN(e) {
+  const p = stageParams();
+  const v = (e && e.ringN != null) ? (e.ringN | 0) : (p.ringN | 0);
+  return Math.max(3, Math.min(STAGE_N_MAX, v || 24));
+}
+function effStripN(e) {
+  const p = stageParams();
+  const v = (e && e.stripN != null) ? (e.stripN | 0) : (p.stripN | 0);
+  return Math.max(2, Math.min(STAGE_N_MAX, v || 24));
+}
+/* 圆环颗数 < 10：环太挤，改画「一横一竖」两条（都用圆环颗数、居中），底部那条直线也收起 */
+function stageSmall(e) { return effRingN(e) < 10; }
 /* 编辑台正在画的几个长度（圆环 / 直线 / 对比条去重；同一个 N 只算一次） */
 function stageLens() {
-  const p = stageParams(), out = [];
+  const p = stageParams(), e = editTarget(), out = [];
   const add = n => { n = Math.round(+n) || 0; if (n > 0 && out.indexOf(n) < 0) out.push(n); };
   if (p.compare) stageCompareRows().forEach(r => add(r.n));
-  else { add(p.ringN); add(p.stripN); }
+  else if (e && stageSmall(e)) add(effRingN(e));        /* <10 颗：横 + 竖，两条同一个长度 */
+  else { add(effRingN(e)); add(effStripN(e)); }
   return out;
 }
 function stageShownOf(N) {
@@ -10580,6 +10625,8 @@ function syncFxEdit() {
   if (e.kind === 'custom') { $('#fMoves').checked = !!e.moves; renderLayers(); }
   else { $('#fAnim').value = e.anim; $('#fWidth').value = e.width; $('#fGap').value = e.gap; }
   syncFxColorRows(e);
+  /* 颗数也按效果走：切效果时把这两格刷成该效果自己的值 */
+  syncStageControls();
   /* 播放条上的「现在看 XXX · 第 x / n 条」跟着走 —— 换效果、增删效果都会进这里 */
   syncStagePlayBtn();
 }
@@ -10693,22 +10740,30 @@ function fxSelMove(d) {
 }
 
 function syncStageControls() {
-  const p = stageParams();
-  if ($('#stStrip')) $('#stStrip').value = p.stripN;
-  if ($('#stRing'))  $('#stRing').value  = p.ringN;
+  const p = stageParams(), e = editTarget();
+  if ($('#stStrip')) $('#stStrip').value = e ? effStripN(e) : p.stripN;
+  if ($('#stRing'))  $('#stRing').value  = e ? effRingN(e)  : p.ringN;
   if ($('#stCompare')) $('#stCompare').checked = !!p.compare;
   if ($('#fxRate')) $('#fxRate').value = String(stageRate());   /* 播放条上的倍率（老工程兜底 1×） */
 }
 function buildStageControls() {
   const bind = (id, fn, ev) => { const el = $('#' + id); if (el) el[(ev || 'oninput')] = fn; };
-  const clampStage = (id, key, lo, def) => {
+  /* 颗数写进**当前效果**（e.ringN / e.stripN）；没有选中效果时才落到工程级老字段上。
+   * 输入时只存模型（别回写，否则打「10」会被夹成「3」）；失焦时再把夹过的值显示回来。 */
+  const clampStage = (id, key, lo, def, cur) => {
     const el = $('#' + id);
-    /* 输入时只存模型（别回写，否则打「10」会被夹成「3」）；失焦时再把夹过的值显示回来 */
-    el.oninput  = e => { stageParams()[key] = Math.max(lo, Math.min(200, +e.target.value || def)); render(); saveStore(); };
-    el.onchange = e => { e.target.value = stageParams()[key]; };
+    el.oninput  = ev => {
+      const v = Math.max(lo, Math.min(STAGE_N_MAX, +ev.target.value || def));
+      const x = editTarget();
+      if (x) x[key] = v; else stageParams()[key] = v;
+      render(); saveStore();
+    };
+    el.onchange = ev => { ev.target.value = cur(); };
   };
-  clampStage('stStrip', 'stripN', 2, 24);
-  clampStage('stRing',  'ringN',  3, 24);
+  const curRing  = () => { const x = editTarget(); return x ? effRingN(x)  : stageParams().ringN; };
+  const curStrip = () => { const x = editTarget(); return x ? effStripN(x) : stageParams().stripN; };
+  clampStage('stStrip', 'stripN', 2, 24, curStrip);
+  clampStage('stRing',  'ringN',  3, 24, curRing);
   bind('stCompare', e => { stageParams().compare = e.target.checked; render(); saveStore(); }, 'onchange');
 }
 
