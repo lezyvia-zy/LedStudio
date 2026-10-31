@@ -78,8 +78,8 @@ ok(!/hue_spread|hue_speed|cmode|LED_GEN_CMODE/.test(lay) && !/LED_GEN_CMODE/.tes
    '图层行里没有 hue_spread / hue_speed / cmode（取色归效果级配色）');
 /* F5: 字段顺序 kind, en, count, ...（en 紧跟 kind），末尾是 wave, flags, spacing, flash_fast, flash_on, flash_low, hc_r, hc_g, hc_b */
 const layRows = (lay.match(/^    \{.*\},/gm) || []).map(numsOf);
-ok(layRows.length === 1 && layRows[0].length === 39 && layRows[0][0] === 2 && layRows[0][1] === 1,
-   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 39 个 / 2 / 1）`);
+ok(layRows.length === 1 && layRows[0].length === 40 && layRows[0][0] === 2 && layRows[0][1] === 1,
+   `图层行 ${layRows[0] ? layRows[0].length : 0} 个数值：kind=${layRows[0] && layRows[0][0]} en=${layRows[0] && layRows[0][1]}（期望 40 个 / 2 / 1）`);
 ok(/uint8_t spacing;\s+\/\* SPOT: centre distance/.test(h2),
    '结构体末尾多了 spacing（光点间距，0 = 按 count 均布）');
 ok(/uint16_t pulse_period;/.test(h2),
@@ -217,8 +217,8 @@ console.log('--- F5) 图层「启用」：旁路的层照样写进表里，只�
   const l5 = h5.slice(h5.indexOf('static const led_gen_layer_t'),
                       h5.indexOf('};', h5.indexOf('static const led_gen_layer_t')));
   const r5 = (l5.match(/^    \{.*\},/gm) || []).map(numsOf);
-  ok(r5.length === 2 && r5.every(r => r.length === 39) && r5[0][1] === 0 && r5[1][1] === 1,
-     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 39）`);
+  ok(r5.length === 2 && r5.every(r => r.length === 40) && r5[0][1] === 0 && r5[1][1] === 1,
+     `两层的 en 标记 = ${r5.map(r => r[1]).join(',')}（期望 0,1；旁路的层没有被删掉，字段数仍是 40）`);
   ok(r5[0][0] === 2 && r5[1][0] === 2, '两层都还是填充图层（kind=2），表行数不因旁路而变');
   const zh5 = exportEffectsC(st3, { form:'header', comment:'zh', eol:'lf' });
   ok(/被旁路的层/.test(zh5), '中文注释模式下那条 continue 的说明是中文（ASCII 模式走英文，见上面整体检查）');

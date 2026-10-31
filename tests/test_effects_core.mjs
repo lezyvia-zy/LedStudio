@@ -1028,7 +1028,25 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
     ok(mn >= 1, `呼吸（老存档 渐亮=周期/2=45）：最暗 ${mn}/255 —— 不落全黑`);
   }
 
-  /* 「第 k 段用哪条色环」：hgs 按段数补齐 / 老存档 hg1+hg2 自动并成数组 */
+  /* 转速倍率（2026-10-30 第四十七轮）：`rspd` = 每拍推进几级。一拍只有 1 级时，24 颗灯要
+ * 21 拍、40 颗要 13 拍才挪一颗（用户「步进 16 帧才动一颗」就是撞到这个上限）；倍率 8 之后
+ * 40 颗约 5 拍挪一颗。这里钉住「同样 12 拍，×8 比 ×1 走得远」。 */
+{
+  const len = 24, a = mk(len), b = mk(len), c = mk(len);
+  const L1 = { kind:'gradient', lo:20, hi:255, spans:2, phase:0, wave:WAVE.SAW, rotate:3, rspd:1 };
+  const L8 = Object.assign({}, L1, { rspd: 8 });
+  genGradient(a, len, L1, 12);
+  genGradient(b, len, L8, 12);
+  genGradient(c, len, L1, 0);
+  ok(a.some((v, i) => v !== b[i]), '转速倍率 ×8：同样 12 拍图案走得更远（×1 时几乎不动）');
+  const idxOf = m => { let p = 0; for (let i = 1; i < m.length; i++) if (m[i] > m[p]) p = i; return p; };
+  const m40a = new Uint8Array(40), m40b = new Uint8Array(40);
+  genGradient(m40a, 40, Object.assign({}, L1, { rspd: 8 }), 0);
+  genGradient(m40b, 40, Object.assign({}, L1, { rspd: 8 }), 6);
+  ok(idxOf(m40b) !== idxOf(m40a), `倍率 8：40 颗灯 6 拍内就换了一颗最亮（${idxOf(m40a)} → ${idxOf(m40b)}）`);
+}
+
+/* 「第 k 段用哪条色环」：hgs 按段数补齐 / 老存档 hg1+hg2 自动并成数组 */
   {
     const L1 = { kind:'gradient', spans:3, hgs:['g1'] };
     ok(CORE.layerHgs(L1).join('/') === 'g1//',
