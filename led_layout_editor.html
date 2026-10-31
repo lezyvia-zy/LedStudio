@@ -1050,7 +1050,7 @@
           <tr><td>起始位</td><td>斜坡从环上哪个位置开始。想让暗处对着某个方向时调它。</td></tr>
           <tr><td>绕环轮数</td><td>一圈里有几个明暗来回。</td></tr>
           <tr><td>旋转</td><td>每 N 帧把斜坡推进一格；0 = 不动。方向固定是「最亮那头领跑」，身后依次变暗（锯齿的亮边在前）。跟着快慢档：快档按「慢速 ÷ 快速」的倍率转得更快。</td></tr>
-          <tr><td>第一段渐变 / 第二段渐变</td><td>「绕环轮数」≥ 2 时才有用：第 1、3…段整段用「第一段渐变」、第 2、4…段用「第二段渐变」，各自<b>沿自己那一段铺开</b>（段内位置对应色环的不同级）—— 两条色带颜色可以完全不同、同步流动。<b>留空 = 该段跟下方「色彩配置」</b>（两条都留空 = 两段同色）。只改颜色，不动亮度斜坡与转速。</td></tr>
+          <tr><td>第一段渐变 / 第二段渐变</td><td>「绕环轮数」≥ 2 时才有用：第 1、3…段整段用「第一段渐变」、第 2、4…段用「第二段渐变」。<b>每段是整体一个颜色</b>（取那条色环在<b>当前相位</b>的颜色），亮度斜坡仍逐颗衰减；相位随时间前进 —— 配色选「渐变」时颜色<b>整体渐变</b>，两条色带各自在自己的色环上走。<b>留空 = 该段跟下方「色彩配置」</b>（两条都留空 = 两段同色）。只改颜色，不动亮度斜坡与转速。</td></tr>
         </table>
 
         <h4>颜色从哪来：只从「色彩配置」来</h4>
@@ -4284,18 +4284,14 @@ function effectColorAt(inst, i, len, hue, st) {
   }
   /* 覆盖模式先判：hue[] 是调色板条目索引（不是 tint / 哨兵），按条目 + 灯位取色 */
   if (c.type === FW.COLOR.WIPE) return wipeEntryAt(c, hh, i, wipeSpan(c, len));
-  /* 渐变层的两段配色：偶数段用「第一段渐变」、奇数段用「第二段渐变」（各用一条色环，
-   * **沿段铺开**：段内位置映射到色环 0..255 再叠加效果相位）—— 两段颜色完全独立。
-   * 某段没选就是 null → 那一段仍跟效果「色彩配置」（这就是「同色」的做法）。 */
+  /* 渐变层的两段配色：偶数段用「第一段渐变」、奇数段用「第二段渐变」——
+   * **每段整体一个颜色**（取那条色环在效果当前相位的颜色），亮度斜坡照旧逐颗衰减；
+   * 相位随时间前进（配色选「渐变」时就是「颜色整体渐变」）。某段没选就是 null → 跟效果配色。 */
   if (inst.g2Spans >= 2) {
     const spans = inst.g2Spans | 0;
     const seg = Math.floor((i * spans) / len);
     const tbl = (seg & 1) ? inst.grad2 : inst.grad1;
-    if (tbl) {
-      const segLen = Math.max(1, Math.floor(len / spans));
-      const li = i - seg * segLen;
-      return tbl[(((c.phase | 0) + Math.floor((li * 256) / segLen)) & 0xFF)];
-    }
+    if (tbl) return tbl[(c.phase | 0) & 0xFF];
   }
   if (hh !== 0xFF) return FW.spectrum_tbl[hh];
   if (a.type === FW.ANIM.CHASE_DUAL && c.type === FW.COLOR.GRADIENT)
@@ -5708,18 +5704,15 @@ const LED_GEN_IMPL = [
 '                }',
 '            }',
 '            else if (I->g2_spans >= 2u) {',
-'                /* gradient layer, per-segment colour: even segments use ring g1, odd ones',
-'                   ring g2; each ring is swept across its own segment (positional), and a',
-'                   segment whose ring is 0xFFFF keeps the effect colour. */',
+'                /* gradient layer, per-segment colour: the whole even segment takes ring g1',
+'                   and the whole odd segment ring g2, both at the effect current phase',
+'                   (brightness still ramps per LED). 0xFFFF = that segment keeps the',
+'                   effect colour. */',
 '                uint8_t  sp2 = I->g2_spans;',
 '                uint8_t  sg2 = (uint8_t)(((uint32_t)i * (uint32_t)sp2) / (uint32_t)len);',
 '                uint16_t gr0 = ((sg2 & 1u) != 0u) ? I->g2_first : I->g1_first;',
 '                if (gr0 != 0xFFFFu) {',
-'                    uint8_t sl2 = (uint8_t)(len / sp2);',
-'                    uint8_t li2 = (uint8_t)(i - sg2 * sl2);',
-'                    uint8_t gi2 = (uint8_t)((uint8_t)I->color.phase.current +',
-'                                    (uint8_t)(((uint32_t)li2 * 256u) / (sl2 ? sl2 : 1u)));',
-'                    col = led_gen_grad[gr0 + gi2];',
+'                    col = led_gen_grad[gr0 + (uint8_t)I->color.phase.current];',
 '                } else {',
 '                    col = (hh != 0xFFu) ? spectrum_tbl[hh]',
 '                        : ((I->anim.type == ANIM_CHASE_DUAL && I->color.type == COLOR_GRADIENT)',
@@ -9249,10 +9242,10 @@ function renderLayers() {
       const opts2 = [['', '（跟效果那张）']].concat(gl2.map(g => [g.id, g.name]));
       row.appendChild(layerRow('第一段渐变', selInput(opts2,
         () => L.hg1 || '', v => { L.hg1 = v; fxLive(); },
-        '「绕环轮数」≥ 2 时才有用：第 1、3…段整段用这条渐变（沿段铺开）。&#10;留空 = 这一段跟下方「色彩配置」（两条都留空 = 两段同色）。&#10;只改颜色，不动亮度斜坡与转速。')));
+        '「绕环轮数」≥ 2 时才有用：第 1、3…段整段用这条渐变，<b>整段一个颜色</b>（取当前相位）。&#10;留空 = 这一段跟下方「色彩配置」（两条都留空 = 两段同色）。&#10;只改颜色，不动亮度斜坡与转速；相位随时间走 → 颜色整体渐变。')));
       row.appendChild(layerRow('第二段渐变', selInput(opts2,
         () => L.hg2 || '', v => { L.hg2 = v; fxLive(); },
-        '「绕环轮数」≥ 2 时才有用：第 2、4…段整段用这条渐变（沿段铺开），和「第一段渐变」各配各的 —— 两条色带颜色可以完全不同。&#10;留空 = 这一段跟下方「色彩配置」。&#10;只改颜色，不动亮度斜坡与转速。')));
+        '「绕环轮数」≥ 2 时才有用：第 2、4…段整段用这条渐变，<b>整段一个颜色</b>（取当前相位），和「第一段渐变」各配各的 —— 两条色带颜色可以完全不同。&#10;留空 = 这一段跟下方「色彩配置」。&#10;只改颜色，不动亮度斜坡与转速；相位随时间走 → 颜色整体渐变。')));
     }
 
     if (L.kind === 'twinkle') {

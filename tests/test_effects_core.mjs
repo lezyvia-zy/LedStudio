@@ -352,11 +352,11 @@ console.log('--- 亮度渐变 ---');
   I.grad2 = Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }));
   I.g2Spans = 2;
   const hue = new Uint8Array(24).fill(0xFF);
-  const a0 = CORE.effectColorAt(I, 0, 24, hue);     /* 第 1 段起点 → 第一段渐变第 10 级 */
-  const b0 = CORE.effectColorAt(I, 12, 24, hue);    /* 第 2 段起点 → 第二段渐变第 10 级 */
-  const a6 = CORE.effectColorAt(I, 6, 24, hue);     /* 第 1 段中段（+128 级） */
-  ok(a0.g === 10 && b0.r === 10 && a6.g === 138,
-     `两段各用各的色环：第 1 段 ${a0.r},${a0.g},${a0.b} / 第 2 段 ${b0.r},${b0.g},${b0.b} / 段中 ${a6.g}`);
+  const a0 = CORE.effectColorAt(I, 0, 24, hue);     /* 第 1 段 → 第一段渐变第 10 级 */
+  const b0 = CORE.effectColorAt(I, 12, 24, hue);    /* 第 2 段 → 第二段渐变第 10 级 */
+  const a6 = CORE.effectColorAt(I, 6, 24, hue);     /* 第 1 段中段：与段首同色（每段整体一个颜色） */
+  ok(a0.g === 10 && b0.r === 10 && a6.g === 10,
+     `两段各用各的色环、每段整体一个颜色：第 1 段 ${a0.r},${a0.g},${a0.b}（段中也是 ${a6.g}）/ 第 2 段 ${b0.r},${b0.g},${b0.b}`);
   I.grad1 = null;                                   /* 第 1 段没选 → 跟效果配色 */
   ok(CORE.effectColorAt(I, 0, 24, hue).r === 9 && CORE.effectColorAt(I, 12, 24, hue).r === 10,
      '只设了第二段：第 1 段仍跟效果色彩配置');
