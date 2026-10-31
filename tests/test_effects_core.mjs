@@ -341,30 +341,31 @@ console.log('--- 亮度渐变 ---');
      `反向旋转：最亮端按「灯号 +1」走（t0 在 ${iMax(a)}、转 1 级后到 ${iMax(b)}）—— 亮头领跑、暗尾在后面`);
   ok(b[23] === 244 && b[0] === 255, `反向旋转：整条比上一拍低 1 级、亮头在 0（${b[0]}/${b[23]}）`);
 }
-/* 「两段渐变」（2026-10-30）：渐变层铺 2 段以上时，第 1、3…段用「第一段渐变」、
- * 第 2、4…段用「第二段渐变」—— 两段颜色完全独立；某段没选就跟效果「色彩配置」。 */
+/* 「每段一个配色」（2026-10-30）：渐变层铺 N 段就有 N 个色环（第 k 段用 gRings[k]），
+ * 段号按图案坐标算、颜色跟着光带走；某段 null = 同色（跟效果「色彩配置」）。 */
 {
   const I = CORE.instNew();
   I.color.type = CORE.FW.COLOR.SPECTRUM;
   I.color.current = { r: 9, g: 9, b: 9 };
   I.color.phase = 10;
-  I.grad1 = Array.from({ length: 256 }, (_, k) => ({ r: 0, g: k, b: 0 }));
-  I.grad2 = Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }));
+  I.gRings = [Array.from({ length: 256 }, (_, k) => ({ r: 0, g: k, b: 0 })),
+              Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }))];
   I.g2Spans = 2;
   const hue = new Uint8Array(24).fill(0xFF);
-  const a0 = CORE.effectColorAt(I, 0, 24, hue);     /* 第 1 段 → 第一段渐变第 10 级 */
-  const b0 = CORE.effectColorAt(I, 12, 24, hue);    /* 第 2 段 → 第二段渐变第 10 级 */
-  const a6 = CORE.effectColorAt(I, 6, 24, hue);     /* 第 1 段中段：与段首同色（每段整体一个颜色） */
+  const a0 = CORE.effectColorAt(I, 0, 24, hue);     /* 第 1 段 → gRings[0] 第 10 级 */
+  const b0 = CORE.effectColorAt(I, 12, 24, hue);    /* 第 2 段 → gRings[1] 第 10 级 */
+  const a6 = CORE.effectColorAt(I, 6, 24, hue);     /* 第 1 段中段：与段首同色 */
   ok(a0.g === 10 && b0.r === 10 && a6.g === 10,
-     `两段各用各的色环、每段整体一个颜色：第 1 段 ${a0.r},${a0.g},${a0.b}（段中也是 ${a6.g}）/ 第 2 段 ${b0.r},${b0.g},${b0.b}`);
-  I.grad1 = null;                                   /* 第 1 段没选 → 跟效果配色 */
+     `每段整体一个颜色：第 1 段 ${a0.r},${a0.g},${a0.b}（段中也是 ${a6.g}）/ 第 2 段 ${b0.r},${b0.g},${b0.b}`);
+  I.gRings = [null, Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }))];
   ok(CORE.effectColorAt(I, 0, 24, hue).r === 9 && CORE.effectColorAt(I, 12, 24, hue).r === 10,
-     '只设了第二段：第 1 段仍跟效果色彩配置');
-  /* 颜色分界跟着「旋转」一起走：转满一整段后，同一颗灯的段号翻面（换用另一条色环） */
-  I.grad1 = Array.from({ length: 256 }, (_, k) => ({ r: 0, g: k, b: 0 }));
+     '第 1 段 = 同色（跟效果色彩配置），第 2 段用自选色环');
+  /* 颜色分界跟着旋转一起走：转满整一段后，同一颗灯的段号翻面 */
+  I.gRings = [Array.from({ length: 256 }, (_, k) => ({ r: 0, g: k, b: 0 })),
+              Array.from({ length: 256 }, (_, k) => ({ r: k, g: 0, b: 0 }))];
   I.gRot = 4; I.flow_tick = 1024;                   /* k = 1024×256/4 = 65536 = 正好一段 */
   const post = CORE.effectColorAt(I, 0, 24, hue);
-  ok(post.r === 10, `转满一段后第 1 颗灯改用第二段色环（rgb ${post.r},${post.g},${post.b}）—— 颜色跟着光带走`);
+  ok(post.r === 10, `转满一段后第 1 颗灯改用第 2 段色环（rgb ${post.r},${post.g},${post.b}）—— 颜色跟着光带走`);
   I.gRot = 0; I.flow_tick = null;
 }
 
@@ -1025,6 +1026,16 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
     let mn = 255;
     for (let t = 0; t < 90; t++) mn = Math.min(mn, CORE.breathEnv(t, 90, 45));
     ok(mn >= 1, `呼吸（老存档 渐亮=周期/2=45）：最暗 ${mn}/255 —— 不落全黑`);
+  }
+
+  /* 「第 k 段用哪条色环」：hgs 按段数补齐 / 老存档 hg1+hg2 自动并成数组 */
+  {
+    const L1 = { kind:'gradient', spans:3, hgs:['g1'] };
+    ok(CORE.layerHgs(L1).join('/') === 'g1//',
+       `layerHgs 按段数补空：${JSON.stringify(CORE.layerHgs(L1))}（第 3 段 = 同色）`);
+    const L2 = { kind:'gradient', spans:2, hg1:'a', hg2:'b' };
+    ok(CORE.layerHgs(L2).join('/') === 'a/b' && !('hg1' in L2),
+       '老存档的 hg1/hg2 自动并成 hgs（两段）');
   }
 
   /* 呼吸：对称包络（渐亮 = 渐暗）+ 平滑曲线，一个周期一种颜色；首尾都**不落全黑** */

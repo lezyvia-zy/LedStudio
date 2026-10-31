@@ -993,10 +993,10 @@ console.log('--- 预置套用：撤销 / 下拉跟随 / 模板能看见 ---');
     await new Promise(r => setTimeout(r, 700));
     if (sels[1] && sels[1].children[1]) { sels[1].value = sels[1].children[1].value; sels[1].onchange(); }
     await new Promise(r => setTimeout(r, 700));
-    ok(!!list0()[bi].layers[0].hg1 && !!list0()[bi].layers[0].hg2,
-       `两段各选了一条 → 图层记下 hg1=${list0()[bi].layers[0].hg1} / hg2=${list0()[bi].layers[0].hg2}`);
+    const hgsNow = list0()[bi].layers[0].hgs || [];
+    ok(!!hgsNow[0] && !!hgsNow[1], `每段各选了一条 → 图层记下 hgs=${JSON.stringify(hgsNow)}`);
     const instG = CORE.instNew(); CORE.simApplyEffect(instG, list0()[bi], 0);
-    ok(!!instG.grad1 && !!instG.grad2 && instG.g2Spans === 2,
+    ok(instG.gRings.length === 2 && !!instG.gRings[0] && !!instG.gRings[1] && instG.g2Spans === 2,
        '实例拿到两段的色环 + 段数（预览与导出 C 同源）');
   }
 
