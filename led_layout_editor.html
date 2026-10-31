@@ -1077,11 +1077,11 @@
             <b>渐变</b>：整条同色，随时间在一条<b>颜色环</b>上平滑循环（默认顺序 红→黄→绿→青→蓝→紫→红），快慢由「速度」和「步进」两个数一起定：「速度」= 几拍动一次（<b>1..16</b>，从跳变切过来时会自动收进 4 —— 20 秒一圈，想更慢再往上调）、「步进」= 一次在环上前进几级（一整圈 = 256 × 速度 ÷ 步进 拍）。这条环是<b>你自己存的一套渐变</b>（「渐变-1 / 渐变-2…」）：<b>起始色</b> = 相位 0 是哪个颜色（等于把整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色按先后排好，相邻两个之间由算法等长补过渡 —— 只要定几个颜色的大致方向就行。改「起始色 / 顺序」动的是<b>库里那一条</b>（用它的效果一起变）；想再来一条，用「<b>新建</b>」（从零开始：默认顺序 + 起点红，跟库里别的都不搭界）或「<b>另存为</b>」（在这条的基础上复制一份微调），原条都一点不动；再在模式页给某条绑定打开「覆盖参数」、用那张卡上的「渐变」下拉换成另一条。<br>
             <b>彩虹</b>：沿灯位铺开、首尾相接的连续彩虹（每颗灯颜色不同）；<b>级数</b> = 走完一轮红→红要多少颗灯（30 颗的圆环填 30，40 颗的顶环填 40）。<br>
             <b>呼吸</b>：<b>暗→亮→暗</b>算一个周期，一个周期换一种颜色（颜色来自调色板）。骨骼就是跳变那套包络，只是<b>渐亮和渐暗一样长</b>、而且走<b>平滑曲线</b>（起步慢、中段快、到顶自然减速）：只填「渐亮=变暗(拍)」和「亮(拍)」两行，「周期(拍)」= 渐亮 × 2 + 亮 <b>自动算好</b>。出厂手感是 40 / 10（1.8 秒一个来回）；20 拍以下会看出一格一格的台阶。同样<b>不落全黑</b> —— 最暗那一拍停在 ≈255/(渐亮+1)，换色就在那儿发生，接缝看不出「抖一下」。<b>预置「多彩呼吸」用的就是这一套</b>（套完这里就是「呼吸」），所以它就是「呼吸」唯一的定义；调色板里别放<b>纯黑</b>条目 —— 那一个周期整条全灭，看着完全像动画停了（打开老工程时那个占位的纯黑第 2 色会被自动去掉）。<br>
-            <b>覆盖</b>：<b>连环扫</b> —— 第 2 个<b>条目</b>从一头把第 1 个盖过去，盖满之后换下一个条目接着盖（<b>不会</b>整条跳回底色）。<b>覆盖方向</b>：<b>往返</b> = 盖满就从另一头盖回来，来回交替；<b>单向</b> = 每趟都从同一头重新推过去（像跑马灯从头刷）。一趟多少拍看「<b>速度(拍/趟)</b>」，越小越快。<b>覆盖灯数</b> = 这一趟最多扫过多少颗灯（0 = 整条分区；40 颗的顶环填 16，就只有前面 16 颗在动，后面的灯一直是初始底色）—— 这就是「覆盖等级」。<b>扫过去是一整块还是渐变，看调色板里那个条目</b>：纯色条目 = 一整块颜色（硬边）；<b>[A→B]</b> 条目 = 沿灯位铺 A → B 的位置渐变（「<b>+渐变</b>」加一个，胶囊左右两半分别选两端的颜色；取色面板底部随时能把一个条目改成纯色、或再改回渐变）。两种条目可以混在一个调色板里，于是同一个模式里有的趟是硬边、有的趟是渐变。<b>[A→B] 条目的过渡色</b>：两端都不暗时会<b>按色差混白</b>（红→青这种互补色的中点接近纯白，不再是灰 128）；一端很暗（渐到黑）时保持原来的线性。
+            <b>覆盖</b>：<b>连环扫</b> —— 第 2 个<b>条目</b>从一头把第 1 个盖过去，盖满之后换下一个条目接着盖（<b>不会</b>整条跳回底色）。<b>覆盖方向</b>：<b>往返</b> = 盖满就从另一头盖回来，来回交替；<b>单向</b> = 每趟都从同一头重新推过去（像跑马灯从头刷）。一趟多少拍看「<b>速度(拍/趟)</b>」，越小越快。<b>覆盖灯数</b> = 这一趟最多扫过多少颗灯（0 = 整条分区；40 颗的顶环填 16，就只有前面 16 颗在动，后面的灯一直是初始底色）—— 这就是「覆盖等级」。<b>扫过去是一整块还是渐变，看调色板里那个条目</b>：纯色条目 = 一整块颜色（硬边）；<b>[A→B]</b> 条目 = 沿灯位铺 A → B 的位置渐变（「<b>+渐变</b>」加一个，胶囊左右两半分别选两端的颜色；取色面板底部随时能把一个条目改成纯色、或再改回渐变）。两种条目可以混在一个调色板里，于是同一个模式里有的趟是硬边、有的趟是渐变。<b>[A→B] 条目的过渡色</b>：走 <b>HSV 色环（色相最短路径）</b>，饱和度 / 亮度线性 —— 红→青会经过黄、绿，一路饱和彩色（不发灰黑，也不会一片白）；两端同色的纯色条目结果不变。
           </td></tr>
           <tr><td>对照看配色</td><td>套预置<b>「全点亮(测配色)」</b>：一个满亮填充层，不走位置、不脉动、不铺色相 —— 整条常亮，在这里换「配色」就能直接看出六种配色的差别。</td></tr>
           <tr><td>渐变（起始色 / 顺序）</td><td>只在配色 = 渐变时出现。<b>起始色</b> = 相位 0 显示哪个颜色（= 整条环转一下，顺序不变）；<b>顺序</b> = 2~8 个颜色，‹ › 换前后、+ − 增删，锚点之间自动等长补渐变；下面那条色带就是整条环的预览（最左 = 起始色，播放时颜色从左往右走）。<b>新建</b> = 一条全新的（默认顺序 + 起点红，跟库里别的都不搭界），<b>另存为</b> = 在当前这条的基础上复制一份（渐变-2、渐变-3…），两者都会把这条效果切到新的那条、原条一点不动；<b>删除</b>删掉当前这条（只剩一条时不给删，用到它的效果自动改回第一条）。</td></tr>
-          <tr><td>调色板</td><td>用户自己定的一串<b>条目</b>，最多 16 个。纯色用第 1 个；跳变/呼吸按条目个数循环（渐变条目只取左端色）；覆盖也按条目个数轮换 —— 第 r 趟盖第 r+2 个（回绕），所以放 3 个以上每趟就换一种样子。条目有两种形态：<b>纯色</b>（点「+」加，一个色块）和<b>两端渐变</b>（点「<b>+渐变</b>」加，画成胶囊：左半 = 首色、右半 = 末色，各自可点；整条底就是 A→B 的渐变预览）。渐变条目在覆盖里铺成位置渐变，在跳变/呼吸里只当左端那个纯色用（所以「<b>+渐变</b>」和取色面板里那个切换按钮<b>只在覆盖时出现</b>；切到跳变 / 呼吸时，原来的渐变条目按左端色画成普通色块，数据不丢，切回覆盖又是胶囊）。渐变（颜色环）不用调色板。另：[A→B] 条目的过渡两端都不暗时中点按色差混白（红→青 ≈ 纯白），渐到黑时保持线性。</td></tr>
+          <tr><td>调色板</td><td>用户自己定的一串<b>条目</b>，最多 16 个。纯色用第 1 个；跳变/呼吸按条目个数循环（渐变条目只取左端色）；覆盖也按条目个数轮换 —— 第 r 趟盖第 r+2 个（回绕），所以放 3 个以上每趟就换一种样子。条目有两种形态：<b>纯色</b>（点「+」加，一个色块）和<b>两端渐变</b>（点「<b>+渐变</b>」加，画成胶囊：左半 = 首色、右半 = 末色，各自可点；整条底就是 A→B 的渐变预览）。渐变条目在覆盖里铺成位置渐变，在跳变/呼吸里只当左端那个纯色用（所以「<b>+渐变</b>」和取色面板里那个切换按钮<b>只在覆盖时出现</b>；切到跳变 / 呼吸时，原来的渐变条目按左端色画成普通色块，数据不丢，切回覆盖又是胶囊）。渐变（颜色环）不用调色板。另：[A→B] 条目的过渡走 HSV 色环（色相最短路径）：红→青经黄→绿，不会发灰黑。</td></tr>
           <tr><td>取色面板</td><td>点任何一个色块（调色板 / 渐变起始色 / 渐变顺序 / 分区颜色）都弹同一个面板：<b>色环</b>上点或拖 = 直接选色相（出来就是满饱和、满亮度 —— 灯珠要的就是这种纯色，环顶红 → 顺时针黄、绿、青、蓝、紫；当前色是<b>黑 / 灰</b>时会先把亮度和饱和提满，否则换色相也看不出变化）；要灰、要暗、要白，才展开<b>「▸ 高级设置」</b>里的二维色图（横轴 = 饱和，最左是灰；纵轴 = 亮度，最下是黑），或者在色号框里直接敲 <b>#RRGGBB</b>（<b>#0f0</b> 这种三位简写也认）。点面板外面 / 按 Esc / 再点同一个色块收起；改一下立即生效，拖着的时候编辑台 / 灯板当场跟着变。</td></tr>
           <tr><td>级数</td><td>彩虹专用：多少颗灯走完一轮红→红。最小 6；填成分区灯数 = 这个分区正好一整圈。</td></tr>
           <tr><td>色相起点 / 彩虹旋转</td><td>彩虹从哪个色相开始；每 N 拍整体转一格（0 = 不转）。</td></tr>
@@ -3530,6 +3530,35 @@ function wipeSpan(c, len) {
  * 纯色条目两端同色 → 整块硬边；渐变条目按 i 在 0..S-1 上插值 → 位置渐变。
  * 0 / 255 走精确端点（免得纯色条目出现 254 这种毛边），中间用 >>8
  * —— 与导出的 C 逐字节相同（负数算术右移，两边都是向下取整）。 */
+/* RGB ⇄ HSV 的整数实现（覆盖条目的两色过渡用）：
+ *   h = 0..1535（6 段 × 256，正好对上下面的分段公式），s / v = 0..255
+ * 约定：除法一律**向零截断**（Math.trunc / C 的 `/`），两条实现逐位相同。 */
+function rgbToHsv(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  const v = mx, s = mx ? Math.floor((d * 255) / mx) : 0;
+  let h = 0;
+  if (d > 0) {
+    if (mx === r)      h = Math.trunc(((g - b) * 256) / d);
+    else if (mx === g) h = 512 + Math.trunc(((b - r) * 256) / d);
+    else               h = 1024 + Math.trunc(((r - g) * 256) / d);
+    if (h < 0) h += 1536;
+    if (h >= 1536) h -= 1536;
+  }
+  return { h: h, s: s, v: v };
+}
+function hsvToRgb(h, s, v) {
+  const hh = ((h % 1536) + 1536) % 1536;
+  const seg = Math.floor(hh / 256), f = hh % 256;
+  const p = Math.floor((v * (255 - s)) / 255);
+  const q = Math.floor((v * (255 - Math.floor((s * f) / 255))) / 255);
+  const u = Math.floor((v * (255 - Math.floor((s * (255 - f)) / 255))) / 255);
+  if (seg === 0) return { r: v, g: u, b: p };
+  if (seg === 1) return { r: q, g: v, b: p };
+  if (seg === 2) return { r: p, g: v, b: u };
+  if (seg === 3) return { r: p, g: q, b: v };
+  if (seg === 4) return { r: u, g: p, b: v };
+  return { r: v, g: p, b: q };
+}
 function wipeEntryAt(c, idx, i, S) {
   const pal = (c && c.palette) || [], palB = (c && c.paletteB) || pal;
   const n = pal.length || 1;
@@ -3540,24 +3569,18 @@ function wipeEntryAt(c, idx, i, S) {
   const t = Math.min(255, Math.floor((i * 256) / (S - 1)));
   if (t >= 255) return b;
   if (t <= 0) return a;
-  let cr = a.r + (((b.r - a.r) * t) >> 8),
-      cg = a.g + (((b.g - a.g) * t) >> 8),
-      cb = a.b + (((b.b - a.b) * t) >> 8);
-  /* 过渡混白（2026-10-30 第五十一轮）：**两端都不暗**时，按色差在中间混入白色 ——
-   * 红→青这种互补色的中点接近纯白（原来是灰 128，看着像发黑）。
-   * 有一端很暗（例如渐到黑）时保持原来的线性，熄灭感不变。
-   * 与 C 的覆盖分支逐位相同：k = 4·t·(255−t)·sep ÷ (255·765)，c = c + k·(255−c) ÷ 255。 */
-  const la = Math.max(a.r, a.g, a.b), lb = Math.max(b.r, b.g, b.b);
-  if (la >= 128 && lb >= 128) {
-    const sep = Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
-    const k = Math.floor((4 * t * (255 - t) * sep) / (255 * 765));
-    if (k > 0) {
-      cr += Math.floor((k * (255 - cr)) / 255);
-      cg += Math.floor((k * (255 - cg)) / 255);
-      cb += Math.floor((k * (255 - cb)) / 255);
-    }
-  }
-  return { r: cr, g: cg, b: cb };
+  /* 两色过渡走 **HSV 色环（色相最短路径）**，饱和度 / 亮度按 t 线性：
+   * 红→青会经过黄、绿（一路饱和彩色），既不塌成灰黑，也不会一片白。
+   * 两端同色的纯色条目：h / s / v 都不变，结果与端点一致。
+   * 与 C 的覆盖分支逐位相同（除法都是向零截断）。 */
+  const A2 = rgbToHsv(a.r, a.g, a.b), B2 = rgbToHsv(b.r, b.g, b.b);
+  let dh = B2.h - A2.h;
+  if (dh > 768) dh -= 1536;
+  else if (dh < -768) dh += 1536;
+  const h = A2.h + Math.trunc((dh * t) / 255);
+  const s = A2.s + Math.trunc(((B2.s - A2.s) * t) / 255);
+  const v = A2.v + Math.trunc(((B2.v - A2.v) * t) / 255);
+  return hsvToRgb(h, s, v);
 }
 
 /* 把一条效果渲染到给定的 mask/hue 缓冲里。长度可以是任意值 ——
@@ -5752,6 +5775,47 @@ const LED_GEN_IMPL = [
 '    return (uint8_t)st;',
 '}',
 '',
+'/* @hsv@ */',
+'/* RGB <-> HSV (integer): h = 0..1535 (6 x 256), s / v = 0..255. Division truncates',
+'   towards zero on both sides, so this matches the tool byte for byte. */',
+'typedef struct { uint16_t h; uint8_t s, v; } led_gen_hsv_t;',
+'static led_gen_hsv_t led_gen_rgb_to_hsv(uint8_t r, uint8_t g, uint8_t b)',
+'{',
+'    led_gen_hsv_t o;',
+'    uint8_t mx = (r > g) ? ((r > b) ? r : b) : ((g > b) ? g : b);',
+'    uint8_t mn = (r < g) ? ((r < b) ? r : b) : ((g < b) ? g : b);',
+'    uint8_t d = (uint8_t)(mx - mn);',
+'    int32_t h = 0;',
+'    o.v = mx;',
+'    o.s = (mx != 0u) ? (uint8_t)(((uint16_t)d * 255u) / mx) : 0u;',
+'    if (d != 0u) {',
+'        if (mx == r)      h = ((int32_t)g - (int32_t)b) * 256 / (int32_t)d;',
+'        else if (mx == g) h = 512 + ((int32_t)b - (int32_t)r) * 256 / (int32_t)d;',
+'        else              h = 1024 + ((int32_t)r - (int32_t)g) * 256 / (int32_t)d;',
+'        if (h < 0) h += 1536;',
+'        if (h >= 1536) h -= 1536;',
+'    }',
+'    o.h = (uint16_t)h;',
+'    return o;',
+'}',
+'static rgb_t led_gen_hsv_to_rgb(int32_t h, uint8_t s, uint8_t v)',
+'{',
+'    rgb_t c;',
+'    int32_t hh, seg, f, p, q, u;',
+'    hh = h % 1536; if (hh < 0) hh += 1536;',
+'    seg = hh / 256; f = hh % 256;',
+'    p = ((int32_t)v * (255 - (int32_t)s)) / 255;',
+'    q = ((int32_t)v * (255 - (((int32_t)s * f) / 255))) / 255;',
+'    u = ((int32_t)v * (255 - (((int32_t)s * (255 - f)) / 255))) / 255;',
+'    if (seg == 0)      { c.r = v; c.g = (uint8_t)u; c.b = (uint8_t)p; }',
+'    else if (seg == 1) { c.r = (uint8_t)q; c.g = v; c.b = (uint8_t)p; }',
+'    else if (seg == 2) { c.r = (uint8_t)p; c.g = v; c.b = (uint8_t)u; }',
+'    else if (seg == 3) { c.r = (uint8_t)p; c.g = (uint8_t)q; c.b = v; }',
+'    else if (seg == 4) { c.r = (uint8_t)u; c.g = (uint8_t)p; c.b = v; }',
+'    else               { c.r = v; c.g = (uint8_t)p; c.b = (uint8_t)q; }',
+'    return c;',
+'}',
+'',
 '/* @genrender@ */',
 'void led_gen_render_mode(ring_t *ring)',
 '{',
@@ -5816,34 +5880,19 @@ const LED_GEN_IMPL = [
 '                if (tt >= 255u) col = *pb;',
 '                else if (tt == 0u) col = *pa;',
 '                else {',
-'                    dr = (int32_t)pb->r - (int32_t)pa->r;',
-'                    dg = (int32_t)pb->g - (int32_t)pa->g;',
-'                    db = (int32_t)pb->b - (int32_t)pa->b;',
-'                    col.r = (uint8_t)((int32_t)pa->r + ((dr * (int32_t)tt) >> 8));',
-'                    col.g = (uint8_t)((int32_t)pa->g + ((dg * (int32_t)tt) >> 8));',
-'                    col.b = (uint8_t)((int32_t)pa->b + ((db * (int32_t)tt) >> 8));',
-'                    /* transitional white (see wipeEntryAt): when neither end is dark, mix white',
-'                       in proportion to the colour distance - red->cyan goes through near-white',
-'                       instead of the old grey 128. One dark end keeps the plain linear ramp. */',
-'                    {',
-'                        uint8_t  la = (pa->r > pa->g) ? ((pa->r > pa->b) ? pa->r : pa->b)',
-'                                                      : ((pa->g > pa->b) ? pa->g : pa->b);',
-'                        uint8_t  lb = (pb->r > pb->g) ? ((pb->r > pb->b) ? pb->r : pb->b)',
-'                                                      : ((pb->g > pb->b) ? pb->g : pb->b);',
-'                        if ((la >= 128u) && (lb >= 128u)) {',
-'                            int32_t sa = (dr < 0) ? -dr : dr;',
-'                            int32_t sb = (dg < 0) ? -dg : dg;',
-'                            int32_t sc = (db < 0) ? -db : db;',
-'                            uint32_t sep = (uint32_t)(sa + sb + sc);',
-'                            uint16_t kk = (uint16_t)((4u * (uint32_t)tt * (255u - (uint32_t)tt) * sep)',
-'                                                     / (255u * 765u));',
-'                            if (kk != 0u) {',
-'                                col.r = (uint8_t)((uint16_t)col.r + (uint16_t)((kk * (255u - col.r)) / 255u));',
-'                                col.g = (uint8_t)((uint16_t)col.g + (uint16_t)((kk * (255u - col.g)) / 255u));',
-'                                col.b = (uint8_t)((uint16_t)col.b + (uint16_t)((kk * (255u - col.b)) / 255u));',
-'                            }',
-'                        }',
-'                    }',
+'                    /* HSV wheel with the shortest hue path (see wipeEntryAt in the tool):',
+'                       red->cyan runs through yellow/green, so the transitional colours stay',
+'                       saturated - never a grey/black midpoint, never a white wash. */',
+'                    led_gen_hsv_t ca = led_gen_rgb_to_hsv(pa->r, pa->g, pa->b);',
+'                    led_gen_hsv_t cb = led_gen_rgb_to_hsv(pb->r, pb->g, pb->b);',
+'                    int32_t dh = (int32_t)cb.h - (int32_t)ca.h;',
+'                    int32_t hh2, ss2, vv2;',
+'                    if (dh > 768) dh -= 1536;',
+'                    else if (dh < -768) dh += 1536;',
+'                    hh2 = (int32_t)ca.h + (dh * (int32_t)tt) / 255;',
+'                    ss2 = (int32_t)ca.s + (((int32_t)cb.s - (int32_t)ca.s) * (int32_t)tt) / 255;',
+'                    vv2 = (int32_t)ca.v + (((int32_t)cb.v - (int32_t)ca.v) * (int32_t)tt) / 255;',
+'                    col = led_gen_hsv_to_rgb(hh2, (uint8_t)ss2, (uint8_t)vv2);',
 '                }',
 '            }',
 '            else if (I->g_spot != 0xFFu) {',

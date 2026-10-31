@@ -1056,19 +1056,23 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(m2.every(v => v === 120), 'lo = hi = 120 → 整条恒亮 120（换亮度也行）');
 }
 
-/* 覆盖的 [A→B] 过渡混白（2026-10-30 第五十一轮）：两端都不暗时中点接近纯白；
- * 有一端很暗（渐到黑）时保持原来的线性 —— 熄灭感不变。 */
+/* 覆盖的 [A→B] 过渡走 HSV 色环（2026-10-30 第五十二轮）：红→青经黄→绿，
+ * 一路饱和彩色 —— 既不塔成灰黑也不会一片白；纯色条目（两端同色）结果不变。 */
 {
   const cA = { current: { r: 0, g: 0, b: 0 }, palette: [{ r: 255, g: 0, b: 0 }],
                paletteB: [{ r: 0, g: 255, b: 255 }] };
   const mid = CORE.wipeEntryAt(cA, 0, 4, 8);      /* 红 → 青，中间那颗 */
-  ok(mid.r >= 240 && mid.g >= 240 && mid.b >= 240,
-     `覆盖 红→青：过渡中点 ${mid.r},${mid.g},${mid.b}（接近纯白，不再是灰 128）`);
+  ok(mid.g === 255 && mid.b === 0 && mid.r > 40 && mid.r < 120,
+     `覆盖 红→青：中间那颗是黄绿色 ${mid.r},${mid.g},${mid.b}（色环短路径，不黑也不白）`);
   const cB = { current: { r: 0, g: 0, b: 0 }, palette: [{ r: 255, g: 0, b: 0 }],
                paletteB: [{ r: 0, g: 0, b: 0 }] };
-  const dk = CORE.wipeEntryAt(cB, 0, 4, 8);       /* 红 → 黑：保持线性 */
-  ok(dk.r > 80 && dk.r < 160 && dk.g === 0 && dk.b === 0,
-     `覆盖 红→黑：过渡中点 ${dk.r},${dk.g},${dk.b}（一端很暗时保持线性）`);
+  const dk = CORE.wipeEntryAt(cB, 0, 4, 8);       /* 红 → 黑：仍然暗下去 */
+  ok(dk.r > 80 && dk.r < 160 && dk.g === dk.b && dk.g > 0,
+     `覆盖 红→黑：中间 ${dk.r},${dk.g},${dk.b}（保持红色色相地暗下去）`);
+  const cC = { current: { r: 0, g: 0, b: 0 }, palette: [{ r: 0, g: 0, b: 255 }],
+               paletteB: [{ r: 0, g: 0, b: 255 }] };
+  const so = CORE.wipeEntryAt(cC, 0, 3, 8);
+  ok(so.r === 0 && so.g === 0 && so.b === 255, `纯色条目不变（${so.r},${so.g},${so.b}）`);
 }
 
 /* 渐变库的锚点插值**不动**（只改覆盖的条目）：红→青中点仍是灰 */
@@ -1229,8 +1233,8 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   const gMid   = effectColorAt(WG, 4, 10, wg9.h);
   ok(gFirst.r === 255 && gFirst.g === 120 && gFirst.b === 0 && gLast.r === 0 && gLast.g === 255,
      `渐变条目：首尾正好是两端色（${gFirst.r},${gFirst.g},${gFirst.b} → ${gLast.r},${gLast.g},${gLast.b}）`);
-  ok(gMid.r > 180 && gMid.g > 200 && gMid.b > 100,
-     `渐变条目：中间那颗按色差混了白（${gMid.r},${gMid.g},${gMid.b}；两端都不暗 → 过渡更亮）`);
+  ok(gMid.g === 255 && gMid.b === 0 && gMid.r > 180 && gMid.r < 255,
+     `渐变条目：中间那颗走色环（${gMid.r},${gMid.g},${gMid.b}）—— 橙→绿中间偏黄绿，不发黑也不发白`);
   const wg19 = render(WG, 10, 19);
   colorUpdate(WG.color, 19);
   const gBlue = effectColorAt(WG, 0, 10, wg19);
