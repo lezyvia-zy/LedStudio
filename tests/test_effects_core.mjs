@@ -1056,6 +1056,29 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   ok(m2.every(v => v === 120), 'lo = hi = 120 → 整条恒亮 120（换亮度也行）');
 }
 
+/* 覆盖的 [A→B] 过渡混白（2026-10-30 第五十一轮）：两端都不暗时中点接近纯白；
+ * 有一端很暗（渐到黑）时保持原来的线性 —— 熄灭感不变。 */
+{
+  const cA = { current: { r: 0, g: 0, b: 0 }, palette: [{ r: 255, g: 0, b: 0 }],
+               paletteB: [{ r: 0, g: 255, b: 255 }] };
+  const mid = CORE.wipeEntryAt(cA, 0, 4, 8);      /* 红 → 青，中间那颗 */
+  ok(mid.r >= 240 && mid.g >= 240 && mid.b >= 240,
+     `覆盖 红→青：过渡中点 ${mid.r},${mid.g},${mid.b}（接近纯白，不再是灰 128）`);
+  const cB = { current: { r: 0, g: 0, b: 0 }, palette: [{ r: 255, g: 0, b: 0 }],
+               paletteB: [{ r: 0, g: 0, b: 0 }] };
+  const dk = CORE.wipeEntryAt(cB, 0, 4, 8);       /* 红 → 黑：保持线性 */
+  ok(dk.r > 80 && dk.r < 160 && dk.g === 0 && dk.b === 0,
+     `覆盖 红→黑：过渡中点 ${dk.r},${dk.g},${dk.b}（一端很暗时保持线性）`);
+}
+
+/* 渐变库的锚点插值**不动**（只改覆盖的条目）：红→青中点仍是灰 */
+{
+  const tbl = CORE.gradTable({ start: [255, 0, 0], anchors: [[255, 0, 0], [0, 255, 255]] });
+  const m = tbl[64];
+  ok(m.r < 200 && m.g < 200 && m.b < 200,
+     `渐变库锚点仍是线性插值（红→青 1/4 处 ${m.r},${m.g},${m.b}）—— 本轮只改覆盖条目`);
+}
+
 /* 光点层的「第 N 点」配色：每个光点各一条色环，颜色跟着光点走（按位置分点） */
 {
   const I = CORE.instNew();
@@ -1206,8 +1229,8 @@ console.log('--- 配色：彩虹 / 跳变 / 呼吸 / 覆盖 ---');
   const gMid   = effectColorAt(WG, 4, 10, wg9.h);
   ok(gFirst.r === 255 && gFirst.g === 120 && gFirst.b === 0 && gLast.r === 0 && gLast.g === 255,
      `渐变条目：首尾正好是两端色（${gFirst.r},${gFirst.g},${gFirst.b} → ${gLast.r},${gLast.g},${gLast.b}）`);
-  ok(gMid.r > 120 && gMid.r < 170 && gMid.g > 160 && gMid.g < 200,
-     `渐变条目：中间那颗是两色插值（${gMid.r},${gMid.g},${gMid.b}）`);
+  ok(gMid.r > 180 && gMid.g > 200 && gMid.b > 100,
+     `渐变条目：中间那颗按色差混了白（${gMid.r},${gMid.g},${gMid.b}；两端都不暗 → 过渡更亮）`);
   const wg19 = render(WG, 10, 19);
   colorUpdate(WG.color, 19);
   const gBlue = effectColorAt(WG, 0, 10, wg19);
